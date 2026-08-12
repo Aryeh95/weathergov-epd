@@ -47,6 +47,7 @@
 static const uint16_t HTTPS_PORT = 443;
 static const char *NWS_ENDPOINT = "api.weather.gov";
 static const char *AIR_QUALITY_ENDPOINT = "air-quality-api.open-meteo.com";
+static const char *AIRNOW_ENDPOINT = "www.airnowapi.org";
 
 // Reason code from the most recent WiFi disconnect event, captured so a
 // failed connection can be explained on the error screen. 0 means no
@@ -251,19 +252,23 @@ static void splitUrl(const String &url, String &host, String &uri)
 /* Performs an HTTP GET request, retrying up to 3 times, and hands the
  * response stream to parseFn to be deserialized on success.
  *
+ * If logUri is non-empty it is printed to serial instead of uri; used to
+ * censor API keys from the logs.
+ *
  * Returns the HTTP Status Code (or a negative offset error code, see
  * getHttpResponsePhrase for the meaning of negative codes).
  */
 static int httpGetAndParse(WiFiClient &client, const String &host,
                            uint16_t port, const String &uri,
                            const String &userAgent,
-                           std::function<DeserializationError(WiFiClient&)> parseFn)
+                           std::function<DeserializationError(WiFiClient&)> parseFn,
+                           const String &logUri = "")
 {
   int attempts = 0;
   bool rxSuccess = false;
   DeserializationError jsonErr = {};
 
-  String sanitizedUri = "https://" + host + uri;
+  String sanitizedUri = "https://" + host + (logUri.isEmpty() ? uri : logUri);
   Serial.print(TXT_ATTEMPTING_HTTP_REQ);
   Serial.println(": " + sanitizedUri);
 
@@ -413,6 +418,29 @@ int getAirQuality(WiFiClient &client, owm_resp_air_pollution_t &air,
   return httpGetAndParse(client, AIR_QUALITY_ENDPOINT, HTTPS_PORT, uri, "",
       [&](WiFiClient &s) { return deserializeAirQuality(s, air, uvi); });
 } // end getAirQuality
+
+/* Fetches the official US EPA Air Quality Index for LAT/LON from AirNow
+ * (airnow.gov). Requires a free API key (AIRNOW_APIKEY); callers should
+ * skip this entirely when no key is configured.
+ *
+ * aqi is set to the maximum AQI across reported pollutants, or left at -1
+ * if no monitoring station reported within the search radius.
+ *
+ * Returns the HTTP Status Code.
+ */
+int getAirNowAQI(WiFiClient &client, int &aqi)
+{
+  String baseUri = "/aq/observation/latLong/current/"
+                   "?format=application/json"
+                   "&latitude=" + LAT + "&longitude=" + LON
+                 + "&distance=50"; // search radius, miles
+  String uri = baseUri + "&API_KEY=" + AIRNOW_APIKEY;
+  // API key is censored from the serial log to reduce the risk of users
+  // exposing their key.
+  String logUri = baseUri + "&API_KEY={API key}";
+  return httpGetAndParse(client, AIRNOW_ENDPOINT, HTTPS_PORT, uri, "",
+      [&](WiFiClient &s) { return deserializeAirNow(s, aqi); }, logUri);
+} // end getAirNowAQI
 
 /* Prints debug information about heap usage.
  */

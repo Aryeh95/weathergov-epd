@@ -328,7 +328,7 @@ void setup()
   client.setInsecure();
 #elif defined(USE_HTTPS_WITH_CERT_VERIF)
   WiFiClientSecure client;
-  client.setCACert(cert_ISRG_Root_X1);
+  client.setCACert(cert_root_ca_bundle);
 #endif
 
   // weather.gov forecast + current conditions. This is the primary data
@@ -370,6 +370,21 @@ void setup()
     tmpStr = String(rxStatus, DEC) + ": " + getHttpResponsePhrase(rxStatus);
   }
   current.uvi = uvi;
+
+  // Official US EPA AQI from AirNow, when an API key is configured.
+  // Non-fatal: on failure (or with no key, or no monitor within range)
+  // us_aqi stays -1 and the Air Quality widget falls back to the AQI
+  // computed from Open-Meteo's pollutant concentrations above.
+  air_quality.us_aqi = -1;
+  if (!AIRNOW_APIKEY.isEmpty())
+  {
+    rxStatus = getAirNowAQI(client, air_quality.us_aqi);
+    if (rxStatus != HTTP_CODE_OK)
+    {
+      statusStr = "AirNow API";
+      tmpStr = String(rxStatus, DEC) + ": " + getHttpResponsePhrase(rxStatus);
+    }
+  }
 
   // SUNRISE/SUNSET
   // weather.gov does not report these, so they are computed locally from the

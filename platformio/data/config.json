@@ -140,6 +140,17 @@
     // https://www.weather.gov/documentation/services-web-api
     "nws_user_agent": "(esp32-weather-epd, your.email@example.com)",
 
+    // OPTIONAL: AirNow (airnow.gov) is the EPA's official air quality
+    // service, providing the authoritative US AQI from certified monitoring
+    // stations. It requires a free API key -- register with just an email at
+    // https://docs.airnowapi.org/ then paste the key here.
+    // With a key set, the Air Quality widget shows AirNow's official AQI.
+    // Left empty, the AQI is computed from Open-Meteo's modeled pollutant
+    // concentrations instead (no key needed, slightly less authoritative).
+    // If AirNow has no monitoring station within 50 miles or the request
+    // fails, the display automatically falls back to Open-Meteo as well.
+    "airnow_api_key": "",
+
     // TCP timeout for API requests, in milliseconds. These errors in the
     // serial log usually mean this value is too low:
     //   -1   Connection Refused

@@ -492,8 +492,14 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   // labels
   display.setFont(&FONT_7pt8b);
 
+  // When AirNow reported (us_aqi >= 0), display the official US EPA AQI it
+  // provides -- by definition on the United States AQI scale, regardless of
+  // the locale's configured AQI_SCALE. Otherwise compute an AQI on the
+  // locale's scale from Open-Meteo's pollutant concentrations.
+  const bool useAirNow = (owm_air_pollution.us_aqi >= 0);
+
   const char *air_quality_index_label;
-  if (aqi_desc_type(AQI_SCALE) == AIR_QUALITY_DESC)
+  if (useAirNow || aqi_desc_type(AQI_SCALE) == AIR_QUALITY_DESC)
   {
     air_quality_index_label = TXT_AIR_QUALITY;
   }
@@ -508,11 +514,21 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
 
   // air quality index
   display.setFont(&FONT_12pt8b);
-  const owm_components_t &c = owm_air_pollution.components;
-  // Open-Meteo does not provide pb (lead) concentrations, so we pass NULL.
-  int aqi = calc_aqi(AQI_SCALE, c.co, c.nh3, c.no, c.no2, c.o3, NULL, c.so2,
-                                c.pm10, c.pm2_5);
-  int aqi_max = aqi_scale_max(AQI_SCALE);
+  int aqi;
+  int aqi_max;
+  if (useAirNow)
+  {
+    aqi = owm_air_pollution.us_aqi;
+    aqi_max = UNITED_STATES_AQI_MAX;
+  }
+  else
+  {
+    const owm_components_t &c = owm_air_pollution.components;
+    // Open-Meteo does not provide pb (lead) concentrations, so we pass NULL.
+    aqi = calc_aqi(AQI_SCALE, c.co, c.nh3, c.no, c.no2, c.o3, NULL, c.so2,
+                              c.pm10, c.pm2_5);
+    aqi_max = aqi_scale_max(AQI_SCALE);
+  }
   if (aqi > aqi_max)
   {
     dataStr = "> " + String(aqi_max);
@@ -523,7 +539,8 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   }
   drawString(48 + (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2, dataStr, LEFT);
   display.setFont(&FONT_7pt8b);
-  dataStr = String(aqi_desc(AQI_SCALE, aqi));
+  dataStr = useAirNow ? String(united_states_aqi_desc(aqi))
+                      : String(aqi_desc(AQI_SCALE, aqi));
   int max_w = (162 + (PosX * 162) - sp) - (display.getCursorX() + sp);
   if (getStringWidth(dataStr) <= max_w)
   { // Fits on a single line, draw along bottom

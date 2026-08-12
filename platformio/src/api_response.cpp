@@ -675,3 +675,45 @@ DeserializationError deserializeAirQuality(WiFiClient &json,
 
   return error;
 } // end deserializeAirQuality
+
+/* Parses AirNow's current observations endpoint
+ * (/aq/observation/latLong/current/). The response is an array of per-
+ * pollutant observations (O3, PM2.5, PM10, ...) each carrying an official
+ * pre-computed US EPA AQI. Per EPA practice, the reported overall AQI is
+ * the maximum across pollutants.
+ *
+ * aqi is left untouched if the response contains no observations (no
+ * monitoring station within the search radius), so callers should
+ * initialize it to -1.
+ */
+DeserializationError deserializeAirNow(WiFiClient &json, int &aqi)
+{
+  JsonDocument filter;
+  filter[0]["ParameterName"] = true;
+  filter[0]["AQI"]           = true;
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, json,
+                                         DeserializationOption::Filter(filter));
+#if DEBUG_LEVEL >= 1
+  Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
+#endif
+#if DEBUG_LEVEL >= 2
+  serializeJsonPretty(doc, Serial);
+#endif
+  if (error)
+  {
+    return error;
+  }
+
+  for (JsonObject obs : doc.as<JsonArray>())
+  {
+    int paramAqi = obs["AQI"] | -1;
+    if (paramAqi > aqi)
+    {
+      aqi = paramAqi;
+    }
+  }
+
+  return error;
+} // end deserializeAirNow

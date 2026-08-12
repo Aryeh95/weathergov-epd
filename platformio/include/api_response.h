@@ -164,8 +164,10 @@ typedef struct owm_components
 } owm_components_t;
 
 /*
- * Air quality data (hourly pollutant concentrations), from Open-Meteo's Air
- * Quality API.
+ * Air quality data. us_aqi holds the official US EPA AQI from AirNow
+ * (airnow.gov) when an API key is configured and a nearby monitor reported;
+ * otherwise -1 and the AQI is computed from Open-Meteo's hourly pollutant
+ * concentrations instead.
  */
 typedef struct owm_resp_air_pollution
 {
@@ -173,6 +175,7 @@ typedef struct owm_resp_air_pollution
   int              main_aqi[OWM_NUM_AIR_POLLUTION]; // unused, reserved
   owm_components_t components;
   int64_t          dt[OWM_NUM_AIR_POLLUTION];       // unused, reserved
+  int              us_aqi;  // official US EPA AQI from AirNow, -1 if unavailable
 } owm_resp_air_pollution_t;
 
 DeserializationError deserializeNWSPoints(WiFiClient &json, String &forecastUrl,
@@ -192,5 +195,6 @@ DeserializationError deserializeNWSAlerts(WiFiClient &json,
 DeserializationError deserializeAirQuality(WiFiClient &json,
                                            owm_resp_air_pollution_t &r,
                                            float &uvi);
+DeserializationError deserializeAirNow(WiFiClient &json, int &aqi);
 
 #endif

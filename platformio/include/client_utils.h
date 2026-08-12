@@ -61,4 +61,12 @@ int getNWSAlerts(WiFiClient &client, std::vector<owm_alerts_t> &alerts);
 int getAirQuality(WiFiClient &client, owm_resp_air_pollution_t &air,
                   float &uvi);
 
+/* Fetches the official US EPA AQI from AirNow (airnow.gov). Requires
+ * AIRNOW_APIKEY to be configured; aqi stays -1 when no nearby monitor
+ * reported.
+ *
+ * Returns the HTTP Status Code.
+ */
+int getAirNowAQI(WiFiClient &client, int &aqi);
+
 #endif

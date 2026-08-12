@@ -5,6 +5,7 @@
 >
 > - **weather.gov (NWS)** provides current conditions (from the nearest NWS observation station), hourly/daily forecasts, and weather alerts. No API key or account required. NWS asks that you set a contact email in the User-Agent — see `nws_user_agent` in `platformio/data/config.json`.
 > - **[Open-Meteo](https://open-meteo.com/)** (also free/keyless) fills in what NWS doesn't provide: UV index and air-pollutant concentrations for the AQI widget.
+> - **Optional [AirNow](https://www.airnow.gov/) integration**: set a free API key ([register here](https://docs.airnowapi.org/)) as `airnow_api_key` in `platformio/data/config.json` and the Air Quality widget shows the EPA's official US AQI from certified monitoring stations instead of the Open-Meteo-derived value. Without a key (or if no monitor is within 50 miles) it falls back to Open-Meteo automatically.
 > - **Sunrise/sunset are computed on-device** (NOAA solar algorithm in `platformio/src/sun.cpp`) — no API needed. Moonrise/moonset/moon-phase widgets were removed (no data source).
 > - **Runtime configuration via `platformio/data/config.json`** (LittleFS): WiFi credentials, location, timezone, sleep schedule, battery thresholds, and widget layout can all be changed with `pio run --target uploadfs` — no recompile. The file supports `//` comments documenting every option.
 > - **Precipitation displays as probability (PoP %)** — NWS's simple forecast endpoints don't provide volume amounts.

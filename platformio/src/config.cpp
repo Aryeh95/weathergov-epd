@@ -73,6 +73,15 @@ unsigned HTTP_CLIENT_TCP_TIMEOUT = 10000; // ms
 // in case of problems: https://www.weather.gov/documentation/services-web-api
 String NWS_USER_AGENT = "(esp32-weather-epd, your.email@example.com)";
 
+// AIRNOW API (optional)
+// AirNow (airnow.gov) is the EPA's official air quality service and provides
+// the authoritative US AQI, pre-computed from certified monitoring stations.
+// It requires a free API key: register at https://docs.airnowapi.org/
+// When a key is set, the Air Quality widget shows AirNow's official AQI;
+// when left empty, the AQI is computed from Open-Meteo's modeled pollutant
+// concentrations instead (no key needed, slightly less authoritative).
+String AIRNOW_APIKEY = "";
+
 // LOCATION
 // Set your latitude and longitude.
 // (used to look up your forecast gridpoint and nearest observation station)
