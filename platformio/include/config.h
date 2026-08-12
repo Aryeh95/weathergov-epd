@@ -29,8 +29,8 @@
 //   DISP_7C_E6 - 7.3in spectra 6 e-Paper (E6) 800x480px  7-Color
 //   DISP_BW_V1 - 7.5in e-Paper (v1)           640x384px  Black/White
 // Uncomment the macro that identifies your physical panel.
-// #define DISP_BW_V2
-#define DISP_3C_B
+#define DISP_BW_V2
+// #define DISP_3C_B
 // #define DISP_7C_F
 // #define DISP_7C_E6
 // #define DISP_BW_V1
