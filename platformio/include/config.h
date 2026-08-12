@@ -1,5 +1,5 @@
 /* Configuration option declarations for esp32-weather-epd.
- * Copyright (C) 2022-2025  Luke Marzen
+ * Copyright (C) 2022-2026  Luke Marzen
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,14 +23,16 @@
 
 // E-PAPER PANEL
 // This project supports the following E-Paper panels:
-//   DISP_BW_V2 - 7.5in e-Paper (v2)      800x480px  Black/White
-//   DISP_3C_B  - 7.5in e-Paper (B)       800x480px  Red/Black/White
-//   DISP_7C_F  - 7.3in ACeP e-Paper (F)  800x480px  7-Color
-//   DISP_BW_V1 - 7.5in e-Paper (v1)      640x384px  Black/White
+//   DISP_BW_V2 - 7.5in e-Paper (v2)           800x480px  Black/White
+//   DISP_3C_B  - 7.5in e-Paper (B)            800x480px  Red/Black/White
+//   DISP_7C_F  - 7.3in ACeP e-Paper (F)       800x480px  7-Color
+//   DISP_7C_E6 - 7.3in spectra 6 e-Paper (E6) 800x480px  7-Color
+//   DISP_BW_V1 - 7.5in e-Paper (v1)           640x384px  Black/White
 // Uncomment the macro that identifies your physical panel.
 // #define DISP_BW_V2
 #define DISP_3C_B
 // #define DISP_7C_F
+// #define DISP_7C_E6
 // #define DISP_BW_V1
 
 // E-PAPER DRIVER BOARD
@@ -375,6 +377,7 @@ extern int POS_INHUMIDITY;
 #if !(  defined(DISP_BW_V2)  \
       ^ defined(DISP_3C_B)   \
       ^ defined(DISP_7C_F)   \
+      ^ defined(DISP_7C_E6)  \
       ^ defined(DISP_BW_V1))
   #error Invalid configuration. Exactly one display panel must be selected.
 #endif
