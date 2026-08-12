@@ -118,6 +118,10 @@ bool loadSettings()
   JsonObjectConst api = doc["api"];
   NWS_USER_AGENT = api["nws_user_agent"] | NWS_USER_AGENT;
   AIRNOW_APIKEY  = api["airnow_api_key"] | AIRNOW_APIKEY;
+
+  JsonObjectConst portal = doc["portal"];
+  PORTAL_AP_PASSWORD = portal["ap_password"]     | PORTAL_AP_PASSWORD;
+  PORTAL_TIMEOUT     = portal["timeout_minutes"] | PORTAL_TIMEOUT;
   HTTP_CLIENT_TCP_TIMEOUT = api["http_client_tcp_timeout_ms"] | HTTP_CLIENT_TCP_TIMEOUT;
 
   JsonObjectConst widgets = doc["widget_positions"];

@@ -82,6 +82,17 @@ String NWS_USER_AGENT = "(esp32-weather-epd, your.email@example.com)";
 // concentrations instead (no key needed, slightly less authoritative).
 String AIRNOW_APIKEY = "";
 
+// CONFIGURATION WEB PORTAL
+// A browser UI for editing config.json without reflashing. Entered by
+// pressing RST twice a few seconds apart (config mode on your WiFi), or
+// automatically when the device is unconfigured (hotspot mode, network
+// "WeatherEPD-Setup"). See portal.h for details.
+// WPA2 password for the setup hotspot (8+ characters).
+String PORTAL_AP_PASSWORD = "weatherepd";
+// Minutes of inactivity before the portal gives up and the device resumes
+// its normal wake/sleep cycle.
+int PORTAL_TIMEOUT = 10;
+
 // LOCATION
 // Set your latitude and longitude.
 // (used to look up your forecast gridpoint and nearest observation station)

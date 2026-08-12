@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weather Display Setup</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; margin: 0; padding: 1rem;
+         background: #f4f4f6; color: #1a1a1a; max-width: 640px;
+         margin-inline: auto; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #16181c; color: #e8e8e8; }
+    fieldset { background: #1f2228 !important; border-color: #333 !important; }
+    input, select, textarea { background: #14161a; color: #e8e8e8;
+                              border-color: #444 !important; }
+  }
+  h1 { font-size: 1.3rem; margin: 0.2rem 0 1rem; }
+  fieldset { border: 1px solid #ccc; border-radius: 8px; background: #fff;
+             margin: 0 0 1rem; padding: 0.8rem 1rem 1rem; }
+  legend { font-weight: 600; padding: 0 0.4rem; }
+  label { display: block; font-size: 0.85rem; margin: 0.6rem 0 0.15rem; }
+  .hint { font-size: 0.75rem; opacity: 0.65; margin-top: 0.1rem; }
+  input, select, textarea { width: 100%; padding: 0.45rem 0.5rem;
+    border: 1px solid #bbb; border-radius: 6px; font-size: 0.95rem; }
+  textarea { font-family: ui-monospace, monospace; font-size: 0.8rem;
+             min-height: 20rem; white-space: pre; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 0.8rem; }
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 0.8rem; }
+  button { padding: 0.6rem 1.2rem; border: 0; border-radius: 8px;
+           font-size: 1rem; cursor: pointer; }
+  #save { background: #2563eb; color: #fff; width: 100%; margin: 0.4rem 0; }
+  #save:disabled { opacity: 0.5; }
+  .toggle { background: none; color: inherit; text-decoration: underline;
+            padding: 0.4rem 0; font-size: 0.85rem; }
+  #status { padding: 0.7rem; border-radius: 8px; margin: 0.6rem 0;
+            display: none; font-size: 0.9rem; }
+  #status.ok { display: block; background: #16a34a22; border: 1px solid #16a34a; }
+  #status.err { display: block; background: #dc262622; border: 1px solid #dc2626; }
+  #conninfo { display: none; padding: 0.6rem 0.8rem; border-radius: 8px;
+              margin: 0 0 1rem; font-size: 0.85rem;
+              background: #2563eb18; border: 1px solid #2563eb66; }
+  #conninfo code { user-select: all; }
+</style>
+</head>
+<body>
+<h1>&#x26C5; Weather Display Setup</h1>
+<div id="conninfo"></div>
+<div id="status"></div>
+
+<form id="form">
+  <fieldset><legend>WiFi</legend>
+    <label>Network name (SSID)</label><input id="w_ssid" required>
+    <label>Password</label><input id="w_pass" type="password" autocomplete="off">
+    <div class="hint">2.4&nbsp;GHz networks only &mdash; the ESP32 cannot see 5&nbsp;GHz.</div>
+  </fieldset>
+
+  <fieldset><legend>Location</legend>
+    <div class="row">
+      <div><label>Latitude</label><input id="l_lat"></div>
+      <div><label>Longitude</label><input id="l_lon"></div>
+    </div>
+    <label>City name (display only)</label><input id="l_city">
+    <div class="hint">weather.gov covers US locations only.</div>
+  </fieldset>
+
+  <fieldset><legend>Time</legend>
+    <label>POSIX timezone</label><input id="t_tz">
+    <div class="hint">ex. EST5EDT,M3.2.0,M11.1.0 &mdash; see
+      <a href="https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv"
+         target="_blank" rel="noopener">the zones list</a>.</div>
+    <div class="row">
+      <div><label>Clock style</label>
+        <select id="t_clock">
+          <option value="12">12-hour (1:23pm)</option>
+          <option value="24">24-hour (13:23)</option>
+        </select></div>
+      <div><label>Date format</label><input id="t_date"></div>
+    </div>
+  </fieldset>
+
+  <fieldset><legend>Schedule</legend>
+    <div class="row3">
+      <div><label>Refresh every (min)</label><input id="s_dur" type="number" min="2" max="1440"></div>
+      <div><label>Bed time (hour)</label><input id="s_bed" type="number" min="0" max="23"></div>
+      <div><label>Wake time (hour)</label><input id="s_wake" type="number" min="0" max="23"></div>
+    </div>
+    <div class="row">
+      <div><label>WiFi retry (min)</label><input id="s_retry" type="number" min="1" max="1440"></div>
+      <div><label>Graph hours</label><input id="s_graph" type="number" min="8" max="48"></div>
+    </div>
+    <div class="hint">No updates between bed and wake hours (set both equal to disable).</div>
+  </fieldset>
+
+  <fieldset><legend>API</legend>
+    <label>NWS contact (User-Agent)</label><input id="a_ua">
+    <div class="hint">weather.gov asks for a contact email in case your device misbehaves.</div>
+    <label>AirNow API key (optional)</label><input id="a_airnow" autocomplete="off">
+    <div class="hint">Free key from <a href="https://docs.airnowapi.org/" target="_blank"
+      rel="noopener">docs.airnowapi.org</a> for the EPA's official AQI.
+      Leave empty to use Open-Meteo instead.</div>
+  </fieldset>
+
+  <fieldset><legend>Widgets</legend>
+    <div class="hint" style="margin-bottom:0.4rem">Slot layout on the display:
+      0&nbsp;1 / 2&nbsp;3 / 4&nbsp;5 / 6&nbsp;7 / 8&nbsp;9 (top to bottom).
+      Choose Hidden to disable a widget. Each slot may be used once.</div>
+    <div class="row" id="widgets"></div>
+  </fieldset>
+
+  <button id="save" type="submit">Save &amp; Restart</button>
+</form>
+
+<button class="toggle" id="advtoggle" type="button">Advanced: edit raw JSON</button>
+<div id="advbox" style="display:none">
+  <div class="hint">Full config.json, including settings not shown in the form
+    (battery thresholds, NTP servers, portal options...). Comments allowed,
+    trailing commas not. Saving here bypasses the form entirely.</div>
+  <textarea id="raw" spellcheck="false"></textarea>
+  <button id="rawsave" type="button" style="background:#b45309;color:#fff;width:100%;margin-top:0.4rem">
+    Save raw JSON &amp; Restart</button>
+</div>
+
+<script>
+'use strict';
+const WIDGETS = [
+  ['sunrise','Sunrise'],['sunset','Sunset'],['humidity','Humidity'],
+  ['dewpoint','Dew point'],['wind','Wind'],['uvi','UV index'],
+  ['pressure','Pressure'],['air_quality','Air quality'],
+  ['visibility','Visibility'],['intemp','Indoor temp'],['inhumidity','Indoor humidity']];
+let cfg = null; // parsed config; the form writes back into this object
+
+// config.json may contain // and /* */ comments; strip them (outside strings)
+// so JSON.parse accepts it
+function stripComments(s) {
+  let out = '', inStr = false, i = 0;
+  while (i < s.length) {
+    const c = s[i];
+    if (inStr) {
+      out += c;
+      if (c === '\\') { out += s[i+1] ?? ''; i += 2; continue; }
+      if (c === '"') inStr = false;
+      i++; continue;
+    }
+    if (c === '"') { inStr = true; out += c; i++; continue; }
+    if (c === '/' && s[i+1] === '/') { while (i < s.length && s[i] !== '\n') i++; continue; }
+    if (c === '/' && s[i+1] === '*') { i += 2; while (i+1 < s.length && !(s[i] === '*' && s[i+1] === '/')) i++; i += 2; continue; }
+    out += c; i++;
+  }
+  return out;
+}
+
+function el(id) { return document.getElementById(id); }
+function setStatus(cls, msg) { const st = el('status'); st.className = cls; st.textContent = msg; }
+
+function buildWidgetSelects() {
+  const box = el('widgets');
+  for (const [key, label] of WIDGETS) {
+    const d = document.createElement('div');
+    const l = document.createElement('label'); l.textContent = label;
+    const sel = document.createElement('select'); sel.id = 'wg_' + key;
+    const hidden = new Option('Hidden', '-1');
+    sel.add(hidden);
+    for (let s = 0; s < 10; s++) sel.add(new Option('Slot ' + s, String(s)));
+    d.append(l, sel); box.append(d);
+  }
+}
+
+function populate() {
+  el('w_ssid').value = cfg.wifi?.ssid ?? '';
+  el('w_pass').value = cfg.wifi?.password ?? '';
+  el('l_lat').value = cfg.location?.lat ?? '';
+  el('l_lon').value = cfg.location?.lon ?? '';
+  el('l_city').value = cfg.location?.city ?? '';
+  el('t_tz').value = cfg.time?.timezone ?? '';
+  el('t_clock').value = (cfg.time?.time_format ?? '').includes('%H') ? '24' : '12';
+  el('t_date').value = cfg.time?.date_format ?? '%a, %B %e';
+  el('s_dur').value = cfg.sleep?.sleep_duration_minutes ?? 15;
+  el('s_bed').value = cfg.sleep?.bed_time_hour ?? 0;
+  el('s_wake').value = cfg.sleep?.wake_time_hour ?? 5;
+  el('s_retry').value = cfg.sleep?.wifi_retry_interval_minutes ?? 15;
+  el('s_graph').value = cfg.sleep?.hourly_graph_max ?? 24;
+  el('a_ua').value = cfg.api?.nws_user_agent ?? '';
+  el('a_airnow').value = cfg.api?.airnow_api_key ?? '';
+  for (const [key] of WIDGETS)
+    el('wg_' + key).value = String(cfg.widget_positions?.[key] ?? -1);
+}
+
+function collect() {
+  cfg.wifi = cfg.wifi ?? {}; cfg.location = cfg.location ?? {};
+  cfg.time = cfg.time ?? {}; cfg.sleep = cfg.sleep ?? {};
+  cfg.api = cfg.api ?? {}; cfg.widget_positions = cfg.widget_positions ?? {};
+  cfg.wifi.ssid = el('w_ssid').value.trim();
+  cfg.wifi.password = el('w_pass').value;
+  cfg.location.lat = el('l_lat').value.trim();
+  cfg.location.lon = el('l_lon').value.trim();
+  cfg.location.city = el('l_city').value.trim();
+  cfg.time.timezone = el('t_tz').value.trim();
+  if (el('t_clock').value === '24') {
+    cfg.time.time_format = '%H:%M'; cfg.time.hour_format = '%H';
+  } else {
+    cfg.time.time_format = '%l:%M%P'; cfg.time.hour_format = '%l%P';
+  }
+  cfg.time.date_format = el('t_date').value;
+  cfg.sleep.sleep_duration_minutes = +el('s_dur').value;
+  cfg.sleep.bed_time_hour = +el('s_bed').value;
+  cfg.sleep.wake_time_hour = +el('s_wake').value;
+  cfg.sleep.wifi_retry_interval_minutes = +el('s_retry').value;
+  cfg.sleep.hourly_graph_max = +el('s_graph').value;
+  cfg.api.nws_user_agent = el('a_ua').value.trim();
+  cfg.api.airnow_api_key = el('a_airnow').value.trim();
+  for (const [key] of WIDGETS)
+    cfg.widget_positions[key] = +el('wg_' + key).value;
+}
+
+function validateWidgets() {
+  const used = new Map();
+  for (const [key, label] of WIDGETS) {
+    const v = +el('wg_' + key).value;
+    if (v < 0) continue;
+    if (used.has(v)) return 'Slot ' + v + ' is used by both "' + used.get(v)
+                          + '" and "' + label + '" — each slot may be used once.';
+    used.set(v, label);
+  }
+  return null;
+}
+
+async function save(body) {
+  el('save').disabled = true;
+  try {
+    const r = await fetch('/config', { method: 'POST', body,
+      headers: { 'Content-Type': 'application/json' } });
+    const j = await r.json();
+    if (j.ok) {
+      setStatus('ok', 'Saved! The display is restarting with the new settings. '
+        + 'If you changed the WiFi network, reconnect to that network to reach it again.');
+    } else {
+      setStatus('err', 'Not saved: ' + (j.error ?? 'unknown error'));
+      el('save').disabled = false;
+    }
+  } catch (e) {
+    setStatus('err', 'Request failed: ' + e.message);
+    el('save').disabled = false;
+  }
+}
+
+el('form').addEventListener('submit', ev => {
+  ev.preventDefault();
+  const werr = validateWidgets();
+  if (werr) { setStatus('err', werr); return; }
+  collect();
+  save(JSON.stringify(cfg, null, 2) + '\n');
+});
+
+el('advtoggle').addEventListener('click', () => {
+  const box = el('advbox');
+  box.style.display = box.style.display === 'none' ? 'block' : 'none';
+});
+el('rawsave').addEventListener('click', () => {
+  try { JSON.parse(stripComments(el('raw').value)); }
+  catch (e) { setStatus('err', 'Raw JSON invalid: ' + e.message); return; }
+  save(el('raw').value);
+});
+
+function showConnInfo(i) {
+  const box = el('conninfo');
+  if (i.mode === 'hotspot') {
+    box.innerHTML = '&#x1F4F6; Connected via the setup hotspot <b>' + i.ssid
+      + '</b> (password: <code>' + i.ap_password + '</code>) at <code>http://'
+      + i.ip + '/</code>. After saving a WiFi network below, the display '
+      + 'joins that network and this page becomes reachable there instead.';
+  } else {
+    box.innerHTML = '&#x1F4F6; On WiFi network <b>' + i.ssid + '</b> &mdash; '
+      + 'reachable at <code>http://' + i.ip + '/</code> or <code>'
+      + 'http://' + (i.mdns ?? 'weatherepd.local') + '/</code>.';
+  }
+  box.innerHTML += ' Setup mode ends after ' + (i.timeout_minutes ?? 10)
+    + ' minutes of inactivity.';
+  box.style.display = 'block';
+}
+
+buildWidgetSelects();
+fetch('/info').then(r => r.json()).then(showConnInfo).catch(() => {});
+fetch('/config').then(r => r.text()).then(t => {
+  el('raw').value = t;
+  cfg = JSON.parse(stripComments(t));
+  populate();
+}).catch(e => setStatus('err', 'Failed to load current config: ' + e.message));
+</script>
+</body>
+</html>

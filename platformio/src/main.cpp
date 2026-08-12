@@ -29,6 +29,7 @@
 #include "config.h"
 #include "display_utils.h"
 #include "icons/icons_196x196.h"
+#include "portal.h"
 #include "renderer.h"
 #include "settings.h"
 #include "sun.h"
@@ -55,11 +56,27 @@ static owm_resp_air_pollution_t air_quality;
 
 Preferences prefs;
 
+// Double-reset detector for entering the configuration web portal.
+// The marker must live in NVS flash: on the ESP32 the RST button performs a
+// power-on-class reset (rst:0x1 POWERON_RESET) that wipes RTC memory, so an
+// RTC_DATA_ATTR flag cannot survive a button press. Each wake arms the "drd"
+// marker at boot and disarms it just before entering deep sleep, so the
+// marker can only still be armed at the next boot if the previous wake was
+// cut short -- ie. the user pressed RST twice while the device was awake
+// (anytime within the ~40s wake window).
+static void disarmDoubleReset()
+{
+  prefs.begin(NVS_NAMESPACE, false);
+  prefs.putBool("drd", false);
+  prefs.end();
+}
+
 /* Put esp32 into ultra low-power deep sleep (<11μA).
  * Aligns wake time to the minute. Sleep times defined in config.cpp.
  */
 void beginDeepSleep(unsigned long startTime, tm *timeInfo)
 {
+  disarmDoubleReset();
   if (!getLocalTime(timeInfo))
   {
     Serial.println(TXT_REFERENCING_OLDER_TIME_NOTICE);
@@ -139,6 +156,7 @@ void beginDeepSleep(unsigned long startTime, tm *timeInfo)
  */
 void beginFixedSleep(unsigned long startTime, unsigned long minutes)
 {
+  disarmDoubleReset();
   esp_sleep_enable_timer_wakeup(minutes * 60ULL * 1000000ULL);
   Serial.print(TXT_AWAKE_FOR);
   Serial.println(" " + String((millis() - startTime) / 1000.0, 3) + "s");
@@ -228,6 +246,34 @@ void setup()
   uint32_t batteryVoltage = UINT32_MAX;
 #endif
 
+  // CONFIGURATION WEB PORTAL
+  // Entered when the RST button was pressed twice a few seconds apart (the
+  // NVS "drd" marker from the interrupted boot is still armed), or
+  // automatically when the device has no WiFi configured (fresh flash).
+  // Arming happens after the low-battery check above so a battery-protection
+  // wake can neither trigger nor be interrupted into the portal.
+  bool portalRequested = prefs.getBool("drd", false);
+  size_t drdWritten = prefs.putBool("drd", true); // armed; disarmed once WiFi connect concludes
+#if DEBUG_LEVEL >= 0
+  Serial.printf("[drd] marker was %d, armed (%u bytes written)\n",
+                portalRequested, drdWritten);
+#endif
+  bool unconfigured = (strcmp(WIFI_SSID, "ssid") == 0);
+  if (portalRequested || unconfigured)
+  {
+    prefs.putBool("drd", false);
+    prefs.end();
+    if (unconfigured)
+    {
+      Serial.println("No WiFi configured, starting setup hotspot.");
+    }
+    else
+    {
+      Serial.println("Double reset detected, starting configuration portal.");
+    }
+    runConfigPortal(unconfigured); // never returns
+  }
+
   // All data should have been loaded from NVS. Close filesystem.
   prefs.end();
 
@@ -292,9 +338,9 @@ void setup()
     beginFixedSleep(startTime, WIFI_RETRY_INTERVAL);
   }
 
-  // WiFi is connected. Whatever is drawn from here on (weather data or a
-  // different error screen) replaces the WiFi error screen, so clear the
-  // marker to ensure a future WiFi failure gets drawn again.
+  // WiFi is connected: clear the WiFi error marker -- whatever is drawn
+  // from here on (weather data or a different error screen) replaces the
+  // WiFi error screen, so a future WiFi failure must be drawn again.
   prefs.begin(NVS_NAMESPACE, false);
   if (prefs.isKey("wifiErr"))
   {

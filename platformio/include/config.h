@@ -335,6 +335,8 @@ extern unsigned long WIFI_TIMEOUT;
 extern unsigned HTTP_CLIENT_TCP_TIMEOUT;
 extern String NWS_USER_AGENT;
 extern String AIRNOW_APIKEY;
+extern String PORTAL_AP_PASSWORD;
+extern int    PORTAL_TIMEOUT;
 extern String LAT;
 extern String LON;
 extern String CITY_STRING;

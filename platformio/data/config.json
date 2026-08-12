@@ -159,6 +159,21 @@
     "http_client_tcp_timeout_ms": 10000
   },
 
+  "portal": {
+    // CONFIGURATION WEB PORTAL -- a browser UI for editing this file
+    // without a computer or reflashing. Two ways in:
+    //   1. Press the RST button twice, a few seconds apart. The display
+    //      shows the address (also http://weatherepd.local/) where the
+    //      portal is reachable on your WiFi for the next timeout_minutes.
+    //   2. If the device is unconfigured (fresh flash), it automatically
+    //      starts a WPA2 hotspot named "WeatherEPD-Setup" with the password
+    //      below -- join it and the setup page pops up (captive portal).
+    // NOTE: saving from the portal rewrites this file without these
+    // comments; the documented template lives in the repo.
+    "ap_password": "weatherepd",
+    "timeout_minutes": 10
+  },
+
   // Which of the ten slots in the left-hand panel each widget occupies:
   //
   //     0   1
