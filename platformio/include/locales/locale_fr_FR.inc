@@ -462,3 +462,12 @@ const char *TXT_WL_CONNECTED       = "Connected";
 const char *TXT_WL_CONNECT_FAILED  = "Connection Failed";
 const char *TXT_WL_CONNECTION_LOST = "Connection Lost";
 const char *TXT_WL_DISCONNECTED    = "Disconnected";
+
+// WIFI FAILURE DETAILS
+// Shown on the 2nd line of the connection error screen.
+const char *TXT_WIFI_REASON_NO_AP_FOUND    = "Réseau introuvable";
+const char *TXT_WIFI_REASON_AUTH_FAIL      = "Mot de passe peut-être incorrect";
+const char *TXT_WIFI_REASON_ASSOC_FAIL     = "Connexion refusée par le routeur";
+const char *TXT_WIFI_REASON_BEACON_TIMEOUT = "Signal faible";
+const char *TXT_WIFI_REASON_TIMEOUT        = "Pas de réponse du routeur";
+const char *TXT_WIFI_REASON_UNKNOWN        = "Raison inconnue";

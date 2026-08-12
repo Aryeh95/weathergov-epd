@@ -43,89 +43,94 @@ const uint8_t PIN_BME_SCL = 16;
 const uint8_t PIN_BME_PWR =  4;   // Irrelevant if directly connected to 3.3V
 const uint8_t BME_ADDRESS = 0x76; // 0x76 if SDO -> GND; 0x77 if SDO -> VCC
 
+// PER-DEPLOYMENT SETTINGS (WiFi, location, time, battery, widget layout)
+//
+// The values below are only FALLBACK DEFAULTS, used if data/config.json is
+// missing or does not specify a given key. In normal use these are all
+// configured at runtime via data/config.json (loaded by loadSettings() in
+// settings.cpp) so that the project can be reconfigured -- new WiFi network,
+// new location, rearranged widgets, etc. -- by editing config.json and
+// running `pio run --target uploadfs`, without touching this file or
+// recompiling the firmware. See data/config.json for the actual live values.
+
 // WIFI
-const char *WIFI_SSID     = "ssid";
-const char *WIFI_PASSWORD = "password";
-const unsigned long WIFI_TIMEOUT = 10000; // ms, WiFi connection timeout.
+char WIFI_SSID[33]     = "ssid";
+char WIFI_PASSWORD[65] = "password";
+unsigned long WIFI_TIMEOUT = 60000; // ms, WiFi connection timeout.
+
 
 // HTTP
-// The following errors are likely the result of insuffient http client tcp 
+// The following errors are likely the result of insuffient http client tcp
 // timeout:
 //   -1   Connection Refused
 //   -11  Read Timeout
 //   -258 Deserialization Incomplete Input
-const unsigned HTTP_CLIENT_TCP_TIMEOUT = 10000; // ms
+unsigned HTTP_CLIENT_TCP_TIMEOUT = 10000; // ms
 
-// OPENWEATHERMAP API
-// OpenWeatherMap API key, https://openweathermap.org/
-const String OWM_APIKEY   = "abcdefghijklmnopqrstuvwxyz012345";
-const String OWM_ENDPOINT = "api.openweathermap.org";
-// OpenWeatherMap One Call 2.5 API is deprecated for all new free users
-// (accounts created after Summer 2022).
-//
-// Please note, that One Call API 3.0 is included in the "One Call by Call"
-// subscription only. This separate subscription includes 1,000 calls/day for
-// free and allows you to pay only for the number of API calls made to this
-// product.
-//
-// Here’s how to subscribe and avoid any credit card changes:
-// - Go to https://home.openweathermap.org/subscriptions/billing_info/onecall_30/base?key=base&service=onecall_30
-// - Follow the instructions to complete the subscription.
-// - Go to https://home.openweathermap.org/subscriptions and set the "Calls per
-//   day (no more than)" to 1,000. This ensures you will never overrun the free
-//   calls.
-const String OWM_ONECALL_VERSION = "3.0";
+// NATIONAL WEATHER SERVICE (NWS) API
+// weather.gov's API is free and does not require an API key. NWS asks that
+// requests include a descriptive User-Agent, ideally with a contact method,
+// in case of problems: https://www.weather.gov/documentation/services-web-api
+String NWS_USER_AGENT = "(esp32-weather-epd, your.email@example.com)";
 
 // LOCATION
 // Set your latitude and longitude.
-// (used to get weather data as part of API requests to OpenWeatherMap)
-const String LAT = "40.7128";
-const String LON = "-74.0060";
+// (used to look up your forecast gridpoint and nearest observation station)
+String LAT = "40.7128";
+String LON = "-74.0060";
 // City name that will be shown in the top-right corner of the display.
-const String CITY_STRING = "New York";
+String CITY_STRING = "New York";
 
 // TIME
 // For list of time zones see
 // https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
-const char *TIMEZONE = "EST5EDT,M3.2.0,M11.1.0";
+char TIMEZONE[64] = "EST5EDT,M3.2.0,M11.1.0";
 // Time format used when displaying sunrise/set times. (Max 11 characters)
 // For more information about formatting see
 // https://man7.org/linux/man-pages/man3/strftime.3.html
-// const char *TIME_FORMAT = "%l:%M%P"; // 12-hour ex: 1:23am  11:00pm
-const char *TIME_FORMAT = "%H:%M";   // 24-hour ex: 01:23   23:00
+char TIME_FORMAT[16] = "%l:%M%P"; // 12-hour ex: 1:23am  11:00pm
+// char TIME_FORMAT[16] = "%H:%M";   // 24-hour ex: 01:23   23:00
 // Time format used when displaying axis labels. (Max 11 characters)
 // For more information about formatting see
 // https://man7.org/linux/man-pages/man3/strftime.3.html
-// const char *HOUR_FORMAT = "%l%P"; // 12-hour ex: 1am  11pm
-const char *HOUR_FORMAT = "%H";      // 24-hour ex: 01   23
+char HOUR_FORMAT[16] = "%l%P"; // 12-hour ex: 1am  11pm
+// char HOUR_FORMAT[16] = "%H";      // 24-hour ex: 01   23
 // Date format used when displaying date in top-right corner.
 // For more information about formatting see
 // https://man7.org/linux/man-pages/man3/strftime.3.html
-const char *DATE_FORMAT = "%a, %B %e"; // ex: Sat, January 1
+char DATE_FORMAT[32] = "%a, %B %e"; // ex: Sat, January 1
 // Date/Time format used when displaying the last refresh time along the bottom
 // of the screen.
 // For more information about formatting see
 // https://man7.org/linux/man-pages/man3/strftime.3.html
-const char *REFRESH_TIME_FORMAT = "%x %H:%M";
+char REFRESH_TIME_FORMAT[32] = "%x %H:%M";
 // NTP_SERVER_1 is the primary time server, while NTP_SERVER_2 is a fallback.
 // pool.ntp.org will find the closest available NTP server to you.
-const char *NTP_SERVER_1 = "pool.ntp.org";
-const char *NTP_SERVER_2 = "time.nist.gov";
+char NTP_SERVER_1[64] = "pool.ntp.org";
+char NTP_SERVER_2[64] = "time.nist.gov";
 // If you encounter the 'Failed To Fetch The Time' error, try increasing
 // NTP_TIMEOUT or select closer/lower latency time servers.
-const unsigned long NTP_TIMEOUT = 20000; // ms
+unsigned long NTP_TIMEOUT = 20000; // ms
 // Sleep duration in minutes. (aka how often esp32 will wake for an update)
 // Aligned to the nearest minute boundary.
 // For example, if set to 30 (minutes) the display will update at 00 or 30
 // minutes past the hour. (range: [2-1440])
-// Note: The OpenWeatherMap model is updated every 10 minutes, so updating more
-//       frequently than that is unnessesary.
-const int SLEEP_DURATION = 30; // minutes
+// Note: weather.gov's forecast is typically updated a few times per hour, so
+//       updating more frequently than every ~15 minutes is unnecessary.
+int SLEEP_DURATION = 15; // minutes
+// How long to sleep between retries after a failed WiFi connection or time
+// sync, in minutes. This is a plain fixed interval, deliberately independent
+// of the clock-aligned SLEEP_DURATION/bedtime logic: without WiFi the clock
+// may never have been synced (a fresh boot starts at the 1970 epoch), which
+// would make the bedtime calculation nonsense. The device keeps retrying at
+// this interval indefinitely, so it recovers on its own once it comes into
+// range of its network -- no reset button needed.
+int WIFI_RETRY_INTERVAL = 15; // minutes
 // Bed Time Power Savings.
 // If BED_TIME == WAKE_TIME, then this battery saving feature will be disabled.
 // (range: [0-23])
-const int BED_TIME  = 00; // Last update at 00:00 (midnight) until WAKE_TIME.
-const int WAKE_TIME = 06; // Hour of first update after BED_TIME, 06:00.
+int BED_TIME  = 00; // Last update at 00:00 (midnight) until WAKE_TIME.
+int WAKE_TIME = 05; // Hour of first update after BED_TIME, 06:00.
 // Note that the minute alignment of SLEEP_DURATION begins at WAKE_TIME even if
 // Bed Time Power Savings is disabled.
 // For example, if WAKE_TIME = 00 (midnight) and SLEEP_DURATION = 120, then the
@@ -136,7 +141,7 @@ const int WAKE_TIME = 06; // Hour of first update after BED_TIME, 06:00.
 
 // HOURLY OUTLOOK GRAPH
 // Number of hours to display on the outlook graph. (range: [8-48])
-const int HOURLY_GRAPH_MAX = 24;
+int HOURLY_GRAPH_MAX = 24;
 
 // BATTERY
 // To protect the battery upon LOW_BATTERY_VOLTAGE, the display will cease to
@@ -145,15 +150,32 @@ const int HOURLY_GRAPH_MAX = 24;
 // minutes). Once the battery voltage has fallen to CRIT_LOW_BATTERY_VOLTAGE,
 // the esp32 will hibernate and a manual press of the reset (RST) button to
 // begin operating again.
-const uint32_t WARN_BATTERY_VOLTAGE     = 3535; // (millivolts) ~20%
-const uint32_t LOW_BATTERY_VOLTAGE      = 3462; // (millivolts) ~10%
-const uint32_t VERY_LOW_BATTERY_VOLTAGE = 3442; // (millivolts)  ~8%
-const uint32_t CRIT_LOW_BATTERY_VOLTAGE = 3404; // (millivolts)  ~5%
-const unsigned long LOW_BATTERY_SLEEP_INTERVAL      = 30;  // (minutes)
-const unsigned long VERY_LOW_BATTERY_SLEEP_INTERVAL = 120; // (minutes)
+uint32_t WARN_BATTERY_VOLTAGE     = 3535; // (millivolts) ~20%
+uint32_t LOW_BATTERY_VOLTAGE      = 3462; // (millivolts) ~10%
+uint32_t VERY_LOW_BATTERY_VOLTAGE = 3442; // (millivolts)  ~8%
+uint32_t CRIT_LOW_BATTERY_VOLTAGE = 3404; // (millivolts)  ~5%
+unsigned long LOW_BATTERY_SLEEP_INTERVAL      = 30;  // (minutes)
+unsigned long VERY_LOW_BATTERY_SLEEP_INTERVAL = 120; // (minutes)
 // Battery voltage calculations are based on a typical 3.7v LiPo.
-const uint32_t MAX_BATTERY_VOLTAGE = 4200; // (millivolts)
-const uint32_t MIN_BATTERY_VOLTAGE = 3000; // (millivolts)
+uint32_t MAX_BATTERY_VOLTAGE = 4200; // (millivolts)
+uint32_t MIN_BATTERY_VOLTAGE = 3000; // (millivolts)
+
+// WIDGET POSITIONS
+// Set the order of current condition widgets you want to display, see the
+// WIDGET POSITIONS comment in config.h for the grid layout. -1 disables a
+// widget. air_quality and visibility default to sharing a slot (visibility
+// disabled) since there usually isn't room to show both.
+int POS_SUNRISE     = 0;
+int POS_SUNSET      = 1;
+int POS_HUMIDITY    = 2;
+int POS_DEWPOINT    = 3;
+int POS_WIND        = 4;
+int POS_UVI         = 5;
+int POS_PRESSURE    = 6;
+int POS_AIR_QULITY  = 7;
+int POS_VISIBILITY  = -1;
+int POS_INTEMP      = 8;
+int POS_INHUMIDITY  = 9;
 
 // See config.h for the below options
 // E-PAPER PANEL

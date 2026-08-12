@@ -28,8 +28,8 @@
 //   DISP_7C_F  - 7.3in ACeP e-Paper (F)  800x480px  7-Color
 //   DISP_BW_V1 - 7.5in e-Paper (v1)      640x384px  Black/White
 // Uncomment the macro that identifies your physical panel.
-#define DISP_BW_V2
-// #define DISP_3C_B
+// #define DISP_BW_V2
+#define DISP_3C_B
 // #define DISP_7C_F
 // #define DISP_BW_V1
 
@@ -105,8 +105,8 @@
 // #define UNITS_PRES_HECTOPASCALS
 // #define UNITS_PRES_PASCALS
 // #define UNITS_PRES_MILLIMETERSOFMERCURY
-#define UNITS_PRES_INCHESOFMERCURY
-// #define UNITS_PRES_MILLIBARS
+// #define UNITS_PRES_INCHESOFMERCURY
+#define UNITS_PRES_MILLIBARS
 // #define UNITS_PRES_ATMOSPHERES
 // #define UNITS_PRES_GRAMSPERSQUARECENTIMETER
 // #define UNITS_PRES_POUNDSPERSQUAREINCH
@@ -119,23 +119,23 @@
 
 // UNITS - PRECIPITATION (HOURLY)
 // Measure of precipitation.
-// This can either be Probability of Precipitation (PoP) or hourly volume.
-//   Metric   : Millimeters
-//   Imperial : Inches
+// weather.gov's forecast endpoints only provide Probability of Precipitation
+// (PoP); hourly/daily volume amounts require parsing much more complex raw
+// gridpoint data, which is not supported. PoP is the only supported option.
 #define UNITS_HOURLY_PRECIP_POP
-// #define UNITS_HOURLY_PRECIP_MILLIMETERS
-// #define UNITS_HOURLY_PRECIP_CENTIMETERS
-// #define UNITS_HOURLY_PRECIP_INCHES
+// #define UNITS_HOURLY_PRECIP_MILLIMETERS  // unsupported, see above
+// #define UNITS_HOURLY_PRECIP_CENTIMETERS  // unsupported, see above
+// #define UNITS_HOURLY_PRECIP_INCHES       // unsupported, see above
 
 // UNITS - PRECIPITATION (DAILY)
 // Measure of precipitation.
-// This can either be Probability of Precipitation (PoP) or daily volume.
-//   Metric   : Millimeters
-//   Imperial : Inches
-// #define UNITS_DAILY_PRECIP_POP
-// #define UNITS_DAILY_PRECIP_MILLIMETERS
-// #define UNITS_DAILY_PRECIP_CENTIMETERS
-#define UNITS_DAILY_PRECIP_INCHES
+// weather.gov's forecast endpoints only provide Probability of Precipitation
+// (PoP); hourly/daily volume amounts require parsing much more complex raw
+// gridpoint data, which is not supported. PoP is the only supported option.
+#define UNITS_DAILY_PRECIP_POP
+// #define UNITS_DAILY_PRECIP_MILLIMETERS  // unsupported, see above
+// #define UNITS_DAILY_PRECIP_CENTIMETERS  // unsupported, see above
+// #define UNITS_DAILY_PRECIP_INCHES       // unsupported, see above
 
 // Hypertext Transfer Protocol (HTTP)
 // HTTP
@@ -153,12 +153,15 @@
 //   eventually the certificates on the esp32 will expire, requiring you to
 //   update the certificates in cert.h and reflash this software.
 //   Running cert.py will generate an updated cert.h file.
-//   The current certificate for api.openweathermap.org is valid until
-//   2026-04-10 23:59:59+00:00
+//   cert.h pins the root CA (ISRG Root X1) shared by both api.weather.gov
+//   and air-quality-api.open-meteo.com, valid until 2035-06-04.
+//
+//   weather.gov and Open-Meteo are HTTPS-only, so USE_HTTP is not a valid
+//   option for this project.
 // (uncomment exactly one)
-// #define USE_HTTP
-// #define USE_HTTPS_NO_CERT_VERIF
-#define USE_HTTPS_WITH_CERT_VERIF // REQUIRES MANUAL UPDATE WHEN CERT EXPIRES
+// #define USE_HTTP // NOT SUPPORTED, weather.gov/Open-Meteo require HTTPS
+#define USE_HTTPS_NO_CERT_VERIF
+// #define USE_HTTPS_WITH_CERT_VERIF // REQUIRES MANUAL UPDATE WHEN CERT EXPIRES
 
 // WIND DIRECTION INDICATOR
 // Choose whether the wind direction indicator should be an arrow, number, or
@@ -200,36 +203,24 @@
 // #define WIND_ICONS_360
 
 // WIDGET POSITIONS
-// Set the order of current condition you want to display
-// in the following order
+// The order of current condition widgets you want to display is configured
+// at runtime in data/config.json ("widget_positions"), not here, so the
+// layout can be changed without recompiling. See config.cpp for the
+// compiled-in fallback values used when config.json is missing that key.
+// Grid layout:
 //  0   1
 //  2   3
 //  4   5
 //  6   7
 //  8   9
 // if DISP_BW_V1 is used, 6,7,8,9 are not available
-#define POS_SUNRISE     0
-#define POS_SUNSET      1
-#define POS_WIND        2
-#define POS_HUMIDITY    3
-#define POS_UVI         4
-#define POS_PRESSURE    5
-#define POS_AIR_QULITY  6
-#define POS_VISIBILITY  7
-#define POS_INTEMP      8
-#define POS_INHUMIDITY  9
-// #define POS_MOONRISE    2
-// #define POS_MOONSET     3
-// #define POS_MOONPHASE   4
-// #define POS_DEWPOINT    5
-
-
-// Choose the style of moon phase icon you like
-//   Primary     : dark color means where the moon is
-//   Alternative : dark color means where the shadow is
-// Uncomment your preferred moon phase style.
-// #define MOONPHASE_PRIMARY
-#define MOONPHASE_ALTERNATIVE
+// Widgets: sunrise, sunset, wind, humidity, dewpoint, uvi, pressure,
+// air_quality (alternative: visibility), intemp, inhumidity. A widget
+// assigned position -1 is disabled.
+// weather.gov does not report sunrise/sunset, so they are computed locally
+// from your latitude/longitude and the date (see sun.h) -- no API needed.
+// Moon data (moonrise/moonset/phase) is not available and those widgets have
+// been removed.
 
 
 // FONTS
@@ -287,11 +278,7 @@
 #define DISPLAY_HOURLY_ICONS 1
 
 // ALERTS
-//   The handling of alerts is complex. Each country has a unique national alert
-//   system that receives alerts from many different government agencies. This
-//   results is huge variance in the formatting of alerts. OpenWeatherMap
-//   provides alerts in English only. Any combination of these factors may make
-//   it undesirable to display alerts in some regions.
+//   Alerts are sourced from weather.gov's /alerts/active endpoint (US only).
 //   Disable alerts by changing the DISPLAY_ALERTS macro to 0.
 #define DISPLAY_ALERTS 1
 
@@ -319,7 +306,7 @@
 //   level 2: print api responses to serial monitor
 #define DEBUG_LEVEL 0
 
-// Set the below constants in "config.cpp"
+// Pins are fixed by your wiring, set them in "config.cpp".
 extern const uint8_t PIN_BAT_ADC;
 extern const uint8_t PIN_EPD_BUSY;
 extern const uint8_t PIN_EPD_CS;
@@ -333,36 +320,56 @@ extern const uint8_t PIN_BME_SDA;
 extern const uint8_t PIN_BME_SCL;
 extern const uint8_t PIN_BME_PWR;
 extern const uint8_t BME_ADDRESS;
-extern const char *WIFI_SSID;
-extern const char *WIFI_PASSWORD;
-extern const unsigned long WIFI_TIMEOUT;
-extern const unsigned HTTP_CLIENT_TCP_TIMEOUT;
-extern const String OWM_APIKEY;
-extern const String OWM_ENDPOINT;
-extern const String OWM_ONECALL_VERSION;
-extern const String LAT;
-extern const String LON;
-extern const String CITY_STRING;
-extern const char *TIMEZONE;
-extern const char *TIME_FORMAT;
-extern const char *HOUR_FORMAT;
-extern const char *DATE_FORMAT;
-extern const char *REFRESH_TIME_FORMAT;
-extern const char *NTP_SERVER_1;
-extern const char *NTP_SERVER_2;
-extern const unsigned long NTP_TIMEOUT;
-extern const int SLEEP_DURATION;
-extern const int BED_TIME;
-extern const int WAKE_TIME;
-extern const int HOURLY_GRAPH_MAX;
-extern const uint32_t WARN_BATTERY_VOLTAGE;
-extern const uint32_t LOW_BATTERY_VOLTAGE;
-extern const uint32_t VERY_LOW_BATTERY_VOLTAGE;
-extern const uint32_t CRIT_LOW_BATTERY_VOLTAGE;
-extern const unsigned long LOW_BATTERY_SLEEP_INTERVAL;
-extern const unsigned long VERY_LOW_BATTERY_SLEEP_INTERVAL;
-extern const uint32_t MAX_BATTERY_VOLTAGE;
-extern const uint32_t MIN_BATTERY_VOLTAGE;
+
+// Everything below is a per-deployment setting (WiFi, location, time, battery
+// thresholds, and widget layout). Fallback values live in "config.cpp", but
+// at boot loadSettings() (settings.cpp) overwrites them with whatever is
+// found in data/config.json on the device's LittleFS filesystem, so the
+// project can be reconfigured by editing config.json and running
+// `pio run --target uploadfs` -- no firmware recompile required.
+extern char   WIFI_SSID[33];
+extern char   WIFI_PASSWORD[65];
+extern unsigned long WIFI_TIMEOUT;
+extern unsigned HTTP_CLIENT_TCP_TIMEOUT;
+extern String NWS_USER_AGENT;
+extern String LAT;
+extern String LON;
+extern String CITY_STRING;
+extern char   TIMEZONE[64];
+extern char   TIME_FORMAT[16];
+extern char   HOUR_FORMAT[16];
+extern char   DATE_FORMAT[32];
+extern char   REFRESH_TIME_FORMAT[32];
+extern char   NTP_SERVER_1[64];
+extern char   NTP_SERVER_2[64];
+extern unsigned long NTP_TIMEOUT;
+extern int    SLEEP_DURATION;
+extern int    WIFI_RETRY_INTERVAL;
+extern int    BED_TIME;
+extern int    WAKE_TIME;
+extern int    HOURLY_GRAPH_MAX;
+extern uint32_t WARN_BATTERY_VOLTAGE;
+extern uint32_t LOW_BATTERY_VOLTAGE;
+extern uint32_t VERY_LOW_BATTERY_VOLTAGE;
+extern uint32_t CRIT_LOW_BATTERY_VOLTAGE;
+extern unsigned long LOW_BATTERY_SLEEP_INTERVAL;
+extern unsigned long VERY_LOW_BATTERY_SLEEP_INTERVAL;
+extern uint32_t MAX_BATTERY_VOLTAGE;
+extern uint32_t MIN_BATTERY_VOLTAGE;
+
+// Widget grid positions (see WIDGET POSITIONS comment above). -1 disables a
+// widget.
+extern int POS_SUNRISE;
+extern int POS_SUNSET;
+extern int POS_WIND;
+extern int POS_HUMIDITY;
+extern int POS_DEWPOINT;
+extern int POS_UVI;
+extern int POS_PRESSURE;
+extern int POS_AIR_QULITY;
+extern int POS_VISIBILITY;
+extern int POS_INTEMP;
+extern int POS_INHUMIDITY;
 
 // CONFIG VALIDATION - DO NOT MODIFY
 #if !(  defined(DISP_BW_V2)  \
@@ -409,26 +416,23 @@ extern const uint32_t MIN_BATTERY_VOLTAGE;
       ^ defined(UNITS_DIST_MILES))
   #error Invalid configuration. Exactly one distance unit must be selected.
 #endif
-#if !(  defined(UNITS_HOURLY_PRECIP_POP)         \
-      ^ defined(UNITS_HOURLY_PRECIP_MILLIMETERS) \
-      ^ defined(UNITS_HOURLY_PRECIP_CENTIMETERS) \
-      ^ defined(UNITS_HOURLY_PRECIP_INCHES))
-  #error Invalid configuration. Exactly one houly precipitation measurement must be selected.
+#if !defined(UNITS_HOURLY_PRECIP_POP)
+  #error Invalid configuration. weather.gov only provides probability of precipitation (PoP); UNITS_HOURLY_PRECIP_POP must be selected.
 #endif
 #if !(  defined(TEMP_ORDER_HL)      \
       ^ defined(TEMP_ORDER_LH))
   #error Invalid configuration. Exactly one temperature order must be selected.
 #endif
-#if !(  defined(UNITS_DAILY_PRECIP_POP)         \
-      ^ defined(UNITS_DAILY_PRECIP_MILLIMETERS) \
-      ^ defined(UNITS_DAILY_PRECIP_CENTIMETERS) \
-      ^ defined(UNITS_DAILY_PRECIP_INCHES))
-  #error Invalid configuration. Exactly one daily precipitation measurement must be selected.
+#if !defined(UNITS_DAILY_PRECIP_POP)
+  #error Invalid configuration. weather.gov only provides probability of precipitation (PoP); UNITS_DAILY_PRECIP_POP must be selected.
 #endif
 #if !(  defined(USE_HTTP)                   \
       ^ defined(USE_HTTPS_NO_CERT_VERIF)    \
       ^ defined(USE_HTTPS_WITH_CERT_VERIF))
   #error Invalid configuration. Exactly one HTTP mode must be selected.
+#endif
+#if defined(USE_HTTP)
+  #error Invalid configuration. weather.gov and Open-Meteo require HTTPS; USE_HTTP is not supported.
 #endif
 #if !(  defined(WIND_INDICATOR_ARROW)                         \
       || (                                                    \
@@ -466,10 +470,6 @@ extern const uint32_t MIN_BATTERY_VOLTAGE;
 #endif
 #if !(defined(DEBUG_LEVEL))
   #error Invalid configuration. DEBUG_LEVEL not defined.
-#endif
-#if !(  defined(MOONPHASE_PRIMARY)  \
-      ^ defined(MOONPHASE_ALTERNATIVE))
-  #error Invalid configuration. Exactly one moon phase style must be selected.
 #endif
 
 #endif

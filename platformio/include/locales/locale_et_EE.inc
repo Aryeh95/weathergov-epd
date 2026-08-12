@@ -461,3 +461,12 @@ const char *TXT_WL_CONNECTED       = "Connected";
 const char *TXT_WL_CONNECT_FAILED  = "Connection Failed";
 const char *TXT_WL_CONNECTION_LOST = "Connection Lost";
 const char *TXT_WL_DISCONNECTED    = "Disconnected";
+
+// WIFI FAILURE DETAILS
+// Shown on the 2nd line of the connection error screen.
+const char *TXT_WIFI_REASON_NO_AP_FOUND    = "Võrku ei leitud";
+const char *TXT_WIFI_REASON_AUTH_FAIL      = "Parool võib olla vale";
+const char *TXT_WIFI_REASON_ASSOC_FAIL     = "Ruuter keeldus ühendusest";
+const char *TXT_WIFI_REASON_BEACON_TIMEOUT = "Nõrk signaal";
+const char *TXT_WIFI_REASON_TIMEOUT        = "Ruuter ei vasta";
+const char *TXT_WIFI_REASON_UNKNOWN        = "Teadmata põhjus";

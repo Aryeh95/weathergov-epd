@@ -17,6 +17,12 @@
 
 #include "config.h"
 
+// NOTE: because the .inc file below is included through a computed macro,
+// the build system cannot see it as a dependency of this file. After editing
+// any locales/locale_*.inc file, force this file to recompile (delete
+// .pio/build/*/src/locale.cpp.o or run a clean build), otherwise the old
+// strings -- or missing new ones -- linger in the stale object file.
+
 #define STR(s) #s
 #define X_LOCALE_INC(code) STR(locales/locale_ ## code.inc)
 #define LOCALE_INC(code) X_LOCALE_INC(code)

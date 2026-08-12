@@ -454,3 +454,12 @@ const char *TXT_WL_CONNECTED       = "Conectado";
 const char *TXT_WL_CONNECT_FAILED  = "Fallo en la Conexi\363n";
 const char *TXT_WL_CONNECTION_LOST = "Conexi\363n Perdida";
 const char *TXT_WL_DISCONNECTED    = "Desconectado";
+
+// WIFI FAILURE DETAILS
+// Shown on the 2nd line of the connection error screen.
+const char *TXT_WIFI_REASON_NO_AP_FOUND    = "Red no encontrada";
+const char *TXT_WIFI_REASON_AUTH_FAIL      = "Contraseña posiblemente incorrecta";
+const char *TXT_WIFI_REASON_ASSOC_FAIL     = "El router rechazó la conexión";
+const char *TXT_WIFI_REASON_BEACON_TIMEOUT = "Señal débil";
+const char *TXT_WIFI_REASON_TIMEOUT        = "Sin respuesta del router";
+const char *TXT_WIFI_REASON_UNKNOWN        = "Motivo desconocido";

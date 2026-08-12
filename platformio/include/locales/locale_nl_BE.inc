@@ -461,3 +461,12 @@ const char *TXT_WL_CONNECTED       = "Connected";
 const char *TXT_WL_CONNECT_FAILED  = "Connection Failed";
 const char *TXT_WL_CONNECTION_LOST = "Connection Lost";
 const char *TXT_WL_DISCONNECTED    = "Disconnected";
+
+// WIFI FAILURE DETAILS
+// Shown on the 2nd line of the connection error screen.
+const char *TXT_WIFI_REASON_NO_AP_FOUND    = "Netwerk niet gevonden";
+const char *TXT_WIFI_REASON_AUTH_FAIL      = "Wachtwoord mogelijk onjuist";
+const char *TXT_WIFI_REASON_ASSOC_FAIL     = "Router weigerde verbinding";
+const char *TXT_WIFI_REASON_BEACON_TIMEOUT = "Zwak signaal";
+const char *TXT_WIFI_REASON_TIMEOUT        = "Geen antwoord van router";
+const char *TXT_WIFI_REASON_UNKNOWN        = "Onbekende reden";

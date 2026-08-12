@@ -429,19 +429,6 @@ bool isDay(String icon)
   return icon.endsWith("d");
 }
 
-/* Returns true if the moon is currently in the sky above, false otherwise.
- */
-bool isMoonInSky(int64_t current_dt, int64_t moonrise_dt, int64_t moonset_dt,
-                 float moon_phase)
-{
-  // (moon is out if current time is after moonrise but before moonset
-  //   OR if moonrises after moonset and the current time is after moonrise)
-  // AND (moon phase is not a new moon)
-  return ((current_dt >= moonrise_dt && current_dt < moonset_dt)
-          || (moonrise_dt > moonset_dt && current_dt >= moonrise_dt))
-         && (moon_phase != 0.f && moon_phase != 1.f);
-}
-
 /* Takes cloudiness (%) and returns true if it is at least partially cloudy,
  * false otherwise.
  *
@@ -619,25 +606,25 @@ const uint8_t *getConditionsBitmap(int id, bool day, bool moon, bool cloudy,
   }
 } // end getConditionsBitmap
 
-/* Takes the daily weather forecast (from OpenWeatherMap API response) and
- * returns a pointer to the icon's 32x32 bitmap.
+/* Takes the hourly weather forecast and returns a pointer to the icon's
+ * 32x32 bitmap.
  *
- * The daily weather forcast of today is needed for moonrise and moonset times.
+ * weather.gov does not provide moon data, so the moon is always treated as
+ * not visible (nighttime icons fall back to a plain night/stars variant).
  */
 const uint8_t *getHourlyForecastBitmap32(const owm_hourly_t &hourly,
                                          const owm_daily_t  &today)
 {
   const int id = hourly.weather.id;
   const bool day = isDay(hourly.weather.icon);
-  const bool moon = isMoonInSky(hourly.dt, today.moonrise, today.moonset,
-                                today.moon_phase);
+  const bool moon = false;
   const bool cloudy = isCloudy(hourly.clouds);
   const bool windy = isWindy(hourly.wind_speed, hourly.wind_gust);
   return getConditionsBitmap<32>(id, day, moon, cloudy, windy);
 }
 
-/* Takes the daily weather forecast (from OpenWeatherMap API response) and
- * returns a pointer to the icon's 64x64 bitmap.
+/* Takes the daily weather forecast and returns a pointer to the icon's 64x64
+ * bitmap.
  */
 const uint8_t *getDailyForecastBitmap64(const owm_daily_t &daily)
 {
@@ -650,19 +637,18 @@ const uint8_t *getDailyForecastBitmap64(const owm_daily_t &daily)
   return getConditionsBitmap<64>(id, day, moon, cloudy, windy);
 } // end getForecastBitmap64
 
-/* Takes the current weather and today's daily weather forcast (from
- * OpenWeatherMap API response) and returns a pointer to the icon's 196x196
+/* Takes the current weather and returns a pointer to the icon's 196x196
  * bitmap.
  *
- * The daily weather forcast of today is needed for moonrise and moonset times.
+ * weather.gov does not provide moon data, so the moon is always treated as
+ * not visible (nighttime icons fall back to a plain night/stars variant).
  */
 const uint8_t *getCurrentConditionsBitmap196(const owm_current_t &current,
                                              const owm_daily_t   &today)
 {
   const int id = current.weather.id;
   const bool day = isDay(current.weather.icon);
-  const bool moon = isMoonInSky(current.dt, today.moonrise, today.moonset,
-                                today.moon_phase);
+  const bool moon = false;
   const bool cloudy = isCloudy(current.clouds);
   const bool windy = isWindy(current.wind_speed, current.wind_gust);
   return getConditionsBitmap<196>(id, day, moon, cloudy, windy);
@@ -1531,123 +1517,3 @@ void disableBuiltinLED()
   return;
 } // end disableBuiltinLED
 
-// Define the set of moon phase icon base on the chosen moon phase style
-#ifdef MOONPHASE_PRIMARY
-static const unsigned char *moon_phase_icon_arr[] = {
-  wi_moon_new_48x48,
-  wi_moon_waxing_crescent_1_48x48,
-  wi_moon_waxing_crescent_2_48x48,
-  wi_moon_waxing_crescent_3_48x48,
-  wi_moon_waxing_crescent_4_48x48,
-  wi_moon_waxing_crescent_5_48x48,
-  wi_moon_waxing_6_48x48,
-  wi_moon_first_quarter_48x48,
-  wi_moon_waxing_gibbous_1_48x48,
-  wi_moon_waxing_gibbous_2_48x48,
-  wi_moon_waxing_gibbous_3_48x48,
-  wi_moon_waxing_gibbous_4_48x48,
-  wi_moon_waxing_gibbous_5_48x48,
-  wi_moon_waxing_gibbous_6_48x48,
-  wi_moon_full_48x48,
-  wi_moon_waning_gibbous_1_48x48,
-  wi_moon_waning_gibbous_2_48x48,
-  wi_moon_waning_gibbous_3_48x48,
-  wi_moon_waning_gibbous_4_48x48,
-  wi_moon_waning_gibbous_5_48x48,
-  wi_moon_waning_gibbous_6_48x48,
-  wi_moon_third_quarter_48x48,
-  wi_moon_waning_crescent_1_48x48,
-  wi_moon_waning_crescent_2_48x48,
-  wi_moon_waning_crescent_3_48x48,
-  wi_moon_waning_crescent_4_48x48,
-  wi_moon_waning_crescent_5_48x48,
-  wi_moon_waning_crescent_6_48x48,
-  wi_moon_new_48x48 };
-#endif
-// end MOONPHASE_PRIMARY
-
-#ifdef MOONPHASE_ALTERNATIVE
-static const unsigned char *moon_phase_icon_arr[] = {
-  wi_moon_alt_new_48x48,
-  wi_moon_alt_waxing_crescent_1_48x48,
-  wi_moon_alt_waxing_crescent_2_48x48,
-  wi_moon_alt_waxing_crescent_3_48x48,
-  wi_moon_alt_waxing_crescent_4_48x48,
-  wi_moon_alt_waxing_crescent_5_48x48,
-  wi_moon_alt_waxing_crescent_6_48x48,
-  wi_moon_alt_first_quarter_48x48,
-  wi_moon_alt_waxing_gibbous_1_48x48,
-  wi_moon_alt_waxing_gibbous_2_48x48,
-  wi_moon_alt_waxing_gibbous_3_48x48,
-  wi_moon_alt_waxing_gibbous_4_48x48,
-  wi_moon_alt_waxing_gibbous_5_48x48,
-  wi_moon_alt_waxing_gibbous_6_48x48,
-  wi_moon_alt_full_48x48,
-  wi_moon_alt_waning_gibbous_1_48x48,
-  wi_moon_alt_waning_gibbous_2_48x48,
-  wi_moon_alt_waning_gibbous_3_48x48,
-  wi_moon_alt_waning_gibbous_4_48x48,
-  wi_moon_alt_waning_gibbous_5_48x48,
-  wi_moon_alt_waning_gibbous_6_48x48,
-  wi_moon_alt_third_quarter_48x48,
-  wi_moon_alt_waning_crescent_1_48x48,
-  wi_moon_alt_waning_crescent_2_48x48,
-  wi_moon_alt_waning_crescent_3_48x48,
-  wi_moon_alt_waning_crescent_4_48x48,
-  wi_moon_alt_waning_crescent_5_48x48,
-  wi_moon_alt_waning_crescent_6_48x48,
-  wi_moon_alt_new_48x48 };
-#endif
-// end MOONPHASE_ALTERNATIVE
-
-/*  Returns the 48x48 moon phase icon bitmap based on api response between 0 and 1
- *  0 and 1 means new moon
- *  0.5 means full moon
- *  scale range to match 28 numbers of different icons
- *  offset +0.5 to shift icon to center of moon phase period
-*/
-const uint8_t *getMoonPhaseBitmap48(const owm_daily_t &daily)
-{
-  int n = static_cast<int>(daily.moon_phase * 28 + 0.5);
-    return moon_phase_icon_arr[n];
-} // end getMoonPhaseBitmap48
-
-
-// Returns the current moon phase string
-  const char *getMoonPhaseStr(const owm_daily_t &daily)
-{
-  int n = static_cast<int>(daily.moon_phase * 28 + 0.5);
-  switch(n)
-  {
-  case 0 : return TXT_NEW_MOON;
-  case 1 : return TXT_WAXING_CRESCENT;
-  case 2 : return TXT_WAXING_CRESCENT;
-  case 3 : return TXT_WAXING_CRESCENT;
-  case 4 : return TXT_WAXING_CRESCENT;
-  case 5 : return TXT_WAXING_CRESCENT;
-  case 6 : return TXT_WAXING_CRESCENT;
-  case 7 : return TXT_FIRST_QUARTER;
-  case 8 : return TXT_WAXING_GIBBOUS;
-  case 9 : return TXT_WAXING_GIBBOUS;
-  case 10 : return TXT_WAXING_GIBBOUS;
-  case 11 : return TXT_WAXING_GIBBOUS;
-  case 12 : return TXT_WAXING_GIBBOUS;
-  case 13 : return TXT_WAXING_GIBBOUS;
-  case 14 : return TXT_FULL_MOON;
-  case 15 : return TXT_WANING_GIBBOUS;
-  case 16 : return TXT_WANING_GIBBOUS;
-  case 17 : return TXT_WANING_GIBBOUS;
-  case 18 : return TXT_WANING_GIBBOUS;
-  case 19 : return TXT_WANING_GIBBOUS;
-  case 20 : return TXT_WANING_GIBBOUS;
-  case 21 : return TXT_THIRD_QUARTER;
-  case 22 : return TXT_WANING_CRESCENT;
-  case 23 : return TXT_WANING_CRESCENT;
-  case 24 : return TXT_WANING_CRESCENT;
-  case 25 : return TXT_WANING_CRESCENT;
-  case 26 : return TXT_WANING_CRESCENT;
-  case 27 : return TXT_WANING_CRESCENT;
-  case 28 : return TXT_NEW_MOON;
-  default:  return "";
-  }
-} // end getMoonPhaseStr

@@ -1,5 +1,5 @@
 /* API response deserialization for esp32-weather-epd.
- * Copyright (C) 2022-2024  Luke Marzen
+ * Copyright (C) 2022-2025  Luke Marzen
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,117 +15,429 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
+#include <cctype>
+#include <cmath>
+#include <ctime>
 #include <vector>
 #include <ArduinoJson.h>
 #include "api_response.h"
 #include "config.h"
+#include "conversions.h"
 
-DeserializationError deserializeOneCall(WiFiClient &json,
-                                        owm_resp_onecall_t &r)
+/* Converts a proleptic Gregorian civil date to the number of days since the
+ * Unix epoch (1970-01-01). Implementation of Howard Hinnant's well known
+ * "days_from_civil" algorithm, used here in place of timegm() (not part of
+ * the standard library used by this toolchain).
+ */
+static int64_t daysFromCivil(int y, int m, int d)
 {
-  int i;
+  y -= m <= 2;
+  int64_t era = (y >= 0 ? y : y - 399) / 400;
+  unsigned yoe = static_cast<unsigned>(y - era * 400);          // [0, 399]
+  unsigned doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1; // [0, 365]
+  unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;          // [0, 146096]
+  return era * 146097 + static_cast<int64_t>(doe) - 719468;
+} // end daysFromCivil
 
-  JsonDocument filter;
-  filter["current"]  = true;
-  filter["minutely"] = false;
-  filter["hourly"]   = true;
-  filter["daily"]    = true;
-#if !DISPLAY_ALERTS
-  filter["alerts"]   = false;
-#else
-  // description can be very long so they are filtered out to save on memory
-  // along with sender_name
-  for (int i = 0; i < OWM_NUM_ALERTS; ++i)
+/* Parses an ISO8601 timestamp as used throughout the weather.gov API, ex.
+ * "2025-08-10T06:00:00-04:00", and returns Unix time, UTC.
+ *
+ * Returns 0 if the string could not be parsed.
+ */
+static int64_t parseISO8601(const String &s)
+{
+  if (s.length() < 19)
   {
-    filter["alerts"][i]["sender_name"] = false;
-    filter["alerts"][i]["event"]       = true;
-    filter["alerts"][i]["start"]       = true;
-    filter["alerts"][i]["end"]         = true;
-    filter["alerts"][i]["description"] = false;
-    filter["alerts"][i]["tags"]        = true;
+    return 0;
   }
-#endif
+
+  int year, mon, day, hour, min, sec;
+  if (sscanf(s.c_str(), "%d-%d-%dT%d:%d:%d",
+            &year, &mon, &day, &hour, &min, &sec) != 6)
+  {
+    return 0;
+  }
+
+  int offSign = 1, offHour = 0, offMin = 0;
+  if (s.length() >= 25
+   && (s.charAt(19) == '+' || s.charAt(19) == '-'))
+  {
+    offSign = (s.charAt(19) == '-') ? -1 : 1;
+    sscanf(s.c_str() + 20, "%d:%d", &offHour, &offMin);
+  }
+
+  int64_t utcSeconds = daysFromCivil(year, mon, day) * 86400LL
+                      + hour * 3600LL + min * 60LL + sec;
+  utcSeconds -= offSign * (offHour * 3600LL + offMin * 60LL);
+  return utcSeconds;
+} // end parseISO8601
+
+/* Parses a weather.gov windSpeed string, ex. "10 mph" or "5 to 10 mph", and
+ * returns the (higher, if a range) speed converted to meters/second.
+ */
+static float parseWindSpeedMph(const String &s)
+{
+  int firstNum = -1, secondNum = -1;
+  int i = 0;
+  int n = s.length();
+  while (i < n)
+  {
+    if (isdigit(static_cast<unsigned char>(s.charAt(i))))
+    {
+      int start = i;
+      while (i < n && isdigit(static_cast<unsigned char>(s.charAt(i))))
+      {
+        ++i;
+      }
+      int val = s.substring(start, i).toInt();
+      if (firstNum == -1)
+      {
+        firstNum = val;
+      }
+      else
+      {
+        secondNum = val;
+        break;
+      }
+    }
+    else
+    {
+      ++i;
+    }
+  }
+
+  if (firstNum == -1)
+  {
+    return 0.f;
+  }
+  int mph = (secondNum != -1) ? std::max(firstNum, secondNum) : firstNum;
+  return milesperhour_to_meterspersecond(static_cast<float>(mph));
+} // end parseWindSpeedMph
+
+/* Converts a 16-point compass direction abbreviation (ex. "NW") as reported
+ * by weather.gov into meteorological degrees.
+ */
+static int compassToDegrees(const String &dir)
+{
+  static const char *DIRS[16] = {
+    "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+    "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"};
+  for (int i = 0; i < 16; ++i)
+  {
+    if (dir == DIRS[i])
+    {
+      return static_cast<int>(std::round(i * 22.5f));
+    }
+  }
+  return 0;
+} // end compassToDegrees
+
+/* Splits a weather.gov icon URL, ex.
+ * "https://api.weather.gov/icons/land/day/few,20?size=medium", into its
+ * day/night segment and the first (current) condition code.
+ */
+static void parseIconUrl(const String &iconUrl, String &dayNight, String &code)
+{
+  dayNight = "day";
+  code = "";
+  int landIdx = iconUrl.indexOf("/land/");
+  if (landIdx == -1)
+  {
+    return;
+  }
+  int start = landIdx + 6;
+  int slash = iconUrl.indexOf('/', start);
+  if (slash == -1)
+  {
+    return;
+  }
+  dayNight = iconUrl.substring(start, slash);
+
+  int codeStart = slash + 1;
+  int end = codeStart;
+  int n = iconUrl.length();
+  while (end < n
+      && iconUrl.charAt(end) != ','
+      && iconUrl.charAt(end) != '/'
+      && iconUrl.charAt(end) != '?')
+  {
+    ++end;
+  }
+  code = iconUrl.substring(codeStart, end);
+} // end parseIconUrl
+
+/* Lookup table mapping weather.gov icon condition codes
+ * (https://api.weather.gov/icons) to an approximate OpenWeatherMap-style
+ * condition id (reused so the existing icon-selection logic in
+ * display_utils.cpp does not need to change) and an estimated cloud cover
+ * percentage (weather.gov does not report cloud cover numerically in its
+ * forecast endpoints).
+ */
+struct NwsIconMapEntry { const char *code; int id; int clouds; };
+static const NwsIconMapEntry NWS_ICON_MAP[] = {
+  {"skc",              800,  0},
+  {"wind_skc",         800,  5},
+  {"few",              801, 15},
+  {"wind_few",         801, 20},
+  {"sct",              802, 35},
+  {"wind_sct",         802, 40},
+  {"bkn",              803, 70},
+  {"wind_bkn",         803, 75},
+  {"ovc",              804, 95},
+  {"wind_ovc",         804, 95},
+  {"snow",             601, 90},
+  {"rain_snow",        616, 90},
+  {"rain_sleet",       611, 90},
+  {"snow_sleet",       611, 90},
+  {"fzra",             511, 90},
+  {"rain_fzra",        511, 90},
+  {"snow_fzra",        511, 90},
+  {"sleet",            611, 90},
+  {"rain",             500, 90},
+  {"rain_showers",     520, 60},
+  {"rain_showers_hi",  520, 40},
+  {"tsra",             211, 90},
+  {"tsra_sct",         211, 70},
+  {"tsra_hi",          210, 50},
+  {"tornado",          781, 90},
+  {"hurricane",        771, 95},
+  {"tropical_storm",   771, 90},
+  {"dust",             731, 30},
+  {"smoke",            711, 30},
+  {"haze",             721, 20},
+  {"hot",              800,  5},
+  {"cold",             800,  5},
+  {"blizzard",         602, 95},
+  {"fog",              741, 85},
+};
+
+/* Applies the NWS_ICON_MAP lookup, filling in a synthetic owm_weather_t (id +
+ * day/night marker) and an estimated cloud cover percentage.
+ */
+static void applyNwsIcon(const String &code, const String &dayNight,
+                         owm_weather_t &weather, int &clouds)
+{
+  int id = 804;   // default: overcast clouds
+  int cl = 50;
+  for (const NwsIconMapEntry &entry : NWS_ICON_MAP)
+  {
+    if (code == entry.code)
+    {
+      id = entry.id;
+      cl = entry.clouds;
+      break;
+    }
+  }
+  weather.id   = id;
+  weather.icon = (dayNight == "night") ? "n" : "d";
+  clouds = cl;
+} // end applyNwsIcon
+
+/* Converts a METAR-style sky cover abbreviation (as reported in an NWS
+ * observation's cloudLayers) to an approximate cloud cover percentage.
+ * Returns -1 if the abbreviation is not recognized.
+ */
+static int cloudAmountToPercent(const char *amount)
+{
+  String a(amount);
+  if (a == "OVC")                    return 95;
+  if (a == "BKN")                    return 70;
+  if (a == "SCT")                    return 35;
+  if (a == "FEW")                    return 15;
+  if (a == "SKC" || a == "CLR" || a == "CAVOK") return 0;
+  if (a == "VV")                     return 100;
+  return -1;
+} // end cloudAmountToPercent
+
+/* Fetches the gridpoint forecast URLs and nearest observation stations URL
+ * for a given lat/lon from weather.gov's /points endpoint.
+ */
+DeserializationError deserializeNWSPoints(WiFiClient &json, String &forecastUrl,
+                                          String &forecastHourlyUrl,
+                                          String &stationsUrl)
+{
+  JsonDocument filter;
+  filter["properties"]["forecast"]             = true;
+  filter["properties"]["forecastHourly"]       = true;
+  filter["properties"]["observationStations"]  = true;
 
   JsonDocument doc;
-
   DeserializationError error = deserializeJson(doc, json,
                                          DeserializationOption::Filter(filter));
 #if DEBUG_LEVEL >= 1
-  Serial.println("[debug] doc.overflowed() : "
-                 + String(doc.overflowed()));
+  Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
 #endif
 #if DEBUG_LEVEL >= 2
   serializeJsonPretty(doc, Serial);
 #endif
-  if (error) {
+  if (error)
+  {
     return error;
   }
 
-  r.lat             = doc["lat"]            .as<float>();
-  r.lon             = doc["lon"]            .as<float>();
-  r.timezone        = doc["timezone"]       .as<const char *>();
-  r.timezone_offset = doc["timezone_offset"].as<int>();
+  forecastUrl       = doc["properties"]["forecast"]            .as<const char *>();
+  forecastHourlyUrl = doc["properties"]["forecastHourly"]      .as<const char *>();
+  stationsUrl       = doc["properties"]["observationStations"] .as<const char *>();
 
-  JsonObject current = doc["current"];
-  r.current.dt         = current["dt"]        .as<int64_t>();
-  r.current.sunrise    = current["sunrise"]   .as<int64_t>();
-  r.current.sunset     = current["sunset"]    .as<int64_t>();
-  r.current.temp       = current["temp"]      .as<float>();
-  r.current.feels_like = current["feels_like"].as<float>();
-  r.current.pressure   = current["pressure"]  .as<int>();
-  r.current.humidity   = current["humidity"]  .as<int>();
-  r.current.dew_point  = current["dew_point"] .as<float>();
-  r.current.clouds     = current["clouds"]    .as<int>();
-  r.current.uvi        = current["uvi"]       .as<float>();
-  r.current.visibility = current["visibility"].as<int>();
-  r.current.wind_speed = current["wind_speed"].as<float>();
-  r.current.wind_gust  = current["wind_gust"] .as<float>();
-  r.current.wind_deg   = current["wind_deg"]  .as<int>();
-  r.current.rain_1h    = current["rain"]["1h"].as<float>();
-  r.current.snow_1h    = current["snow"]["1h"].as<float>();
-  JsonObject current_weather = current["weather"][0];
-  r.current.weather.id          = current_weather["id"]         .as<int>();
-  r.current.weather.main        = current_weather["main"]       .as<const char *>();
-  r.current.weather.description = current_weather["description"].as<const char *>();
-  r.current.weather.icon        = current_weather["icon"]       .as<const char *>();
+  return error;
+} // end deserializeNWSPoints
 
-  // minutely forecast is currently unused
-  // i = 0;
-  // for (JsonObject minutely : doc["minutely"].as<JsonArray>())
-  // {
-  //   r.minutely[i].dt            = minutely["dt"]           .as<int64_t>();
-  //   r.minutely[i].precipitation = minutely["precipitation"].as<float>();
+/* Fetches the nearest observation station identifier from a gridpoint's
+ * /stations endpoint.
+ */
+DeserializationError deserializeNWSStations(WiFiClient &json, String &stationId)
+{
+  JsonDocument filter;
+  filter["features"][0]["properties"]["stationIdentifier"] = true;
 
-  //   if (i == OWM_NUM_MINUTELY - 1)
-  //   {
-  //     break;
-  //   }
-  //   ++i;
-  // }
-
-  i = 0;
-  for (JsonObject hourly : doc["hourly"].as<JsonArray>())
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, json,
+                                         DeserializationOption::Filter(filter));
+#if DEBUG_LEVEL >= 1
+  Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
+#endif
+  if (error)
   {
-    r.hourly[i].dt         = hourly["dt"]        .as<int64_t>();
-    r.hourly[i].temp       = hourly["temp"]      .as<float>();
-    r.hourly[i].feels_like = hourly["feels_like"].as<float>();
-    r.hourly[i].pressure   = hourly["pressure"]  .as<int>();
-    r.hourly[i].humidity   = hourly["humidity"]  .as<int>();
-    r.hourly[i].dew_point  = hourly["dew_point"] .as<float>();
-    r.hourly[i].clouds     = hourly["clouds"]    .as<int>();
-    r.hourly[i].uvi        = hourly["uvi"]       .as<float>();
-    r.hourly[i].visibility = hourly["visibility"].as<int>();
-    r.hourly[i].wind_speed = hourly["wind_speed"].as<float>();
-    r.hourly[i].wind_gust  = hourly["wind_gust"] .as<float>();
-    r.hourly[i].wind_deg   = hourly["wind_deg"]  .as<int>();
-    r.hourly[i].pop        = hourly["pop"]       .as<float>();
-    r.hourly[i].rain_1h    = hourly["rain"]["1h"].as<float>();
-    r.hourly[i].snow_1h    = hourly["snow"]["1h"].as<float>();
-    JsonObject hourly_weather = hourly["weather"][0];
-    r.hourly[i].weather.id          = hourly_weather["id"]         .as<int>();
-    r.hourly[i].weather.main        = hourly_weather["main"]       .as<const char *>();
-    r.hourly[i].weather.description = hourly_weather["description"].as<const char *>();
-    r.hourly[i].weather.icon        = hourly_weather["icon"]       .as<const char *>();
+    return error;
+  }
+
+  JsonArray features = doc["features"].as<JsonArray>();
+  if (features.size() > 0)
+  {
+    stationId = features[0]["properties"]["stationIdentifier"].as<const char *>();
+  }
+
+  return error;
+} // end deserializeNWSStations
+
+/* Parses weather.gov's 12-hour period /forecast endpoint into up to
+ * OWM_NUM_DAILY owm_daily_t entries, merging each day/night period pair into
+ * a single day.
+ */
+DeserializationError deserializeNWSForecastDaily(WiFiClient &json,
+                                                 owm_daily_t *daily)
+{
+  JsonDocument filter;
+  JsonObject period = filter["properties"]["periods"][0].to<JsonObject>();
+  period["isDaytime"]                          = true;
+  period["startTime"]                          = true;
+  period["temperature"]                        = true;
+  period["probabilityOfPrecipitation"]["value"] = true;
+  period["windSpeed"]                          = true;
+  period["windDirection"]                      = true;
+  period["icon"]                               = true;
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, json,
+                                         DeserializationOption::Filter(filter));
+#if DEBUG_LEVEL >= 1
+  Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
+#endif
+#if DEBUG_LEVEL >= 2
+  serializeJsonPretty(doc, Serial);
+#endif
+  if (error)
+  {
+    return error;
+  }
+
+  for (int i = 0; i < OWM_NUM_DAILY; ++i)
+  {
+    daily[i] = {};
+    daily[i].temp.min = 1e6f;
+    daily[i].temp.max = -1e6f;
+  }
+
+  String curDate;
+  int dayIdx = -1;
+  for (JsonObject p : doc["properties"]["periods"].as<JsonArray>())
+  {
+    String startTime = p["startTime"].as<const char *>();
+    String date = startTime.substring(0, 10);
+    if (date != curDate)
+    {
+      ++dayIdx;
+      if (dayIdx >= OWM_NUM_DAILY)
+      {
+        break;
+      }
+      curDate = date;
+      daily[dayIdx].dt = parseISO8601(startTime);
+    }
+
+    float tempK = fahrenheit_to_kelvin(p["temperature"].as<float>());
+    daily[dayIdx].temp.min = std::min(daily[dayIdx].temp.min, tempK);
+    daily[dayIdx].temp.max = std::max(daily[dayIdx].temp.max, tempK);
+
+    JsonVariant popVar = p["probabilityOfPrecipitation"]["value"];
+    float pop = popVar.isNull() ? 0.f : (popVar.as<float>() / 100.f);
+    daily[dayIdx].pop = std::max(daily[dayIdx].pop, pop);
+
+    bool isDaytime = p["isDaytime"].as<bool>();
+    // prefer the daytime period's conditions for the icon/wind/clouds shown;
+    // fall back to whatever period we saw first for this day (ex. a lone
+    // "Tonight" period when the forecast is fetched late at night).
+    if (isDaytime || daily[dayIdx].weather.icon.isEmpty())
+    {
+      String dayNight, code;
+      parseIconUrl(p["icon"].as<const char *>(), dayNight, code);
+      applyNwsIcon(code, dayNight, daily[dayIdx].weather, daily[dayIdx].clouds);
+      daily[dayIdx].wind_speed = parseWindSpeedMph(p["windSpeed"].as<const char *>());
+      daily[dayIdx].wind_gust  = daily[dayIdx].wind_speed;
+      daily[dayIdx].wind_deg   = compassToDegrees(p["windDirection"].as<const char *>());
+    }
+  }
+
+  return error;
+} // end deserializeNWSForecastDaily
+
+/* Parses weather.gov's hourly /forecast/hourly endpoint into up to
+ * OWM_NUM_HOURLY owm_hourly_t entries.
+ */
+DeserializationError deserializeNWSForecastHourly(WiFiClient &json,
+                                                  owm_hourly_t *hourly)
+{
+  JsonDocument filter;
+  JsonObject period = filter["properties"]["periods"][0].to<JsonObject>();
+  period["startTime"]                          = true;
+  period["temperature"]                        = true;
+  period["probabilityOfPrecipitation"]["value"] = true;
+  period["windSpeed"]                          = true;
+  period["windDirection"]                      = true;
+  period["icon"]                               = true;
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, json,
+                                         DeserializationOption::Filter(filter));
+#if DEBUG_LEVEL >= 1
+  Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
+#endif
+#if DEBUG_LEVEL >= 2
+  serializeJsonPretty(doc, Serial);
+#endif
+  if (error)
+  {
+    return error;
+  }
+
+  int i = 0;
+  for (JsonObject p : doc["properties"]["periods"].as<JsonArray>())
+  {
+    hourly[i] = {};
+    hourly[i].dt   = parseISO8601(p["startTime"].as<const char *>());
+    hourly[i].temp = fahrenheit_to_kelvin(p["temperature"].as<float>());
+
+    JsonVariant popVar = p["probabilityOfPrecipitation"]["value"];
+    hourly[i].pop = popVar.isNull() ? 0.f : (popVar.as<float>() / 100.f);
+
+    String dayNight, code;
+    parseIconUrl(p["icon"].as<const char *>(), dayNight, code);
+    applyNwsIcon(code, dayNight, hourly[i].weather, hourly[i].clouds);
+
+    hourly[i].wind_speed = parseWindSpeedMph(p["windSpeed"].as<const char *>());
+    hourly[i].wind_gust  = hourly[i].wind_speed;
+    hourly[i].wind_deg   = compassToDegrees(p["windDirection"].as<const char *>());
 
     if (i == OWM_NUM_HOURLY - 1)
     {
@@ -134,64 +446,165 @@ DeserializationError deserializeOneCall(WiFiClient &json,
     ++i;
   }
 
-  i = 0;
-  for (JsonObject daily : doc["daily"].as<JsonArray>())
-  {
-    r.daily[i].dt         = daily["dt"]        .as<int64_t>();
-    r.daily[i].sunrise    = daily["sunrise"]   .as<int64_t>();
-    r.daily[i].sunset     = daily["sunset"]    .as<int64_t>();
-    r.daily[i].moonrise   = daily["moonrise"]  .as<int64_t>();
-    r.daily[i].moonset    = daily["moonset"]   .as<int64_t>();
-    r.daily[i].moon_phase = daily["moon_phase"].as<float>();
-    JsonObject daily_temp = daily["temp"];
-    r.daily[i].temp.morn  = daily_temp["morn"] .as<float>();
-    r.daily[i].temp.day   = daily_temp["day"]  .as<float>();
-    r.daily[i].temp.eve   = daily_temp["eve"]  .as<float>();
-    r.daily[i].temp.night = daily_temp["night"].as<float>();
-    r.daily[i].temp.min   = daily_temp["min"]  .as<float>();
-    r.daily[i].temp.max   = daily_temp["max"]  .as<float>();
-    JsonObject daily_feels_like = daily["feels_like"];
-    r.daily[i].feels_like.morn  = daily_feels_like["morn"] .as<float>();
-    r.daily[i].feels_like.day   = daily_feels_like["day"]  .as<float>();
-    r.daily[i].feels_like.eve   = daily_feels_like["eve"]  .as<float>();
-    r.daily[i].feels_like.night = daily_feels_like["night"].as<float>();
-    r.daily[i].pressure   = daily["pressure"]  .as<int>();
-    r.daily[i].humidity   = daily["humidity"]  .as<int>();
-    r.daily[i].dew_point  = daily["dew_point"] .as<float>();
-    r.daily[i].clouds     = daily["clouds"]    .as<int>();
-    r.daily[i].uvi        = daily["uvi"]       .as<float>();
-    r.daily[i].visibility = daily["visibility"].as<int>();
-    r.daily[i].wind_speed = daily["wind_speed"].as<float>();
-    r.daily[i].wind_gust  = daily["wind_gust"] .as<float>();
-    r.daily[i].wind_deg   = daily["wind_deg"]  .as<int>();
-    r.daily[i].pop        = daily["pop"]       .as<float>();
-    r.daily[i].rain       = daily["rain"]      .as<float>();
-    r.daily[i].snow       = daily["snow"]      .as<float>();
-    JsonObject daily_weather = daily["weather"][0];
-    r.daily[i].weather.id          = daily_weather["id"]         .as<int>();
-    r.daily[i].weather.main        = daily_weather["main"]       .as<const char *>();
-    r.daily[i].weather.description = daily_weather["description"].as<const char *>();
-    r.daily[i].weather.icon        = daily_weather["icon"]       .as<const char *>();
+  return error;
+} // end deserializeNWSForecastHourly
 
-    if (i == OWM_NUM_DAILY - 1)
-    {
-      break;
-    }
-    ++i;
+/* Populates owm_current_t entirely from the first hourly forecast period,
+ * used when a station observation is unavailable or could not be
+ * fetched/parsed.
+ */
+void fillCurrentFromFallback(const owm_hourly_t &fallback, owm_current_t &current)
+{
+  current = {};
+  current.dt         = time(nullptr);
+  current.weather     = fallback.weather;
+  current.temp        = fallback.temp;
+  current.feels_like  = fallback.temp;
+  current.wind_speed  = fallback.wind_speed;
+  current.wind_gust   = fallback.wind_gust;
+  current.wind_deg    = fallback.wind_deg;
+  current.clouds      = fallback.clouds;
+  current.dew_point   = NAN;
+  current.visibility  = 10000;
+} // end fillCurrentFromFallback
+
+/* Parses the latest observation from a weather.gov observation station.
+ * Automated stations frequently omit individual fields (most commonly wind
+ * and visibility); any missing field falls back to the corresponding value
+ * from the first hourly forecast period.
+ */
+DeserializationError deserializeNWSObservation(WiFiClient &json,
+                                               const owm_hourly_t &fallback,
+                                               owm_current_t &current)
+{
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, json);
+#if DEBUG_LEVEL >= 1
+  Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
+#endif
+#if DEBUG_LEVEL >= 2
+  serializeJsonPretty(doc, Serial);
+#endif
+
+  if (error)
+  {
+    // could not fetch/parse the observation, fall back entirely to the
+    // hourly forecast
+    fillCurrentFromFallback(fallback, current);
+    return error;
   }
 
-#if DISPLAY_ALERTS
-  i = 0;
-  for (JsonObject alerts : doc["alerts"].as<JsonArray>())
+  current = {};
+  current.dt      = time(nullptr);
+  current.weather = fallback.weather;
+
+  JsonObject p = doc["properties"];
+
+  JsonVariant tempVar = p["temperature"]["value"];
+  current.temp = !tempVar.isNull() ? celsius_to_kelvin(tempVar.as<float>())
+                                    : fallback.temp;
+
+  JsonVariant dewVar = p["dewpoint"]["value"];
+  current.dew_point = !dewVar.isNull() ? celsius_to_kelvin(dewVar.as<float>())
+                                        : NAN;
+
+  JsonVariant humVar = p["relativeHumidity"]["value"];
+  current.humidity = !humVar.isNull()
+                    ? static_cast<int>(std::round(humVar.as<float>()))
+                    : 0;
+
+  JsonVariant pressVar = p["barometricPressure"]["value"];
+  current.pressure = !pressVar.isNull()
+                    ? static_cast<int>(std::round(pressVar.as<float>() / 100.f))
+                    : 1013;
+
+  JsonVariant visVar = p["visibility"]["value"];
+  current.visibility = !visVar.isNull()
+                      ? static_cast<int>(visVar.as<float>())
+                      : 10000;
+
+  JsonVariant spdVar = p["windSpeed"]["value"];
+  current.wind_speed = !spdVar.isNull()
+                      ? kilometersperhour_to_meterspersecond(spdVar.as<float>())
+                      : fallback.wind_speed;
+
+  JsonVariant gustVar = p["windGust"]["value"];
+  current.wind_gust = !gustVar.isNull()
+                     ? kilometersperhour_to_meterspersecond(gustVar.as<float>())
+                     : current.wind_speed;
+
+  JsonVariant dirVar = p["windDirection"]["value"];
+  current.wind_deg = !dirVar.isNull() ? static_cast<int>(dirVar.as<float>())
+                                       : fallback.wind_deg;
+
+  JsonVariant heatVar  = p["heatIndex"]["value"];
+  JsonVariant chillVar = p["windChill"]["value"];
+  if (!heatVar.isNull())
   {
+    current.feels_like = celsius_to_kelvin(heatVar.as<float>());
+  }
+  else if (!chillVar.isNull())
+  {
+    current.feels_like = celsius_to_kelvin(chillVar.as<float>());
+  }
+  else
+  {
+    current.feels_like = current.temp;
+  }
+
+  int clouds = -1;
+  for (JsonObject layer : p["cloudLayers"].as<JsonArray>())
+  {
+    const char *amount = layer["amount"] | "";
+    int c = cloudAmountToPercent(amount);
+    if (c >= 0)
+    {
+      clouds = c;
+    }
+  }
+  current.clouds = (clouds >= 0) ? clouds : fallback.clouds;
+
+  return error;
+} // end deserializeNWSObservation
+
+/* Parses weather.gov's /alerts/active endpoint.
+ */
+DeserializationError deserializeNWSAlerts(WiFiClient &json,
+                                          std::vector<owm_alerts_t> &alerts)
+{
+  JsonDocument filter;
+  JsonObject props = filter["features"][0]["properties"].to<JsonObject>();
+  props["event"]     = true;
+  props["effective"] = true;
+  props["expires"]   = true;
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, json,
+                                         DeserializationOption::Filter(filter));
+#if DEBUG_LEVEL >= 1
+  Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
+#endif
+#if DEBUG_LEVEL >= 2
+  serializeJsonPretty(doc, Serial);
+#endif
+  if (error)
+  {
+    return error;
+  }
+
+  int i = 0;
+  for (JsonObject feature : doc["features"].as<JsonArray>())
+  {
+    JsonObject props = feature["properties"];
     owm_alerts_t new_alert = {};
-    // new_alert.sender_name = alerts["sender_name"].as<const char *>();
-    new_alert.event       = alerts["event"]      .as<const char *>();
-    new_alert.start       = alerts["start"]      .as<int64_t>();
-    new_alert.end         = alerts["end"]        .as<int64_t>();
-    // new_alert.description = alerts["description"].as<const char *>();
-    new_alert.tags        = alerts["tags"][0]    .as<const char *>();
-    r.alerts.push_back(new_alert);
+    new_alert.event = props["event"].as<const char *>();
+    new_alert.start = parseISO8601(props["effective"].as<const char *>());
+    new_alert.end   = parseISO8601(props["expires"]  .as<const char *>());
+    // weather.gov does not provide a short category tag like OpenWeatherMap
+    // did; reuse the event text so exact-duplicate alerts (ex. issued for
+    // multiple overlapping zones) can still be deduplicated.
+    new_alert.tags  = new_alert.event;
+    alerts.push_back(new_alert);
 
     if (i == OWM_NUM_ALERTS - 1)
     {
@@ -199,57 +612,66 @@ DeserializationError deserializeOneCall(WiFiClient &json,
     }
     ++i;
   }
-#endif
 
   return error;
-} // end deserializeOneCall
+} // end deserializeNWSAlerts
 
+/* Parses Open-Meteo's Air Quality API response, used for UV index and air
+ * pollutant concentrations (weather.gov does not provide either). The most
+ * recent OWM_NUM_AIR_POLLUTION hourly values are kept, oldest first, matching
+ * the ordering expected by calc_aqi()/avg_conc().
+ */
 DeserializationError deserializeAirQuality(WiFiClient &json,
-                                           owm_resp_air_pollution_t &r)
+                                           owm_resp_air_pollution_t &r,
+                                           float &uvi)
 {
-  int i = 0;
-
   JsonDocument doc;
-
   DeserializationError error = deserializeJson(doc, json);
 #if DEBUG_LEVEL >= 1
-  Serial.println("[debug] doc.overflowed() : "
-                 + String(doc.overflowed()));
+  Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
 #endif
 #if DEBUG_LEVEL >= 2
   serializeJsonPretty(doc, Serial);
 #endif
-  if (error) {
+  if (error)
+  {
     return error;
   }
 
-  r.coord.lat = doc["coord"]["lat"].as<float>();
-  r.coord.lon = doc["coord"]["lon"].as<float>();
+  JsonObject hourly   = doc["hourly"];
+  JsonArray  pm10arr  = hourly["pm10"];
+  JsonArray  pm25arr  = hourly["pm2_5"];
+  JsonArray  coarr    = hourly["carbon_monoxide"];
+  JsonArray  no2arr   = hourly["nitrogen_dioxide"];
+  JsonArray  so2arr   = hourly["sulphur_dioxide"];
+  JsonArray  o3arr    = hourly["ozone"];
+  JsonArray  uviarr   = hourly["uv_index"];
 
-  for (JsonObject list : doc["list"].as<JsonArray>())
+  int n = pm10arr.size();
+  for (int i = 0; i < OWM_NUM_AIR_POLLUTION; ++i)
   {
-
-    r.main_aqi[i] = list["main"]["aqi"].as<int>();
-
-    JsonObject list_components = list["components"];
-    r.components.co[i]    = list_components["co"].as<float>();
-    r.components.no[i]    = list_components["no"].as<float>();
-    r.components.no2[i]   = list_components["no2"].as<float>();
-    r.components.o3[i]    = list_components["o3"].as<float>();
-    r.components.so2[i]   = list_components["so2"].as<float>();
-    r.components.pm2_5[i] = list_components["pm2_5"].as<float>();
-    r.components.pm10[i]  = list_components["pm10"].as<float>();
-    r.components.nh3[i]   = list_components["nh3"].as<float>();
-
-    r.dt[i] = list["dt"].as<int64_t>();
-
-    if (i == OWM_NUM_AIR_POLLUTION - 1)
+    int srcIdx = n - OWM_NUM_AIR_POLLUTION + i;
+    r.components.no[i]  = 0.f; // not provided by Open-Meteo
+    r.components.nh3[i] = 0.f; // not provided by Open-Meteo
+    if (srcIdx < 0)
     {
-      break;
+      r.components.pm10[i]  = 0.f;
+      r.components.pm2_5[i] = 0.f;
+      r.components.co[i]    = 0.f;
+      r.components.no2[i]   = 0.f;
+      r.components.so2[i]   = 0.f;
+      r.components.o3[i]    = 0.f;
+      continue;
     }
-    ++i;
+    r.components.pm10[i]  = pm10arr[srcIdx] | 0.f;
+    r.components.pm2_5[i] = pm25arr[srcIdx] | 0.f;
+    r.components.co[i]    = coarr[srcIdx]   | 0.f;
+    r.components.no2[i]   = no2arr[srcIdx]  | 0.f;
+    r.components.so2[i]   = so2arr[srcIdx]  | 0.f;
+    r.components.o3[i]    = o3arr[srcIdx]   | 0.f;
   }
+
+  uvi = (n > 0) ? (uviarr[n - 1] | 0.f) : 0.f;
 
   return error;
 } // end deserializeAirQuality
-

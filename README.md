@@ -1,4 +1,17 @@
-# ESP32 E-Paper Weather Display
+# ESP32 E-Paper Weather Display (weather.gov fork)
+
+> [!NOTE]
+> **This fork replaces OpenWeatherMap with the free, keyless [weather.gov (NWS) API](https://www.weather.gov/documentation/services-web-api).** US locations only. Major differences from upstream:
+>
+> - **weather.gov (NWS)** provides current conditions (from the nearest NWS observation station), hourly/daily forecasts, and weather alerts. No API key or account required. NWS asks that you set a contact email in the User-Agent — see `nws_user_agent` in `platformio/data/config.json`.
+> - **[Open-Meteo](https://open-meteo.com/)** (also free/keyless) fills in what NWS doesn't provide: UV index and air-pollutant concentrations for the AQI widget.
+> - **Sunrise/sunset are computed on-device** (NOAA solar algorithm in `platformio/src/sun.cpp`) — no API needed. Moonrise/moonset/moon-phase widgets were removed (no data source).
+> - **Runtime configuration via `platformio/data/config.json`** (LittleFS): WiFi credentials, location, timezone, sleep schedule, battery thresholds, and widget layout can all be changed with `pio run --target uploadfs` — no recompile. The file supports `//` comments documenting every option.
+> - **Precipitation displays as probability (PoP %)** — NWS's simple forecast endpoints don't provide volume amounts.
+> - **Better WiFi failure handling**: the error screen explains *why* the connection failed (wrong password, network not found, no response...), and the device retries every 15 minutes (configurable) instead of requiring a manual reset, so it recovers on its own when its network comes back into range.
+> - HTTPS is required (both APIs are HTTPS-only); `cert.h` pins the ISRG Root X1 CA covering both hosts, valid until 2035.
+>
+> The OpenWeatherMap setup instructions in the original README below no longer apply to this fork — everything else (hardware, wiring, assembly) is unchanged.
 
 A low-power weather display using a wifi-enabled ESP32 microcontroller and a 7.5" E-Paper display. Weather data is fetched from the OpenWeatherMap API, and an onboard sensor provides indoor temperature and humidity.
 

@@ -30,6 +30,8 @@
 #include "display_utils.h"
 #include "icons/icons_196x196.h"
 #include "renderer.h"
+#include "settings.h"
+#include "sun.h"
 
 #if defined(SENSOR_BME280)
   #include <Adafruit_BME280.h>
@@ -45,8 +47,11 @@
 #endif
 
 // too large to allocate locally on stack
-static owm_resp_onecall_t       owm_onecall;
-static owm_resp_air_pollution_t owm_air_pollution;
+static owm_current_t            current;
+static owm_hourly_t             hourly[OWM_NUM_HOURLY];
+static owm_daily_t              daily[OWM_NUM_DAILY];
+static std::vector<owm_alerts_t> alerts;
+static owm_resp_air_pollution_t air_quality;
 
 Preferences prefs;
 
@@ -123,6 +128,25 @@ void beginDeepSleep(unsigned long startTime, tm *timeInfo)
   esp_deep_sleep_start();
 } // end beginDeepSleep
 
+/* Put esp32 into deep sleep for a fixed number of minutes.
+ *
+ * Used instead of beginDeepSleep() when WiFi or time sync fails: those paths
+ * cannot trust the clock (a fresh boot starts at the 1970 epoch until NTP
+ * syncs), and beginDeepSleep()'s bedtime-aligned math computed from a bogus
+ * clock can schedule multi-hour sleeps. A plain fixed interval means the
+ * device just keeps retrying and recovers on its own once its network is
+ * reachable again.
+ */
+void beginFixedSleep(unsigned long startTime, unsigned long minutes)
+{
+  esp_sleep_enable_timer_wakeup(minutes * 60ULL * 1000000ULL);
+  Serial.print(TXT_AWAKE_FOR);
+  Serial.println(" " + String((millis() - startTime) / 1000.0, 3) + "s");
+  Serial.print(TXT_ENTERING_DEEP_SLEEP_FOR);
+  Serial.println(" " + String(minutes) + "min");
+  esp_deep_sleep_start();
+} // end beginFixedSleep
+
 /* Program entry point.
  */
 void setup()
@@ -135,6 +159,11 @@ void setup()
 #endif
 
   disableBuiltinLED();
+
+  // Load WiFi/location/time/battery/widget-layout settings from
+  // data/config.json (LittleFS). Falls back to the compiled-in defaults in
+  // config.cpp if the file is missing or invalid.
+  loadSettings();
 
   // Open namespace for read/write to non-volatile storage
   prefs.begin(NVS_NAMESPACE, false);
@@ -211,27 +240,67 @@ void setup()
   wl_status_t wifiStatus = startWiFi(wifiRSSI);
   if (wifiStatus != WL_CONNECTED)
   { // WiFi Connection Failed
+    // Ask for the failure detail (possibly incorrect password, network not
+    // found, no response...) before killWiFi(), which could clear the
+    // stored disconnect reason.
+    String wifiDetail = getWifiFailureDetail(wifiStatus);
     killWiFi();
-    initDisplay();
+
+    const char *errTitle;
+    String errLine2;
     if (wifiStatus == WL_NO_SSID_AVAIL)
-    {
-      Serial.println(TXT_NETWORK_NOT_AVAILABLE);
-      do
-      {
-        drawError(wifi_x_196x196, TXT_NETWORK_NOT_AVAILABLE);
-      } while (display.nextPage());
+    { // the scan found no network with this name; show the SSID being sought
+      // so a typo in config.json is immediately visible. (Also reported for
+      // 5GHz-only networks -- the ESP32 only supports 2.4GHz.)
+      errTitle = TXT_NETWORK_NOT_AVAILABLE;
+      errLine2 = "'" + String(WIFI_SSID) + "'";
     }
     else
     {
-      Serial.println(TXT_WIFI_CONNECTION_FAILED);
+      errTitle = TXT_WIFI_CONNECTION_FAILED;
+      errLine2 = wifiDetail;
+    }
+    Serial.println(String(errTitle) + " - " + errLine2);
+
+    // The device retries every WIFI_RETRY_INTERVAL minutes until it
+    // reconnects, which may mean many failed attempts in a row while out of
+    // range. The e-paper refresh is by far the most expensive part of a
+    // wake, so only redraw the error screen when it isn't already showing
+    // this exact error (tracked in non-volatile storage, same pattern as the
+    // low-battery screen).
+    String errDescriptor = String(errTitle) + "|" + errLine2;
+    prefs.begin(NVS_NAMESPACE, false);
+    // isKey check avoids Preferences logging a spurious NOT_FOUND error on
+    // the first failure, before the marker exists
+    bool alreadyShown = prefs.isKey("wifiErr")
+                     && (prefs.getString("wifiErr", "") == errDescriptor);
+    if (!alreadyShown)
+    {
+      prefs.putString("wifiErr", errDescriptor);
+    }
+    prefs.end();
+    if (!alreadyShown)
+    {
+      initDisplay();
       do
       {
-        drawError(wifi_x_196x196, TXT_WIFI_CONNECTION_FAILED);
+        drawError(wifi_x_196x196, errTitle, errLine2);
       } while (display.nextPage());
+      powerOffDisplay();
     }
-    powerOffDisplay();
-    beginDeepSleep(startTime, &timeInfo);
+
+    beginFixedSleep(startTime, WIFI_RETRY_INTERVAL);
   }
+
+  // WiFi is connected. Whatever is drawn from here on (weather data or a
+  // different error screen) replaces the WiFi error screen, so clear the
+  // marker to ensure a future WiFi failure gets drawn again.
+  prefs.begin(NVS_NAMESPACE, false);
+  if (prefs.isKey("wifiErr"))
+  {
+    prefs.remove("wifiErr");
+  }
+  prefs.end();
 
   // TIME SYNCHRONIZATION
   configTzTime(TIMEZONE, NTP_SERVER_1, NTP_SERVER_2);
@@ -246,7 +315,9 @@ void setup()
       drawError(wi_time_4_196x196, TXT_TIME_SYNCHRONIZATION_FAILED);
     } while (display.nextPage());
     powerOffDisplay();
-    beginDeepSleep(startTime, &timeInfo);
+    // the clock is unreliable if sync failed, so use a fixed-interval sleep
+    // rather than beginDeepSleep()'s clock-based calculation
+    beginFixedSleep(startTime, WIFI_RETRY_INTERVAL);
   }
 
   // MAKE API REQUESTS
@@ -257,13 +328,17 @@ void setup()
   client.setInsecure();
 #elif defined(USE_HTTPS_WITH_CERT_VERIF)
   WiFiClientSecure client;
-  client.setCACert(cert_Sectigo_RSA_Organization_Validation_Secure_Server_CA);
+  client.setCACert(cert_ISRG_Root_X1);
 #endif
-  int rxStatus = getOWMonecall(client, owm_onecall);
+
+  // weather.gov forecast + current conditions. This is the primary data
+  // source; if it fails there is nothing worth displaying.
+  String failedStep;
+  int rxStatus = getNWSWeather(client, current, hourly, daily, failedStep);
   if (rxStatus != HTTP_CODE_OK)
   {
     killWiFi();
-    statusStr = "One Call " + OWM_ONECALL_VERSION + " API";
+    statusStr = "weather.gov API (" + failedStep + ")";
     tmpStr = String(rxStatus, DEC) + ": " + getHttpResponsePhrase(rxStatus);
     initDisplay();
     do
@@ -273,20 +348,42 @@ void setup()
     powerOffDisplay();
     beginDeepSleep(startTime, &timeInfo);
   }
-  rxStatus = getOWMairpollution(client, owm_air_pollution);
+
+#if DISPLAY_ALERTS
+  // Alerts are non-fatal: if this fails, the display simply shows no
+  // alerts.
+  rxStatus = getNWSAlerts(client, alerts);
   if (rxStatus != HTTP_CODE_OK)
   {
-    killWiFi();
-    statusStr = "Air Pollution API";
+    statusStr = "weather.gov Alerts API";
     tmpStr = String(rxStatus, DEC) + ": " + getHttpResponsePhrase(rxStatus);
-    initDisplay();
-    do
-    {
-      drawError(wi_cloud_down_196x196, statusStr, tmpStr);
-    } while (display.nextPage());
-    powerOffDisplay();
-    beginDeepSleep(startTime, &timeInfo);
   }
+#endif
+
+  // UV index and air quality (weather.gov does not provide either). Also
+  // non-fatal: if this fails, the UVI/Air Quality widgets show "0".
+  float uvi = 0.f;
+  rxStatus = getAirQuality(client, air_quality, uvi);
+  if (rxStatus != HTTP_CODE_OK)
+  {
+    statusStr = "Open-Meteo Air Quality API";
+    tmpStr = String(rxStatus, DEC) + ": " + getHttpResponsePhrase(rxStatus);
+  }
+  current.uvi = uvi;
+
+  // SUNRISE/SUNSET
+  // weather.gov does not report these, so they are computed locally from the
+  // location and today's local date. Must happen after the API calls, which
+  // zero-initialize `current`.
+  if (!calcSunriseSunset(timeInfo.tm_year + 1900, timeInfo.tm_mon + 1,
+                         timeInfo.tm_mday, LAT.toDouble(), LON.toDouble(),
+                         current.sunrise, current.sunset))
+  { // polar day or polar night, the sun does not cross the horizon today
+    current.sunrise = 0;
+    current.sunset = 0;
+    Serial.println("Sun does not rise/set today at this latitude.");
+  }
+
   killWiFi(); // WiFi no longer needed
 
   // GET INDOOR TEMPERATURE AND HUMIDITY, start BMEx80...
@@ -346,13 +443,12 @@ void setup()
   initDisplay();
   do
   {
-    drawCurrentConditions(owm_onecall.current, owm_onecall.daily[0],
-                          owm_air_pollution, inTemp, inHumidity);
-    drawOutlookGraph(owm_onecall.hourly, owm_onecall.daily, timeInfo);
-    drawForecast(owm_onecall.daily, timeInfo);
+    drawCurrentConditions(current, daily[0], air_quality, inTemp, inHumidity);
+    drawOutlookGraph(hourly, daily, timeInfo);
+    drawForecast(daily, timeInfo);
     drawLocationDate(CITY_STRING, dateStr);
 #if DISPLAY_ALERTS
-    drawAlerts(owm_onecall.alerts, CITY_STRING, dateStr);
+    drawAlerts(alerts, CITY_STRING, dateStr);
 #endif
     drawStatusBar(statusStr, refreshTimeStr, wifiRSSI, batteryVoltage);
   } while (display.nextPage());

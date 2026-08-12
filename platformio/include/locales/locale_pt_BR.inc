@@ -463,3 +463,12 @@ const char *TXT_WL_CONNECTED       = "Conectado";
 const char *TXT_WL_CONNECT_FAILED  = "Falha na Conex\343o";
 const char *TXT_WL_CONNECTION_LOST = "Conex\343o Perdida";
 const char *TXT_WL_DISCONNECTED    = "Desconectado";
+
+// WIFI FAILURE DETAILS
+// Shown on the 2nd line of the connection error screen.
+const char *TXT_WIFI_REASON_NO_AP_FOUND    = "Rede não encontrada";
+const char *TXT_WIFI_REASON_AUTH_FAIL      = "Senha possivelmente incorreta";
+const char *TXT_WIFI_REASON_ASSOC_FAIL     = "Conexão recusada pelo roteador";
+const char *TXT_WIFI_REASON_BEACON_TIMEOUT = "Sinal fraco";
+const char *TXT_WIFI_REASON_TIMEOUT        = "Sem resposta do roteador";
+const char *TXT_WIFI_REASON_UNKNOWN        = "Motivo desconhecido";

@@ -22,6 +22,11 @@ float kelvin_to_celsius(float kelvin);
 float kelvin_to_fahrenheit(float kelvin);
 float celsius_to_kelvin(float celsius);
 float celsius_to_fahrenheit(float celsius);
+float fahrenheit_to_kelvin(float fahrenheit);
+float fahrenheit_to_celsius(float fahrenheit);
+
+float kilometersperhour_to_meterspersecond(float kilometersperhour);
+float milesperhour_to_meterspersecond(float milesperhour);
 
 float meterspersecond_to_feetpersecond(float meterspersecond);
 float meterspersecond_to_kilometersperhour(float meterspersecond);

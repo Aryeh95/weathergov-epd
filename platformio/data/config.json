@@ -1,0 +1,186 @@
+// esp32-weather-epd runtime configuration.
+//
+// This file lives on the ESP32's LittleFS filesystem and is read at every
+// boot by loadSettings() (src/settings.cpp). Anything set here overrides the
+// compiled-in fallback values in src/config.cpp, so you can reconfigure the
+// display -- new WiFi network, new location, rearranged widgets -- WITHOUT
+// recompiling or reflashing the firmware:
+//
+//     edit this file, then run:  pio run --target uploadfs
+//
+// Any key you delete simply falls back to the value compiled into
+// config.cpp. If this file is missing or malformed, the firmware logs a
+// warning over serial and runs entirely on those fallbacks.
+//
+// Hardware choices (e-paper panel model, driver board, indoor sensor model,
+// units, fonts, locale) are NOT here -- they are baked into the binary and
+// live in include/config.h.
+//
+// Comments are supported here because the firmware is built with
+// ARDUINOJSON_ENABLE_COMMENTS=1 (see platformio.ini). Strict JSON still
+// applies otherwise -- in particular, no trailing commas.
+{
+  "wifi": {
+    "ssid": "ssid",
+    "password": "password",
+    // How long to wait for the WiFi connection before giving up, in
+    // milliseconds. On timeout the display shows a "network not available"
+    // error and goes back to sleep.
+    "timeout_ms": 60000
+  },
+
+  "location": {
+    // Your latitude and longitude in decimal degrees (latitude positive
+    // north, longitude positive east). Used for three things: looking up
+    // your weather.gov forecast gridpoint, finding your nearest NWS
+    // observation station, and computing sunrise/sunset locally.
+    // NOTE: weather.gov only covers the United States and its territories.
+    "lat": "40.7128",
+    "lon": "-74.0060",
+    // City name shown in the top-right corner of the display. Free text --
+    // it is not sent to any API.
+    "city": "New York"
+  },
+
+  "time": {
+    // POSIX timezone string, including daylight-saving rules. For a list see
+    // https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
+    "timezone": "EST5EDT,M3.2.0,M11.1.0",
+
+    // All four format strings below use strftime formatting, see
+    // https://man7.org/linux/man-pages/man3/strftime.3.html
+
+    // Sunrise/sunset times. Max 11 characters.
+    //   "%l:%M%P" -> 12-hour, ex:  1:23am   11:00pm
+    //   "%H:%M"   -> 24-hour, ex:  01:23    23:00
+    "time_format": "%l:%M%P",
+    // X-axis labels on the hourly outlook graph. Max 11 characters.
+    //   "%l%P" -> 12-hour, ex:  1am  11pm
+    //   "%H"   -> 24-hour, ex:  01   23
+    "hour_format": "%l%P",
+    // Date in the top-right corner, ex: "Sat, January 1"
+    "date_format": "%a, %B %e",
+    // Last-refresh timestamp along the bottom status bar.
+    "refresh_time_format": "%x %H:%M",
+
+    // Time servers. ntp_server_1 is primary, ntp_server_2 is the fallback.
+    // pool.ntp.org resolves to a server near you.
+    "ntp_server_1": "pool.ntp.org",
+    "ntp_server_2": "time.nist.gov",
+    // If you hit the "failed to fetch the time" error, raise this or pick
+    // closer/lower-latency time servers.
+    "ntp_timeout_ms": 20000
+  },
+
+  "sleep": {
+    // How often the ESP32 wakes to refresh the display, in minutes.
+    // Range [2-1440]. Wake times are aligned to the clock, so 30 means the
+    // display updates at :00 and :30 past the hour.
+    // weather.gov updates its forecast a few times per hour, so refreshing
+    // more often than ~15 minutes gains you very little.
+    "sleep_duration_minutes": 15,
+
+    // Bed Time Power Savings, hours in range [0-23]. The display stops
+    // updating at bed_time_hour and resumes at wake_time_hour, to save
+    // battery overnight. Set both to the SAME value to disable this feature.
+    // With the values below, the last update is at midnight and the first is
+    // at 05:00.
+    // Note the clock alignment of sleep_duration_minutes starts from
+    // wake_time_hour, even when this feature is disabled. To refresh exactly
+    // once per day, set sleep_duration_minutes to 1440 and set both hours
+    // below to the hour you want that daily update to happen.
+    "bed_time_hour": 0,
+    "wake_time_hour": 5,
+
+    // How long to sleep between retries after a failed WiFi connection or
+    // time sync, in minutes. The device keeps retrying at this interval
+    // indefinitely (ignoring bed time, whose schedule needs a synced clock),
+    // so it recovers on its own once its network is reachable -- no reset
+    // button needed. To save battery during repeated retries, the error
+    // screen is only drawn once, and each failed attempt gives up ~10s
+    // after the failure is definitive instead of waiting out the full
+    // wifi timeout_ms.
+    "wifi_retry_interval_minutes": 15,
+
+    // Number of hours plotted on the hourly outlook graph. Range [8-48].
+    "hourly_graph_max": 24
+  },
+
+  "battery": {
+    // Values in millivolts, calibrated for a typical 3.7V LiPo.
+    //
+    // To protect the battery, once it falls to low_voltage_mv the display
+    // stops updating until the battery is charged again. The ESP32 keeps
+    // deep-sleeping (drawing under 11uA) and briefly wakes at the intervals
+    // below just to re-check the voltage. Once it reaches
+    // crit_low_voltage_mv the ESP32 hibernates entirely and needs a manual
+    // press of the reset (RST) button to start again.
+
+    // Battery icon turns red / is flagged on the status bar below this.
+    "warn_voltage_mv": 3535,   // ~20%
+    "low_voltage_mv": 3462,    // ~10%
+    "very_low_voltage_mv": 3442, // ~8%
+    "crit_low_voltage_mv": 3404, // ~5%
+
+    // How long to sleep between voltage re-checks, in minutes, once below
+    // the corresponding threshold above.
+    "low_sleep_interval_minutes": 30,
+    "very_low_sleep_interval_minutes": 120,
+
+    // Used to convert measured voltage into the battery percentage shown on
+    // the status bar.
+    "max_voltage_mv": 4200,
+    "min_voltage_mv": 3000
+  },
+
+  "api": {
+    // weather.gov is free and needs no API key, but NWS asks that requests
+    // identify themselves with a descriptive User-Agent including a contact
+    // method, so they can reach you if your device misbehaves. See
+    // https://www.weather.gov/documentation/services-web-api
+    "nws_user_agent": "(esp32-weather-epd, your.email@example.com)",
+
+    // TCP timeout for API requests, in milliseconds. These errors in the
+    // serial log usually mean this value is too low:
+    //   -1   Connection Refused
+    //   -11  Read Timeout
+    //   -258 Deserialization Incomplete Input
+    "http_client_tcp_timeout_ms": 10000
+  },
+
+  // Which of the ten slots in the left-hand panel each widget occupies:
+  //
+  //     0   1
+  //     2   3
+  //     4   5
+  //     6   7
+  //     8   9
+  //
+  // Set a widget to -1 to hide it. Two widgets must not share a slot -- they
+  // would draw on top of each other.
+  //
+  // Only slots 0-5 exist on the smaller DISP_BW_V1 panel; every other
+  // supported panel has all ten.
+  //
+  // "sunrise"/"sunset" are computed on-device from your latitude, longitude
+  // and the date, since weather.gov does not report them.
+  // "uvi" and "air_quality" come from Open-Meteo, for the same reason.
+  // "visibility" and "intemp"/"inhumidity" come from the NWS observation
+  // station and your BME280 sensor respectively.
+  //
+  // By default "visibility" is hidden so that "air_quality" can use its slot;
+  // swap the two values to show visibility instead.
+  "widget_positions": {
+    "sunrise": 0,
+    "sunset": 1,
+    "humidity": 2,
+    "dewpoint": 3,
+    "wind": 4,
+    "uvi": 5,
+    "pressure": 6,
+    "air_quality": 7,
+    "visibility": -1,
+    "intemp": 8,
+    "inhumidity": 9
+  }
+}

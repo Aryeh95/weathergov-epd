@@ -39,6 +39,26 @@ float celsius_to_fahrenheit(float celsius)
   return celsius * (9.f / 5.f) + 32.f;
 } // end celsius_to_fahrenheit
 
+float fahrenheit_to_kelvin(float fahrenheit)
+{
+  return (fahrenheit + 459.67f) * (5.f / 9.f);
+} // end fahrenheit_to_kelvin
+
+float fahrenheit_to_celsius(float fahrenheit)
+{
+  return (fahrenheit - 32.f) * (5.f / 9.f);
+} // end fahrenheit_to_celsius
+
+float kilometersperhour_to_meterspersecond(float kilometersperhour)
+{
+  return kilometersperhour / 3.6f;
+} // end kilometersperhour_to_meterspersecond
+
+float milesperhour_to_meterspersecond(float milesperhour)
+{
+  return milesperhour * 0.44704f;
+} // end milesperhour_to_meterspersecond
+
 float meterspersecond_to_feetpersecond(float meterspersecond)
 {
   return meterspersecond * 3.281f;

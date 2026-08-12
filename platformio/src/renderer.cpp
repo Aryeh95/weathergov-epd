@@ -265,13 +265,17 @@ void powerOffDisplay()
  */
 
 // drawCurrentSunrise
-#ifdef POS_SUNRISE
 void drawCurrentSunrise(const owm_current_t &current)
 {
+  if (POS_SUNRISE < 0)
+  {
+    return;
+  }
   String dataStr, unitStr;
-  int PosX = POS_SUNRISE % 2;
+  int PosX = (POS_SUNRISE % 2);
   int PosY = static_cast<int>(POS_SUNRISE / 2);
-    // icons
+
+  // icons
   display.drawInvertedBitmap(162 * PosX, 204 + (48 + 8) * PosY,
                              wi_sunrise_48x48, 48, 48, GxEPD_BLACK);
 
@@ -289,13 +293,46 @@ void drawCurrentSunrise(const owm_current_t &current)
 
   return;
 }
-# endif
 // end drawCurrentSunrise
 
+// drawCurrentSunset
+void drawCurrentSunset(const owm_current_t &current)
+{
+  if (POS_SUNSET < 0)
+  {
+    return;
+  }
+  String dataStr, unitStr;
+  int PosX = (POS_SUNSET % 2);
+  int PosY = static_cast<int>(POS_SUNSET / 2);
+
+  // icons
+  display.drawInvertedBitmap(162 * PosX, 204 + (48 + 8) * PosY,
+                             wi_sunset_48x48, 48, 48, GxEPD_BLACK);
+
+  // labels
+  display.setFont(&FONT_7pt8b);
+  drawString(48 + (162 * PosX), 204 + 10 + (48 + 8) * PosY, TXT_SUNSET, LEFT);
+
+  // sunset
+  display.setFont(&FONT_12pt8b);
+  char timeBuffer[12] = {}; // big enough to accommodate "hh:mm:ss am"
+  time_t ts = current.sunset;
+  tm *timeInfo = localtime(&ts);
+  _strftime(timeBuffer, sizeof(timeBuffer), TIME_FORMAT, timeInfo);
+  drawString(48 + (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2, timeBuffer, LEFT);
+
+  return;
+}
+// end drawCurrentSunset
+
 // drawCurrentWind
-#ifdef POS_WIND
 void drawCurrentWind(const owm_current_t &current)
 {
+  if (POS_WIND < 0)
+  {
+    return;
+  }
   String dataStr, unitStr;
   int PosX = (POS_WIND % 2);
   int PosY = static_cast<int>(POS_WIND / 2);
@@ -371,13 +408,15 @@ void drawCurrentWind(const owm_current_t &current)
 
   return;
 }
-#endif
 // end drawCurrentWind
 
 // drawCurrentUVI
-#ifdef POS_UVI
 void drawCurrentUVI(const owm_current_t &current)
 {
+  if (POS_UVI < 0)
+  {
+    return;
+  }
   String dataStr, unitStr;
   int PosX = (POS_UVI % 2);
   int PosY = static_cast<int>(POS_UVI / 2);
@@ -425,13 +464,15 @@ void drawCurrentUVI(const owm_current_t &current)
   }
   return;
 }
-#endif
 // end drawCurrentUVI
 
 // drawCurrentAirQuality
-#ifdef POS_AIR_QULITY
 void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
 {
+  if (POS_AIR_QULITY < 0)
+  {
+    return;
+  }
   String dataStr, unitStr;
   int PosX = (POS_AIR_QULITY % 2);
   int PosY = static_cast<int>(POS_AIR_QULITY / 2);
@@ -460,7 +501,7 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   // air quality index
   display.setFont(&FONT_12pt8b);
   const owm_components_t &c = owm_air_pollution.components;
-  // OpenWeatherMap does not provide pb (lead) conentrations, so we pass NULL.
+  // Open-Meteo does not provide pb (lead) concentrations, so we pass NULL.
   int aqi = calc_aqi(AQI_SCALE, c.co, c.nh3, c.no, c.no2, c.o3, NULL, c.so2,
                                 c.pm10, c.pm2_5);
   int aqi_max = aqi_scale_max(AQI_SCALE);
@@ -500,13 +541,15 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
 
   return;
 }
-#endif
 // end drawCurrentAirQuality
 
 // drawCurrentInTemp
-#ifdef POS_INTEMP
 void drawCurrentInTemp(float inTemp)
 {
+  if (POS_INTEMP < 0)
+  {
+    return;
+  }
   String dataStr, unitStr;
   int PosX = (POS_INTEMP % 2);
   int PosY = static_cast<int>(POS_INTEMP / 2);
@@ -544,41 +587,15 @@ void drawCurrentInTemp(float inTemp)
   drawString(48 + (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2, dataStr, LEFT);
   return;
 }
-#endif
 // end drawCurrentInTemp
 
-// drawCurrentSunset
-#ifdef POS_SUNSET
-void drawCurrentSunset(const owm_current_t &current)
-{
-  String dataStr, unitStr;
-  int PosX = (POS_SUNSET % 2);
-  int PosY = static_cast<int>(POS_SUNSET / 2);
-  // icons
-  display.drawInvertedBitmap(162 * PosX, 204 + (48 + 8) * PosY,
-                             wi_sunset_48x48, 48, 48, GxEPD_BLACK);
-
-  // labels
-  display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), 204 + 10 + (48 + 8) * PosY, TXT_SUNSET, LEFT);
-
-  // sunset
-  display.setFont(&FONT_12pt8b);
-  char timeBuffer[12] = {}; // big enough to accommodate "hh:mm:ss am"
-  time_t ts = current.sunset;
-  tm *timeInfo = localtime(&ts);
-  _strftime(timeBuffer, sizeof(timeBuffer), TIME_FORMAT, timeInfo);
-  drawString(48 + (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2, timeBuffer, LEFT);
-
-  return;
-}
-#endif
-// end drawCurrentSunset
-
 // drawCurrentHumidity
-#ifdef POS_HUMIDITY
 void drawCurrentHumidity(const owm_current_t &current)
 {
+  if (POS_HUMIDITY < 0)
+  {
+    return;
+  }
   String dataStr, unitStr;
   int PosX = (POS_HUMIDITY % 2);
   int PosY = static_cast<int>(POS_HUMIDITY / 2);
@@ -600,13 +617,15 @@ void drawCurrentHumidity(const owm_current_t &current)
              "%", LEFT);
   return;
 }
-#endif
 // end drawCurrentHumidity
 
 // drawCurrentPressure
-#ifdef POS_PRESSURE
 void drawCurrentPressure(const owm_current_t &current)
 {
+  if (POS_PRESSURE < 0)
+  {
+    return;
+  }
   String dataStr, unitStr;
   int PosX = (POS_PRESSURE % 2);
   int PosY = static_cast<int>(POS_PRESSURE / 2);
@@ -670,13 +689,15 @@ void drawCurrentPressure(const owm_current_t &current)
 
   return;
 }
-#endif
 // end drawCurrentPressure
 
 // drawCurrentVisibility
-#ifdef POS_VISIBILITY
 void drawCurrentVisibility(const owm_current_t &current)
 {
+  if (POS_VISIBILITY < 0)
+  {
+    return;
+  }
   String dataStr, unitStr;
   int PosX = (POS_VISIBILITY % 2);
   int PosY = static_cast<int>(POS_VISIBILITY / 2);
@@ -726,13 +747,15 @@ void drawCurrentVisibility(const owm_current_t &current)
 
   return;
 }
-#endif
 // end drawCurrentVisibility
 
 // drawCurrentInHumidit
-#ifdef POS_INHUMIDITY
 void drawCurrentInHumidity(float inHumidity)
 {
+  if (POS_INHUMIDITY < 0)
+  {
+    return;
+  }
   String dataStr, unitStr;
   int PosX = (POS_INHUMIDITY % 2);
   int PosY = static_cast<int>(POS_INHUMIDITY / 2);
@@ -761,117 +784,15 @@ void drawCurrentInHumidity(float inHumidity)
              "%", LEFT);
   return;
 }
-#endif
 // end drawCurrentInHumidity
 
-// drawCurrentMoonrise
-#ifdef POS_MOONRISE
-void drawCurrentMoonrise(const owm_daily_t &today)
-{
-  String dataStr, unitStr;
-  int PosX = POS_MOONRISE % 2;
-  int PosY = static_cast<int>(POS_MOONRISE / 2);
-
-  // icons
-  display.drawInvertedBitmap(162 * PosX, 204 + (48 + 8) * PosY,
-                             wi_moonrise_48x48, 48, 48, GxEPD_BLACK);
-
-  // labels
-  display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), 204 + 10 + (48 + 8) * PosY, TXT_MOONRISE, LEFT);
-
-  // moonrise
-  display.setFont(&FONT_12pt8b);
-  char timeBuffer[12] = {}; // big enough to accommodate "hh:mm:ss am"
-  time_t ts = today.moonrise;
-  tm *timeInfo = localtime(&ts);
-  _strftime(timeBuffer, sizeof(timeBuffer), TIME_FORMAT, timeInfo);
-  drawString(48 + (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2, timeBuffer, LEFT);
-
-  return;
-}
-# endif
-// end drawCurrentMoonrise
-
-// drawCurrentMoonset
-#ifdef POS_MOONSET
-void drawCurrentMoonset(const owm_daily_t &today)
-{
-  String dataStr, unitStr;
-  int PosX = (POS_MOONSET % 2);
-  int PosY = static_cast<int>(POS_MOONSET / 2);
-  // icons
-  display.drawInvertedBitmap(162 * PosX, 204 + (48 + 8) * PosY,
-                             wi_moonset_48x48, 48, 48, GxEPD_BLACK);
-
-  // labels
-  display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), 204 + 10 + (48 + 8) * PosY, TXT_MOONSET, LEFT);
-
-  // moonset
-  display.setFont(&FONT_12pt8b);
-  char timeBuffer[12] = {}; // big enough to accommodate "hh:mm:ss am"
-  time_t ts = today.moonset;
-  tm *timeInfo = localtime(&ts);
-  _strftime(timeBuffer, sizeof(timeBuffer), TIME_FORMAT, timeInfo);
-  drawString(48 + (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2, timeBuffer, LEFT);
-
-  return;
-}
-#endif
-// end drawCurrentMoonset
-
-// drawCurrentMoonphase
-#ifdef POS_MOONPHASE
-void drawCurrentMoonphase(const owm_daily_t &daily)
-{
-  String dataStr, unitStr;
-  int PosX = (POS_MOONPHASE % 2);
-  int PosY = static_cast<int>(POS_MOONPHASE / 2);
-
-  // icons
-  display.drawInvertedBitmap(162 * PosX, 204 + (48 + 8) * PosY,
-                             getMoonPhaseBitmap48(daily), 48, 48, GxEPD_BLACK);
-
-  // labels
-  display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), 204 + 10 + (48 + 8) * PosY, TXT_MOONPHASE, LEFT);
-
-  // moonphase
-  const int sp = 8;
-  dataStr = String(getMoonPhaseStr(daily));
-  int max_w = (162 + (PosX * 162) - sp) - (48 + (PosX * 162));
-  if (getStringWidth(dataStr) <= max_w)
-  { // Fits on a single line, draw along bottom
-    drawString(48 + (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2,
-               dataStr, LEFT);
-  }
-  else
-  { // use smaller font
-    display.setFont(&FONT_5pt8b);
-    if (getStringWidth(dataStr) <= max_w)
-    { // Fits on a single line with smaller font, draw along bottom
-      drawString(48 + (162 * PosX),
-                 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2,
-                 dataStr, LEFT);
-    }
-    else
-    { // Does not fit on a single line, draw higher to allow room for 2nd line
-      drawMultiLnString(48 + (162 * PosX),
-                        204 + 17 / 2 + (48 + 8) * PosY + 48 / 2 - 10,
-                        dataStr, LEFT, max_w, 2, 10);
-    }
-  }
-
-  return;
-}
-#endif
-// end drawCurrentMoonphase
-
 // drawCurrentDewpoint
-#ifdef POS_DEWPOINT
 void drawCurrentDewpoint(const owm_current_t &current)
 {
+  if (POS_DEWPOINT < 0)
+  {
+    return;
+  }
   String dataStr, unitStr;
   int PosX = (POS_DEWPOINT % 2);
   int PosY = static_cast<int>(POS_DEWPOINT / 2);
@@ -910,8 +831,7 @@ void drawCurrentDewpoint(const owm_current_t &current)
 #endif
   drawString(48 + (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2, dataStr, LEFT);
   return;
-} 
-#endif
+}
 // end drawCurrentDewpoint
 
 //End defining functions for left panel.
@@ -982,65 +902,23 @@ void drawCurrentConditions(const owm_current_t &current,
   // line dividing top and bottom display areas
   // display.drawLine(0, 196, DISP_WIDTH - 1, 196, GxEPD_BLACK);
 
-  // draw current data of the left panel
+  // draw current data of the left panel.
+  // Each widget function checks its own runtime position (config.json
+  // "widget_positions") and no-ops if disabled (-1).
 
-    # ifdef POS_SUNRISE
-     drawCurrentSunrise(current);
-    # endif
+  drawCurrentSunrise(current);
+  drawCurrentSunset(current);
+  drawCurrentWind(current);
+  drawCurrentHumidity(current);
+  drawCurrentUVI(current);
+  drawCurrentPressure(current);
+  drawCurrentVisibility(current);
+  drawCurrentAirQuality(owm_air_pollution);
+  drawCurrentInTemp(inTemp);
+  drawCurrentInHumidity(inHumidity);
+  drawCurrentDewpoint(current);
 
-    # ifdef POS_SUNSET
-      drawCurrentSunset(current);
-    # endif
-
-    # ifdef POS_WIND
-      drawCurrentWind(current);
-    # endif
-
-    # ifdef POS_HUMIDITY
-      drawCurrentHumidity(current);
-    # endif
-
-    # ifdef POS_UVI
-      drawCurrentUVI(current);
-    # endif
-
-    # ifdef POS_PRESSURE
-      drawCurrentPressure(current);
-    # endif
-
-    # ifdef POS_VISIBILITY
-      drawCurrentVisibility(current);
-    # endif
-
-    # ifdef POS_AIR_QULITY
-      drawCurrentAirQuality(owm_air_pollution);
-    # endif
-
-    # ifdef POS_INTEMP
-      drawCurrentInTemp(inTemp);
-    # endif
-
-    # ifdef POS_INHUMIDITY
-      drawCurrentInHumidity(inHumidity);
-    # endif
-
-    # ifdef POS_MOONRISE
-     drawCurrentMoonrise(today);
-    # endif
-
-    # ifdef POS_MOONSET
-      drawCurrentMoonset(today);
-    # endif
-
-    # ifdef POS_MOONPHASE
-      drawCurrentMoonphase(today);
-    # endif
-  
-    # ifdef POS_DEWPOINT
-      drawCurrentDewpoint(current);
-    # endif
-  
-    // end drawing left panel
+  // end drawing left panel
 
   return;
 } // end drawCurrentConditions
@@ -1597,8 +1475,20 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
 
     x0_t = static_cast<int>(std::round( xPos0 + 1 + (i * xInterval)));
     x1_t = static_cast<int>(std::round( xPos0 + 1 + ((i + 1) * xInterval) ));
-    yPxPerUnit = (yPos1 - yPos0) / precipBoundMax;
-    y0_t = static_cast<int>(std::round( yPos1 - (yPxPerUnit * (precipVal)) ));
+    // precipBoundMax is 0 when no precipitation is forecast over the whole
+    // graph (a dry 24 hours is common). Dividing by it would make yPxPerUnit
+    // infinite and y0_t NaN, and casting that NaN to int is undefined --
+    // which at best draws a bogus full-height bar and at worst spins the
+    // fill loop below for billions of iterations.
+    if (precipBoundMax > 0)
+    {
+      yPxPerUnit = (yPos1 - yPos0) / precipBoundMax;
+      y0_t = static_cast<int>(std::round( yPos1 - (yPxPerUnit * (precipVal)) ));
+    }
+    else
+    {
+      y0_t = yPos1; // nothing to fill
+    }
     y1_t = yPos1;
 
     // graph Precipitation

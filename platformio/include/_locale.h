@@ -117,6 +117,13 @@ extern const char *TXT_LOW_BATTERY;
 extern const char *TXT_NETWORK_NOT_AVAILABLE;
 extern const char *TXT_TIME_SYNCHRONIZATION_FAILED;
 extern const char *TXT_WIFI_CONNECTION_FAILED;
+// WiFi failure details, shown on the 2nd line of the connection error screen
+extern const char *TXT_WIFI_REASON_NO_AP_FOUND;
+extern const char *TXT_WIFI_REASON_AUTH_FAIL;
+extern const char *TXT_WIFI_REASON_ASSOC_FAIL;
+extern const char *TXT_WIFI_REASON_BEACON_TIMEOUT;
+extern const char *TXT_WIFI_REASON_TIMEOUT;
+extern const char *TXT_WIFI_REASON_UNKNOWN;
 // First Word Capitalized
 extern const char *TXT_ATTEMPTING_HTTP_REQ;
 extern const char *TXT_AWAKE_FOR;
