@@ -75,7 +75,9 @@
         <select id="t_clock">
           <option value="12">12-hour (1:23pm)</option>
           <option value="24">24-hour (13:23)</option>
-        </select></div>
+        </select>
+        <div class="hint">Applies to sunrise/sunset, graph labels, and the
+          status-bar refresh time.</div></div>
       <div><label>Date format</label><input id="t_date"></div>
     </div>
   </fieldset>
@@ -199,8 +201,10 @@ function collect() {
   cfg.time.timezone = el('t_tz').value.trim();
   if (el('t_clock').value === '24') {
     cfg.time.time_format = '%H:%M'; cfg.time.hour_format = '%H';
+    cfg.time.refresh_time_format = '%x %H:%M';
   } else {
     cfg.time.time_format = '%l:%M%P'; cfg.time.hour_format = '%l%P';
+    cfg.time.refresh_time_format = '%x %l:%M%P';
   }
   cfg.time.date_format = el('t_date').value;
   cfg.sleep.sleep_duration_minutes = +el('s_dur').value;
