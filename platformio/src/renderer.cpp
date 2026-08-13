@@ -1641,6 +1641,60 @@ void drawStatusBar(const String &statusStr, const String &refreshTimeStr,
   return;
 } // end drawStatusBar
 
+/* Draws the configuration portal info screen: a wifi icon, a "Setup Mode"
+ * title, and up to 3 centered lines telling the user how to reach the
+ * portal. Lines that would overflow the panel width are drawn in a smaller
+ * font instead of clipping.
+ */
+void drawConfigPortalScreen(const String &line1, const String &line2,
+                            const String &line3)
+{
+#ifndef DISP_BW_V1
+  const int iconTop = 20;
+  const int titleY = iconTop + 196 + 60;
+  const int lineStart = titleY + 66;
+  const int lineSpacing = 47;
+#else
+  const int iconTop = 8;
+  const int titleY = iconTop + 196 + 48;
+  const int lineStart = titleY + 50;
+  const int lineSpacing = 36;
+#endif
+
+  display.drawInvertedBitmap((DISP_WIDTH - 196) / 2, iconTop, wifi_196x196,
+                             196, 196, ACCENT_COLOR);
+#ifndef DISP_BW_V1
+  display.setFont(&FONT_26pt8b);
+#else
+  display.setFont(&FONT_22pt8b);
+#endif
+  drawString(DISP_WIDTH / 2, titleY, "Setup Mode", CENTER);
+
+  const String lines[3] = {line1, line2, line3};
+  for (int i = 0; i < 3; ++i)
+  {
+    if (lines[i].isEmpty())
+    {
+      continue;
+    }
+#ifndef DISP_BW_V1
+    display.setFont(&FONT_16pt8b);
+    if (getStringWidth(lines[i]) > DISP_WIDTH - 16)
+    {
+      display.setFont(&FONT_12pt8b);
+    }
+#else
+    display.setFont(&FONT_12pt8b);
+    if (getStringWidth(lines[i]) > DISP_WIDTH - 16)
+    {
+      display.setFont(&FONT_9pt8b);
+    }
+#endif
+    drawString(DISP_WIDTH / 2, lineStart + i * lineSpacing, lines[i], CENTER);
+  }
+  return;
+} // end drawConfigPortalScreen
+
 /* This function is responsible for drawing prominent error messages to the
  * screen.
  *

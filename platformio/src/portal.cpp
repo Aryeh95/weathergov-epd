@@ -171,12 +171,13 @@ static void handleNotFound()
 
 /* Draws how to reach the portal on the e-paper display.
  */
-static void drawPortalScreen(const String &line1, const String &line2)
+static void drawPortalScreen(const String &line1, const String &line2,
+                             const String &line3)
 {
   initDisplay();
   do
   {
-    drawError(wifi_x_196x196, line1, line2);
+    drawConfigPortalScreen(line1, line2, line3);
   } while (display.nextPage());
   powerOffDisplay();
 } // end drawPortalScreen
@@ -202,7 +203,9 @@ void runConfigPortal(bool forceAp)
     }
     Serial.println("[portal] on WiFi '" + String(WIFI_SSID) + "' at " + urlStr
                    + " (or http://weatherepd.local/)");
-    drawPortalScreen("Setup Mode", urlStr);
+    drawPortalScreen("Connected to WiFi: " + String(WIFI_SSID),
+                     "Open " + urlStr,
+                     "or http://weatherepd.local/");
   }
   else
   {
@@ -215,8 +218,9 @@ void runConfigPortal(bool forceAp)
     urlStr = "http://" + AP_IP.toString() + "/";
     Serial.println("[portal] hotspot '" + String(AP_SSID) + "' (password: "
                    + PORTAL_AP_PASSWORD + ") at " + urlStr);
-    drawPortalScreen("Setup: join WiFi '" + String(AP_SSID) + "'",
-                     "password: " + PORTAL_AP_PASSWORD + "  ->  " + urlStr);
+    drawPortalScreen("Join WiFi network: " + String(AP_SSID),
+                     "Password: " + PORTAL_AP_PASSWORD,
+                     "Then open " + urlStr);
   }
 
   server.on("/", HTTP_GET, handleRoot);
