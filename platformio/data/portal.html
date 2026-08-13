@@ -32,6 +32,9 @@
            font-size: 1rem; cursor: pointer; }
   #save { background: #2563eb; color: #fff; width: 100%; margin: 0.4rem 0; }
   #save:disabled { opacity: 0.5; }
+  #locbtn { background: #0891b2; color: #fff; font-size: 0.85rem;
+            padding: 0.45rem 0.9rem; margin-top: 0.6rem; }
+  #locbtn:disabled { opacity: 0.5; }
   .toggle { background: none; color: inherit; text-decoration: underline;
             padding: 0.4rem 0; font-size: 0.85rem; }
   #status { padding: 0.7rem; border-radius: 8px; margin: 0.6rem 0;
@@ -61,8 +64,10 @@
       <div><label>Latitude</label><input id="l_lat"></div>
       <div><label>Longitude</label><input id="l_lon"></div>
     </div>
+    <button id="locbtn" type="button">&#x1F4CD; Detect my location</button>
     <label>City name (display only)</label><input id="l_city">
-    <div class="hint">weather.gov covers US locations only.</div>
+    <div class="hint">weather.gov covers US locations only. Manual coordinates:
+      long-press your spot in a maps app and copy them from the popup.</div>
   </fieldset>
 
   <fieldset><legend>Time</legend>
@@ -256,6 +261,53 @@ el('form').addEventListener('submit', ev => {
   collect();
   save(JSON.stringify(cfg, null, 2) + '\n');
 });
+
+const LOC_LABEL = '\u{1F4CD} Detect my location';
+async function detectLocation() {
+  const btn = el('locbtn');
+  btn.disabled = true; btn.textContent = 'Detecting...';
+  const fill = (lat, lon, city, note) => {
+    el('l_lat').value = (+lat).toFixed(4);
+    el('l_lon').value = (+lon).toFixed(4);
+    if (city && !el('l_city').value) el('l_city').value = city;
+    setStatus('ok', note);
+  };
+  try {
+    // Browsers only allow GPS geolocation on secure (https) pages, which
+    // this plain-http portal cannot be -- but feature-detect anyway so it
+    // works in any context where it IS permitted. If GPS fails (denied,
+    // timeout), fall through to the internet-address method below.
+    if (window.isSecureContext && navigator.geolocation) {
+      try {
+        const pos = await new Promise((res, rej) =>
+          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 10000 }));
+        fill(pos.coords.latitude, pos.coords.longitude, null,
+             "Location set from this device's GPS.");
+        return;
+      } catch (gpsErr) { /* fall through */ }
+    }
+    // Fallback: approximate location from this device's internet address
+    // (ipwho.is allows cross-origin requests). City-level accuracy, which
+    // suits weather data (~2.5 mile grid).
+    const ctl = new AbortController();
+    setTimeout(() => ctl.abort(), 8000);
+    const r = await fetch('https://ipwho.is/', { signal: ctl.signal });
+    const j = await r.json();
+    if (!j.success || !j.latitude) throw new Error(j.message ?? 'no location in response');
+    fill(j.latitude, j.longitude, j.city,
+         'Approximate location set from your internet address ('
+         + (j.city ?? '?') + (j.region_code ? ', ' + j.region_code : '')
+         + '). Verify it looks right, and refine the coordinates if needed.');
+  } catch (e) {
+    setStatus('err', 'Could not detect location (' + e.message + '). '
+      + 'If you are connected to the setup hotspot, your phone may have no '
+      + 'internet right now -- enter coordinates manually instead: long-press '
+      + 'your spot in a maps app and copy them from the popup.');
+  } finally {
+    btn.disabled = false; btn.textContent = LOC_LABEL;
+  }
+}
+el('locbtn').addEventListener('click', detectLocation);
 
 el('advtoggle').addEventListener('click', () => {
   const box = el('advbox');
