@@ -249,11 +249,14 @@ static void splitUrl(const String &url, String &host, String &uri)
   }
 } // end splitUrl
 
-/* Performs an HTTP GET request, retrying up to 3 times, and hands the
- * response stream to parseFn to be deserialized on success.
+/* Performs an HTTP GET request, retrying up to maxAttempts times, and hands
+ * the response stream to parseFn to be deserialized on success.
  *
  * If logUri is non-empty it is printed to serial instead of uri; used to
- * censor API keys from the logs.
+ * censor API keys from the logs. timeoutMs overrides
+ * HTTP_CLIENT_TCP_TIMEOUT when non-zero; used for hosts that are known to
+ * respond slowly (AirNow's gateway can take 15-25s under load, where every
+ * other API answers in ~1s).
  *
  * Returns the HTTP Status Code (or a negative offset error code, see
  * getHttpResponsePhrase for the meaning of negative codes).
@@ -262,18 +265,24 @@ static int httpGetAndParse(WiFiClient &client, const String &host,
                            uint16_t port, const String &uri,
                            const String &userAgent,
                            std::function<DeserializationError(WiFiClient&)> parseFn,
-                           const String &logUri = "")
+                           const String &logUri = "",
+                           unsigned timeoutMs = 0,
+                           int maxAttempts = 3)
 {
   int attempts = 0;
   bool rxSuccess = false;
   DeserializationError jsonErr = {};
+  if (timeoutMs == 0)
+  {
+    timeoutMs = HTTP_CLIENT_TCP_TIMEOUT;
+  }
 
   String sanitizedUri = "https://" + host + (logUri.isEmpty() ? uri : logUri);
   Serial.print(TXT_ATTEMPTING_HTTP_REQ);
   Serial.println(": " + sanitizedUri);
 
   int httpResponse = 0;
-  while (!rxSuccess && attempts < 3)
+  while (!rxSuccess && attempts < maxAttempts)
   {
     wl_status_t connection_status = WiFi.status();
     if (connection_status != WL_CONNECTED)
@@ -283,8 +292,8 @@ static int httpGetAndParse(WiFiClient &client, const String &host,
     }
 
     HTTPClient http;
-    http.setConnectTimeout(HTTP_CLIENT_TCP_TIMEOUT); // default 5000ms
-    http.setTimeout(HTTP_CLIENT_TCP_TIMEOUT); // default 5000ms
+    http.setConnectTimeout(timeoutMs); // default 5000ms
+    http.setTimeout(timeoutMs); // default 5000ms
     // Force HTTP/1.0. Both weather.gov and Open-Meteo reply with
     // "Transfer-Encoding: chunked" over HTTP/1.1 for any non-trivial
     // response, but HTTPClient::getStream() hands back the raw socket
@@ -438,8 +447,14 @@ int getAirNowAQI(WiFiClient &client, int &aqi)
   // API key is censored from the serial log to reduce the risk of users
   // exposing their key.
   String logUri = baseUri + "&API_KEY={API key}";
+  // AirNow's gateway intermittently takes 15-25s to answer (where every
+  // other API used by this project answers in ~1s), so give it a 30s
+  // timeout instead of HTTP_CLIENT_TCP_TIMEOUT -- a slow success beats
+  // repeated fast failures. 2 attempts caps the worst case at 60s on this
+  // non-fatal request.
   return httpGetAndParse(client, AIRNOW_ENDPOINT, HTTPS_PORT, uri, "",
-      [&](WiFiClient &s) { return deserializeAirNow(s, aqi); }, logUri);
+      [&](WiFiClient &s) { return deserializeAirNow(s, aqi); }, logUri,
+      30000, 2);
 } // end getAirNowAQI
 
 /* Prints debug information about heap usage.

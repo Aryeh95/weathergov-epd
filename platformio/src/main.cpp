@@ -420,15 +420,20 @@ void setup()
   // Official US EPA AQI from AirNow, when an API key is configured.
   // Non-fatal: on failure (or with no key, or no monitor within range)
   // us_aqi stays -1 and the Air Quality widget falls back to the AQI
-  // computed from Open-Meteo's pollutant concentrations above.
+  // computed from Open-Meteo's pollutant concentrations above. Because that
+  // fallback is seamless, an AirNow failure is logged to serial only -- the
+  // status-bar warning is reserved for conditions that actually degrade
+  // what's displayed (an Open-Meteo failure, which also loses the UV
+  // index, still warns above).
   air_quality.us_aqi = -1;
   if (!AIRNOW_APIKEY.isEmpty())
   {
     rxStatus = getAirNowAQI(client, air_quality.us_aqi);
     if (rxStatus != HTTP_CODE_OK)
     {
-      statusStr = "AirNow API";
-      tmpStr = String(rxStatus, DEC) + ": " + getHttpResponsePhrase(rxStatus);
+      Serial.println("AirNow API " + String(rxStatus, DEC) + ": "
+                     + getHttpResponsePhrase(rxStatus)
+                     + " - using Open-Meteo AQI instead");
     }
   }
 
