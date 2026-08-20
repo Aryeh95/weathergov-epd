@@ -27,6 +27,9 @@ from PIL import Image, ImageEnhance
 ICONS = ["01d", "01n", "02d", "02n", "03d", "04d",
          "09d", "10d", "10n", "11d", "13d", "50d"]
 SIZES = [196, 64, 32]
+# Left-panel widget icons, emitted at the 48px widget slot size.
+WIDGET_ICONS = ["sunrise", "sunset", "wind", "humidity", "pressure",
+                "uvi", "visibility", "aqi"]
 SATURATION = 1.8
 ALPHA_THRESHOLD = 128
 # Quantization targets; palette indices are these positions + 1
@@ -42,7 +45,7 @@ OUT_PATH = os.path.join(os.path.dirname(__file__), "..",
 
 def fetch_icons(icon_dir):
     os.makedirs(icon_dir, exist_ok=True)
-    for name in ICONS:
+    for name in ICONS + WIDGET_ICONS:
         path = os.path.join(icon_dir, name + ".png")
         if not os.path.exists(path):
             print("downloading", name)
@@ -118,6 +121,12 @@ def main():
                 total += len(data)
                 emit(f, "ci_%s_%d" % (name, size), data)
                 print("%s @ %dpx: %d bytes" % (name, size, len(data)))
+        for name in WIDGET_ICONS:
+            path = os.path.join(icon_dir, name + ".png")
+            data = pack(quantize(path, 48))
+            total += len(data)
+            emit(f, "ci_w_%s_48" % name, data)
+            print("%s @ 48px: %d bytes" % (name, len(data)))
         f.write("typedef struct {\n"
                 "  const char code[4];\n"
                 "  const uint8_t *px196;\n"

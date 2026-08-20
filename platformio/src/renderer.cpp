@@ -108,6 +108,25 @@ static void drawColorIcon(int16_t x, int16_t y, const uint8_t *data,
 } // end drawColorIcon
 #endif // MULTICOLOR_DISPLAY
 
+/* Draws a 48px left-panel widget icon: the full-color version when the panel
+ * and icon set provide one, otherwise the given line art in lineColor.
+ */
+static void drawWidgetIcon(int16_t x, int16_t y, const uint8_t *lineArt,
+                           const char *colorName, uint16_t lineColor)
+{
+#ifdef MULTICOLOR_DISPLAY
+  const uint8_t *ci = getColorWidgetIcon48(colorName);
+  if (ci)
+  {
+    drawColorIcon(x, y, ci, 48);
+    return;
+  }
+#else
+  (void)colorName;
+#endif
+  display.drawInvertedBitmap(x, y, lineArt, 48, 48, lineColor);
+} // end drawWidgetIcon
+
 /* Returns the string width in pixels
  */
 uint16_t getStringWidth(const String &text)
@@ -316,8 +335,8 @@ void drawCurrentSunrise(const owm_current_t &current)
   int PosY = static_cast<int>(POS_SUNRISE / 2);
 
   // icons
-  display.drawInvertedBitmap(162 * PosX, 204 + (48 + 8) * PosY,
-                             wi_sunrise_48x48, 48, 48, COLOR_SUN);
+  drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
+                 wi_sunrise_48x48, "sunrise", COLOR_SUN);
 
   // labels
   display.setFont(&FONT_7pt8b);
@@ -347,8 +366,8 @@ void drawCurrentSunset(const owm_current_t &current)
   int PosY = static_cast<int>(POS_SUNSET / 2);
 
   // icons
-  display.drawInvertedBitmap(162 * PosX, 204 + (48 + 8) * PosY,
-                             wi_sunset_48x48, 48, 48, COLOR_SUN);
+  drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
+                 wi_sunset_48x48, "sunset", COLOR_SUN);
 
   // labels
   display.setFont(&FONT_7pt8b);
@@ -378,8 +397,8 @@ void drawCurrentWind(const owm_current_t &current)
   int PosY = static_cast<int>(POS_WIND / 2);
 
   // icons
-  display.drawInvertedBitmap(162 * PosX, 204 + (48 + 8) * PosY,
-                             wi_strong_wind_48x48, 48, 48, GxEPD_BLACK);
+  drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
+                 wi_strong_wind_48x48, "wind", GxEPD_BLACK);
 
   // labels
   display.setFont(&FONT_7pt8b);
@@ -465,8 +484,8 @@ void drawCurrentUVI(const owm_current_t &current)
                                 std::max(std::round(current.uvi), 0.0f));
 
   // icons (colored by risk level on multicolor panels)
-  display.drawInvertedBitmap(162 * PosX, 204 + (48 + 8) * PosY,
-                             wi_day_sunny_48x48, 48, 48, getUVIColor(uvi));
+  drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
+                 wi_day_sunny_48x48, "uvi", getUVIColor(uvi));
 
   // labels
   display.setFont(&FONT_7pt8b);
@@ -562,9 +581,8 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   // icon (colored by AQI level on multicolor panels; the level thresholds
   // are only defined for the United States AQI scale)
   const bool usScale = useAirNow || (AQI_SCALE == UNITED_STATES_AQI);
-  display.drawInvertedBitmap(162 * PosX, 204 + (48 + 8) * PosY,
-                             air_filter_48x48, 48, 48,
-                             getAQIColor(aqi, usScale));
+  drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
+                 air_filter_48x48, "aqi", getAQIColor(aqi, usScale));
   if (aqi > aqi_max)
   {
     dataStr = "> " + String(aqi_max);
@@ -662,8 +680,8 @@ void drawCurrentHumidity(const owm_current_t &current)
   int PosY = static_cast<int>(POS_HUMIDITY / 2);
 
   // icons
-  display.drawInvertedBitmap(162 * PosX, 204 + (48 + 8) * PosY,
-                             wi_humidity_48x48, 48, 48, GxEPD_BLACK);
+  drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
+                 wi_humidity_48x48, "humidity", GxEPD_BLACK);
 
   // labels
   display.setFont(&FONT_7pt8b);
@@ -691,8 +709,8 @@ void drawCurrentPressure(const owm_current_t &current)
   int PosX = (POS_PRESSURE % 2);
   int PosY = static_cast<int>(POS_PRESSURE / 2);
   //  icons
-  display.drawInvertedBitmap(162 * PosX, 204 + (48 + 8) * PosY,
-                             wi_barometer_48x48, 48, 48, GxEPD_BLACK);
+  drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
+                 wi_barometer_48x48, "pressure", GxEPD_BLACK);
 
   //  labels
   display.setFont(&FONT_7pt8b);
@@ -764,8 +782,8 @@ void drawCurrentVisibility(const owm_current_t &current)
   int PosY = static_cast<int>(POS_VISIBILITY / 2);
 
   // icons
-  display.drawInvertedBitmap(162 * PosX, 204 + (48 + 8) * PosY,
-                             visibility_icon_48x48, 48, 48, GxEPD_BLACK);
+  drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
+                 visibility_icon_48x48, "visibility", GxEPD_BLACK);
 
   // labels
   display.setFont(&FONT_7pt8b);

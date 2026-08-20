@@ -73,6 +73,7 @@ uint16_t getConditionsColor(int id, bool day, bool moon, bool cloudy,
 const uint8_t *getColorIcon196(const owm_current_t &current);
 const uint8_t *getColorIcon64(const owm_daily_t &daily);
 const uint8_t *getColorIcon32(const owm_hourly_t &hourly);
+const uint8_t *getColorWidgetIcon48(const char *name);
 #endif
 uint16_t getHourlyForecastColor32(const owm_hourly_t &hourly);
 uint16_t getDailyForecastColor64(const owm_daily_t &daily);

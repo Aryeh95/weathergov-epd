@@ -799,6 +799,31 @@ const uint8_t *getColorIcon32(const owm_hourly_t &hourly)
   return getColorConditionsIcon(hourly.weather.id,
                                 isDay(hourly.weather.icon), 32);
 }
+/* Returns the full-color 48px widget icon with the given name, or NULL if
+ * the set has none (the caller falls back to line art).
+ */
+const uint8_t *getColorWidgetIcon48(const char *name)
+{
+  struct entry_t { const char *name; const uint8_t *px; };
+  static const entry_t TABLE[] = {
+    {"sunrise",    ci_w_sunrise_48},
+    {"sunset",     ci_w_sunset_48},
+    {"wind",       ci_w_wind_48},
+    {"humidity",   ci_w_humidity_48},
+    {"pressure",   ci_w_pressure_48},
+    {"uvi",        ci_w_uvi_48},
+    {"visibility", ci_w_visibility_48},
+    {"aqi",        ci_w_aqi_48},
+  };
+  for (size_t i = 0; i < sizeof(TABLE) / sizeof(TABLE[0]); ++i)
+  {
+    if (strcmp(TABLE[i].name, name) == 0)
+    {
+      return TABLE[i].px;
+    }
+  }
+  return NULL;
+} // end getColorWidgetIcon48
 #endif // MULTICOLOR_DISPLAY
 
 /* Color for the UV index widget icon (sun), by WHO risk level.
