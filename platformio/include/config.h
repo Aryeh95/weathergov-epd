@@ -29,11 +29,18 @@
 //   DISP_7C_E6 - 7.3in spectra 6 e-Paper (E6) 800x480px  7-Color
 //   DISP_BW_V1 - 7.5in e-Paper (v1)           640x384px  Black/White
 // Uncomment the macro that identifies your physical panel.
+// (Building with -e seeed_reterminal_e1002 selects the panel automatically;
+//  the reTerminal E1002's built-in 7.3in Spectra 6 panel is a GDEP073E01,
+//  i.e. DISP_7C_E6.)
+#ifdef BOARD_RETERMINAL_E1002
+  #define DISP_7C_E6
+#else
 #define DISP_BW_V2
 // #define DISP_3C_B
 // #define DISP_7C_F
 // #define DISP_7C_E6
 // #define DISP_BW_V1
+#endif
 
 // E-PAPER DRIVER BOARD
 // The DESPI-C02 is the only officially supported driver board.
@@ -46,8 +53,14 @@
 
 // INDOOR ENVIRONMENT SENSOR
 // Uncomment the macro that identifies your sensor.
+// (The reTerminal E1002 has an SHT4x temperature/humidity sensor onboard,
+//  selected automatically when building with -e seeed_reterminal_e1002.)
+#ifdef BOARD_RETERMINAL_E1002
+  #define SENSOR_SHT4X
+#else
 #define SENSOR_BME280
 // #define SENSOR_BME680
+#endif
 
 // If you encounter issues with the BME280 sensor showing no data, uncomment and
 // add a small delay before reading it's value. 300ms seems to work for most people
@@ -55,7 +68,7 @@
 
 // 3 COLOR E-INK ACCENT COLOR
 // Defines the 3rd color to be used when a 3+ color display is selected.
-#if defined(DISP_3C_B) || defined(DISP_7C_F)
+#if defined(DISP_3C_B) || defined(DISP_7C_F) || defined(DISP_7C_E6)
   // #define ACCENT_COLOR GxEPD_BLACK
   #define ACCENT_COLOR GxEPD_RED
   // #define ACCENT_COLOR GxEPD_GREEN
@@ -309,7 +322,11 @@
 #define DEBUG_LEVEL 0
 
 // Pins are fixed by your wiring, set them in "config.cpp".
+// A pin set to PIN_UNUSED (0xFF) is skipped entirely (for boards where that
+// signal is hardwired, e.g. the reTerminal E1002's always-on panel supply).
+#define PIN_UNUSED 0xFF
 extern const uint8_t PIN_BAT_ADC;
+extern const uint8_t PIN_BAT_EN;
 extern const uint8_t PIN_EPD_BUSY;
 extern const uint8_t PIN_EPD_CS;
 extern const uint8_t PIN_EPD_RST;
@@ -389,7 +406,8 @@ extern int POS_INHUMIDITY;
   #error Invalid configuration. Exactly one driver board must be selected.
 #endif
 #if !(  defined(SENSOR_BME280) \
-      ^ defined(SENSOR_BME680))
+      ^ defined(SENSOR_BME680) \
+      ^ defined(SENSOR_SHT4X))
   #error Invalid configuration. Exactly one sensor must be selected.
 #endif
 #if !(defined(LOCALE))

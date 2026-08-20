@@ -40,9 +40,19 @@ uint32_t readBatteryVoltage()
   // __attribute__((unused)) disables compiler warnings about this variable
   // being unused (Clang, GCC) which is the case when DEBUG_LEVEL == 0.
   esp_adc_cal_value_t val_type __attribute__((unused));
+  if (PIN_BAT_EN != PIN_UNUSED)
+  { // some boards (reTerminal E1002) gate the divider behind an enable pin
+    pinMode(PIN_BAT_EN, OUTPUT);
+    digitalWrite(PIN_BAT_EN, HIGH);
+    delay(10); // let the divider settle
+  }
   adc_power_acquire();
   uint16_t adc_val = analogRead(PIN_BAT_ADC);
   adc_power_release();
+  if (PIN_BAT_EN != PIN_UNUSED)
+  {
+    digitalWrite(PIN_BAT_EN, LOW);
+  }
 
   // We will use the eFuse ADC calibration bits, to get accurate voltage
   // readings. The DFRobot FireBeetle Esp32-E V1.0's ADC is 12 bit, and uses

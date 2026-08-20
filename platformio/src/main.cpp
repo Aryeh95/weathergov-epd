@@ -40,6 +40,9 @@
 #if defined(SENSOR_BME680)
   #include <Adafruit_BME680.h>
 #endif
+#if defined(SENSOR_SHT4X)
+  #include <Adafruit_SHT4x.h>
+#endif
 #if defined(USE_HTTPS_WITH_CERT_VERIF) || defined(USE_HTTPS_WITH_CERT_VERIF)
   #include <WiFiClientSecure.h>
 #endif
@@ -452,11 +455,19 @@ void setup()
 
   killWiFi(); // WiFi no longer needed
 
-  // GET INDOOR TEMPERATURE AND HUMIDITY, start BMEx80...
-  pinMode(PIN_BME_PWR, OUTPUT);
-  digitalWrite(PIN_BME_PWR, HIGH);
+  // GET INDOOR TEMPERATURE AND HUMIDITY, start indoor sensor...
+  if (PIN_BME_PWR != PIN_UNUSED)
+  {
+    pinMode(PIN_BME_PWR, OUTPUT);
+    digitalWrite(PIN_BME_PWR, HIGH);
+  }
 #if defined(SENSOR_INIT_DELAY_MS) && SENSOR_INIT_DELAY_MS > 0
   delay(SENSOR_INIT_DELAY_MS);
+#endif
+#if defined(SENSOR_SHT4X)
+  #define SENSOR_NAME "SHT4x"
+#else
+  #define SENSOR_NAME "BME"
 #endif
   TwoWire I2C_bme = TwoWire(0);
   I2C_bme.begin(PIN_BME_SDA, PIN_BME_SCL, 100000); // 100kHz
@@ -476,8 +487,25 @@ void setup()
   if(bme.begin(BME_ADDRESS))
   {
 #endif
+#if defined(SENSOR_SHT4X)
+  // Onboard SHT4x (reTerminal E1002). Fixed I2C address, event-based API.
+  Serial.print(String(TXT_READING_FROM) + " SHT4x... ");
+  Adafruit_SHT4x sht4;
+
+  if(sht4.begin(&I2C_bme))
+  {
+    sht4.setPrecision(SHT4X_HIGH_PRECISION);
+    sht4.setHeater(SHT4X_NO_HEATER);
+    sensors_event_t humEvent, tempEvent;
+    if (sht4.getEvent(&humEvent, &tempEvent))
+    {
+      inTemp     = tempEvent.temperature;       // Celsius
+      inHumidity = humEvent.relative_humidity;  // %
+    }
+#else
     inTemp     = bme.readTemperature(); // Celsius
     inHumidity = bme.readHumidity();    // %
+#endif
 
     // check if BME readings are valid
     // note: readings are checked again before drawing to screen. If a reading
@@ -485,7 +513,7 @@ void setup()
     //       displayed.
     if (std::isnan(inTemp) || std::isnan(inHumidity))
     {
-      statusStr = "BME " + String(TXT_READ_FAILED);
+      statusStr = SENSOR_NAME " " + String(TXT_READ_FAILED);
       Serial.println(statusStr);
     }
     else
@@ -495,10 +523,13 @@ void setup()
   }
   else
   {
-    statusStr = "BME " + String(TXT_NOT_FOUND); // check wiring
+    statusStr = SENSOR_NAME " " + String(TXT_NOT_FOUND); // check wiring
     Serial.println(statusStr);
   }
-  digitalWrite(PIN_BME_PWR, LOW);
+  if (PIN_BME_PWR != PIN_UNUSED)
+  {
+    digitalWrite(PIN_BME_PWR, LOW);
+  }
 
   String refreshTimeStr;
   getRefreshTimeStr(refreshTimeStr, timeConfigured, &timeInfo);
