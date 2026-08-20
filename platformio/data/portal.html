@@ -76,10 +76,13 @@
   </fieldset>
 
   <fieldset><legend>Time</legend>
-    <label>POSIX timezone</label><input id="t_tz">
-    <div class="hint">ex. EST5EDT,M3.2.0,M11.1.0 &mdash; see
+    <label>Time zone</label>
+    <select id="t_tz"></select>
+    <div class="hint">US time zones (weather.gov is US-only). Each option
+      shows that zone's current time. For anything unusual, use the raw JSON
+      editor below with a
       <a href="https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv"
-         target="_blank" rel="noopener">the zones list</a>.</div>
+         target="_blank" rel="noopener">POSIX timezone string</a>.</div>
     <div class="row">
       <div><label>Clock style</label>
         <select id="t_clock">
@@ -88,7 +91,10 @@
         </select>
         <div class="hint">Applies to sunrise/sunset, graph labels, and the
           status-bar refresh time.</div></div>
-      <div><label>Date format</label><input id="t_date"></div>
+      <div><label>Date format</label>
+        <select id="t_date"></select>
+        <div class="hint">Shown in the top-right corner. Each option previews
+          today's date.</div></div>
     </div>
   </fieldset>
 
@@ -178,6 +184,72 @@ function stripComments(s) {
 }
 
 function el(id) { return document.getElementById(id); }
+
+// [POSIX timezone string, IANA name (for the live example), label]
+const TIMEZONES = [
+  ['EST5EDT,M3.2.0,M11.1.0',     'America/New_York',    'Eastern'],
+  ['CST6CDT,M3.2.0,M11.1.0',     'America/Chicago',     'Central'],
+  ['MST7MDT,M3.2.0,M11.1.0',     'America/Denver',      'Mountain'],
+  ['MST7',                       'America/Phoenix',     'Arizona (no DST)'],
+  ['PST8PDT,M3.2.0,M11.1.0',     'America/Los_Angeles', 'Pacific'],
+  ['AKST9AKDT,M3.2.0,M11.1.0',   'America/Anchorage',   'Alaska'],
+  ['HST10',                      'Pacific/Honolulu',    'Hawaii'],
+  ['AST4',                       'America/Puerto_Rico', 'Atlantic (PR/USVI)']];
+
+const DATE_FORMATS = ['%a, %B %e', '%a, %b %e', '%A, %B %e', '%B %e',
+                      '%e %B', '%m/%d/%Y'];
+
+// tiny strftime, just the specifiers the date-format options use
+function strftimeDemo(fmt) {
+  const d = new Date();
+  const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const MONS = ['January','February','March','April','May','June','July',
+                'August','September','October','November','December'];
+  return fmt
+    .replace(/%A/g, DAYS[d.getDay()])
+    .replace(/%a/g, DAYS[d.getDay()].slice(0, 3))
+    .replace(/%B/g, MONS[d.getMonth()])
+    .replace(/%b/g, MONS[d.getMonth()].slice(0, 3))
+    .replace(/%e/g, String(d.getDate()))
+    .replace(/%d/g, String(d.getDate()).padStart(2, '0'))
+    .replace(/%m/g, String(d.getMonth() + 1).padStart(2, '0'))
+    .replace(/%Y/g, String(d.getFullYear()))
+    .replace(/%y/g, String(d.getFullYear()).slice(-2));
+}
+
+function buildTimeSelects() {
+  const tz = el('t_tz');
+  for (const [posix, iana, label] of TIMEZONES) {
+    let now = '';
+    try {
+      now = ' — now ' + new Date().toLocaleTimeString('en-US',
+        { timeZone: iana, hour: 'numeric', minute: '2-digit' });
+    } catch (e) {}
+    const o = document.createElement('option');
+    o.value = posix;
+    o.textContent = label + now;
+    tz.appendChild(o);
+  }
+  const df = el('t_date');
+  for (const fmt of DATE_FORMATS) {
+    const o = document.createElement('option');
+    o.value = fmt;
+    o.textContent = strftimeDemo(fmt);
+    df.appendChild(o);
+  }
+}
+
+// Selects the option matching v; a value not in the list (hand-edited
+// config) is kept by appending it as an extra "Current:" option.
+function selectOrAppend(sel, v) {
+  if (![...sel.options].some(o => o.value === v)) {
+    const o = document.createElement('option');
+    o.value = v;
+    o.textContent = 'Current: ' + v;
+    sel.appendChild(o);
+  }
+  sel.value = v;
+}
 function setStatus(cls, msg) { const st = el('status'); st.className = cls; st.textContent = msg; }
 
 function buildWidgetSelects() {
@@ -199,9 +271,9 @@ function populate() {
   el('l_lat').value = cfg.location?.lat ?? '';
   el('l_lon').value = cfg.location?.lon ?? '';
   el('l_city').value = cfg.location?.city ?? '';
-  el('t_tz').value = cfg.time?.timezone ?? '';
+  selectOrAppend(el('t_tz'), cfg.time?.timezone ?? 'EST5EDT,M3.2.0,M11.1.0');
   el('t_clock').value = (cfg.time?.time_format ?? '').includes('%H') ? '24' : '12';
-  el('t_date').value = cfg.time?.date_format ?? '%a, %B %e';
+  selectOrAppend(el('t_date'), cfg.time?.date_format ?? '%a, %B %e');
   el('s_dur').value = cfg.sleep?.sleep_duration_minutes ?? 15;
   el('s_bed').value = cfg.sleep?.bed_time_hour ?? 0;
   el('s_wake').value = cfg.sleep?.wake_time_hour ?? 5;
@@ -444,6 +516,7 @@ function showConnInfo(i) {
 }
 
 buildWidgetSelects();
+buildTimeSelects();
 fetch('/info').then(r => r.json()).then(showConnInfo).catch(() => {});
 fetch('/config').then(r => r.text()).then(t => {
   el('raw').value = t;
