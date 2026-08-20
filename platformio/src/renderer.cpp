@@ -1027,8 +1027,11 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
   // smaller temperature font. The smaller DISP_BW_V1 panel is fixed at 5.
 #ifndef DISP_BW_V1
   const int days = FORECAST_DAYS;
-  const float colW = (DISP_WIDTH - 398) / static_cast<float>(days);
-  const int xStart = 398;
+  // In the 6/7-day layouts the row also reclaims the unused strip between
+  // the "Feels Like" text (worst case ends ~x365) and the first column,
+  // widening every column.
+  const int xStart = (days > 5) ? 372 : 398;
+  const float colW = (DISP_WIDTH - xStart) / static_cast<float>(days);
 #elif defined(DISP_BW_V1)
   const int days = 5;
   const float colW = 64;
@@ -1036,6 +1039,24 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
 #endif
   const int iconSize = (colW >= 72) ? 64 : 48;
   const GFXfont *tempFont = (colW >= 72) ? &FONT_8pt8b : &FONT_7pt8b;
+#ifndef MULTICOLOR_DISPLAY
+  // On single-color panels the Hi|Lo temperatures are all one color, so in
+  // the narrower 6/7-day layouts one day's low visually runs into the next
+  // day's high. A faint dotted divider between columns keeps the days
+  // separated. (Multicolor panels don't need it -- red highs and blue lows
+  // alternate, which separates the pairs on their own.)
+  if (days > 5)
+  {
+    for (int i = 1; i < days; ++i)
+    {
+      int xDiv = xStart + static_cast<int>(i * colW);
+      for (int y = 66; y <= 196; y += 3)
+      {
+        display.drawPixel(xDiv, y, GxEPD_BLACK);
+      }
+    }
+  }
+#endif
   for (int i = 0; i < days; ++i)
   {
     // column center; the icon's vertical center matches the old layout
