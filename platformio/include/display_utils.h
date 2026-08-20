@@ -67,6 +67,13 @@ const uint8_t *getWiFiBitmap16(int rssi);
 const uint8_t *getHourlyForecastBitmap32(const owm_hourly_t &hourly,
                                          const owm_daily_t  &today);
 const uint8_t *getDailyForecastBitmap64(const owm_daily_t &daily);
+uint16_t getConditionsColor(int id, bool day, bool moon, bool cloudy,
+                            bool windy);
+uint16_t getHourlyForecastColor32(const owm_hourly_t &hourly);
+uint16_t getDailyForecastColor64(const owm_daily_t &daily);
+uint16_t getCurrentConditionsColor196(const owm_current_t &current);
+uint16_t getUVIColor(unsigned int uvi);
+uint16_t getAQIColor(int aqi, bool usScale);
 const uint8_t *getCurrentConditionsBitmap196(const owm_current_t &current,
                                              const owm_daily_t   &today);
 const uint8_t *getAlertBitmap32(const owm_alerts_t &alert);

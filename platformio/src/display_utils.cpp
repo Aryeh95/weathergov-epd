@@ -22,6 +22,7 @@
 #include <esp_adc_cal.h>
 
 #include <aqi.h>
+#include <GxEPD2.h> // GxEPD_* color defines, used by the semantic palette
 
 #include "_locale.h"
 #include "_strftime.h"
@@ -663,6 +664,96 @@ const uint8_t *getCurrentConditionsBitmap196(const owm_current_t &current,
   const bool windy = isWindy(current.wind_speed, current.wind_gust);
   return getConditionsBitmap<196>(id, day, moon, cloudy, windy);
 } // end getCurrentConditionsBitmap196
+
+/* Returns the color a weather condition icon should be drawn in, mirroring
+ * the icon selection logic of getConditionsBitmap. On black/white and
+ * single-accent (3-color) panels this is always black; on multicolor panels
+ * (see MULTICOLOR_DISPLAY in config.h) sun-dominant icons are drawn in
+ * COLOR_SUN and precipitation icons in COLOR_PRECIP. Icons that mix elements
+ * (sun behind a rain cloud) take the color of the dominant condition --
+ * precipitation wins, since that is what the viewer needs to notice.
+ */
+uint16_t getConditionsColor(int id, bool day, bool moon, bool cloudy,
+                            bool windy)
+{
+#ifndef MULTICOLOR_DISPLAY
+  (void)id; (void)day; (void)moon; (void)cloudy; (void)windy;
+  return GxEPD_BLACK;
+#else
+  if (id == 781)
+  { // tornado
+    return COLOR_BAD;
+  }
+  if ((id >= 200 && id < 700) || id == 771)
+  { // thunderstorm, drizzle, rain, snow, squalls
+    return COLOR_PRECIP;
+  }
+  if (id == 721 && day && !cloudy)
+  { // haze (day icon shows a sun)
+    return COLOR_SUN;
+  }
+  if ((id == 800 || id == 801) && day && !windy)
+  { // clear / few clouds by day (sun or sun-dominant icon)
+    return COLOR_SUN;
+  }
+  // clouds, fog, dust, night skies, windy variants
+  return GxEPD_BLACK;
+#endif
+} // end getConditionsColor
+
+/* Per-size color wrappers matching the bitmap selectors above.
+ */
+uint16_t getHourlyForecastColor32(const owm_hourly_t &hourly)
+{
+  return getConditionsColor(hourly.weather.id, isDay(hourly.weather.icon),
+                            false, isCloudy(hourly.clouds),
+                            isWindy(hourly.wind_speed, hourly.wind_gust));
+}
+
+uint16_t getDailyForecastColor64(const owm_daily_t &daily)
+{
+  return getConditionsColor(daily.weather.id, true, false,
+                            isCloudy(daily.clouds),
+                            isWindy(daily.wind_speed, daily.wind_gust));
+}
+
+uint16_t getCurrentConditionsColor196(const owm_current_t &current)
+{
+  return getConditionsColor(current.weather.id, isDay(current.weather.icon),
+                            false, isCloudy(current.clouds),
+                            isWindy(current.wind_speed, current.wind_gust));
+}
+
+/* Color for the UV index widget icon (sun), by WHO risk level.
+ */
+uint16_t getUVIColor(unsigned int uvi)
+{
+#ifndef MULTICOLOR_DISPLAY
+  (void)uvi;
+  return GxEPD_BLACK;
+#else
+  if (uvi <= 2) {return COLOR_GOOD;}
+  if (uvi >= 8) {return COLOR_BAD;}
+  return GxEPD_BLACK; // moderate/high
+#endif
+} // end getUVIColor
+
+/* Color for the air quality widget icon. Thresholds only apply to the
+ * United States AQI scale (both AirNow and the locale fallback use it for
+ * this project's US-only data sources); other scales stay black.
+ */
+uint16_t getAQIColor(int aqi, bool usScale)
+{
+#ifndef MULTICOLOR_DISPLAY
+  (void)aqi; (void)usScale;
+  return GxEPD_BLACK;
+#else
+  if (!usScale)   {return GxEPD_BLACK;}
+  if (aqi <= 50)  {return COLOR_GOOD;} // Good
+  if (aqi > 100)  {return COLOR_BAD;}  // Unhealthy for Sensitive Groups and up
+  return GxEPD_BLACK;                  // Moderate
+#endif
+} // end getAQIColor
 
 /* Returns a 32x32 bitmap for a given alert.
  *

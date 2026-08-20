@@ -291,7 +291,7 @@ void drawCurrentSunrise(const owm_current_t &current)
 
   // icons
   display.drawInvertedBitmap(162 * PosX, 204 + (48 + 8) * PosY,
-                             wi_sunrise_48x48, 48, 48, GxEPD_BLACK);
+                             wi_sunrise_48x48, 48, 48, COLOR_SUN);
 
   // labels
   display.setFont(&FONT_7pt8b);
@@ -322,7 +322,7 @@ void drawCurrentSunset(const owm_current_t &current)
 
   // icons
   display.drawInvertedBitmap(162 * PosX, 204 + (48 + 8) * PosY,
-                             wi_sunset_48x48, 48, 48, GxEPD_BLACK);
+                             wi_sunset_48x48, 48, 48, COLOR_SUN);
 
   // labels
   display.setFont(&FONT_7pt8b);
@@ -435,9 +435,12 @@ void drawCurrentUVI(const owm_current_t &current)
   int PosX = (POS_UVI % 2);
   int PosY = static_cast<int>(POS_UVI / 2);
 
-  // icons
+  unsigned int uvi = static_cast<unsigned int>(
+                                std::max(std::round(current.uvi), 0.0f));
+
+  // icons (colored by risk level on multicolor panels)
   display.drawInvertedBitmap(162 * PosX, 204 + (48 + 8) * PosY,
-                             wi_day_sunny_48x48, 48, 48, GxEPD_BLACK);
+                             wi_day_sunny_48x48, 48, 48, getUVIColor(uvi));
 
   // labels
   display.setFont(&FONT_7pt8b);
@@ -448,8 +451,6 @@ void drawCurrentUVI(const owm_current_t &current)
 
   // uv index
   display.setFont(&FONT_12pt8b);
-  unsigned int uvi = static_cast<unsigned int>(
-                                std::max(std::round(current.uvi), 0.0f));
   dataStr = String(uvi);
   drawString(48 + (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2, dataStr, LEFT);
   display.setFont(&FONT_7pt8b);
@@ -491,10 +492,6 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   int PosX = (POS_AIR_QULITY % 2);
   int PosY = static_cast<int>(POS_AIR_QULITY / 2);
 
-  // icons
-  display.drawInvertedBitmap(162 * PosX, 204 + (48 + 8) * PosY,
-                             air_filter_48x48, 48, 48, GxEPD_BLACK);
-
   // labels
   display.setFont(&FONT_7pt8b);
 
@@ -535,6 +532,13 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
                               c.pm10, c.pm2_5);
     aqi_max = aqi_scale_max(AQI_SCALE);
   }
+
+  // icon (colored by AQI level on multicolor panels; the level thresholds
+  // are only defined for the United States AQI scale)
+  const bool usScale = useAirNow || (AQI_SCALE == UNITED_STATES_AQI);
+  display.drawInvertedBitmap(162 * PosX, 204 + (48 + 8) * PosY,
+                             air_filter_48x48, 48, 48,
+                             getAQIColor(aqi, usScale));
   if (aqi > aqi_max)
   {
     dataStr = "> " + String(aqi_max);
@@ -879,7 +883,7 @@ void drawCurrentConditions(const owm_current_t &current,
   // current weather icon
   display.drawInvertedBitmap(0, 0,
                              getCurrentConditionsBitmap196(current, today),
-                             196, 196, GxEPD_BLACK);
+                             196, 196, getCurrentConditionsColor196(current));
 
   // current temp
 #ifdef UNITS_TEMP_KELVIN
@@ -971,7 +975,7 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
     // icons
     display.drawInvertedBitmap(x, 98 + 69 / 2 - 32 - 6,
                                getDailyForecastBitmap64(daily[i]),
-                               64, 64, GxEPD_BLACK);
+                               64, 64, getDailyForecastColor64(daily[i]));
     // day of week label
     display.setFont(&FONT_11pt8b);
     char dayBuffer[8] = {};
@@ -1003,12 +1007,16 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
             "\260";
 #endif
 #ifdef TEMP_ORDER_HL
-    drawString(x + 31 - 4, 98 + 69 / 2 + 38 - 6 + 12, hiStr, RIGHT);
-    drawString(x + 31 + 5, 98 + 69 / 2 + 38 - 6 + 12, loStr, LEFT);
+    drawString(x + 31 - 4, 98 + 69 / 2 + 38 - 6 + 12, hiStr, RIGHT,
+               COLOR_TEMP_HI);
+    drawString(x + 31 + 5, 98 + 69 / 2 + 38 - 6 + 12, loStr, LEFT,
+               COLOR_TEMP_LO);
 #endif
 #ifdef TEMP_ORDER_LH
-    drawString(x + 31 - 4, 98 + 69 / 2 + 38 - 6 + 12, loStr, RIGHT);
-    drawString(x + 31 + 5, 98 + 69 / 2 + 38 - 6 + 12, hiStr, LEFT);
+    drawString(x + 31 - 4, 98 + 69 / 2 + 38 - 6 + 12, loStr, RIGHT,
+               COLOR_TEMP_LO);
+    drawString(x + 31 + 5, 98 + 69 / 2 + 38 - 6 + 12, hiStr, LEFT,
+               COLOR_TEMP_HI);
 #endif
 
 // daily forecast precipitation
@@ -1045,7 +1053,7 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
 #endif
         display.setFont(&FONT_6pt8b);
         drawString(x + 31, 98 + 69 / 2 + 38 - 6 + 26,
-                   dataStr + unitStr, CENTER);
+                   dataStr + unitStr, CENTER, COLOR_PRECIP);
 #if (DISPLAY_DAILY_PRECIP == 2) // smart
       }
 #endif
@@ -1397,9 +1405,10 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
 #endif
 #endif
 
-      drawString(xPos1 + 8, yTick + 4, dataStr, LEFT);
+      drawString(xPos1 + 8, yTick + 4, dataStr, LEFT, COLOR_PRECIP);
       display.setFont(&FONT_5pt8b);
-      drawString(display.getCursorX(), yTick + 4, precipUnit, LEFT);
+      drawString(display.getCursorX(), yTick + 4, precipUnit, LEFT,
+                 COLOR_PRECIP);
     } // end draw labels if precip is >0
 
     // draw dotted line
@@ -1486,8 +1495,8 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
         }
         const uint8_t *bitmap = getHourlyForecastBitmap32(hourly[i],
                                                           daily[day_idx]);
-        display.drawInvertedBitmap(xTick - 16, y_b - 32,
-                                   bitmap, 32, 32, GxEPD_BLACK);
+        display.drawInvertedBitmap(xTick - 16, y_b - 32, bitmap, 32, 32,
+                                   getHourlyForecastColor32(hourly[i]));
       }
 #endif
     }
@@ -1527,7 +1536,7 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     {
       for (int x = x0_t + (x0_t % 2); x < x1_t; x += 2)
       {
-        display.drawPixel(x, y, GxEPD_BLACK);
+        display.drawPixel(x, y, COLOR_PRECIP);
       }
     }
 

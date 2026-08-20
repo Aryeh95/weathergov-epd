@@ -77,6 +77,41 @@
   // #define ACCENT_COLOR GxEPD_ORANGE
 #endif
 
+// EXPANDED COLOR PALETTE (multicolor panels only)
+// The 7-color panels (ACeP and Spectra 6) can render red, yellow, green, and
+// blue natively, so instead of a single accent color the display uses a small
+// semantic palette: each define below names a *meaning*, and everything with
+// that meaning is drawn in that color. Tune to taste -- each is a one-line
+// change. On black/white and 3-color panels these all collapse to black
+// (the single ACCENT_COLOR above is still used where it always was), so the
+// rendering code can use them unconditionally.
+//   COLOR_SUN     : sun-dominant weather icons, sunrise/sunset widget icons
+//   COLOR_PRECIP  : rain/snow weather icons, precipitation bars + axis labels
+//   COLOR_TEMP_HI : daily forecast high temperature
+//   COLOR_TEMP_LO : daily forecast low temperature
+//   COLOR_GOOD    : AQI/UVI icon when conditions are good/low
+//   COLOR_BAD     : AQI/UVI icon when conditions are unhealthy/very high,
+//                   tornado icon
+// Note: yellow line art on white e-paper has the least contrast of the
+// palette; if COLOR_SUN is hard to read on your panel, GxEPD_ORANGE (dithered
+// red/yellow) or GxEPD_RED are the usual substitutes.
+#if defined(DISP_7C_F) || defined(DISP_7C_E6)
+  #define MULTICOLOR_DISPLAY
+  #define COLOR_SUN     GxEPD_YELLOW
+  #define COLOR_PRECIP  GxEPD_BLUE
+  #define COLOR_TEMP_HI GxEPD_RED
+  #define COLOR_TEMP_LO GxEPD_BLUE
+  #define COLOR_GOOD    GxEPD_GREEN
+  #define COLOR_BAD     GxEPD_RED
+#else
+  #define COLOR_SUN     GxEPD_BLACK
+  #define COLOR_PRECIP  GxEPD_BLACK
+  #define COLOR_TEMP_HI GxEPD_BLACK
+  #define COLOR_TEMP_LO GxEPD_BLACK
+  #define COLOR_GOOD    GxEPD_BLACK
+  #define COLOR_BAD     GxEPD_BLACK
+#endif
+
 // LOCALE
 // If your locale is not here, you can add it by copying and modifying one of
 // the files in src/locales. Please feel free to create a pull request to add
