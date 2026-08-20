@@ -20,6 +20,7 @@
 #include <DNSServer.h>
 #include <ESPmDNS.h>
 #include <LittleFS.h>
+#include <Update.h>
 #include <WebServer.h>
 #include <WiFi.h>
 
@@ -147,10 +148,126 @@ static void handleGetInfo()
     doc["mdns"] = "weatherepd.local";
   }
   doc["timeout_minutes"] = PORTAL_TIMEOUT;
+  doc["build"] = __DATE__ " " __TIME__;
   String out;
   serializeJson(doc, out);
   server.send(200, "application/json", out);
 } // end handleGetInfo
+
+/* Reports nearby WiFi networks so the page can offer a picker instead of a
+ * typed SSID. The scan runs asynchronously: the first call starts it and
+ * returns {"status":"scanning"}; the page polls until the results arrive.
+ * Networks are already sorted strongest-first by the scanner; duplicate
+ * SSIDs (multiple access points of one network) are collapsed.
+ */
+static void handleScan()
+{
+  lastActivity = millis();
+  int n = WiFi.scanComplete();
+  if (n == WIFI_SCAN_FAILED)
+  {
+    WiFi.scanNetworks(true /* async */);
+    server.send(200, "application/json", "{\"status\":\"scanning\"}");
+    return;
+  }
+  if (n == WIFI_SCAN_RUNNING)
+  {
+    server.send(200, "application/json", "{\"status\":\"scanning\"}");
+    return;
+  }
+  JsonDocument doc;
+  doc["status"] = "done";
+  JsonArray arr = doc["networks"].to<JsonArray>();
+  for (int i = 0; i < n; ++i)
+  {
+    String ssid = WiFi.SSID(i);
+    if (ssid.isEmpty())
+    {
+      continue;
+    }
+    bool seen = false;
+    for (JsonObject o : arr)
+    {
+      if (ssid == o["ssid"].as<const char *>())
+      {
+        seen = true;
+        break;
+      }
+    }
+    if (seen)
+    {
+      continue;
+    }
+    JsonObject o = arr.add<JsonObject>();
+    o["ssid"] = ssid;
+    o["rssi"] = WiFi.RSSI(i);
+    o["open"] = (WiFi.encryptionType(i) == WIFI_AUTH_OPEN);
+  }
+  WiFi.scanDelete();
+  String out;
+  serializeJson(doc, out);
+  server.send(200, "application/json", out);
+} // end handleScan
+
+// FIRMWARE UPDATE (OTA)
+// The page uploads a firmware.bin built for this board; Update writes it to
+// the inactive app slot and only switches the boot partition when the image
+// completes and verifies, so a failed or interrupted upload leaves the
+// running firmware untouched.
+static String otaError;
+
+static void handleUpdateUpload()
+{
+  lastActivity = millis();
+  HTTPUpload &up = server.upload();
+  if (up.status == UPLOAD_FILE_START)
+  {
+    otaError = "";
+    Serial.println("[portal] OTA upload started: " + up.filename);
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH))
+    {
+      otaError = Update.errorString();
+    }
+  }
+  else if (up.status == UPLOAD_FILE_WRITE && otaError.isEmpty())
+  {
+    if (Update.write(up.buf, up.currentSize) != up.currentSize)
+    {
+      otaError = Update.errorString();
+    }
+  }
+  else if (up.status == UPLOAD_FILE_END && otaError.isEmpty())
+  {
+    if (Update.end(true))
+    {
+      Serial.printf("[portal] OTA complete: %u bytes\n", up.totalSize);
+    }
+    else
+    {
+      otaError = Update.errorString();
+    }
+  }
+  else if (up.status == UPLOAD_FILE_ABORTED)
+  {
+    Update.abort();
+    otaError = "upload aborted";
+  }
+} // end handleUpdateUpload
+
+static void handleUpdateFinish()
+{
+  lastActivity = millis();
+  if (otaError.length())
+  {
+    Serial.println("[portal] OTA failed: " + otaError);
+    server.send(500, "application/json",
+                "{\"ok\":false,\"error\":\"" + otaError + "\"}");
+    return;
+  }
+  server.send(200, "application/json",
+              "{\"ok\":true,\"message\":\"Firmware updated. Restarting...\"}");
+  restartAt = millis() + 1500;
+} // end handleUpdateFinish
 
 /* In hotspot mode every unknown URL redirects to the portal, which is what
  * makes phone/laptop captive-portal detection pop the page up automatically.
@@ -211,7 +328,9 @@ void runConfigPortal(bool forceAp)
   {
     apMode = true;
     WiFi.disconnect();
-    WiFi.mode(WIFI_AP);
+    // AP+STA so the STA half can run WiFi scans for the network picker while
+    // the hotspot serves the page.
+    WiFi.mode(WIFI_AP_STA);
     WiFi.softAPConfig(AP_IP, AP_IP, IPAddress(255, 255, 255, 0));
     WiFi.softAP(AP_SSID, PORTAL_AP_PASSWORD.c_str());
     dnsServer.start(53, "*", AP_IP);
@@ -227,6 +346,8 @@ void runConfigPortal(bool forceAp)
   server.on("/config", HTTP_GET, handleGetConfig);
   server.on("/config", HTTP_POST, handlePostConfig);
   server.on("/info", HTTP_GET, handleGetInfo);
+  server.on("/scan", HTTP_GET, handleScan);
+  server.on("/update", HTTP_POST, handleUpdateFinish, handleUpdateUpload);
   server.onNotFound(handleNotFound);
   server.begin();
   lastActivity = millis();

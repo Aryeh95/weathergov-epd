@@ -54,7 +54,12 @@
 
 <form id="form">
   <fieldset><legend>WiFi</legend>
-    <label>Network name (SSID)</label><input id="w_ssid" required>
+    <label>Network name (SSID)</label>
+    <div style="display:flex;gap:0.4rem">
+      <input id="w_ssid" required style="flex:1">
+      <button type="button" id="scanbtn" style="white-space:nowrap">&#x1F50D; Scan</button>
+    </div>
+    <div id="scanlist" style="display:none"></div>
     <label>Password</label><input id="w_pass" type="password" autocomplete="off">
     <div class="hint">2.4&nbsp;GHz networks only &mdash; the ESP32 cannot see 5&nbsp;GHz.</div>
   </fieldset>
@@ -119,6 +124,19 @@
 
   <button id="save" type="submit">Save &amp; Restart</button>
 </form>
+
+<fieldset><legend>Firmware update</legend>
+  <div class="hint">Install a new <code>firmware.bin</code> over WiFi (built with
+    <code>pio run</code>; find it in <code>.pio/build/&lt;board&gt;/firmware.bin</code>).
+    Upload the file built for <b>this</b> board model. The update installs to a
+    spare slot and only takes effect when it completes and verifies, then the
+    display restarts. Current firmware build: <span id="fwbuild">?</span></div>
+  <div style="display:flex;gap:0.4rem;margin-top:0.4rem">
+    <input type="file" id="fwfile" accept=".bin" style="flex:1">
+    <button type="button" id="fwbtn" style="white-space:nowrap">Upload &amp; Install</button>
+  </div>
+  <div id="fwprog" style="display:none;margin-top:0.4rem"></div>
+</fieldset>
 
 <button class="toggle" id="advtoggle" type="button">Advanced: edit raw JSON</button>
 <div id="advbox" style="display:none">
@@ -312,6 +330,91 @@ async function detectLocation() {
 }
 el('locbtn').addEventListener('click', detectLocation);
 
+let scanTimer = null;
+async function pollScan() {
+  try {
+    const r = await fetch('/scan');
+    const j = await r.json();
+    if (j.status === 'scanning') {
+      scanTimer = setTimeout(pollScan, 1500);
+      return;
+    }
+    const box = el('scanlist');
+    box.style.display = 'block';
+    if (!j.networks || j.networks.length === 0) {
+      box.innerHTML = '<div class="hint">No networks found. Try again.</div>';
+    } else {
+      box.innerHTML = j.networks.map(n => {
+        const bars = n.rssi > -60 ? '&#9679;&#9679;&#9679;'
+                   : n.rssi > -75 ? '&#9679;&#9679;&#9675;' : '&#9679;&#9675;&#9675;';
+        return '<button type="button" class="scanitem" data-ssid="'
+          + n.ssid.replace(/"/g, '&quot;') + '" data-open="' + n.open
+          + '" style="display:block;width:100%;text-align:left;margin-top:0.3rem">'
+          + bars + ' ' + n.ssid.replace(/</g, '&lt;')
+          + (n.open ? ' <i>(open)</i>' : '') + '</button>';
+      }).join('');
+      box.querySelectorAll('.scanitem').forEach(b => b.addEventListener('click', () => {
+        el('w_ssid').value = b.dataset.ssid;
+        if (b.dataset.open === 'true') { el('w_pass').value = ''; }
+        else { el('w_pass').focus(); }
+        box.style.display = 'none';
+      }));
+    }
+    el('scanbtn').disabled = false;
+    el('scanbtn').innerHTML = '&#x1F50D; Scan';
+  } catch (e) {
+    el('scanbtn').disabled = false;
+    el('scanbtn').innerHTML = '&#x1F50D; Scan';
+    setStatus('err', 'Scan failed: ' + e.message);
+  }
+}
+el('scanbtn').addEventListener('click', () => {
+  el('scanbtn').disabled = true;
+  el('scanbtn').textContent = 'Scanning...';
+  clearTimeout(scanTimer);
+  pollScan();
+});
+
+el('fwbtn').addEventListener('click', () => {
+  const f = el('fwfile').files[0];
+  const prog = el('fwprog');
+  if (!f) { setStatus('err', 'Choose a firmware.bin file first.'); return; }
+  if (!f.name.endsWith('.bin')) { setStatus('err', 'That is not a .bin file.'); return; }
+  if (!confirm('Install "' + f.name + '" (' + Math.round(f.size / 1024)
+      + ' kB)? Make sure it was built for this board model.')) { return; }
+  const fd = new FormData();
+  fd.append('firmware', f);
+  const xhr = new XMLHttpRequest();
+  el('fwbtn').disabled = true;
+  prog.style.display = 'block';
+  xhr.upload.onprogress = e => {
+    if (e.lengthComputable) {
+      prog.textContent = 'Uploading... ' + Math.round(100 * e.loaded / e.total) + '%';
+    }
+  };
+  xhr.onload = () => {
+    el('fwbtn').disabled = false;
+    try {
+      const j = JSON.parse(xhr.responseText);
+      if (j.ok) {
+        prog.textContent = '';
+        setStatus('ok', j.message + ' The page will stop responding while it '
+          + 'reboots; the new firmware takes over on the next refresh.');
+      } else {
+        setStatus('err', 'Update failed: ' + j.error
+          + '. The previous firmware is still installed and running.');
+      }
+    } catch (e) { setStatus('err', 'Unexpected response: ' + xhr.responseText); }
+  };
+  xhr.onerror = () => {
+    el('fwbtn').disabled = false;
+    setStatus('err', 'Upload failed (connection lost). The previous firmware '
+      + 'is still installed.');
+  };
+  xhr.open('POST', '/update');
+  xhr.send(fd);
+});
+
 el('advtoggle').addEventListener('click', () => {
   const box = el('advbox');
   box.style.display = box.style.display === 'none' ? 'block' : 'none';
@@ -337,6 +440,7 @@ function showConnInfo(i) {
   box.innerHTML += ' Setup mode ends after ' + (i.timeout_minutes ?? 10)
     + ' minutes of inactivity.';
   box.style.display = 'block';
+  if (i.build) { el('fwbuild').textContent = i.build; }
 }
 
 buildWidgetSelects();
