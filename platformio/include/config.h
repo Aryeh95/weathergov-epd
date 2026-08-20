@@ -362,6 +362,11 @@
 #define PIN_UNUSED 0xFF
 extern const uint8_t PIN_BAT_ADC;
 extern const uint8_t PIN_BAT_EN;
+// Wake buttons (PIN_UNUSED on boards without them). Both are active-low
+// deep-sleep wake sources: PORTAL wakes into the configuration portal,
+// REFRESH wakes into an immediate weather refresh.
+extern const uint8_t PIN_BTN_PORTAL;
+extern const uint8_t PIN_BTN_REFRESH;
 extern const uint8_t PIN_EPD_BUSY;
 extern const uint8_t PIN_EPD_CS;
 extern const uint8_t PIN_EPD_RST;

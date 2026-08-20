@@ -74,6 +74,31 @@ static void disarmDoubleReset()
   prefs.end();
 }
 
+// WAKE BUTTONS (boards that have them, e.g. reTerminal E1002)
+// Armed before every deep sleep: the PORTAL button (EXT0) wakes straight
+// into the configuration portal, the REFRESH button (EXT1) wakes into an
+// immediate weather refresh. Both are active low, so internal RTC pullups
+// are enabled for the sleep period.
+#if defined(PIN_UNUSED)
+#include <driver/rtc_io.h>
+static void enableButtonWake()
+{
+  if (PIN_BTN_PORTAL != PIN_UNUSED)
+  {
+    rtc_gpio_pullup_en(static_cast<gpio_num_t>(PIN_BTN_PORTAL));
+    rtc_gpio_pulldown_dis(static_cast<gpio_num_t>(PIN_BTN_PORTAL));
+    esp_sleep_enable_ext0_wakeup(static_cast<gpio_num_t>(PIN_BTN_PORTAL), 0);
+  }
+  if (PIN_BTN_REFRESH != PIN_UNUSED)
+  {
+    rtc_gpio_pullup_en(static_cast<gpio_num_t>(PIN_BTN_REFRESH));
+    rtc_gpio_pulldown_dis(static_cast<gpio_num_t>(PIN_BTN_REFRESH));
+    esp_sleep_enable_ext1_wakeup(1ULL << PIN_BTN_REFRESH,
+                                 ESP_EXT1_WAKEUP_ALL_LOW);
+  }
+}
+#endif
+
 /* Put esp32 into ultra low-power deep sleep (<11μA).
  * Aligns wake time to the minute. Sleep times defined in config.cpp.
  */
@@ -141,6 +166,7 @@ void beginDeepSleep(unsigned long startTime, tm *timeInfo)
 #endif
 
   esp_sleep_enable_timer_wakeup(sleepDuration * 1000000ULL);
+  enableButtonWake();
   Serial.print(TXT_AWAKE_FOR);
   Serial.println(" "  + String((millis() - startTime) / 1000.0, 3) + "s");
   Serial.print(TXT_ENTERING_DEEP_SLEEP_FOR);
@@ -161,6 +187,7 @@ void beginFixedSleep(unsigned long startTime, unsigned long minutes)
 {
   disarmDoubleReset();
   esp_sleep_enable_timer_wakeup(minutes * 60ULL * 1000000ULL);
+  enableButtonWake();
   Serial.print(TXT_AWAKE_FOR);
   Serial.println(" " + String((millis() - startTime) / 1000.0, 3) + "s");
   Serial.print(TXT_ENTERING_DEEP_SLEEP_FOR);
@@ -261,14 +288,27 @@ void setup()
   Serial.printf("[drd] marker was %d, armed (%u bytes written)\n",
                 portalRequested, drdWritten);
 #endif
+  // Wake buttons (see enableButtonWake): the PORTAL button wakes via EXT0,
+  // the REFRESH button via EXT1. A refresh-button wake needs no special
+  // handling -- proceeding with a normal update IS the response.
+  const esp_sleep_wakeup_cause_t wakeCause = esp_sleep_get_wakeup_cause();
+  const bool buttonPortal = (wakeCause == ESP_SLEEP_WAKEUP_EXT0);
+  if (wakeCause == ESP_SLEEP_WAKEUP_EXT1)
+  {
+    Serial.println("Woken by refresh button.");
+  }
   bool unconfigured = (strcmp(WIFI_SSID, "ssid") == 0);
-  if (portalRequested || unconfigured)
+  if (portalRequested || buttonPortal || unconfigured)
   {
     prefs.putBool("drd", false);
     prefs.end();
     if (unconfigured)
     {
       Serial.println("No WiFi configured, starting setup hotspot.");
+    }
+    else if (buttonPortal)
+    {
+      Serial.println("Woken by portal button, starting configuration portal.");
     }
     else
     {

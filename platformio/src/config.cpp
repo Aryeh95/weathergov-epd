@@ -42,6 +42,11 @@ const uint8_t PIN_EPD_SCK  = 7;  // SPI bus shared with the microSD slot
 const uint8_t PIN_EPD_MISO = 8;  // (SD's MISO; the panel itself returns no data)
 const uint8_t PIN_EPD_MOSI = 9;
 const uint8_t PIN_EPD_PWR  = PIN_UNUSED; // panel supply is hardwired
+// Front buttons (active low). Middle button wakes into the config portal,
+// the right (green) button wakes into an immediate refresh. KEY2 (GPIO5,
+// left) is currently unassigned.
+const uint8_t PIN_BTN_PORTAL  = 4;  // KEY1, middle
+const uint8_t PIN_BTN_REFRESH = 3;  // KEY0, right (green)
 // Onboard SHT4x temperature/humidity sensor
 const uint8_t PIN_BME_SDA = 19;
 const uint8_t PIN_BME_SCL = 20;
@@ -51,6 +56,8 @@ const uint8_t BME_ADDRESS = 0x44;        // SHT4x fixed I2C address
 // ADC pin used to measure battery voltage
 const uint8_t PIN_BAT_ADC  = A2; // A0 for micro-usb firebeetle
 const uint8_t PIN_BAT_EN   = PIN_UNUSED; // FireBeetle divider is always connected
+const uint8_t PIN_BTN_PORTAL  = PIN_UNUSED; // no wake buttons on this board
+const uint8_t PIN_BTN_REFRESH = PIN_UNUSED;
 // Pins for E-Paper Driver Board
 const uint8_t PIN_EPD_BUSY = 14; // 5 for micro-usb firebeetle
 const uint8_t PIN_EPD_CS   = 13;
