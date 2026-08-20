@@ -10,7 +10,8 @@ with Floyd-Steinberg dithering, and packs the result as 4-bit palette
 indices (two pixels per byte, high nibble first; index 0 = transparent).
 
 Three sizes are emitted per icon, matching the renderer's draw sites:
-168x168 (current conditions, drawn centered in the 196px slot), 64x64 (daily forecast), 32x32 (hourly graph).
+168x168 (current conditions, centered in the 196px slot), 64x64 and
+48x48 (daily forecast, size depends on forecast_days), 32x32 (hourly graph).
 
 Usage:  python tools/generate_color_icons.py [icon_dir]
         icon_dir: optional directory of already-downloaded PNGs; if omitted,
@@ -29,7 +30,7 @@ ICONS = ["01d", "01n", "02d", "02n", "03d", "04d",
 # 168 (not the full 196 slot): the InkyPi artwork fills its canvas
 # edge-to-edge, unlike the padded line art, so the current-conditions icon is
 # rendered slightly smaller and drawn centered in the 196px slot.
-SIZES = [168, 64, 32]
+SIZES = [168, 64, 48, 32]
 # Left-panel widget icons, emitted at the 48px widget slot size. The last
 # three have no InkyPi counterpart and are drawn by this script in the same
 # flat style (see draw_custom_icons).
@@ -182,12 +183,13 @@ def main():
                 "  const char code[4];\n"
                 "  const uint8_t *px168;\n"
                 "  const uint8_t *px64;\n"
+                "  const uint8_t *px48;\n"
                 "  const uint8_t *px32;\n"
                 "} color_icon_t;\n\n")
         f.write("static const color_icon_t COLOR_ICONS[] = {\n")
         for name in ICONS:
-            f.write('  {"%s", ci_%s_168, ci_%s_64, ci_%s_32},\n'
-                    % (name, name, name, name))
+            f.write('  {"%s", ci_%s_168, ci_%s_64, ci_%s_48, ci_%s_32},\n'
+                    % (name, name, name, name, name))
         f.write("};\n\n#endif\n")
     print("wrote %s (%d bytes of icon data)" % (OUT_PATH, total))
 

@@ -96,6 +96,7 @@
     <div class="row">
       <div><label>WiFi retry (min)</label><input id="s_retry" type="number" min="1" max="1440"></div>
       <div><label>Graph hours</label><input id="s_graph" type="number" min="8" max="48"></div>
+      <div><label>Forecast days</label><select id="s_fdays"><option value="5">5</option><option value="6">6</option><option value="7">7</option></select></div>
     </div>
     <div class="hint">No updates between bed and wake hours (set both equal to disable).</div>
   </fieldset>
@@ -188,6 +189,7 @@ function populate() {
   el('s_wake').value = cfg.sleep?.wake_time_hour ?? 5;
   el('s_retry').value = cfg.sleep?.wifi_retry_interval_minutes ?? 15;
   el('s_graph').value = cfg.sleep?.hourly_graph_max ?? 24;
+  el('s_fdays').value = String(cfg.forecast_days ?? 5);
   el('a_ua').value = cfg.api?.nws_user_agent ?? '';
   el('a_airnow').value = cfg.api?.airnow_api_key ?? '';
   for (const [key] of WIDGETS)
@@ -217,6 +219,7 @@ function collect() {
   cfg.sleep.wake_time_hour = +el('s_wake').value;
   cfg.sleep.wifi_retry_interval_minutes = +el('s_retry').value;
   cfg.sleep.hourly_graph_max = +el('s_graph').value;
+  cfg.forecast_days = +el('s_fdays').value;
   cfg.api.nws_user_agent = el('a_ua').value.trim();
   cfg.api.airnow_api_key = el('a_airnow').value.trim();
   for (const [key] of WIDGETS)

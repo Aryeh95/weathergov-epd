@@ -652,6 +652,15 @@ const uint8_t *getDailyForecastBitmap64(const owm_daily_t &daily)
   return getConditionsBitmap<64>(id, day, moon, cloudy, windy);
 } // end getForecastBitmap64
 
+/* 48px variant, used when FORECAST_DAYS > 5 narrows the forecast columns.
+ */
+const uint8_t *getDailyForecastBitmap48(const owm_daily_t &daily)
+{
+  return getConditionsBitmap<48>(daily.weather.id, true, false,
+                                 isCloudy(daily.clouds),
+                                 isWindy(daily.wind_speed, daily.wind_gust));
+} // end getForecastBitmap48
+
 /* Takes the current weather and returns a pointer to the icon's 196x196
  * bitmap.
  *
@@ -778,6 +787,7 @@ static const uint8_t *getColorConditionsIcon(int id, bool day, int size)
   {
   case 168: return fallback->px168;
   case 64:  return fallback->px64;
+  case 48:  return fallback->px48;
   case 32:  return fallback->px32;
   default:  return NULL;
   }
@@ -789,9 +799,9 @@ const uint8_t *getColorIcon168(const owm_current_t &current)
                                 isDay(current.weather.icon), 168);
 }
 
-const uint8_t *getColorIcon64(const owm_daily_t &daily)
+const uint8_t *getColorIconDaily(const owm_daily_t &daily, int size)
 {
-  return getColorConditionsIcon(daily.weather.id, true, 64);
+  return getColorConditionsIcon(daily.weather.id, true, size);
 }
 
 const uint8_t *getColorIcon32(const owm_hourly_t &hourly)

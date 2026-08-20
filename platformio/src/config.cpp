@@ -67,6 +67,12 @@ const uint8_t PIN_BME_PWR =  4;   // Irrelevant if directly connected to 3.3V
 const uint8_t BME_ADDRESS = 0x76; // 0x76 if SDO -> GND; 0x77 if SDO -> VCC
 #endif // BOARD_RETERMINAL_E1002
 
+// FORECAST DAYS
+// Number of days shown in the daily forecast row, range [5-7]. At 5 days the
+// icons are 64px; at 6 or 7 the columns are narrower, so 48px icons and a
+// smaller temperature font are used.
+int FORECAST_DAYS = 5;
+
 // PER-DEPLOYMENT SETTINGS (WiFi, location, time, battery, widget layout)
 //
 // The values below are only FALLBACK DEFAULTS, used if data/config.json is

@@ -405,6 +405,7 @@ extern int    WIFI_RETRY_INTERVAL;
 extern int    BED_TIME;
 extern int    WAKE_TIME;
 extern int    HOURLY_GRAPH_MAX;
+extern int    FORECAST_DAYS;
 extern uint32_t WARN_BATTERY_VOLTAGE;
 extern uint32_t LOW_BATTERY_VOLTAGE;
 extern uint32_t VERY_LOW_BATTERY_VOLTAGE;

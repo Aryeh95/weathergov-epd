@@ -105,6 +105,9 @@ bool loadSettings()
   WAKE_TIME        = sleep["wake_time_hour"]         | WAKE_TIME;
   HOURLY_GRAPH_MAX = sleep["hourly_graph_max"]       | HOURLY_GRAPH_MAX;
 
+  FORECAST_DAYS = doc["forecast_days"] | FORECAST_DAYS;
+  FORECAST_DAYS = constrain(FORECAST_DAYS, 5, 7);
+
   JsonObjectConst battery = doc["battery"];
   WARN_BATTERY_VOLTAGE     = battery["warn_voltage_mv"]     | WARN_BATTERY_VOLTAGE;
   LOW_BATTERY_VOLTAGE      = battery["low_voltage_mv"]      | LOW_BATTERY_VOLTAGE;

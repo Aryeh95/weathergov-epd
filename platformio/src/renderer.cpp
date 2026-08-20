@@ -1022,35 +1022,51 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
   // 5 day, forecast
   String hiStr, loStr;
   String dataStr, unitStr;
-  for (int i = 0; i < 5; ++i)
-  {
+  // FORECAST_DAYS (config.json, range [5-7]) sets how many columns the row
+  // is divided into. At 6+ days the narrower columns get 48px icons and a
+  // smaller temperature font. The smaller DISP_BW_V1 panel is fixed at 5.
 #ifndef DISP_BW_V1
-    int x = 398 + (i * 82);
+  const int days = FORECAST_DAYS;
+  const float colW = (DISP_WIDTH - 398) / static_cast<float>(days);
+  const int xStart = 398;
 #elif defined(DISP_BW_V1)
-    int x = 318 + (i * 64);
+  const int days = 5;
+  const float colW = 64;
+  const int xStart = 318;
 #endif
+  const int iconSize = (colW >= 72) ? 64 : 48;
+  const GFXfont *tempFont = (colW >= 72) ? &FONT_8pt8b : &FONT_7pt8b;
+  for (int i = 0; i < days; ++i)
+  {
+    // column center; the icon's vertical center matches the old layout
+    int cx = xStart + static_cast<int>(i * colW + colW / 2);
+    int iconX = cx - iconSize / 2;
+    int iconY = 98 + 69 / 2 - 6 - iconSize / 2;
     // icons
 #ifdef MULTICOLOR_DISPLAY
-    const uint8_t *colorIcon = getColorIcon64(daily[i]);
+    const uint8_t *colorIcon = getColorIconDaily(daily[i], iconSize);
     if (colorIcon)
     {
-      drawColorIcon(x, 98 + 69 / 2 - 32 - 6, colorIcon, 64);
+      drawColorIcon(iconX, iconY, colorIcon, iconSize);
     }
     else
 #endif
-    display.drawInvertedBitmap(x, 98 + 69 / 2 - 32 - 6,
-                               getDailyForecastBitmap64(daily[i]),
-                               64, 64, getDailyForecastColor64(daily[i]));
+    display.drawInvertedBitmap(iconX, iconY,
+                               (iconSize == 64)
+                                   ? getDailyForecastBitmap64(daily[i])
+                                   : getDailyForecastBitmap48(daily[i]),
+                               iconSize, iconSize,
+                               getDailyForecastColor64(daily[i]));
     // day of week label
     display.setFont(&FONT_11pt8b);
     char dayBuffer[8] = {};
     _strftime(dayBuffer, sizeof(dayBuffer), "%a", &timeInfo); // abbrv'd day
-    drawString(x + 31 - 2, 98 + 69 / 2 - 32 - 26 - 6 + 16, dayBuffer, CENTER);
+    drawString(cx - 2, 98 + 69 / 2 - 32 - 26 - 6 + 16, dayBuffer, CENTER);
     timeInfo.tm_wday = (timeInfo.tm_wday + 1) % 7; // increment to next day
 
     // high | low
-    display.setFont(&FONT_8pt8b);
-    drawString(x + 31, 98 + 69 / 2 + 38 - 6 + 12, "|", CENTER);
+    display.setFont(tempFont);
+    drawString(cx, 98 + 69 / 2 + 38 - 6 + 12, "|", CENTER);
 #ifdef UNITS_TEMP_KELVIN
     hiStr = String(static_cast<int>(std::round(daily[i].temp.max)));
     loStr = String(static_cast<int>(std::round(daily[i].temp.min)));
@@ -1072,15 +1088,15 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
             "\260";
 #endif
 #ifdef TEMP_ORDER_HL
-    drawString(x + 31 - 4, 98 + 69 / 2 + 38 - 6 + 12, hiStr, RIGHT,
+    drawString(cx - 4, 98 + 69 / 2 + 38 - 6 + 12, hiStr, RIGHT,
                COLOR_TEMP_HI);
-    drawString(x + 31 + 5, 98 + 69 / 2 + 38 - 6 + 12, loStr, LEFT,
+    drawString(cx + 5, 98 + 69 / 2 + 38 - 6 + 12, loStr, LEFT,
                COLOR_TEMP_LO);
 #endif
 #ifdef TEMP_ORDER_LH
-    drawString(x + 31 - 4, 98 + 69 / 2 + 38 - 6 + 12, loStr, RIGHT,
+    drawString(cx - 4, 98 + 69 / 2 + 38 - 6 + 12, loStr, RIGHT,
                COLOR_TEMP_LO);
-    drawString(x + 31 + 5, 98 + 69 / 2 + 38 - 6 + 12, hiStr, LEFT,
+    drawString(cx + 5, 98 + 69 / 2 + 38 - 6 + 12, hiStr, LEFT,
                COLOR_TEMP_HI);
 #endif
 
@@ -1117,7 +1133,7 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
       {
 #endif
         display.setFont(&FONT_6pt8b);
-        drawString(x + 31, 98 + 69 / 2 + 38 - 6 + 26,
+        drawString(cx, 98 + 69 / 2 + 38 - 6 + 26,
                    dataStr + unitStr, CENTER, COLOR_PRECIP);
 #if (DISPLAY_DAILY_PRECIP == 2) // smart
       }
