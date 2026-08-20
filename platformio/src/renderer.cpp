@@ -638,8 +638,8 @@ void drawCurrentInTemp(float inTemp)
   int PosY = static_cast<int>(POS_INTEMP / 2);
 
   // icons
-  display.drawInvertedBitmap(162 * PosX, 204 + (48 + 8) * PosY,
-                             house_thermometer_48x48, 48, 48, GxEPD_BLACK);
+  drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
+                 house_thermometer_48x48, "intemp", GxEPD_BLACK);
 
   // labels
   display.setFont(&FONT_7pt8b);
@@ -844,8 +844,8 @@ void drawCurrentInHumidity(float inHumidity)
   int PosY = static_cast<int>(POS_INHUMIDITY / 2);
 
   // current weather data icons
-  display.drawInvertedBitmap(162 * PosX, 204 + (48 + 8) * PosY,
-                             house_humidity_48x48, 48, 48, GxEPD_BLACK);
+  drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
+                 house_humidity_48x48, "inhumidity", GxEPD_BLACK);
 
   // current weather data labels
   display.setFont(&FONT_7pt8b);
@@ -881,8 +881,8 @@ void drawCurrentDewpoint(const owm_current_t &current)
   int PosY = static_cast<int>(POS_DEWPOINT / 2);
   
   // icons
-  display.drawInvertedBitmap(162 * PosX, 204 + (48 + 8) * PosY,
-                             wi_thermometer_48x48, 48, 48, GxEPD_BLACK);
+  drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
+                 wi_thermometer_48x48, "dewpoint", GxEPD_BLACK);
   display.drawInvertedBitmap(162 * PosX + 48 - 24, 204 + (48 + 8) * PosY + 4,
                              wi_raindrops_24x24, 24, 24, GxEPD_BLACK);
   
@@ -931,10 +931,10 @@ void drawCurrentConditions(const owm_current_t &current,
   // current weather icon (full-color where the panel and icon set allow,
   // otherwise single-color line art)
 #ifdef MULTICOLOR_DISPLAY
-  const uint8_t *colorIcon = getColorIcon196(current);
+  const uint8_t *colorIcon = getColorIcon168(current);
   if (colorIcon)
   {
-    drawColorIcon(0, 0, colorIcon, 196);
+    drawColorIcon(14, 14, colorIcon, 168); // centered in the 196px slot
   }
   else
 #endif

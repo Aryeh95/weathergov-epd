@@ -10,7 +10,7 @@ with Floyd-Steinberg dithering, and packs the result as 4-bit palette
 indices (two pixels per byte, high nibble first; index 0 = transparent).
 
 Three sizes are emitted per icon, matching the renderer's draw sites:
-196x196 (current conditions), 64x64 (daily forecast), 32x32 (hourly graph).
+168x168 (current conditions, drawn centered in the 196px slot), 64x64 (daily forecast), 32x32 (hourly graph).
 
 Usage:  python tools/generate_color_icons.py [icon_dir]
         icon_dir: optional directory of already-downloaded PNGs; if omitted,
@@ -22,14 +22,21 @@ import os
 import sys
 import urllib.request
 
-from PIL import Image, ImageEnhance
+from PIL import Image, ImageDraw, ImageEnhance
 
 ICONS = ["01d", "01n", "02d", "02n", "03d", "04d",
          "09d", "10d", "10n", "11d", "13d", "50d"]
-SIZES = [196, 64, 32]
-# Left-panel widget icons, emitted at the 48px widget slot size.
+# 168 (not the full 196 slot): the InkyPi artwork fills its canvas
+# edge-to-edge, unlike the padded line art, so the current-conditions icon is
+# rendered slightly smaller and drawn centered in the 196px slot.
+SIZES = [168, 64, 32]
+# Left-panel widget icons, emitted at the 48px widget slot size. The last
+# three have no InkyPi counterpart and are drawn by this script in the same
+# flat style (see draw_custom_icons).
 WIDGET_ICONS = ["sunrise", "sunset", "wind", "humidity", "pressure",
-                "uvi", "visibility", "aqi"]
+                "uvi", "visibility", "aqi",
+                "dewpoint", "intemp", "inhumidity"]
+CUSTOM_ICONS = ["dewpoint", "intemp", "inhumidity"]
 SATURATION = 1.8
 ALPHA_THRESHOLD = 128
 # Quantization targets; palette indices are these positions + 1
@@ -46,10 +53,53 @@ OUT_PATH = os.path.join(os.path.dirname(__file__), "..",
 def fetch_icons(icon_dir):
     os.makedirs(icon_dir, exist_ok=True)
     for name in ICONS + WIDGET_ICONS:
+        if name in CUSTOM_ICONS:
+            continue
         path = os.path.join(icon_dir, name + ".png")
         if not os.path.exists(path):
             print("downloading", name)
             urllib.request.urlretrieve(RAW_URL.format(name), path)
+
+
+def _droplet(d, cx, cy, r, fill):
+    d.polygon([(cx, cy - int(r * 1.55)), (cx - r, cy - int(r * 0.1)),
+               (cx + r, cy - int(r * 0.1))], fill=fill)
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=fill)
+
+
+def _thermometer(d, cx, top, bot, w, bulb_r, tube, mercury, lvl=0.55):
+    d.rounded_rectangle([cx - w, top, cx + w, bot], radius=w, fill=tube)
+    d.ellipse([cx - bulb_r, bot - bulb_r, cx + bulb_r, bot + bulb_r],
+              fill=tube)
+    iw = int(w * 0.45)
+    ml = int(top + (bot - top) * (1 - lvl))
+    d.rounded_rectangle([cx - iw, ml, cx + iw, bot], radius=iw, fill=mercury)
+    ir = int(bulb_r * 0.62)
+    d.ellipse([cx - ir, bot - ir, cx + ir, bot + ir], fill=mercury)
+
+
+def draw_custom_icons(icon_dir):
+    """Draws the widget icons the InkyPi set lacks, in its flat style."""
+    BLUE, RED = (30, 110, 220, 255), (230, 40, 40, 255)
+    BLACK, WHITE = (0, 0, 0, 255), (255, 255, 255, 255)
+
+    im = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    _droplet(d, 256, 300, 190, BLUE)
+    _thermometer(d, 256, 190, 380, 34, 62, WHITE, RED)
+    im.save(os.path.join(icon_dir, "dewpoint.png"))
+
+    for name, inner in [("intemp", "temp"), ("inhumidity", "hum")]:
+        im = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
+        d = ImageDraw.Draw(im)
+        d.polygon([(256, 40), (30, 235), (95, 235), (95, 470), (417, 470),
+                   (417, 235), (482, 235)], fill=BLACK)
+        if inner == "temp":
+            _thermometer(d, 256, 240, 400, 30, 56, WHITE, RED)
+        else:
+            _droplet(d, 256, 330, 100, WHITE)
+            _droplet(d, 256, 330, 74, BLUE)
+        im.save(os.path.join(icon_dir, name + ".png"))
 
 
 def quantize(path, size):
@@ -91,6 +141,7 @@ def emit(f, name, data):
 def main():
     icon_dir = sys.argv[1] if len(sys.argv) > 1 else "inkypi_icons"
     fetch_icons(icon_dir)
+    draw_custom_icons(icon_dir)
     total = 0
     with open(OUT_PATH, "w", newline="\n") as f:
         f.write(
@@ -129,13 +180,13 @@ def main():
             print("%s @ 48px: %d bytes" % (name, len(data)))
         f.write("typedef struct {\n"
                 "  const char code[4];\n"
-                "  const uint8_t *px196;\n"
+                "  const uint8_t *px168;\n"
                 "  const uint8_t *px64;\n"
                 "  const uint8_t *px32;\n"
                 "} color_icon_t;\n\n")
         f.write("static const color_icon_t COLOR_ICONS[] = {\n")
         for name in ICONS:
-            f.write('  {"%s", ci_%s_196, ci_%s_64, ci_%s_32},\n'
+            f.write('  {"%s", ci_%s_168, ci_%s_64, ci_%s_32},\n'
                     % (name, name, name, name))
         f.write("};\n\n#endif\n")
     print("wrote %s (%d bytes of icon data)" % (OUT_PATH, total))

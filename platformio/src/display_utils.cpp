@@ -776,17 +776,17 @@ static const uint8_t *getColorConditionsIcon(int id, bool day, int size)
   }
   switch (size)
   {
-  case 196: return fallback->px196;
+  case 168: return fallback->px168;
   case 64:  return fallback->px64;
   case 32:  return fallback->px32;
   default:  return NULL;
   }
 } // end getColorConditionsIcon
 
-const uint8_t *getColorIcon196(const owm_current_t &current)
+const uint8_t *getColorIcon168(const owm_current_t &current)
 {
   return getColorConditionsIcon(current.weather.id,
-                                isDay(current.weather.icon), 196);
+                                isDay(current.weather.icon), 168);
 }
 
 const uint8_t *getColorIcon64(const owm_daily_t &daily)
@@ -814,6 +814,9 @@ const uint8_t *getColorWidgetIcon48(const char *name)
     {"uvi",        ci_w_uvi_48},
     {"visibility", ci_w_visibility_48},
     {"aqi",        ci_w_aqi_48},
+    {"dewpoint",   ci_w_dewpoint_48},
+    {"intemp",     ci_w_intemp_48},
+    {"inhumidity", ci_w_inhumidity_48},
   };
   for (size_t i = 0; i < sizeof(TABLE) / sizeof(TABLE[0]); ++i)
   {

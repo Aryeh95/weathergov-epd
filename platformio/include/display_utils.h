@@ -70,7 +70,7 @@ const uint8_t *getDailyForecastBitmap64(const owm_daily_t &daily);
 uint16_t getConditionsColor(int id, bool day, bool moon, bool cloudy,
                             bool windy);
 #ifdef MULTICOLOR_DISPLAY
-const uint8_t *getColorIcon196(const owm_current_t &current);
+const uint8_t *getColorIcon168(const owm_current_t &current);
 const uint8_t *getColorIcon64(const owm_daily_t &daily);
 const uint8_t *getColorIcon32(const owm_hourly_t &hourly);
 const uint8_t *getColorWidgetIcon48(const char *name);
