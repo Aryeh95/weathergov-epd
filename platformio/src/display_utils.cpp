@@ -32,6 +32,10 @@
 
 // icon header files
 #include "icons/icons.h"
+#ifdef MULTICOLOR_DISPLAY
+  // ~260kB of full-color condition icons; only linked into multicolor builds
+  #include "icons/icons_color.h"
+#endif
 
 /* Returns battery voltage in millivolts (mv).
  */
@@ -723,6 +727,79 @@ uint16_t getCurrentConditionsColor196(const owm_current_t &current)
                             false, isCloudy(current.clouds),
                             isWindy(current.wind_speed, current.wind_gust));
 }
+
+#ifdef MULTICOLOR_DISPLAY
+/* Returns the full-color icon bitmap for a weather condition id, or NULL if
+ * the set has no matching icon (the caller falls back to line art).
+ *
+ * The color icon set (icons/icons_color.h, from the InkyPi project) is keyed
+ * by OpenWeatherMap icon codes, so the id is mapped using OWM's official
+ * id -> icon table. Codes without a night variant fall back to the day one.
+ */
+static const uint8_t *getColorConditionsIcon(int id, bool day, int size)
+{
+  const char *base;
+  if      (id >= 200 && id < 300) {base = "11";}
+  else if (id >= 300 && id < 500) {base = "09";}
+  else if (id >= 500 && id < 511) {base = "10";}
+  else if (id == 511)             {base = "13";}
+  else if (id > 511 && id < 600)  {base = "09";}
+  else if (id >= 600 && id < 700) {base = "13";}
+  else if (id >= 700 && id < 800) {base = "50";}
+  else if (id == 800)             {base = "01";}
+  else if (id == 801)             {base = "02";}
+  else if (id == 802)             {base = "03";}
+  else if (id > 802 && id < 900)  {base = "04";}
+  else                            {return NULL;}
+
+  const color_icon_t *fallback = NULL;
+  for (size_t i = 0; i < sizeof(COLOR_ICONS) / sizeof(COLOR_ICONS[0]); ++i)
+  {
+    const color_icon_t &ci = COLOR_ICONS[i];
+    if (ci.code[0] != base[0] || ci.code[1] != base[1])
+    {
+      continue;
+    }
+    if (ci.code[2] == (day ? 'd' : 'n'))
+    {
+      fallback = &ci;
+      break;
+    }
+    if (ci.code[2] == 'd')
+    {
+      fallback = &ci; // day icon stands in when no night variant exists
+    }
+  }
+  if (!fallback)
+  {
+    return NULL;
+  }
+  switch (size)
+  {
+  case 196: return fallback->px196;
+  case 64:  return fallback->px64;
+  case 32:  return fallback->px32;
+  default:  return NULL;
+  }
+} // end getColorConditionsIcon
+
+const uint8_t *getColorIcon196(const owm_current_t &current)
+{
+  return getColorConditionsIcon(current.weather.id,
+                                isDay(current.weather.icon), 196);
+}
+
+const uint8_t *getColorIcon64(const owm_daily_t &daily)
+{
+  return getColorConditionsIcon(daily.weather.id, true, 64);
+}
+
+const uint8_t *getColorIcon32(const owm_hourly_t &hourly)
+{
+  return getColorConditionsIcon(hourly.weather.id,
+                                isDay(hourly.weather.icon), 32);
+}
+#endif // MULTICOLOR_DISPLAY
 
 /* Color for the UV index widget icon (sun), by WHO risk level.
  */

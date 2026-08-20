@@ -82,6 +82,32 @@
   #define ACCENT_COLOR GxEPD_BLACK
 #endif
 
+#ifdef MULTICOLOR_DISPLAY
+// Palette for the full-color condition icons (icons/icons_color.h): 4-bit
+// indices, 0 = transparent (pixel skipped), 1..6 = the panel's native inks.
+static const uint16_t CI_PALETTE[7] = {
+  0, GxEPD_BLACK, GxEPD_WHITE, GxEPD_RED, GxEPD_YELLOW, GxEPD_GREEN,
+  GxEPD_BLUE};
+
+/* Draws a packed 4-bit paletted icon (two pixels per byte, high nibble
+ * first, row-major) at the given position. Transparent pixels are skipped so
+ * anything behind the icon (gridlines, graph fills) survives.
+ */
+static void drawColorIcon(int16_t x, int16_t y, const uint8_t *data,
+                          int16_t size)
+{
+  for (int32_t n = 0; n < static_cast<int32_t>(size) * size; ++n)
+  {
+    uint8_t b = pgm_read_byte(&data[n >> 1]);
+    uint8_t v = (n & 1) ? (b & 0x0F) : (b >> 4);
+    if (v)
+    {
+      display.drawPixel(x + (n % size), y + (n / size), CI_PALETTE[v]);
+    }
+  }
+} // end drawColorIcon
+#endif // MULTICOLOR_DISPLAY
+
 /* Returns the string width in pixels
  */
 uint16_t getStringWidth(const String &text)
@@ -880,7 +906,16 @@ void drawCurrentConditions(const owm_current_t &current,
                            float inTemp, float inHumidity)
 {
   String dataStr, unitStr;
-  // current weather icon
+  // current weather icon (full-color where the panel and icon set allow,
+  // otherwise single-color line art)
+#ifdef MULTICOLOR_DISPLAY
+  const uint8_t *colorIcon = getColorIcon196(current);
+  if (colorIcon)
+  {
+    drawColorIcon(0, 0, colorIcon, 196);
+  }
+  else
+#endif
   display.drawInvertedBitmap(0, 0,
                              getCurrentConditionsBitmap196(current, today),
                              196, 196, getCurrentConditionsColor196(current));
@@ -973,6 +1008,14 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
     int x = 318 + (i * 64);
 #endif
     // icons
+#ifdef MULTICOLOR_DISPLAY
+    const uint8_t *colorIcon = getColorIcon64(daily[i]);
+    if (colorIcon)
+    {
+      drawColorIcon(x, 98 + 69 / 2 - 32 - 6, colorIcon, 64);
+    }
+    else
+#endif
     display.drawInvertedBitmap(x, 98 + 69 / 2 - 32 - 6,
                                getDailyForecastBitmap64(daily[i]),
                                64, 64, getDailyForecastColor64(daily[i]));
@@ -1493,10 +1536,20 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
         {
           y_b = std::min(y_t[idx], y_b);
         }
+#ifdef MULTICOLOR_DISPLAY
+        const uint8_t *colorIcon = getColorIcon32(hourly[i]);
+        if (colorIcon)
+        {
+          drawColorIcon(xTick - 16, y_b - 32, colorIcon, 32);
+        }
+        else
+#endif
+        {
         const uint8_t *bitmap = getHourlyForecastBitmap32(hourly[i],
                                                           daily[day_idx]);
         display.drawInvertedBitmap(xTick - 16, y_b - 32, bitmap, 32, 32,
                                    getHourlyForecastColor32(hourly[i]));
+        }
       }
 #endif
     }
