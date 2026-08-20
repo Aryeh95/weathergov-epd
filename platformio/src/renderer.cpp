@@ -483,9 +483,9 @@ void drawCurrentUVI(const owm_current_t &current)
   unsigned int uvi = static_cast<unsigned int>(
                                 std::max(std::round(current.uvi), 0.0f));
 
-  // icons (colored by risk level on multicolor panels)
+  // icons
   drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
-                 wi_day_sunny_48x48, "uvi", getUVIColor(uvi));
+                 wi_day_sunny_48x48, "uvi", GxEPD_BLACK);
 
   // labels
   display.setFont(&FONT_7pt8b);
@@ -497,7 +497,9 @@ void drawCurrentUVI(const owm_current_t &current)
   // uv index
   display.setFont(&FONT_12pt8b);
   dataStr = String(uvi);
-  drawString(48 + (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2, dataStr, LEFT);
+  // the value carries the risk-level color on multicolor panels
+  drawString(48 + (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2,
+             dataStr, LEFT, getUVIColor(uvi));
   display.setFont(&FONT_7pt8b);
   dataStr = String(getUVIdesc(uvi));
   int max_w = (162 + (PosX * 162) - sp) - (display.getCursorX() + sp);
@@ -582,7 +584,7 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   // are only defined for the United States AQI scale)
   const bool usScale = useAirNow || (AQI_SCALE == UNITED_STATES_AQI);
   drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
-                 air_filter_48x48, "aqi", getAQIColor(aqi, usScale));
+                 air_filter_48x48, "aqi", GxEPD_BLACK);
   if (aqi > aqi_max)
   {
     dataStr = "> " + String(aqi_max);
@@ -591,7 +593,9 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   {
     dataStr = String(aqi);
   }
-  drawString(48 + (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2, dataStr, LEFT);
+  // the value carries the risk-level color on multicolor panels
+  drawString(48 + (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2,
+             dataStr, LEFT, getAQIColor(aqi, usScale));
   display.setFont(&FONT_7pt8b);
   dataStr = useAirNow ? String(united_states_aqi_desc(aqi))
                       : String(aqi_desc(AQI_SCALE, aqi));
