@@ -36,4 +36,17 @@
 bool calcSunriseSunset(int year, int month, int day, double lat, double lon,
                        int64_t &sunrise, int64_t &sunset);
 
+/* Calculates the moon phase for the given moment (Unix timestamp, UTC).
+ *
+ * Returns a phase index 0-7:
+ *   0 new moon        4 full moon
+ *   1 waxing crescent 5 waning gibbous
+ *   2 first quarter   6 last (third) quarter
+ *   3 waxing gibbous  7 waning crescent
+ * and writes the illuminated fraction (0-100, rounded) to illumPct if
+ * non-NULL. Computed from the mean synodic month; accurate to well within a
+ * day, which is finer than the 8-phase bucketing can show anyway.
+ */
+int calcMoonPhase(int64_t t, int *illumPct);
+
 #endif

@@ -136,6 +136,7 @@ bool loadSettings()
   POS_UVI        = widgets["uvi"]         | POS_UVI;
   POS_PRESSURE   = widgets["pressure"]    | POS_PRESSURE;
   POS_AIR_QULITY = widgets["air_quality"] | POS_AIR_QULITY;
+  POS_MOON_PHASE = widgets["moon_phase"]  | POS_MOON_PHASE;
   POS_VISIBILITY = widgets["visibility"]  | POS_VISIBILITY;
   POS_INTEMP     = widgets["intemp"]      | POS_INTEMP;
   POS_INHUMIDITY = widgets["inhumidity"]  | POS_INHUMIDITY;

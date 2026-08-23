@@ -827,6 +827,14 @@ const uint8_t *getColorWidgetIcon48(const char *name)
     {"dewpoint",   ci_w_dewpoint_48},
     {"intemp",     ci_w_intemp_48},
     {"inhumidity", ci_w_inhumidity_48},
+    {"newmoon",        ci_w_newmoon_48},
+    {"waxingcrescent", ci_w_waxingcrescent_48},
+    {"firstquarter",   ci_w_firstquarter_48},
+    {"waxinggibbous",  ci_w_waxinggibbous_48},
+    {"fullmoon",       ci_w_fullmoon_48},
+    {"waninggibbous",  ci_w_waninggibbous_48},
+    {"lastquarter",    ci_w_lastquarter_48},
+    {"waningcrescent", ci_w_waningcrescent_48},
   };
   for (size_t i = 0; i < sizeof(TABLE) / sizeof(TABLE[0]); ++i)
   {
@@ -838,6 +846,50 @@ const uint8_t *getColorWidgetIcon48(const char *name)
   return NULL;
 } // end getColorWidgetIcon48
 #endif // MULTICOLOR_DISPLAY
+
+/* Moon-phase widget helpers. Phase index 0-7 as returned by calcMoonPhase
+ * (see sun.h). The line-art set has intermediate crescent/gibbous steps;
+ * the middle (step 4) icon represents each of those phases.
+ */
+const uint8_t *getMoonPhaseBitmap48(int phase)
+{
+  switch (phase)
+  {
+  case 0:  return wi_moon_alt_new_48x48;
+  case 1:  return wi_moon_alt_waxing_crescent_4_48x48;
+  case 2:  return wi_moon_alt_first_quarter_48x48;
+  case 3:  return wi_moon_alt_waxing_gibbous_4_48x48;
+  case 4:  return wi_moon_alt_full_48x48;
+  case 5:  return wi_moon_alt_waning_gibbous_4_48x48;
+  case 6:  return wi_moon_alt_third_quarter_48x48;
+  default: return wi_moon_alt_waning_crescent_4_48x48;
+  }
+} // end getMoonPhaseBitmap48
+
+const char *getMoonPhaseDesc(int phase)
+{
+  switch (phase)
+  {
+  case 0:  return TXT_NEW_MOON;
+  case 1:  return TXT_WAXING_CRESCENT;
+  case 2:  return TXT_FIRST_QUARTER;
+  case 3:  return TXT_WAXING_GIBBOUS;
+  case 4:  return TXT_FULL_MOON;
+  case 5:  return TXT_WANING_GIBBOUS;
+  case 6:  return TXT_THIRD_QUARTER;
+  default: return TXT_WANING_CRESCENT;
+  }
+} // end getMoonPhaseDesc
+
+/* Name of the full-color icon for a moon phase (see getColorWidgetIcon48).
+ */
+const char *getMoonPhaseColorName(int phase)
+{
+  static const char *NAMES[8] = {
+    "newmoon", "waxingcrescent", "firstquarter", "waxinggibbous",
+    "fullmoon", "waninggibbous", "lastquarter", "waningcrescent"};
+  return NAMES[phase & 7];
+} // end getMoonPhaseColorName
 
 /* Color for the UV index widget icon (sun), by WHO risk level.
  */

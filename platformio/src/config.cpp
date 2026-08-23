@@ -231,6 +231,9 @@ int POS_UVI         = 5;
 int POS_PRESSURE    = 6;
 int POS_AIR_QULITY  = 7;
 int POS_VISIBILITY  = -1;
+// Moon phase is computed on-device (see sun.cpp), no API needed. Hidden by
+// default -- there are more widgets than the ten slots.
+int POS_MOON_PHASE  = -1;
 int POS_INTEMP      = 8;
 int POS_INHUMIDITY  = 9;
 

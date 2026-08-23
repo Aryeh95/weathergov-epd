@@ -22,6 +22,7 @@
 #include "config.h"
 #include "conversions.h"
 #include "display_utils.h"
+#include "sun.h"
 
 // fonts
 #include FONT_HEADER
@@ -528,6 +529,67 @@ void drawCurrentUVI(const owm_current_t &current)
 }
 // end drawCurrentUVI
 
+// drawCurrentMoonPhase
+// Computed on-device from the date (see calcMoonPhase in sun.cpp); the value
+// is the illuminated percentage, the descriptor the phase name.
+void drawCurrentMoonPhase()
+{
+  if (POS_MOON_PHASE < 0)
+  {
+    return;
+  }
+  String dataStr;
+  int PosX = (POS_MOON_PHASE % 2);
+  int PosY = static_cast<int>(POS_MOON_PHASE / 2);
+
+  int illum = 0;
+  int phase = calcMoonPhase(static_cast<int64_t>(time(nullptr)), &illum);
+
+  // icons
+  drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
+                 getMoonPhaseBitmap48(phase), getMoonPhaseColorName(phase),
+                 GxEPD_BLACK);
+
+  // labels
+  display.setFont(&FONT_7pt8b);
+  drawString(48 + (162 * PosX), 204 + 10 + (48 + 8) * PosY, TXT_MOONPHASE,
+             LEFT);
+
+  // spacing between end of value and start of descriptor text
+  const int sp = 8;
+
+  // illuminated percentage, then the phase name fitted beside/below it
+  display.setFont(&FONT_12pt8b);
+  dataStr = String(illum) + "%";
+  drawString(48 + (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2,
+             dataStr, LEFT);
+  display.setFont(&FONT_7pt8b);
+  dataStr = String(getMoonPhaseDesc(phase));
+  int max_w = (162 + (PosX * 162) - sp) - (display.getCursorX() + sp);
+  if (getStringWidth(dataStr) <= max_w)
+  {
+    drawString(display.getCursorX() + sp,
+               204 + 17 / 2 + (48 + 8) * PosY + 48 / 2, dataStr, LEFT);
+  }
+  else
+  {
+    display.setFont(&FONT_5pt8b);
+    if (getStringWidth(dataStr) <= max_w)
+    {
+      drawString(display.getCursorX() + sp,
+                 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2, dataStr, LEFT);
+    }
+    else
+    {
+      drawMultiLnString(display.getCursorX() + sp,
+                        204 + 17 / 2 + (48 + 8) * PosY + 48 / 2 - 10,
+                        dataStr, LEFT, max_w, 2, 10);
+    }
+  }
+  return;
+}
+// end drawCurrentMoonPhase
+
 // drawCurrentAirQuality
 void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
 {
@@ -1009,6 +1071,7 @@ void drawCurrentConditions(const owm_current_t &current,
   drawCurrentInTemp(inTemp);
   drawCurrentInHumidity(inHumidity);
   drawCurrentDewpoint(current);
+  drawCurrentMoonPhase();
 
   // end drawing left panel
 

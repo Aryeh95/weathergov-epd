@@ -79,6 +79,9 @@ const uint8_t *getColorWidgetIcon48(const char *name);
 uint16_t getHourlyForecastColor32(const owm_hourly_t &hourly);
 uint16_t getDailyForecastColor64(const owm_daily_t &daily);
 uint16_t getCurrentConditionsColor196(const owm_current_t &current);
+const uint8_t *getMoonPhaseBitmap48(int phase);
+const char *getMoonPhaseDesc(int phase);
+const char *getMoonPhaseColorName(int phase);
 uint16_t getUVIColor(unsigned int uvi);
 uint16_t getAQIColor(int aqi, bool usScale);
 const uint8_t *getCurrentConditionsBitmap196(const owm_current_t &current,

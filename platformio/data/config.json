@@ -202,6 +202,9 @@
   //
   // By default "visibility" is hidden so that "air_quality" can use its slot;
   // swap the two values to show visibility instead.
+  // "moon_phase" is computed on-device from the date (illuminated % and
+  // phase name) and is hidden by default -- there are more widgets than
+  // slots, so give it another widget's slot to show it.
   "widget_positions": {
     "sunrise": 0,
     "sunset": 1,
@@ -212,6 +215,7 @@
     "pressure": 6,
     "air_quality": 7,
     "visibility": -1,
+    "moon_phase": -1,
     "intemp": 8,
     "inhumidity": 9
   }

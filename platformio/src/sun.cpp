@@ -100,3 +100,25 @@ bool calcSunriseSunset(int year, int month, int day, double lat, double lon,
   sunset  = midnightUTC + static_cast<int64_t>(llround(setMinutes  * 60.0));
   return true;
 } // end calcSunriseSunset
+
+/* Moon phase from the mean synodic month. Reference new moon: 2000-01-06
+ * 18:14 UTC. See sun.h for the index/illumination contract.
+ */
+int calcMoonPhase(int64_t t, int *illumPct)
+{
+  const double SYNODIC_DAYS = 29.530588853;
+  const int64_t NEW_MOON_EPOCH = 947182440LL; // 2000-01-06 18:14:00 UTC
+  double age = fmod(static_cast<double>(t - NEW_MOON_EPOCH) / 86400.0,
+                    SYNODIC_DAYS);
+  if (age < 0)
+  {
+    age += SYNODIC_DAYS;
+  }
+  const double frac = age / SYNODIC_DAYS; // 0 = new, 0.5 = full
+  if (illumPct)
+  {
+    *illumPct = static_cast<int>(
+        std::lround((1.0 - std::cos(2.0 * M_PI * frac)) / 2.0 * 100.0));
+  }
+  return static_cast<int>(std::lround(frac * 8.0)) % 8;
+} // end calcMoonPhase
