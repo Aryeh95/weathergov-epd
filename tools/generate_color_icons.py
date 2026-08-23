@@ -14,8 +14,10 @@ Three sizes are emitted per icon, matching the renderer's draw sites:
 48x48 (daily forecast, size depends on forecast_days), 32x32 (hourly graph).
 
 Usage:  python tools/generate_color_icons.py [icon_dir]
-        icon_dir: optional directory of already-downloaded PNGs; if omitted,
-        icons are fetched from GitHub into ./inkypi_icons/
+        icon_dir: optional directory of source PNGs; defaults to the
+        tools/inkypi_icons/ folder vendored in this repository (see its
+        README). Any icon missing from the directory is fetched from the
+        InkyPi GitHub repo as a fallback.
 
 Requires: pip install pillow
 """
@@ -154,7 +156,8 @@ def emit(f, name, data):
 
 
 def main():
-    icon_dir = sys.argv[1] if len(sys.argv) > 1 else "inkypi_icons"
+    icon_dir = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
+        os.path.dirname(__file__), "inkypi_icons")
     fetch_icons(icon_dir)
     draw_custom_icons(icon_dir)
     total = 0
