@@ -180,6 +180,11 @@
   // (The smaller DISP_BW_V1 panel always shows 5.)
   "forecast_days": 5,
 
+  // Rows in the left-panel widget grid, range [5-6]. 5 rows = 10 slots with
+  // 48px icons; 6 rows = 12 slots (room for every widget) with tighter rows
+  // and 40px icons.
+  "widget_rows": 5,
+
   // Which of the ten slots in the left-hand panel each widget occupies:
   //
   //     0   1

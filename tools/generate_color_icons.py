@@ -193,11 +193,13 @@ def main():
         for name in WIDGET_ICONS:
             path = os.path.join(icon_dir, name + ".png")
             moon = name in MOON_ICONS
-            data = pack(quantize(path, 48, dither=not moon,
-                                 allowed=MOON_PALETTE if moon else None))
-            total += len(data)
-            emit(f, "ci_w_%s_48" % name, data)
-            print("%s @ 48px: %d bytes" % (name, len(data)))
+            # 48px for the 5-row widget layout, 40px for the 6-row one
+            for wsize in (48, 40):
+                data = pack(quantize(path, wsize, dither=not moon,
+                                     allowed=MOON_PALETTE if moon else None))
+                total += len(data)
+                emit(f, "ci_w_%s_%d" % (name, wsize), data)
+                print("%s @ %dpx: %d bytes" % (name, wsize, len(data)))
         f.write("typedef struct {\n"
                 "  const char code[4];\n"
                 "  const uint8_t *px168;\n"

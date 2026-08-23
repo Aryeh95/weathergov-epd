@@ -37,6 +37,7 @@
 #include "icons/icons_128x128.h"
 #include "icons/icons_160x160.h"
 #include "icons/icons_196x196.h"
+#include "icons/icons_40x40.h" // 6-row widget layout (widget_rows = 6)
 
 #ifdef DISP_BW_V2
   GxEPD2_BW<GxEPD2_750_GDEY075T7,
@@ -109,23 +110,40 @@ static void drawColorIcon(int16_t x, int16_t y, const uint8_t *data,
 } // end drawColorIcon
 #endif // MULTICOLOR_DISPLAY
 
-/* Draws a 48px left-panel widget icon: the full-color version when the panel
- * and icon set provide one, otherwise the given line art in lineColor.
+/* Left-panel widget grid geometry. WIDGET_ROWS (config.json, 5 or 6) sets
+ * the density: 5 rows of 48px icons on a 56px pitch, or 6 rows of 40px
+ * icons on a 46px pitch (12 slots -- enough for every widget).
  */
-static void drawWidgetIcon(int16_t x, int16_t y, const uint8_t *lineArt,
-                           const char *colorName, uint16_t lineColor)
+static inline int wgtIconSize()
 {
+  return (WIDGET_ROWS > 5) ? 40 : 48;
+}
+static inline int wgtY(int PosY)
+{
+  return 204 + (wgtIconSize() + ((WIDGET_ROWS > 5) ? 6 : 8)) * PosY;
+}
+
+/* Draws a left-panel widget icon at the size the current layout calls for:
+ * the full-color version when the panel and icon set provide one, otherwise
+ * the given line art in lineColor.
+ */
+static void drawWidgetIcon(int16_t x, int16_t y, const uint8_t *lineArt48,
+                           const uint8_t *lineArt40, const char *colorName,
+                           uint16_t lineColor)
+{
+  const int size = wgtIconSize();
 #ifdef MULTICOLOR_DISPLAY
-  const uint8_t *ci = getColorWidgetIcon48(colorName);
+  const uint8_t *ci = getColorWidgetIcon(colorName, size);
   if (ci)
   {
-    drawColorIcon(x, y, ci, 48);
+    drawColorIcon(x, y, ci, size);
     return;
   }
 #else
   (void)colorName;
 #endif
-  display.drawInvertedBitmap(x, y, lineArt, 48, 48, lineColor);
+  display.drawInvertedBitmap(x, y, (size == 40) ? lineArt40 : lineArt48,
+                             size, size, lineColor);
 } // end drawWidgetIcon
 
 /* Returns the string width in pixels
@@ -327,7 +345,7 @@ void powerOffDisplay()
 // drawCurrentSunrise
 void drawCurrentSunrise(const owm_current_t &current)
 {
-  if (POS_SUNRISE < 0)
+  if (POS_SUNRISE < 0 || POS_SUNRISE / 2 >= WIDGET_ROWS)
   {
     return;
   }
@@ -336,12 +354,12 @@ void drawCurrentSunrise(const owm_current_t &current)
   int PosY = static_cast<int>(POS_SUNRISE / 2);
 
   // icons
-  drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
-                 wi_sunrise_48x48, "sunrise", COLOR_SUN);
+  drawWidgetIcon(162 * PosX, wgtY(PosY),
+                 wi_sunrise_48x48, wi_sunrise_40x40, "sunrise", COLOR_SUN);
 
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), 204 + 10 + (48 + 8) * PosY, TXT_SUNRISE, LEFT);
+  drawString(48 + (162 * PosX), wgtY(PosY) + 10, TXT_SUNRISE, LEFT);
 
   // sunrise
   display.setFont(&FONT_12pt8b);
@@ -349,7 +367,7 @@ void drawCurrentSunrise(const owm_current_t &current)
   time_t ts = current.sunrise;
   tm *timeInfo = localtime(&ts);
   _strftime(timeBuffer, sizeof(timeBuffer), TIME_FORMAT, timeInfo);
-  drawString(48 + (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2, timeBuffer, LEFT);
+  drawString(48 + (162 * PosX), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2, timeBuffer, LEFT);
 
   return;
 }
@@ -358,7 +376,7 @@ void drawCurrentSunrise(const owm_current_t &current)
 // drawCurrentSunset
 void drawCurrentSunset(const owm_current_t &current)
 {
-  if (POS_SUNSET < 0)
+  if (POS_SUNSET < 0 || POS_SUNSET / 2 >= WIDGET_ROWS)
   {
     return;
   }
@@ -367,12 +385,12 @@ void drawCurrentSunset(const owm_current_t &current)
   int PosY = static_cast<int>(POS_SUNSET / 2);
 
   // icons
-  drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
-                 wi_sunset_48x48, "sunset", COLOR_SUN);
+  drawWidgetIcon(162 * PosX, wgtY(PosY),
+                 wi_sunset_48x48, wi_sunset_40x40, "sunset", COLOR_SUN);
 
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), 204 + 10 + (48 + 8) * PosY, TXT_SUNSET, LEFT);
+  drawString(48 + (162 * PosX), wgtY(PosY) + 10, TXT_SUNSET, LEFT);
 
   // sunset
   display.setFont(&FONT_12pt8b);
@@ -380,7 +398,7 @@ void drawCurrentSunset(const owm_current_t &current)
   time_t ts = current.sunset;
   tm *timeInfo = localtime(&ts);
   _strftime(timeBuffer, sizeof(timeBuffer), TIME_FORMAT, timeInfo);
-  drawString(48 + (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2, timeBuffer, LEFT);
+  drawString(48 + (162 * PosX), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2, timeBuffer, LEFT);
 
   return;
 }
@@ -389,7 +407,7 @@ void drawCurrentSunset(const owm_current_t &current)
 // drawCurrentWind
 void drawCurrentWind(const owm_current_t &current)
 {
-  if (POS_WIND < 0)
+  if (POS_WIND < 0 || POS_WIND / 2 >= WIDGET_ROWS)
   {
     return;
   }
@@ -398,17 +416,17 @@ void drawCurrentWind(const owm_current_t &current)
   int PosY = static_cast<int>(POS_WIND / 2);
 
   // icons
-  drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
-                 wi_strong_wind_48x48, "wind", GxEPD_BLACK);
+  drawWidgetIcon(162 * PosX, wgtY(PosY),
+                 wi_strong_wind_48x48, wi_strong_wind_40x40, "wind", GxEPD_BLACK);
 
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), 204 + 10 + (48 + 8) * PosY, TXT_WIND, LEFT);
+  drawString(48 + (162 * PosX), wgtY(PosY) + 10, TXT_WIND, LEFT);
 
   // wind
   display.setFont(&FONT_12pt8b);
 #ifdef WIND_INDICATOR_ARROW
-  display.drawInvertedBitmap(48 + (162 * PosX), 204 + 24 / 2 + (48 + 8) * PosY,
+  display.drawInvertedBitmap(48 + (162 * PosX), wgtY(PosY) + 24 / 2,
                              getWindBitmap24(current.wind_deg),
                              24, 24, GxEPD_BLACK);
 #endif
@@ -442,18 +460,18 @@ void drawCurrentWind(const owm_current_t &current)
 #endif
 
 #ifdef WIND_INDICATOR_ARROW
-  drawString( (48 + 24)+ (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2, dataStr, LEFT);
+  drawString( (48 + 24)+ (162 * PosX), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2, dataStr, LEFT);
 #else
-  drawString(48    + (162 * PosX) , 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2, dataStr, LEFT);
+  drawString(48    + (162 * PosX) , wgtY(PosY) + 17 / 2 + wgtIconSize() / 2, dataStr, LEFT);
 #endif
   display.setFont(&FONT_8pt8b);
-  drawString(display.getCursorX(), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2,
+  drawString(display.getCursorX(), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
              unitStr, LEFT);
 
 #if defined(WIND_INDICATOR_NUMBER)
   dataStr = String(current.wind_deg) + "\260";
   display.setFont(&FONT_12pt8b);
-  drawString(display.getCursorX() + 6, 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2,
+  drawString(display.getCursorX() + 6, wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
              dataStr, LEFT);
 #endif
 #if defined(WIND_INDICATOR_CPN_CARDINAL)                \
@@ -462,7 +480,7 @@ void drawCurrentWind(const owm_current_t &current)
  || defined(WIND_INDICATOR_CPN_TERTIARY_INTERCARDINAL)
   dataStr = getCompassPointNotation(current.wind_deg);
   display.setFont(&FONT_12pt8b);
-  drawString(display.getCursorX() + 6, 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2,
+  drawString(display.getCursorX() + 6, wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
              dataStr, LEFT);
 #endif
 
@@ -473,7 +491,7 @@ void drawCurrentWind(const owm_current_t &current)
 // drawCurrentUVI
 void drawCurrentUVI(const owm_current_t &current)
 {
-  if (POS_UVI < 0)
+  if (POS_UVI < 0 || POS_UVI / 2 >= WIDGET_ROWS)
   {
     return;
   }
@@ -485,12 +503,12 @@ void drawCurrentUVI(const owm_current_t &current)
                                 std::max(std::round(current.uvi), 0.0f));
 
   // icons
-  drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
-                 wi_day_sunny_48x48, "uvi", GxEPD_BLACK);
+  drawWidgetIcon(162 * PosX, wgtY(PosY),
+                 wi_day_sunny_48x48, wi_day_sunny_40x40, "uvi", GxEPD_BLACK);
 
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), 204 + 10 + (48 + 8) * PosY, TXT_UV_INDEX, LEFT);
+  drawString(48 + (162 * PosX), wgtY(PosY) + 10, TXT_UV_INDEX, LEFT);
 
   // spacing between end of index value and start of descriptor text
   const int sp = 8;
@@ -499,14 +517,14 @@ void drawCurrentUVI(const owm_current_t &current)
   display.setFont(&FONT_12pt8b);
   dataStr = String(uvi);
   // the value carries the risk-level color on multicolor panels
-  drawString(48 + (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2,
+  drawString(48 + (162 * PosX), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
              dataStr, LEFT, getUVIColor(uvi));
   display.setFont(&FONT_7pt8b);
   dataStr = String(getUVIdesc(uvi));
   int max_w = (162 + (PosX * 162) - sp) - (display.getCursorX() + sp);
   if (getStringWidth(dataStr) <= max_w)
   { // Fits on a single line, draw along bottom
-    drawString(display.getCursorX() + sp, 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2,
+    drawString(display.getCursorX() + sp, wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
                dataStr, LEFT);
   }
   else
@@ -515,13 +533,13 @@ void drawCurrentUVI(const owm_current_t &current)
     if (getStringWidth(dataStr) <= max_w)
     { // Fits on a single line with smaller font, draw along bottom
       drawString(display.getCursorX() + sp,
-                 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2,
+                 wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
                  dataStr, LEFT);
     }
     else
     { // Does not fit on a single line, draw higher to allow room for 2nd line
       drawMultiLnString(display.getCursorX() + sp,
-                        204 + 17 / 2 + (48 + 8) * PosY + 48 / 2 - 10,
+                        wgtY(PosY) + 17 / 2 + wgtIconSize() / 2 - 10,
                         dataStr, LEFT, max_w, 2, 10);
     }
   }
@@ -534,7 +552,7 @@ void drawCurrentUVI(const owm_current_t &current)
 // is the illuminated percentage, the descriptor the phase name.
 void drawCurrentMoonPhase()
 {
-  if (POS_MOON_PHASE < 0)
+  if (POS_MOON_PHASE < 0 || POS_MOON_PHASE / 2 >= WIDGET_ROWS)
   {
     return;
   }
@@ -546,13 +564,14 @@ void drawCurrentMoonPhase()
   int phase = calcMoonPhase(static_cast<int64_t>(time(nullptr)), &illum);
 
   // icons
-  drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
-                 getMoonPhaseBitmap48(phase), getMoonPhaseColorName(phase),
+  drawWidgetIcon(162 * PosX, wgtY(PosY),
+                 getMoonPhaseBitmap48(phase), getMoonPhaseBitmap40(phase),
+                 getMoonPhaseColorName(phase),
                  GxEPD_BLACK);
 
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), 204 + 10 + (48 + 8) * PosY, TXT_MOONPHASE,
+  drawString(48 + (162 * PosX), wgtY(PosY) + 10, TXT_MOONPHASE,
              LEFT);
 
   // spacing between end of value and start of descriptor text
@@ -561,7 +580,7 @@ void drawCurrentMoonPhase()
   // illuminated percentage, then the phase name fitted beside/below it
   display.setFont(&FONT_12pt8b);
   dataStr = String(illum) + "%";
-  drawString(48 + (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2,
+  drawString(48 + (162 * PosX), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
              dataStr, LEFT);
   display.setFont(&FONT_7pt8b);
   dataStr = String(getMoonPhaseDesc(phase));
@@ -569,7 +588,7 @@ void drawCurrentMoonPhase()
   if (getStringWidth(dataStr) <= max_w)
   {
     drawString(display.getCursorX() + sp,
-               204 + 17 / 2 + (48 + 8) * PosY + 48 / 2, dataStr, LEFT);
+               wgtY(PosY) + 17 / 2 + wgtIconSize() / 2, dataStr, LEFT);
   }
   else
   {
@@ -577,12 +596,12 @@ void drawCurrentMoonPhase()
     if (getStringWidth(dataStr) <= max_w)
     {
       drawString(display.getCursorX() + sp,
-                 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2, dataStr, LEFT);
+                 wgtY(PosY) + 17 / 2 + wgtIconSize() / 2, dataStr, LEFT);
     }
     else
     {
       drawMultiLnString(display.getCursorX() + sp,
-                        204 + 17 / 2 + (48 + 8) * PosY + 48 / 2 - 10,
+                        wgtY(PosY) + 17 / 2 + wgtIconSize() / 2 - 10,
                         dataStr, LEFT, max_w, 2, 10);
     }
   }
@@ -593,7 +612,7 @@ void drawCurrentMoonPhase()
 // drawCurrentAirQuality
 void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
 {
-  if (POS_AIR_QULITY < 0)
+  if (POS_AIR_QULITY < 0 || POS_AIR_QULITY / 2 >= WIDGET_ROWS)
   {
     return;
   }
@@ -619,7 +638,7 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   {
     air_quality_index_label = TXT_AIR_POLLUTION;
   }
-  drawString(48 + (162 * PosX), 204 + 10 + (48 + 8) * PosY, air_quality_index_label, LEFT);
+  drawString(48 + (162 * PosX), wgtY(PosY) + 10, air_quality_index_label, LEFT);
 
   // spacing between end of index value and start of descriptor text
   const int sp = 8;
@@ -645,8 +664,8 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   // icon (colored by AQI level on multicolor panels; the level thresholds
   // are only defined for the United States AQI scale)
   const bool usScale = useAirNow || (AQI_SCALE == UNITED_STATES_AQI);
-  drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
-                 air_filter_48x48, "aqi", GxEPD_BLACK);
+  drawWidgetIcon(162 * PosX, wgtY(PosY),
+                 air_filter_48x48, air_filter_40x40, "aqi", GxEPD_BLACK);
   if (aqi > aqi_max)
   {
     dataStr = "> " + String(aqi_max);
@@ -656,7 +675,7 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
     dataStr = String(aqi);
   }
   // the value carries the risk-level color on multicolor panels
-  drawString(48 + (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2,
+  drawString(48 + (162 * PosX), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
              dataStr, LEFT, getAQIColor(aqi, usScale));
   display.setFont(&FONT_7pt8b);
   dataStr = useAirNow ? String(united_states_aqi_desc(aqi))
@@ -664,7 +683,7 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   int max_w = (162 + (PosX * 162) - sp) - (display.getCursorX() + sp);
   if (getStringWidth(dataStr) <= max_w)
   { // Fits on a single line, draw along bottom
-    drawString(display.getCursorX() + sp, 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2,
+    drawString(display.getCursorX() + sp, wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
                dataStr, LEFT);
   }
   else
@@ -673,13 +692,13 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
     if (getStringWidth(dataStr) <= max_w)
     { // Fits on a single line with smaller font, draw along bottom
       drawString(display.getCursorX() + sp,
-                 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2,
+                 wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
                  dataStr, LEFT);
     }
     else
     { // Does not fit on a single line, draw higher to allow room for 2nd line
       drawMultiLnString(display.getCursorX() + sp,
-                        204 + 17 / 2 + (48 + 8) * PosY + 48 / 2 - 10,
+                        wgtY(PosY) + 17 / 2 + wgtIconSize() / 2 - 10,
                         dataStr, LEFT, max_w, 2, 10);
     }
   }
@@ -691,7 +710,7 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
 // drawCurrentInTemp
 void drawCurrentInTemp(float inTemp)
 {
-  if (POS_INTEMP < 0)
+  if (POS_INTEMP < 0 || POS_INTEMP / 2 >= WIDGET_ROWS)
   {
     return;
   }
@@ -700,12 +719,12 @@ void drawCurrentInTemp(float inTemp)
   int PosY = static_cast<int>(POS_INTEMP / 2);
 
   // icons
-  drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
-                 house_thermometer_48x48, "intemp", GxEPD_BLACK);
+  drawWidgetIcon(162 * PosX, wgtY(PosY),
+                 house_thermometer_48x48, house_thermometer_40x40, "intemp", GxEPD_BLACK);
 
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), 204 + 10 + (48 + 8) * PosY, TXT_INDOOR_TEMPERATURE, LEFT);
+  drawString(48 + (162 * PosX), wgtY(PosY) + 10, TXT_INDOOR_TEMPERATURE, LEFT);
 
   // indoor temperature
   display.setFont(&FONT_12pt8b);
@@ -729,7 +748,7 @@ void drawCurrentInTemp(float inTemp)
 #if defined(UNITS_TEMP_CELSIUS) || defined(UNITS_TEMP_FAHRENHEIT)
   dataStr += "\260";
 #endif
-  drawString(48 + (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2, dataStr, LEFT);
+  drawString(48 + (162 * PosX), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2, dataStr, LEFT);
   return;
 }
 // end drawCurrentInTemp
@@ -737,7 +756,7 @@ void drawCurrentInTemp(float inTemp)
 // drawCurrentHumidity
 void drawCurrentHumidity(const owm_current_t &current)
 {
-  if (POS_HUMIDITY < 0)
+  if (POS_HUMIDITY < 0 || POS_HUMIDITY / 2 >= WIDGET_ROWS)
   {
     return;
   }
@@ -746,19 +765,19 @@ void drawCurrentHumidity(const owm_current_t &current)
   int PosY = static_cast<int>(POS_HUMIDITY / 2);
 
   // icons
-  drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
-                 wi_humidity_48x48, "humidity", GxEPD_BLACK);
+  drawWidgetIcon(162 * PosX, wgtY(PosY),
+                 wi_humidity_48x48, wi_humidity_40x40, "humidity", GxEPD_BLACK);
 
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), 204 + 10 + (48 + 8) * PosY, TXT_HUMIDITY, LEFT);
+  drawString(48 + (162 * PosX), wgtY(PosY) + 10, TXT_HUMIDITY, LEFT);
 
   // humidity
   display.setFont(&FONT_12pt8b);
   dataStr = String(current.humidity);
-  drawString(48 + (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2, dataStr, LEFT);
+  drawString(48 + (162 * PosX), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2, dataStr, LEFT);
   display.setFont(&FONT_8pt8b);
-  drawString(display.getCursorX(), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2,
+  drawString(display.getCursorX(), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
              "%", LEFT);
   return;
 }
@@ -767,7 +786,7 @@ void drawCurrentHumidity(const owm_current_t &current)
 // drawCurrentPressure
 void drawCurrentPressure(const owm_current_t &current)
 {
-  if (POS_PRESSURE < 0)
+  if (POS_PRESSURE < 0 || POS_PRESSURE / 2 >= WIDGET_ROWS)
   {
     return;
   }
@@ -775,12 +794,12 @@ void drawCurrentPressure(const owm_current_t &current)
   int PosX = (POS_PRESSURE % 2);
   int PosY = static_cast<int>(POS_PRESSURE / 2);
   //  icons
-  drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
-                 wi_barometer_48x48, "pressure", GxEPD_BLACK);
+  drawWidgetIcon(162 * PosX, wgtY(PosY),
+                 wi_barometer_48x48, wi_barometer_40x40, "pressure", GxEPD_BLACK);
 
   //  labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), 204 + 10 + (48 + 8) * PosY, TXT_PRESSURE, LEFT);
+  drawString(48 + (162 * PosX), wgtY(PosY) + 10, TXT_PRESSURE, LEFT);
 
   // pressure
 #ifdef UNITS_PRES_HECTOPASCALS
@@ -827,9 +846,9 @@ void drawCurrentPressure(const owm_current_t &current)
   unitStr = String(" ") + TXT_UNITS_PRES_POUNDSPERSQUAREINCH;
 #endif
   display.setFont(&FONT_12pt8b);
-  drawString(48 + (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2, dataStr, LEFT);
+  drawString(48 + (162 * PosX), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2, dataStr, LEFT);
   display.setFont(&FONT_8pt8b);
-  drawString(display.getCursorX(), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2,
+  drawString(display.getCursorX(), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
              unitStr, LEFT);
 
   return;
@@ -839,7 +858,7 @@ void drawCurrentPressure(const owm_current_t &current)
 // drawCurrentVisibility
 void drawCurrentVisibility(const owm_current_t &current)
 {
-  if (POS_VISIBILITY < 0)
+  if (POS_VISIBILITY < 0 || POS_VISIBILITY / 2 >= WIDGET_ROWS)
   {
     return;
   }
@@ -848,12 +867,12 @@ void drawCurrentVisibility(const owm_current_t &current)
   int PosY = static_cast<int>(POS_VISIBILITY / 2);
 
   // icons
-  drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
-                 visibility_icon_48x48, "visibility", GxEPD_BLACK);
+  drawWidgetIcon(162 * PosX, wgtY(PosY),
+                 visibility_icon_48x48, visibility_icon_40x40, "visibility", GxEPD_BLACK);
 
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), 204 + 10 + (48 + 8) * PosY, TXT_VISIBILITY, LEFT);
+  drawString(48 + (162 * PosX), wgtY(PosY) + 10, TXT_VISIBILITY, LEFT);
 
   // visibility
   display.setFont(&FONT_12pt8b);
@@ -885,9 +904,9 @@ void drawCurrentVisibility(const owm_current_t &current)
 #endif
     dataStr = "> " + dataStr;
   }
-  drawString(48 + (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2, dataStr, LEFT);
+  drawString(48 + (162 * PosX), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2, dataStr, LEFT);
   display.setFont(&FONT_8pt8b);
-  drawString(display.getCursorX(), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2,
+  drawString(display.getCursorX(), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
              unitStr, LEFT);
 
   return;
@@ -897,7 +916,7 @@ void drawCurrentVisibility(const owm_current_t &current)
 // drawCurrentInHumidit
 void drawCurrentInHumidity(float inHumidity)
 {
-  if (POS_INHUMIDITY < 0)
+  if (POS_INHUMIDITY < 0 || POS_INHUMIDITY / 2 >= WIDGET_ROWS)
   {
     return;
   }
@@ -906,12 +925,12 @@ void drawCurrentInHumidity(float inHumidity)
   int PosY = static_cast<int>(POS_INHUMIDITY / 2);
 
   // current weather data icons
-  drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
-                 house_humidity_48x48, "inhumidity", GxEPD_BLACK);
+  drawWidgetIcon(162 * PosX, wgtY(PosY),
+                 house_humidity_48x48, house_humidity_40x40, "inhumidity", GxEPD_BLACK);
 
   // current weather data labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), 204 + 10 + (48 + 8) * PosY, TXT_INDOOR_HUMIDITY, LEFT);
+  drawString(48 + (162 * PosX), wgtY(PosY) + 10, TXT_INDOOR_HUMIDITY, LEFT);
 
   // indoor humidity
   display.setFont(&FONT_12pt8b);
@@ -923,9 +942,9 @@ void drawCurrentInHumidity(float inHumidity)
   {
     dataStr = "--";
   }
-  drawString(48 + (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2, dataStr, LEFT);
+  drawString(48 + (162 * PosX), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2, dataStr, LEFT);
   display.setFont(&FONT_8pt8b);
-  drawString(display.getCursorX(), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2,
+  drawString(display.getCursorX(), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
              "%", LEFT);
   return;
 }
@@ -934,7 +953,7 @@ void drawCurrentInHumidity(float inHumidity)
 // drawCurrentDewpoint
 void drawCurrentDewpoint(const owm_current_t &current)
 {
-  if (POS_DEWPOINT < 0)
+  if (POS_DEWPOINT < 0 || POS_DEWPOINT / 2 >= WIDGET_ROWS)
   {
     return;
   }
@@ -943,14 +962,14 @@ void drawCurrentDewpoint(const owm_current_t &current)
   int PosY = static_cast<int>(POS_DEWPOINT / 2);
   
   // icons
-  drawWidgetIcon(162 * PosX, 204 + (48 + 8) * PosY,
-                 wi_thermometer_48x48, "dewpoint", GxEPD_BLACK);
-  display.drawInvertedBitmap(162 * PosX + 48 - 24, 204 + (48 + 8) * PosY + 4,
+  drawWidgetIcon(162 * PosX, wgtY(PosY),
+                 wi_thermometer_48x48, wi_thermometer_40x40, "dewpoint", GxEPD_BLACK);
+  display.drawInvertedBitmap(162 * PosX + 48 - 24, wgtY(PosY) + 4,
                              wi_raindrops_24x24, 24, 24, GxEPD_BLACK);
   
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), 204 + 10 + (48 + 8) * PosY, TXT_DEWPOINT, LEFT);
+  drawString(48 + (162 * PosX), wgtY(PosY) + 10, TXT_DEWPOINT, LEFT);
 
   // Dew point
   display.setFont(&FONT_12pt8b);
@@ -974,7 +993,7 @@ void drawCurrentDewpoint(const owm_current_t &current)
 #if defined(UNITS_TEMP_CELSIUS) || defined(UNITS_TEMP_FAHRENHEIT)
   dataStr += "\260";
 #endif
-  drawString(48 + (162 * PosX), 204 + 17 / 2 + (48 + 8) * PosY + 48 / 2, dataStr, LEFT);
+  drawString(48 + (162 * PosX), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2, dataStr, LEFT);
   return;
 }
 // end drawCurrentDewpoint

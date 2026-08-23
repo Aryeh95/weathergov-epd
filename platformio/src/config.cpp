@@ -80,6 +80,12 @@ const uint8_t BME_ADDRESS = 0x76; // 0x76 if SDO -> GND; 0x77 if SDO -> VCC
 // smaller temperature font are used.
 int FORECAST_DAYS = 5;
 
+// WIDGET ROWS
+// Rows in the left-panel widget grid, range [5-6]. At 5 rows (10 slots) the
+// widget icons are 48px; at 6 rows (12 slots, enough for every widget) the
+// rows are tighter and 40px icons are used.
+int WIDGET_ROWS = 5;
+
 // PER-DEPLOYMENT SETTINGS (WiFi, location, time, battery, widget layout)
 //
 // The values below are only FALLBACK DEFAULTS, used if data/config.json is

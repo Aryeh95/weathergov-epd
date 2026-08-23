@@ -108,6 +108,7 @@
       <div><label>WiFi retry (min)</label><input id="s_retry" type="number" min="1" max="1440"></div>
       <div><label>Graph hours</label><input id="s_graph" type="number" min="8" max="48"></div>
       <div><label>Forecast days</label><select id="s_fdays"><option value="5">5</option><option value="6">6</option><option value="7">7</option></select></div>
+      <div><label>Widget rows</label><select id="s_wrows"><option value="5">5 (10 slots)</option><option value="6">6 (12 slots)</option></select></div>
     </div>
     <div class="hint">No updates between bed and wake hours (set both equal to disable).</div>
   </fieldset>
@@ -124,7 +125,7 @@
   <fieldset><legend>Widgets</legend>
     <div class="hint" style="margin-bottom:0.4rem">Slot layout on the display:
       0&nbsp;1 / 2&nbsp;3 / 4&nbsp;5 / 6&nbsp;7 / 8&nbsp;9 (top to bottom).
-      Choose Hidden to disable a widget. Each slot may be used once.</div>
+      Pick which widget fills each slot; leave a slot empty to show nothing there. Slots 10-11 appear when Widget rows (in Schedule) is 6.</div>
     <div class="row" id="widgets"></div>
   </fieldset>
 
@@ -255,14 +256,23 @@ function setStatus(cls, msg) { const st = el('status'); st.className = cls; st.t
 
 function buildWidgetSelects() {
   const box = el('widgets');
-  for (const [key, label] of WIDGETS) {
+  for (let slot = 0; slot < 12; slot++) {
     const d = document.createElement('div');
-    const l = document.createElement('label'); l.textContent = label;
-    const sel = document.createElement('select'); sel.id = 'wg_' + key;
-    const hidden = new Option('Hidden', '-1');
-    sel.add(hidden);
-    for (let s = 0; s < 10; s++) sel.add(new Option('Slot ' + s, String(s)));
+    d.id = 'slotbox_' + slot;
+    const l = document.createElement('label');
+    l.textContent = 'Slot ' + slot + (slot % 2 ? ' (right)' : ' (left)');
+    const sel = document.createElement('select'); sel.id = 'slot_' + slot;
+    sel.add(new Option('— Empty —', ''));
+    for (const [key, label] of WIDGETS) sel.add(new Option(label, key));
     d.append(l, sel); box.append(d);
+  }
+}
+
+// slots 10-11 only exist in the 6-row layout
+function updateSlotVisibility() {
+  const rows = +el('s_wrows').value;
+  for (let slot = 10; slot < 12; slot++) {
+    el('slotbox_' + slot).style.display = (rows > 5) ? '' : 'none';
   }
 }
 
@@ -281,10 +291,15 @@ function populate() {
   el('s_retry').value = cfg.sleep?.wifi_retry_interval_minutes ?? 15;
   el('s_graph').value = cfg.sleep?.hourly_graph_max ?? 24;
   el('s_fdays').value = String(cfg.forecast_days ?? 5);
+  el('s_wrows').value = String(cfg.widget_rows ?? 5);
   el('a_ua').value = cfg.api?.nws_user_agent ?? '';
   el('a_airnow').value = cfg.api?.airnow_api_key ?? '';
-  for (const [key] of WIDGETS)
-    el('wg_' + key).value = String(cfg.widget_positions?.[key] ?? -1);
+  for (let slot = 0; slot < 12; slot++) el('slot_' + slot).value = '';
+  for (const [key] of WIDGETS) {
+    const v = +(cfg.widget_positions?.[key] ?? -1);
+    if (v >= 0 && v < 12) el('slot_' + v).value = key;
+  }
+  updateSlotVisibility();
 }
 
 function collect() {
@@ -311,20 +326,27 @@ function collect() {
   cfg.sleep.wifi_retry_interval_minutes = +el('s_retry').value;
   cfg.sleep.hourly_graph_max = +el('s_graph').value;
   cfg.forecast_days = +el('s_fdays').value;
+  cfg.widget_rows = +el('s_wrows').value;
   cfg.api.nws_user_agent = el('a_ua').value.trim();
   cfg.api.airnow_api_key = el('a_airnow').value.trim();
-  for (const [key] of WIDGETS)
-    cfg.widget_positions[key] = +el('wg_' + key).value;
+  const rows = +el('s_wrows').value;
+  for (const [key] of WIDGETS) cfg.widget_positions[key] = -1;
+  for (let slot = 0; slot < rows * 2; slot++) {
+    const key = el('slot_' + slot).value;
+    if (key) cfg.widget_positions[key] = slot;
+  }
 }
 
 function validateWidgets() {
+  const rows = +el('s_wrows').value;
   const used = new Map();
-  for (const [key, label] of WIDGETS) {
-    const v = +el('wg_' + key).value;
-    if (v < 0) continue;
-    if (used.has(v)) return 'Slot ' + v + ' is used by both "' + used.get(v)
-                          + '" and "' + label + '" — each slot may be used once.';
-    used.set(v, label);
+  for (let slot = 0; slot < rows * 2; slot++) {
+    const key = el('slot_' + slot).value;
+    if (!key) continue;
+    if (used.has(key)) return '"' + WIDGETS.find(w => w[0] === key)[1]
+      + '" is in both slot ' + used.get(key) + ' and slot ' + slot
+      + ' — a widget can only appear once.';
+    used.set(key, slot);
   }
   return null;
 }
@@ -487,6 +509,8 @@ el('fwbtn').addEventListener('click', () => {
   xhr.open('POST', '/update');
   xhr.send(fd);
 });
+
+el('s_wrows').addEventListener('change', updateSlotVisibility);
 
 el('advtoggle').addEventListener('click', () => {
   const box = el('advbox');

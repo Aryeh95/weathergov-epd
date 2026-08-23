@@ -32,6 +32,7 @@
 
 // icon header files
 #include "icons/icons.h"
+#include "icons/icons_40x40.h" // 6-row widget layout (widget_rows = 6)
 #ifdef MULTICOLOR_DISPLAY
   // ~260kB of full-color condition icons; only linked into multicolor builds
   #include "icons/icons_color.h"
@@ -809,42 +810,44 @@ const uint8_t *getColorIcon32(const owm_hourly_t &hourly)
   return getColorConditionsIcon(hourly.weather.id,
                                 isDay(hourly.weather.icon), 32);
 }
-/* Returns the full-color 48px widget icon with the given name, or NULL if
- * the set has none (the caller falls back to line art).
+/* Returns the full-color widget icon with the given name at the given size
+ * (48 for the 5-row widget layout, 40 for the 6-row one), or NULL if the
+ * set has none (the caller falls back to line art).
  */
-const uint8_t *getColorWidgetIcon48(const char *name)
+const uint8_t *getColorWidgetIcon(const char *name, int size)
 {
-  struct entry_t { const char *name; const uint8_t *px; };
+  struct entry_t { const char *name; const uint8_t *px48;
+                   const uint8_t *px40; };
   static const entry_t TABLE[] = {
-    {"sunrise",    ci_w_sunrise_48},
-    {"sunset",     ci_w_sunset_48},
-    {"wind",       ci_w_wind_48},
-    {"humidity",   ci_w_humidity_48},
-    {"pressure",   ci_w_pressure_48},
-    {"uvi",        ci_w_uvi_48},
-    {"visibility", ci_w_visibility_48},
-    {"aqi",        ci_w_aqi_48},
-    {"dewpoint",   ci_w_dewpoint_48},
-    {"intemp",     ci_w_intemp_48},
-    {"inhumidity", ci_w_inhumidity_48},
-    {"newmoon",        ci_w_newmoon_48},
-    {"waxingcrescent", ci_w_waxingcrescent_48},
-    {"firstquarter",   ci_w_firstquarter_48},
-    {"waxinggibbous",  ci_w_waxinggibbous_48},
-    {"fullmoon",       ci_w_fullmoon_48},
-    {"waninggibbous",  ci_w_waninggibbous_48},
-    {"lastquarter",    ci_w_lastquarter_48},
-    {"waningcrescent", ci_w_waningcrescent_48},
+    {"sunrise",    ci_w_sunrise_48,    ci_w_sunrise_40},
+    {"sunset",     ci_w_sunset_48,     ci_w_sunset_40},
+    {"wind",       ci_w_wind_48,       ci_w_wind_40},
+    {"humidity",   ci_w_humidity_48,   ci_w_humidity_40},
+    {"pressure",   ci_w_pressure_48,   ci_w_pressure_40},
+    {"uvi",        ci_w_uvi_48,        ci_w_uvi_40},
+    {"visibility", ci_w_visibility_48, ci_w_visibility_40},
+    {"aqi",        ci_w_aqi_48,        ci_w_aqi_40},
+    {"dewpoint",   ci_w_dewpoint_48,   ci_w_dewpoint_40},
+    {"intemp",     ci_w_intemp_48,     ci_w_intemp_40},
+    {"inhumidity", ci_w_inhumidity_48, ci_w_inhumidity_40},
+    {"newmoon",        ci_w_newmoon_48,        ci_w_newmoon_40},
+    {"waxingcrescent", ci_w_waxingcrescent_48, ci_w_waxingcrescent_40},
+    {"firstquarter",   ci_w_firstquarter_48,   ci_w_firstquarter_40},
+    {"waxinggibbous",  ci_w_waxinggibbous_48,  ci_w_waxinggibbous_40},
+    {"fullmoon",       ci_w_fullmoon_48,       ci_w_fullmoon_40},
+    {"waninggibbous",  ci_w_waninggibbous_48,  ci_w_waninggibbous_40},
+    {"lastquarter",    ci_w_lastquarter_48,    ci_w_lastquarter_40},
+    {"waningcrescent", ci_w_waningcrescent_48, ci_w_waningcrescent_40},
   };
   for (size_t i = 0; i < sizeof(TABLE) / sizeof(TABLE[0]); ++i)
   {
     if (strcmp(TABLE[i].name, name) == 0)
     {
-      return TABLE[i].px;
+      return (size == 40) ? TABLE[i].px40 : TABLE[i].px48;
     }
   }
   return NULL;
-} // end getColorWidgetIcon48
+} // end getColorWidgetIcon
 #endif // MULTICOLOR_DISPLAY
 
 /* Moon-phase widget helpers. Phase index 0-7 as returned by calcMoonPhase
@@ -865,6 +868,21 @@ const uint8_t *getMoonPhaseBitmap48(int phase)
   default: return wi_moon_alt_waning_crescent_4_48x48;
   }
 } // end getMoonPhaseBitmap48
+
+const uint8_t *getMoonPhaseBitmap40(int phase)
+{
+  switch (phase)
+  {
+  case 0:  return wi_moon_alt_new_40x40;
+  case 1:  return wi_moon_alt_waxing_crescent_4_40x40;
+  case 2:  return wi_moon_alt_first_quarter_40x40;
+  case 3:  return wi_moon_alt_waxing_gibbous_4_40x40;
+  case 4:  return wi_moon_alt_full_40x40;
+  case 5:  return wi_moon_alt_waning_gibbous_4_40x40;
+  case 6:  return wi_moon_alt_third_quarter_40x40;
+  default: return wi_moon_alt_waning_crescent_4_40x40;
+  }
+} // end getMoonPhaseBitmap40
 
 const char *getMoonPhaseDesc(int phase)
 {
