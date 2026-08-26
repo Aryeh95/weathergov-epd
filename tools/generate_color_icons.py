@@ -49,8 +49,10 @@ CUSTOM_ICONS = ["dewpoint", "intemp", "inhumidity"]
 # so they also use a restricted palette without green/blue.
 MOON_ICONS = {"newmoon", "waxingcrescent", "firstquarter", "waxinggibbous",
               "fullmoon", "waninggibbous", "lastquarter", "waningcrescent"}
-# palette indices (into PALETTE) allowed for moon icons
-MOON_PALETTE = [0, 1, 2, 3]  # black, white, red, yellow
+# The moon renders in black/white only -- the real moon is not yellow
+# (real-panel feedback), and a white moon with a traced black outline reads
+# like the line art but solid. See moon_outline().
+MOON_PALETTE = [0, 1]  # black, white
 # Widget icons whose pale blues read too blue on real ink at the full boost
 # (like the condition icons' clouds); they get CONDITION_SATURATION instead.
 SOFT_WIDGET_ICONS = {"wind"}
@@ -233,6 +235,33 @@ def quantize_condition(path, size):
     return out
 
 
+def moon_outline(indices, size):
+    """White-on-white is invisible: trace a black outline around every lit
+    (white) moon pixel that borders transparency."""
+    def at(x, y):
+        return indices[y * size + x] if 0 <= x < size and 0 <= y < size else 0
+    out = list(indices)
+    for y in range(size):
+        for x in range(size):
+            if at(x, y) == 2:  # white
+                for dx in (-1, 0, 1):
+                    for dy in (-1, 0, 1):
+                        if at(x + dx, y + dy) == 0:
+                            out[y * size + x] = 1  # black
+    # thicken to 2px: repeat once against the new outline
+    out2 = list(out)
+    for y in range(size):
+        for x in range(size):
+            if out[y * size + x] == 2:
+                for dx in (-1, 0, 1):
+                    for dy in (-1, 0, 1):
+                        xx, yy = x + dx, y + dy
+                        if 0 <= xx < size and 0 <= yy < size                            and out[yy * size + xx] == 1                            and any(at(xx + ex, yy + ey) == 0
+                                   for ex in (-1, 0, 1) for ey in (-1, 0, 1)):
+                            out2[y * size + x] = out2[y * size + x]
+    return out
+
+
 def pack(indices):
     data = bytearray()
     for i in range(0, len(indices), 2):
@@ -291,9 +320,12 @@ def main():
             sat = None if name in SOFT_WIDGET_ICONS else SATURATION
             # 48px for the 5-row widget layout, 40px for the 6-row one
             for wsize in (48, 40):
-                data = pack(quantize(path, wsize, dither=not moon,
-                                     allowed=MOON_PALETTE if moon else None,
-                                     saturation=sat))
+                idx = quantize(path, wsize, dither=not moon,
+                               allowed=MOON_PALETTE if moon else None,
+                               saturation=sat)
+                if moon:
+                    idx = moon_outline(idx, wsize)
+                data = pack(idx)
                 total += len(data)
                 emit(f, "ci_w_%s_%d" % (name, wsize), data)
                 print("%s @ %dpx: %d bytes" % (name, wsize, len(data)))

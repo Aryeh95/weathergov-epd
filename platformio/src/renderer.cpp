@@ -122,6 +122,18 @@ static inline int wgtY(int PosY)
 {
   return 204 + (wgtIconSize() + ((WIDGET_ROWS > 5) ? 6 : 8)) * PosY;
 }
+// The 6-row layout's smaller icons pull the value line up toward the label;
+// nudge the label up and the value down so the label/value gap matches the
+// 5-row layout.
+static inline int wgtLabelY(int PosY)
+{
+  return wgtY(PosY) + ((WIDGET_ROWS > 5) ? 8 : 10);
+}
+static inline int wgtValueY(int PosY)
+{
+  return wgtValueY(PosY)
+         + ((WIDGET_ROWS > 5) ? 4 : 0);
+}
 
 /* Draws a left-panel widget icon at the size the current layout calls for:
  * the full-color version when the panel and icon set provide one, otherwise
@@ -359,7 +371,7 @@ void drawCurrentSunrise(const owm_current_t &current)
 
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), wgtY(PosY) + 10, TXT_SUNRISE, LEFT);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_SUNRISE, LEFT);
 
   // sunrise
   display.setFont(&FONT_12pt8b);
@@ -367,7 +379,7 @@ void drawCurrentSunrise(const owm_current_t &current)
   time_t ts = current.sunrise;
   tm *timeInfo = localtime(&ts);
   _strftime(timeBuffer, sizeof(timeBuffer), TIME_FORMAT, timeInfo);
-  drawString(48 + (162 * PosX), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2, timeBuffer, LEFT);
+  drawString(48 + (162 * PosX), wgtValueY(PosY), timeBuffer, LEFT);
 
   return;
 }
@@ -390,7 +402,7 @@ void drawCurrentSunset(const owm_current_t &current)
 
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), wgtY(PosY) + 10, TXT_SUNSET, LEFT);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_SUNSET, LEFT);
 
   // sunset
   display.setFont(&FONT_12pt8b);
@@ -398,7 +410,7 @@ void drawCurrentSunset(const owm_current_t &current)
   time_t ts = current.sunset;
   tm *timeInfo = localtime(&ts);
   _strftime(timeBuffer, sizeof(timeBuffer), TIME_FORMAT, timeInfo);
-  drawString(48 + (162 * PosX), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2, timeBuffer, LEFT);
+  drawString(48 + (162 * PosX), wgtValueY(PosY), timeBuffer, LEFT);
 
   return;
 }
@@ -421,7 +433,7 @@ void drawCurrentWind(const owm_current_t &current)
 
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), wgtY(PosY) + 10, TXT_WIND, LEFT);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_WIND, LEFT);
 
   // wind
   display.setFont(&FONT_12pt8b);
@@ -460,18 +472,18 @@ void drawCurrentWind(const owm_current_t &current)
 #endif
 
 #ifdef WIND_INDICATOR_ARROW
-  drawString( (48 + 24)+ (162 * PosX), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2, dataStr, LEFT);
+  drawString( (48 + 24)+ (162 * PosX), wgtValueY(PosY), dataStr, LEFT);
 #else
-  drawString(48    + (162 * PosX) , wgtY(PosY) + 17 / 2 + wgtIconSize() / 2, dataStr, LEFT);
+  drawString(48    + (162 * PosX) , wgtValueY(PosY), dataStr, LEFT);
 #endif
   display.setFont(&FONT_8pt8b);
-  drawString(display.getCursorX(), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
+  drawString(display.getCursorX(), wgtValueY(PosY),
              unitStr, LEFT);
 
 #if defined(WIND_INDICATOR_NUMBER)
   dataStr = String(current.wind_deg) + "\260";
   display.setFont(&FONT_12pt8b);
-  drawString(display.getCursorX() + 6, wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
+  drawString(display.getCursorX() + 6, wgtValueY(PosY),
              dataStr, LEFT);
 #endif
 #if defined(WIND_INDICATOR_CPN_CARDINAL)                \
@@ -480,7 +492,7 @@ void drawCurrentWind(const owm_current_t &current)
  || defined(WIND_INDICATOR_CPN_TERTIARY_INTERCARDINAL)
   dataStr = getCompassPointNotation(current.wind_deg);
   display.setFont(&FONT_12pt8b);
-  drawString(display.getCursorX() + 6, wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
+  drawString(display.getCursorX() + 6, wgtValueY(PosY),
              dataStr, LEFT);
 #endif
 
@@ -508,7 +520,7 @@ void drawCurrentUVI(const owm_current_t &current)
 
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), wgtY(PosY) + 10, TXT_UV_INDEX, LEFT);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_UV_INDEX, LEFT);
 
   // spacing between end of index value and start of descriptor text
   const int sp = 8;
@@ -517,14 +529,14 @@ void drawCurrentUVI(const owm_current_t &current)
   display.setFont(&FONT_12pt8b);
   dataStr = String(uvi);
   // the value carries the risk-level color on multicolor panels
-  drawString(48 + (162 * PosX), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
+  drawString(48 + (162 * PosX), wgtValueY(PosY),
              dataStr, LEFT, getUVIColor(uvi));
   display.setFont(&FONT_7pt8b);
   dataStr = String(getUVIdesc(uvi));
   int max_w = (162 + (PosX * 162) - sp) - (display.getCursorX() + sp);
   if (getStringWidth(dataStr) <= max_w)
   { // Fits on a single line, draw along bottom
-    drawString(display.getCursorX() + sp, wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
+    drawString(display.getCursorX() + sp, wgtValueY(PosY),
                dataStr, LEFT);
   }
   else
@@ -533,13 +545,13 @@ void drawCurrentUVI(const owm_current_t &current)
     if (getStringWidth(dataStr) <= max_w)
     { // Fits on a single line with smaller font, draw along bottom
       drawString(display.getCursorX() + sp,
-                 wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
+                 wgtValueY(PosY),
                  dataStr, LEFT);
     }
     else
     { // Does not fit on a single line, draw higher to allow room for 2nd line
       drawMultiLnString(display.getCursorX() + sp,
-                        wgtY(PosY) + 17 / 2 + wgtIconSize() / 2 - 10,
+                        wgtValueY(PosY) - 10,
                         dataStr, LEFT, max_w, 2, 10);
     }
   }
@@ -571,7 +583,7 @@ void drawCurrentMoonPhase()
 
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), wgtY(PosY) + 10, TXT_MOONPHASE,
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_MOONPHASE,
              LEFT);
 
   // spacing between end of value and start of descriptor text
@@ -580,7 +592,7 @@ void drawCurrentMoonPhase()
   // illuminated percentage, then the phase name fitted beside/below it
   display.setFont(&FONT_12pt8b);
   dataStr = String(illum) + "%";
-  drawString(48 + (162 * PosX), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
+  drawString(48 + (162 * PosX), wgtValueY(PosY),
              dataStr, LEFT);
   display.setFont(&FONT_7pt8b);
   dataStr = String(getMoonPhaseDesc(phase));
@@ -588,7 +600,7 @@ void drawCurrentMoonPhase()
   if (getStringWidth(dataStr) <= max_w)
   {
     drawString(display.getCursorX() + sp,
-               wgtY(PosY) + 17 / 2 + wgtIconSize() / 2, dataStr, LEFT);
+               wgtValueY(PosY), dataStr, LEFT);
   }
   else
   {
@@ -596,12 +608,12 @@ void drawCurrentMoonPhase()
     if (getStringWidth(dataStr) <= max_w)
     {
       drawString(display.getCursorX() + sp,
-                 wgtY(PosY) + 17 / 2 + wgtIconSize() / 2, dataStr, LEFT);
+                 wgtValueY(PosY), dataStr, LEFT);
     }
     else
     {
       drawMultiLnString(display.getCursorX() + sp,
-                        wgtY(PosY) + 17 / 2 + wgtIconSize() / 2 - 10,
+                        wgtValueY(PosY) - 10,
                         dataStr, LEFT, max_w, 2, 10);
     }
   }
@@ -638,7 +650,7 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   {
     air_quality_index_label = TXT_AIR_POLLUTION;
   }
-  drawString(48 + (162 * PosX), wgtY(PosY) + 10, air_quality_index_label, LEFT);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), air_quality_index_label, LEFT);
 
   // spacing between end of index value and start of descriptor text
   const int sp = 8;
@@ -675,7 +687,7 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
     dataStr = String(aqi);
   }
   // the value carries the risk-level color on multicolor panels
-  drawString(48 + (162 * PosX), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
+  drawString(48 + (162 * PosX), wgtValueY(PosY),
              dataStr, LEFT, getAQIColor(aqi, usScale));
   display.setFont(&FONT_7pt8b);
   dataStr = useAirNow ? String(united_states_aqi_desc(aqi))
@@ -683,7 +695,7 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   int max_w = (162 + (PosX * 162) - sp) - (display.getCursorX() + sp);
   if (getStringWidth(dataStr) <= max_w)
   { // Fits on a single line, draw along bottom
-    drawString(display.getCursorX() + sp, wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
+    drawString(display.getCursorX() + sp, wgtValueY(PosY),
                dataStr, LEFT);
   }
   else
@@ -692,13 +704,13 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
     if (getStringWidth(dataStr) <= max_w)
     { // Fits on a single line with smaller font, draw along bottom
       drawString(display.getCursorX() + sp,
-                 wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
+                 wgtValueY(PosY),
                  dataStr, LEFT);
     }
     else
     { // Does not fit on a single line, draw higher to allow room for 2nd line
       drawMultiLnString(display.getCursorX() + sp,
-                        wgtY(PosY) + 17 / 2 + wgtIconSize() / 2 - 10,
+                        wgtValueY(PosY) - 10,
                         dataStr, LEFT, max_w, 2, 10);
     }
   }
@@ -724,7 +736,7 @@ void drawCurrentInTemp(float inTemp)
 
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), wgtY(PosY) + 10, TXT_INDOOR_TEMPERATURE, LEFT);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_INDOOR_TEMPERATURE, LEFT);
 
   // indoor temperature
   display.setFont(&FONT_12pt8b);
@@ -748,7 +760,7 @@ void drawCurrentInTemp(float inTemp)
 #if defined(UNITS_TEMP_CELSIUS) || defined(UNITS_TEMP_FAHRENHEIT)
   dataStr += "\260";
 #endif
-  drawString(48 + (162 * PosX), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2, dataStr, LEFT);
+  drawString(48 + (162 * PosX), wgtValueY(PosY), dataStr, LEFT);
   return;
 }
 // end drawCurrentInTemp
@@ -770,14 +782,14 @@ void drawCurrentHumidity(const owm_current_t &current)
 
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), wgtY(PosY) + 10, TXT_HUMIDITY, LEFT);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_HUMIDITY, LEFT);
 
   // humidity
   display.setFont(&FONT_12pt8b);
   dataStr = String(current.humidity);
-  drawString(48 + (162 * PosX), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2, dataStr, LEFT);
+  drawString(48 + (162 * PosX), wgtValueY(PosY), dataStr, LEFT);
   display.setFont(&FONT_8pt8b);
-  drawString(display.getCursorX(), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
+  drawString(display.getCursorX(), wgtValueY(PosY),
              "%", LEFT);
   return;
 }
@@ -799,7 +811,7 @@ void drawCurrentPressure(const owm_current_t &current)
 
   //  labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), wgtY(PosY) + 10, TXT_PRESSURE, LEFT);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_PRESSURE, LEFT);
 
   // pressure
 #ifdef UNITS_PRES_HECTOPASCALS
@@ -846,9 +858,9 @@ void drawCurrentPressure(const owm_current_t &current)
   unitStr = String(" ") + TXT_UNITS_PRES_POUNDSPERSQUAREINCH;
 #endif
   display.setFont(&FONT_12pt8b);
-  drawString(48 + (162 * PosX), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2, dataStr, LEFT);
+  drawString(48 + (162 * PosX), wgtValueY(PosY), dataStr, LEFT);
   display.setFont(&FONT_8pt8b);
-  drawString(display.getCursorX(), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
+  drawString(display.getCursorX(), wgtValueY(PosY),
              unitStr, LEFT);
 
   return;
@@ -872,7 +884,7 @@ void drawCurrentVisibility(const owm_current_t &current)
 
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), wgtY(PosY) + 10, TXT_VISIBILITY, LEFT);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_VISIBILITY, LEFT);
 
   // visibility
   display.setFont(&FONT_12pt8b);
@@ -904,9 +916,9 @@ void drawCurrentVisibility(const owm_current_t &current)
 #endif
     dataStr = "> " + dataStr;
   }
-  drawString(48 + (162 * PosX), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2, dataStr, LEFT);
+  drawString(48 + (162 * PosX), wgtValueY(PosY), dataStr, LEFT);
   display.setFont(&FONT_8pt8b);
-  drawString(display.getCursorX(), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
+  drawString(display.getCursorX(), wgtValueY(PosY),
              unitStr, LEFT);
 
   return;
@@ -930,7 +942,7 @@ void drawCurrentInHumidity(float inHumidity)
 
   // current weather data labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), wgtY(PosY) + 10, TXT_INDOOR_HUMIDITY, LEFT);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_INDOOR_HUMIDITY, LEFT);
 
   // indoor humidity
   display.setFont(&FONT_12pt8b);
@@ -942,9 +954,9 @@ void drawCurrentInHumidity(float inHumidity)
   {
     dataStr = "--";
   }
-  drawString(48 + (162 * PosX), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2, dataStr, LEFT);
+  drawString(48 + (162 * PosX), wgtValueY(PosY), dataStr, LEFT);
   display.setFont(&FONT_8pt8b);
-  drawString(display.getCursorX(), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2,
+  drawString(display.getCursorX(), wgtValueY(PosY),
              "%", LEFT);
   return;
 }
@@ -969,7 +981,7 @@ void drawCurrentDewpoint(const owm_current_t &current)
   
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), wgtY(PosY) + 10, TXT_DEWPOINT, LEFT);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_DEWPOINT, LEFT);
 
   // Dew point
   display.setFont(&FONT_12pt8b);
@@ -993,7 +1005,7 @@ void drawCurrentDewpoint(const owm_current_t &current)
 #if defined(UNITS_TEMP_CELSIUS) || defined(UNITS_TEMP_FAHRENHEIT)
   dataStr += "\260";
 #endif
-  drawString(48 + (162 * PosX), wgtY(PosY) + 17 / 2 + wgtIconSize() / 2, dataStr, LEFT);
+  drawString(48 + (162 * PosX), wgtValueY(PosY), dataStr, LEFT);
   return;
 }
 // end drawCurrentDewpoint
