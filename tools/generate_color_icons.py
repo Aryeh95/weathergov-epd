@@ -39,9 +39,12 @@ SIZES = [168, 64, 48, 32]
 # flat style (see draw_custom_icons).
 WIDGET_ICONS = ["sunrise", "sunset", "wind", "humidity", "pressure",
                 "uvi", "visibility", "aqi",
-                "dewpoint", "intemp", "inhumidity",
-                "newmoon", "waxingcrescent", "firstquarter", "waxinggibbous",
-                "fullmoon", "waninggibbous", "lastquarter", "waningcrescent"]
+                "dewpoint", "intemp", "inhumidity"]
+# The moons are emitted into their own header (icons_moon.h): being pure
+# black/white dither they render identically on every panel, so they are
+# compiled into single-color builds too, unlike the color set.
+MOON_NAMES = ["newmoon", "waxingcrescent", "firstquarter", "waxinggibbous",
+              "fullmoon", "waninggibbous", "lastquarter", "waningcrescent"]
 CUSTOM_ICONS = ["dewpoint", "intemp", "inhumidity",
                 "newmoon", "waxingcrescent", "firstquarter", "waxinggibbous",
                 "fullmoon", "waninggibbous", "lastquarter", "waningcrescent"]
@@ -70,6 +73,9 @@ RAW_URL = ("https://raw.githubusercontent.com/fatihak/InkyPi/main/"
 OUT_PATH = os.path.join(os.path.dirname(__file__), "..",
                         "platformio", "lib", "esp32-weather-epd-assets",
                         "icons", "icons_color.h")
+MOON_OUT_PATH = os.path.join(os.path.dirname(__file__), "..",
+                             "platformio", "lib", "esp32-weather-epd-assets",
+                             "icons", "icons_moon.h")
 
 
 def fetch_icons(icon_dir):
@@ -362,12 +368,10 @@ def main():
                 print("%s @ %dpx: %d bytes" % (name, size, len(data)))
         for name in WIDGET_ICONS:
             path = os.path.join(icon_dir, name + ".png")
-            moon = name in MOON_ICONS
             sat = None if name in SOFT_WIDGET_ICONS else SATURATION
             # 48px for the 5-row widget layout, 40px for the 6-row one
             for wsize in (48, 40):
                 data = pack(quantize(path, wsize, dither=True,
-                                     allowed=MOON_PALETTE if moon else None,
                                      saturation=sat))
                 total += len(data)
                 emit(f, "ci_w_%s_%d" % (name, wsize), data)
@@ -384,7 +388,34 @@ def main():
             f.write('  {"%s", ci_%s_168, ci_%s_64, ci_%s_48, ci_%s_32},\n'
                     % (name, name, name, name, name))
         f.write("};\n\n#endif\n")
+    with open(MOON_OUT_PATH, 'w', newline='\n') as f:
+        f.write('/* Dithered grayscale moon-phase widget icons, drawn by\n'
+                ' * tools/generate_color_icons.py (see draw_moons). Pure\n'
+                ' * black/white, so unlike icons_color.h these are compiled\n'
+                ' * into EVERY panel build. Same 4-bit index format:\n'
+                ' * 0 transparent, 1 black, 2 white.\n'
+                ' *\n'
+                ' * GENERATED FILE -- do not edit by hand.\n'
+                ' */\n\n'
+                '#ifndef __ICONS_MOON_H__\n'
+                '#define __ICONS_MOON_H__\n\n'
+                '#include <Arduino.h>\n\n')
+        for name in MOON_NAMES:
+            path = os.path.join(icon_dir, name + '.png')
+            for wsize in (48, 40):
+                data = pack(quantize(path, wsize, dither=True,
+                                     allowed=MOON_PALETTE))
+                total += len(data)
+                emit(f, 'moon_%s_%d' % (name, wsize), data)
+        f.write('static const uint8_t * const MOON_DITHER_48[8] = {\n')
+        for name in MOON_NAMES:
+            f.write('  moon_%s_48,\n' % name)
+        f.write('};\nstatic const uint8_t * const MOON_DITHER_40[8] = {\n')
+        for name in MOON_NAMES:
+            f.write('  moon_%s_40,\n' % name)
+        f.write('};\n\n#endif\n')
     print("wrote %s (%d bytes of icon data)" % (OUT_PATH, total))
+
 
 
 if __name__ == "__main__":

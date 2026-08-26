@@ -110,6 +110,24 @@ static void drawColorIcon(int16_t x, int16_t y, const uint8_t *data,
 } // end drawColorIcon
 #endif // MULTICOLOR_DISPLAY
 
+/* Draws a packed 4-bit dithered black/white icon (icons_moon.h format):
+ * index 1 pixels draw black, everything else is left as background. Valid
+ * on every panel type, unlike the multicolor-only drawColorIcon.
+ */
+static void drawDitheredIcon(int16_t x, int16_t y, const uint8_t *data,
+                             int16_t size)
+{
+  for (int32_t n = 0; n < static_cast<int32_t>(size) * size; ++n)
+  {
+    uint8_t b = pgm_read_byte(&data[n >> 1]);
+    uint8_t v = (n & 1) ? (b & 0x0F) : (b >> 4);
+    if (v == 1)
+    {
+      display.drawPixel(x + (n % size), y + (n / size), GxEPD_BLACK);
+    }
+  }
+} // end drawDitheredIcon
+
 /* Left-panel widget grid geometry. WIDGET_ROWS (config.json, 5 or 6) sets
  * the density: 5 rows of 48px icons on a 56px pitch, or 6 rows of 40px
  * icons on a 46px pitch (12 slots -- enough for every widget).
@@ -576,10 +594,9 @@ void drawCurrentMoonPhase()
   int phase = calcMoonPhase(static_cast<int64_t>(time(nullptr)), &illum);
 
   // icons
-  drawWidgetIcon(162 * PosX, wgtY(PosY),
-                 getMoonPhaseBitmap48(phase), getMoonPhaseBitmap40(phase),
-                 getMoonPhaseColorName(phase),
-                 GxEPD_BLACK);
+  drawDitheredIcon(162 * PosX, wgtY(PosY),
+                   getMoonPhaseDithered(phase, wgtIconSize()),
+                   wgtIconSize());
 
   // labels
   display.setFont(&FONT_7pt8b);
@@ -1378,7 +1395,14 @@ void drawLocationDate(const String &city, const String &date)
 {
   // location, date
   display.setFont(&FONT_16pt8b);
+#ifdef MULTICOLOR_DISPLAY
+  // On multicolor panels red carries meaning (temperature, alerts, warnings),
+  // so a red city name reads out of place -- keep it black there. The
+  // single-accent panels keep the upstream red-accent look.
+  drawString(DISP_WIDTH - 2, 23, city, RIGHT, GxEPD_BLACK);
+#else
   drawString(DISP_WIDTH - 2, 23, city, RIGHT, ACCENT_COLOR);
+#endif
   display.setFont(&FONT_12pt8b);
   drawString(DISP_WIDTH - 2, 30 + 4 + 17, date, RIGHT);
   return;

@@ -82,7 +82,7 @@ uint16_t getCurrentConditionsColor196(const owm_current_t &current);
 const uint8_t *getMoonPhaseBitmap48(int phase);
 const uint8_t *getMoonPhaseBitmap40(int phase);
 const char *getMoonPhaseDesc(int phase);
-const char *getMoonPhaseColorName(int phase);
+const uint8_t *getMoonPhaseDithered(int phase, int size);
 uint16_t getUVIColor(unsigned int uvi);
 uint16_t getAQIColor(int aqi, bool usScale);
 const uint8_t *getCurrentConditionsBitmap196(const owm_current_t &current,

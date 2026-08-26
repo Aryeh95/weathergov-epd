@@ -33,6 +33,7 @@
 // icon header files
 #include "icons/icons.h"
 #include "icons/icons_40x40.h" // 6-row widget layout (widget_rows = 6)
+#include "icons/icons_moon.h"  // dithered moons, shared by all panel types
 #ifdef MULTICOLOR_DISPLAY
   // ~260kB of full-color condition icons; only linked into multicolor builds
   #include "icons/icons_color.h"
@@ -844,14 +845,6 @@ const uint8_t *getColorWidgetIcon(const char *name, int size)
     {"dewpoint",   ci_w_dewpoint_48,   ci_w_dewpoint_40},
     {"intemp",     ci_w_intemp_48,     ci_w_intemp_40},
     {"inhumidity", ci_w_inhumidity_48, ci_w_inhumidity_40},
-    {"newmoon",        ci_w_newmoon_48,        ci_w_newmoon_40},
-    {"waxingcrescent", ci_w_waxingcrescent_48, ci_w_waxingcrescent_40},
-    {"firstquarter",   ci_w_firstquarter_48,   ci_w_firstquarter_40},
-    {"waxinggibbous",  ci_w_waxinggibbous_48,  ci_w_waxinggibbous_40},
-    {"fullmoon",       ci_w_fullmoon_48,       ci_w_fullmoon_40},
-    {"waninggibbous",  ci_w_waninggibbous_48,  ci_w_waninggibbous_40},
-    {"lastquarter",    ci_w_lastquarter_48,    ci_w_lastquarter_40},
-    {"waningcrescent", ci_w_waningcrescent_48, ci_w_waningcrescent_40},
   };
   for (size_t i = 0; i < sizeof(TABLE) / sizeof(TABLE[0]); ++i)
   {
@@ -913,15 +906,13 @@ const char *getMoonPhaseDesc(int phase)
   }
 } // end getMoonPhaseDesc
 
-/* Name of the full-color icon for a moon phase (see getColorWidgetIcon48).
+/* Returns the dithered grayscale moon bitmap (icons_moon.h) for a phase at
+ * the widget icon size (48 or 40). Pure black/white, valid on every panel.
  */
-const char *getMoonPhaseColorName(int phase)
+const uint8_t *getMoonPhaseDithered(int phase, int size)
 {
-  static const char *NAMES[8] = {
-    "newmoon", "waxingcrescent", "firstquarter", "waxinggibbous",
-    "fullmoon", "waninggibbous", "lastquarter", "waningcrescent"};
-  return NAMES[phase & 7];
-} // end getMoonPhaseColorName
+  return (size == 40) ? MOON_DITHER_40[phase & 7] : MOON_DITHER_48[phase & 7];
+} // end getMoonPhaseDithered
 
 /* Color for the UV index widget icon (sun), by WHO risk level.
  */
