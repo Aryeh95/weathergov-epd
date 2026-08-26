@@ -50,6 +50,14 @@ MOON_ICONS = {"newmoon", "waxingcrescent", "firstquarter", "waxinggibbous",
               "fullmoon", "waninggibbous", "lastquarter", "waningcrescent"}
 # palette indices (into PALETTE) allowed for moon icons
 MOON_PALETTE = [0, 1, 2, 3]  # black, white, red, yellow
+# Widget icons whose pale blues read too blue on real ink at the full boost
+# (like the condition icons' clouds); they get CONDITION_SATURATION instead.
+SOFT_WIDGET_ICONS = {"wind"}
+# Saturation boost before quantization. On real ink the boost reads stronger
+# than on screen: at 1.8 the pale blue-gray clouds dither noticeably blue
+# (observed on the E1002), so condition icons use a gentler boost; the
+# widget icons' colors are saturated already and keep the higher value.
+CONDITION_SATURATION = 1.25
 SATURATION = 1.8
 ALPHA_THRESHOLD = 128
 # Quantization targets; palette indices are these positions + 1
@@ -115,14 +123,14 @@ def draw_custom_icons(icon_dir):
         im.save(os.path.join(icon_dir, name + ".png"))
 
 
-def quantize(path, size, dither=True, allowed=None):
+def quantize(path, size, dither=True, allowed=None, saturation=SATURATION):
     """Returns a list of 4-bit palette indices, row-major. `allowed` limits
     quantization to a subset of PALETTE (list of PALETTE indices)."""
     im = Image.open(path).convert("RGBA").resize((size, size), Image.LANCZOS)
     alpha = im.getchannel("A")
     rgb = Image.new("RGB", im.size, (255, 255, 255))
     rgb.paste(im, mask=alpha)
-    rgb = ImageEnhance.Color(rgb).enhance(SATURATION)
+    rgb = ImageEnhance.Color(rgb).enhance(saturation)
     subset = allowed if allowed is not None else list(range(len(PALETTE)))
     pal_img = Image.new("P", (1, 1))
     flat = sum([list(PALETTE[i]) for i in subset], [])
@@ -186,17 +194,21 @@ def main():
         for name in ICONS:
             path = os.path.join(icon_dir, name + ".png")
             for size in SIZES:
-                data = pack(quantize(path, size))
+                data = pack(quantize(path, size,
+                                     saturation=CONDITION_SATURATION))
                 total += len(data)
                 emit(f, "ci_%s_%d" % (name, size), data)
                 print("%s @ %dpx: %d bytes" % (name, size, len(data)))
         for name in WIDGET_ICONS:
             path = os.path.join(icon_dir, name + ".png")
             moon = name in MOON_ICONS
+            sat = (CONDITION_SATURATION if name in SOFT_WIDGET_ICONS
+                   else SATURATION)
             # 48px for the 5-row widget layout, 40px for the 6-row one
             for wsize in (48, 40):
                 data = pack(quantize(path, wsize, dither=not moon,
-                                     allowed=MOON_PALETTE if moon else None))
+                                     allowed=MOON_PALETTE if moon else None,
+                                     saturation=sat))
                 total += len(data)
                 emit(f, "ci_w_%s_%d" % (name, wsize), data)
                 print("%s @ %dpx: %d bytes" % (name, wsize, len(data)))

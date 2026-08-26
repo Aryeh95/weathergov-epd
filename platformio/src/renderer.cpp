@@ -73,12 +73,12 @@
 #endif
 
 #ifdef DISP_7C_E6
-  GxEPD2_7C<GxEPD2_730c_GDEP073E01,
-            GxEPD2_730c_GDEP073E01::HEIGHT / 4> display(
-    GxEPD2_730c_GDEP073E01(PIN_EPD_CS,
-                           PIN_EPD_DC,
-                           PIN_EPD_RST,
-                           PIN_EPD_BUSY));
+  GxEPD2_7C<GxEPD2_730c_GDEP073E01_Patient,
+            GxEPD2_730c_GDEP073E01_Patient::HEIGHT / 4> display(
+    GxEPD2_730c_GDEP073E01_Patient(PIN_EPD_CS,
+                                   PIN_EPD_DC,
+                                   PIN_EPD_RST,
+                                   PIN_EPD_BUSY));
 #endif
 #ifndef ACCENT_COLOR
   #define ACCENT_COLOR GxEPD_BLACK
