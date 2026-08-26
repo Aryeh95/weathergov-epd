@@ -42,16 +42,17 @@ WIDGET_ICONS = ["sunrise", "sunset", "wind", "humidity", "pressure",
                 "dewpoint", "intemp", "inhumidity",
                 "newmoon", "waxingcrescent", "firstquarter", "waxinggibbous",
                 "fullmoon", "waninggibbous", "lastquarter", "waningcrescent"]
-CUSTOM_ICONS = ["dewpoint", "intemp", "inhumidity"]
-# Flat two-tone icons (yellow moon / dark gray shadow) quantize cleanly to
-# solid inks; dithering them just turns the shadow side into speckle noise,
-# and the gray shadow sits nearer to green ink than to black in RGB space,
-# so they also use a restricted palette without green/blue.
+CUSTOM_ICONS = ["dewpoint", "intemp", "inhumidity",
+                "newmoon", "waxingcrescent", "firstquarter", "waxinggibbous",
+                "fullmoon", "waninggibbous", "lastquarter", "waningcrescent"]
+# Moon phase icons are drawn by this script (draw_moons): a grayscale moon
+# -- light lit side with subtle craters, dark shadow side, per-phase
+# terminator -- quantized against black/white only, so the grays become
+# clean B/W dither on the panel (the same treatment that makes the clouds
+# read gray). Real-panel iterations ruled out InkyPi's yellow moon and a
+# plain white-with-outline disk.
 MOON_ICONS = {"newmoon", "waxingcrescent", "firstquarter", "waxinggibbous",
               "fullmoon", "waninggibbous", "lastquarter", "waningcrescent"}
-# The moon renders in black/white only -- the real moon is not yellow
-# (real-panel feedback), and a white moon with a traced black outline reads
-# like the line art but solid. See moon_outline().
 MOON_PALETTE = [0, 1]  # black, white
 # Widget icons whose pale blues read too blue on real ink at the full boost
 # (like the condition icons' clouds); they get CONDITION_SATURATION instead.
@@ -121,6 +122,51 @@ def draw_custom_icons(icon_dir):
             _droplet(d, 256, 330, 100, WHITE)
             _droplet(d, 256, 330, 74, BLUE)
         im.save(os.path.join(icon_dir, name + ".png"))
+
+
+def draw_moons(icon_dir):
+    """Draws the 8 grayscale moon-phase icons. Phase geometry: the
+    terminator is the ellipse x = cos(theta)*sqrt(r^2-y^2) for phase angle
+    theta; waxing phases are lit from the right, waning from the left."""
+    import math
+    S, R = 512, 220
+    CX = CY = 256
+    LIT, SHADOW, EDGE = 208, 58, 40
+    CRATERS = [(-70, -60, 46), (60, 30, 34), (-20, 90, 28), (95, -95, 24),
+               (-115, 55, 20)]
+    names = ["newmoon", "waxingcrescent", "firstquarter", "waxinggibbous",
+             "fullmoon", "waninggibbous", "lastquarter", "waningcrescent"]
+    for pidx, name in enumerate(names):
+        theta = math.pi * 2 * pidx / 8  # 0 = new, pi = full
+        im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+        px = im.load()
+        for y in range(S):
+            for x in range(S):
+                dx, dy = x - CX, y - CY
+                d2 = dx * dx + dy * dy
+                if d2 > R * R:
+                    continue
+                half = math.sqrt(R * R - dy * dy)
+                xt = math.cos(theta) * half
+                if pidx == 0:
+                    lit = False
+                elif pidx == 4:
+                    lit = True
+                elif pidx < 4:  # waxing, lit from the right
+                    lit = dx >= xt
+                else:           # waning, lit from the left
+                    lit = dx <= -xt
+                g = LIT if lit else SHADOW
+                if lit:
+                    for cx2, cy2, cr in CRATERS:
+                        if (dx - cx2) ** 2 + (dy - cy2) ** 2 <= cr * cr:
+                            g = LIT - 40
+                            break
+                if d2 > (R - 7) * (R - 7):
+                    g = EDGE  # outline ring keeps the shape on white
+                px[x, y] = (g, g, g, 255)
+        im.save(os.path.join(icon_dir, name + ".png"))
+    draw_moons(icon_dir)
 
 
 def condition_recolor(rgb):
@@ -320,12 +366,9 @@ def main():
             sat = None if name in SOFT_WIDGET_ICONS else SATURATION
             # 48px for the 5-row widget layout, 40px for the 6-row one
             for wsize in (48, 40):
-                idx = quantize(path, wsize, dither=not moon,
-                               allowed=MOON_PALETTE if moon else None,
-                               saturation=sat)
-                if moon:
-                    idx = moon_outline(idx, wsize)
-                data = pack(idx)
+                data = pack(quantize(path, wsize, dither=True,
+                                     allowed=MOON_PALETTE if moon else None,
+                                     saturation=sat))
                 total += len(data)
                 emit(f, "ci_w_%s_%d" % (name, wsize), data)
                 print("%s @ %dpx: %d bytes" % (name, wsize, len(data)))
