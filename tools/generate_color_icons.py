@@ -166,7 +166,6 @@ def draw_moons(icon_dir):
                     g = EDGE  # outline ring keeps the shape on white
                 px[x, y] = (g, g, g, 255)
         im.save(os.path.join(icon_dir, name + ".png"))
-    draw_moons(icon_dir)
 
 
 def condition_recolor(rgb):
@@ -330,6 +329,7 @@ def main():
         os.path.dirname(__file__), "inkypi_icons")
     fetch_icons(icon_dir)
     draw_custom_icons(icon_dir)
+    draw_moons(icon_dir)
     total = 0
     with open(OUT_PATH, "w", newline="\n") as f:
         f.write(
