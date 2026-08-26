@@ -70,8 +70,42 @@ wl_status_t startWiFi(int &wifiRSSI)
   WiFi.mode(WIFI_STA);
   wifiDisconnectReason = 0;
   WiFi.onEvent(onWiFiStaDisconnected, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+
+  // On networks with several access points sharing one SSID (mesh systems),
+  // the ESP32 associates with whichever AP answers first -- which can be a
+  // distant, weak one, producing a link that "connects" but drops UDP (NTP)
+  // and stalls TCP. Scan first and lock onto the strongest AP; the ~2s scan
+  // is cheap insurance. If the scan finds nothing (hidden SSID, or the AP
+  // was momentarily quiet), fall back to the plain connect.
+  int32_t bestChannel = 0;
+  uint8_t bestBssid[6];
+  int bestRSSI = -1000;
+  bool haveBssid = false;
+  int found = WiFi.scanNetworks();
+  for (int i = 0; i < found; ++i)
+  {
+    if (WiFi.SSID(i) == WIFI_SSID && WiFi.RSSI(i) > bestRSSI)
+    {
+      bestRSSI = WiFi.RSSI(i);
+      bestChannel = WiFi.channel(i);
+      memcpy(bestBssid, WiFi.BSSID(i), 6);
+      haveBssid = true;
+    }
+  }
+  WiFi.scanDelete();
+
   Serial.printf("%s '%s'", TXT_CONNECTING_TO, WIFI_SSID);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  if (haveBssid)
+  {
+    Serial.printf(" [strongest AP %02X:%02X:%02X:%02X:%02X:%02X, %ddBm, ch%ld]",
+                  bestBssid[0], bestBssid[1], bestBssid[2], bestBssid[3],
+                  bestBssid[4], bestBssid[5], bestRSSI, bestChannel);
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD, bestChannel, bestBssid);
+  }
+  else
+  {
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  }
 
   // timeout if WiFi does not connect in WIFI_TIMEOUT ms from now
   unsigned long timeout = millis() + WIFI_TIMEOUT;
