@@ -500,6 +500,9 @@ void setup()
     current.sunset = 0;
     Serial.println("Sun does not rise/set today at this latitude.");
   }
+  // Icon day/night selection uses the computed sun times (see isDaytimeAt in
+  // display_utils.cpp); NWS's own flag flips at fixed 6am/6pm instead.
+  setSunTimes(current.sunrise, current.sunset);
 
   killWiFi(); // WiFi no longer needed
 

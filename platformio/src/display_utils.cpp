@@ -450,6 +450,36 @@ const uint8_t *getWiFiBitmap16(int rssi)
 
 /* Returns true if icon is a daytime icon, false otherwise.
  */
+// Sun times for day/night icon selection, set once per wake from the
+// locally computed sunrise/sunset (setSunTimes in main.cpp). NWS's own
+// day/night icon flag flips at fixed 6am/6pm, so near sunset it disagrees
+// with the sky by up to ~1.5h (observed: a night icon an hour before
+// sunset); when sun times are known they take precedence, with the NWS
+// flag as fallback.
+static int64_t sunriseTime = 0;
+static int64_t sunsetTime = 0;
+
+void setSunTimes(int64_t sunrise, int64_t sunset)
+{
+  sunriseTime = sunrise;
+  sunsetTime = sunset;
+}
+
+/* Whether timestamp t falls in daylight, judged by the stored sun times
+ * (folded to the nearest day, so tomorrow's forecast hours work too).
+ * Falls back to the given NWS-derived flag when sun times are unknown.
+ */
+static bool isDaytimeAt(int64_t t, bool fallback)
+{
+  if (sunriseTime <= 0 || sunsetTime <= sunriseTime)
+  {
+    return fallback;
+  }
+  const int64_t day = 86400;
+  int64_t sinceSunrise = ((t - sunriseTime) % day + day) % day;
+  return sinceSunrise < (sunsetTime - sunriseTime);
+}
+
 bool isDay(String icon)
 {
   // OpenWeatherMap indicates sun is up with d otherwise n for night
@@ -643,7 +673,7 @@ const uint8_t *getHourlyForecastBitmap32(const owm_hourly_t &hourly,
                                          const owm_daily_t  &today)
 {
   const int id = hourly.weather.id;
-  const bool day = isDay(hourly.weather.icon);
+  const bool day = isDaytimeAt(hourly.dt, isDay(hourly.weather.icon));
   const bool moon = false;
   const bool cloudy = isCloudy(hourly.clouds);
   const bool windy = isWindy(hourly.wind_speed, hourly.wind_gust);
@@ -683,7 +713,7 @@ const uint8_t *getCurrentConditionsBitmap196(const owm_current_t &current,
                                              const owm_daily_t   &today)
 {
   const int id = current.weather.id;
-  const bool day = isDay(current.weather.icon);
+  const bool day = isDaytimeAt(time(nullptr), isDay(current.weather.icon));
   const bool moon = false;
   const bool cloudy = isCloudy(current.clouds);
   const bool windy = isWindy(current.wind_speed, current.wind_gust);
@@ -730,7 +760,9 @@ uint16_t getConditionsColor(int id, bool day, bool moon, bool cloudy,
  */
 uint16_t getHourlyForecastColor32(const owm_hourly_t &hourly)
 {
-  return getConditionsColor(hourly.weather.id, isDay(hourly.weather.icon),
+  return getConditionsColor(hourly.weather.id,
+                            isDaytimeAt(hourly.dt,
+                                        isDay(hourly.weather.icon)),
                             false, isCloudy(hourly.clouds),
                             isWindy(hourly.wind_speed, hourly.wind_gust));
 }
@@ -744,7 +776,9 @@ uint16_t getDailyForecastColor64(const owm_daily_t &daily)
 
 uint16_t getCurrentConditionsColor196(const owm_current_t &current)
 {
-  return getConditionsColor(current.weather.id, isDay(current.weather.icon),
+  return getConditionsColor(current.weather.id,
+                            isDaytimeAt(time(nullptr),
+                                        isDay(current.weather.icon)),
                             false, isCloudy(current.clouds),
                             isWindy(current.wind_speed, current.wind_gust));
 }
@@ -812,7 +846,9 @@ static const uint8_t *getColorConditionsIcon(int id, bool day, int size)
 const uint8_t *getColorIcon168(const owm_current_t &current)
 {
   return getColorConditionsIcon(current.weather.id,
-                                isDay(current.weather.icon), 168);
+                                isDaytimeAt(time(nullptr),
+                                            isDay(current.weather.icon)),
+                                168);
 }
 
 const uint8_t *getColorIconDaily(const owm_daily_t &daily, int size)
@@ -823,7 +859,9 @@ const uint8_t *getColorIconDaily(const owm_daily_t &daily, int size)
 const uint8_t *getColorIcon32(const owm_hourly_t &hourly)
 {
   return getColorConditionsIcon(hourly.weather.id,
-                                isDay(hourly.weather.icon), 32);
+                                isDaytimeAt(hourly.dt,
+                                            isDay(hourly.weather.icon)),
+                                32);
 }
 /* Returns the full-color widget icon with the given name at the given size
  * (48 for the 5-row widget layout, 40 for the 6-row one), or NULL if the

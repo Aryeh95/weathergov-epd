@@ -174,7 +174,7 @@ def draw_moons(icon_dir):
         im.save(os.path.join(icon_dir, name + ".png"))
 
 
-def condition_recolor(rgb):
+def condition_recolor(rgb, night=False):
     """Per-pixel recolor for condition icons, tuned on the real panel.
     The InkyPi raindrops share their exact blue with the clouds' shading,
     so color alone cannot separate them -- geometry can: drops, snowflakes
@@ -192,9 +192,16 @@ def condition_recolor(rgb):
             hh, ss, vv = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
             if 170 <= hh * 360 <= 260 and ss >= 0.08:
                 blue[y][x] = True
-            elif ss >= 0.08:  # warm detail: boost saturation
-                r2, g2, b2 = colorsys.hsv_to_rgb(hh, min(1.0, ss * 1.8), vv)
-                px[x, y] = (int(r2 * 255), int(g2 * 255), int(b2 * 255))
+            elif ss >= 0.08:  # warm detail (sun, moon, lightning)
+                if night:
+                    # the moon is not yellow: night icons render their moon
+                    # as a denser gray than the clouds, so it stays distinct
+                    lum = int(255 * vv * 0.72)
+                    px[x, y] = (lum, lum, lum)
+                else:
+                    r2, g2, b2 = colorsys.hsv_to_rgb(hh, min(1.0, ss * 1.8),
+                                                     vv)
+                    px[x, y] = (int(r2 * 255), int(g2 * 255), int(b2 * 255))
     # label 4-connected blue components with BFS
     seen = [[False] * w for _ in range(h)]
     small_cutoff = (w * h) // 60  # blobs under ~1.7% of the icon are "drops"
@@ -260,7 +267,8 @@ def quantize_condition(path, size):
     alpha = im.getchannel("A")
     rgb = Image.new("RGB", im.size, (255, 255, 255))
     rgb.paste(im, mask=alpha)
-    rgb = condition_recolor(rgb)
+    night = os.path.basename(path).split(".")[0].endswith("n")
+    rgb = condition_recolor(rgb, night)
     # neutral mask: pixels the recolor left gray
     px = rgb.load()
     neutral = [[px[x, y][0] == px[x, y][1] == px[x, y][2]
