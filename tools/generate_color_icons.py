@@ -28,7 +28,7 @@ import urllib.request
 
 from PIL import Image, ImageDraw, ImageEnhance
 
-ICONS = ["01d", "01n", "02d", "02n", "03d", "04d",
+ICONS = ["01d", "01n", "02d", "02n", "022d", "022n", "03d", "04d",
          "09d", "10d", "10n", "11d", "13d", "50d"]
 # 168 (not the full 196 slot): the InkyPi artwork fills its canvas
 # edge-to-edge, unlike the padded line art, so the current-conditions icon is
@@ -298,7 +298,7 @@ def main():
                 emit(f, "ci_w_%s_%d" % (name, wsize), data)
                 print("%s @ %dpx: %d bytes" % (name, wsize, len(data)))
         f.write("typedef struct {\n"
-                "  const char code[4];\n"
+                "  const char code[8];\n"
                 "  const uint8_t *px168;\n"
                 "  const uint8_t *px64;\n"
                 "  const uint8_t *px48;\n"

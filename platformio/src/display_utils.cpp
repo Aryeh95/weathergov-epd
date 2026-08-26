@@ -758,6 +758,10 @@ uint16_t getCurrentConditionsColor196(const owm_current_t &current)
  */
 static const uint8_t *getColorConditionsIcon(int id, bool day, int size)
 {
+  // NWS reports partly/mostly cloudy days where the sun is still the story;
+  // mirror the line art's choices: few clouds -> sun with small clouds
+  // ("022"), scattered/broken -> cloud with sun behind ("02"), overcast ->
+  // bare cloud ("04").
   const char *base;
   if      (id >= 200 && id < 300) {base = "11";}
   else if (id >= 300 && id < 500) {base = "09";}
@@ -767,25 +771,25 @@ static const uint8_t *getColorConditionsIcon(int id, bool day, int size)
   else if (id >= 600 && id < 700) {base = "13";}
   else if (id >= 700 && id < 800) {base = "50";}
   else if (id == 800)             {base = "01";}
-  else if (id == 801)             {base = "02";}
-  else if (id == 802)             {base = "03";}
-  else if (id > 802 && id < 900)  {base = "04";}
+  else if (id == 801)             {base = "022";}
+  else if (id == 802 || id == 803) {base = "02";}
+  else if (id > 803 && id < 900)  {base = "04";}
   else                            {return NULL;}
 
+  char want[8];
+  snprintf(want, sizeof(want), "%s%c", base, day ? 'd' : 'n');
+  char wantDay[8];
+  snprintf(wantDay, sizeof(wantDay), "%sd", base);
   const color_icon_t *fallback = NULL;
   for (size_t i = 0; i < sizeof(COLOR_ICONS) / sizeof(COLOR_ICONS[0]); ++i)
   {
     const color_icon_t &ci = COLOR_ICONS[i];
-    if (ci.code[0] != base[0] || ci.code[1] != base[1])
-    {
-      continue;
-    }
-    if (ci.code[2] == (day ? 'd' : 'n'))
+    if (strcmp(ci.code, want) == 0)
     {
       fallback = &ci;
       break;
     }
-    if (ci.code[2] == 'd')
+    if (strcmp(ci.code, wantDay) == 0)
     {
       fallback = &ci; // day icon stands in when no night variant exists
     }
