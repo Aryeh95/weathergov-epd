@@ -3,19 +3,19 @@
 > [!NOTE]
 > **This fork replaces OpenWeatherMap with the free, keyless [weather.gov (NWS) API](https://www.weather.gov/documentation/services-web-api).** US locations only. Major differences from upstream:
 >
-> - **weather.gov (NWS)** provides current conditions (from the nearest NWS observation station), hourly/daily forecasts, and weather alerts. No API key or account required. NWS asks that you set a contact email in the User-Agent — see `nws_user_agent` in `platformio/data/config.json`.
-> - **[Open-Meteo](https://open-meteo.com/)** (also free/keyless) fills in what NWS doesn't provide: UV index and air-pollutant concentrations for the AQI widget.
-> - **Optional [AirNow](https://www.airnow.gov/) integration**: set a free API key ([register here](https://docs.airnowapi.org/)) as `airnow_api_key` in `platformio/data/config.json` and the Air Quality widget shows the EPA's official US AQI from certified monitoring stations instead of the Open-Meteo-derived value. Without a key (or if no monitor is within 50 miles) it falls back to Open-Meteo automatically.
-> - **Sunrise/sunset are computed on-device** (NOAA solar algorithm in `platformio/src/sun.cpp`) — no API needed. Moonrise/moonset/moon-phase widgets were removed (no data source).
-> - **Runtime configuration via `platformio/data/config.json`** (LittleFS): WiFi credentials, location, timezone, sleep schedule, battery thresholds, and widget layout can all be changed with `pio run --target uploadfs` — no recompile. The file supports `//` comments documenting every option.
+> - **No API keys or accounts required.** [weather.gov (NWS)](https://www.weather.gov/documentation/services-web-api) provides current conditions (from the nearest NWS observation station), hourly/daily forecasts, and weather alerts. [Open-Meteo](https://open-meteo.com/) (also free/keyless) fills in UV index and air-pollutant concentrations. Optionally, a free [AirNow](https://docs.airnowapi.org/) API key upgrades the Air Quality widget to the EPA's official US AQI from certified monitoring stations, with automatic fallback to Open-Meteo.
+> - **Phone-based setup, no code editing.** A fresh device boots into a WiFi hotspot with a captive setup page — see [First-Time Setup](#first-time-setup-hotspot). Every runtime setting lives in [`platformio/data/config.json`](platformio/data/config.json) and can be changed from the [configuration web portal](#the-configuration-web-portal) afterwards, including **over-the-air firmware updates** — the only time a device needs a USB cable is its very first flash.
+> - **Full-color weather icons on 7-color panels** (ACeP and Spectra 6): condition and widget icons derived from the [InkyPi](https://github.com/fatihak/InkyPi) icon set, quantized to the panels' native inks (gray dithered clouds, blue rain, yellow suns), plus a semantic color palette — red highs/blue lows, color-coded UV and AQI values. Black/white and 3-color panels keep the original line art.
+> - **More widgets, flexible layout**: a moon phase widget (computed on-device, dithered grayscale icons on every panel type), 5–7 day forecast row, and a 5- or 6-row widget grid (10 or 12 slots) — all selectable at runtime.
+> - **Sunrise/sunset are computed on-device** (NOAA solar algorithm in `platformio/src/sun.cpp`), and day/night icon selection follows those real sun times instead of NWS's fixed 6am/6pm icon boundary.
+> - **Robust WiFi**: connects to the strongest access point on multi-AP (mesh) networks, the error screen explains *why* a connection failed (wrong password, network not found, no response...), and the device retries every 15 minutes (configurable) instead of requiring a manual reset.
+> - **Supported boards**: the FireBeetle 2 ESP32-E wiring from upstream, plus native support for the [Seeed reTerminal E1002](https://www.seeedstudio.com/reTerminal-E1002-p-6533.html) — an all-in-one ESP32-S3 device with a built-in 7.3" Spectra 6 panel, battery, and buttons (`pio run -e seeed_reterminal_e1002`; its middle button opens the portal, the green button forces a refresh).
 > - **Precipitation displays as probability (PoP %)** — NWS's simple forecast endpoints don't provide volume amounts.
-> - **Better WiFi failure handling**: the error screen explains *why* the connection failed (wrong password, network not found, no response...), and the device retries every 15 minutes (configurable) instead of requiring a manual reset, so it recovers on its own when its network comes back into range.
-> - **Configuration web portal**: a fresh/unconfigured device automatically starts a WPA2 hotspot (`WeatherEPD-Setup`, password `weatherepd`) with a captive setup page — configure WiFi and everything else from your phone, no computer needed. On a configured device, press RST twice while it's awake to open the same page on your WiFi (address shown on the display, also `http://weatherepd.local/`) for 10 minutes. All `config.json` settings are editable, with an advanced raw-JSON mode; saves are validated on-device and keep a one-generation backup (`config.bak`). Note the portal serves plain HTTP on your LAN while active.
-> - HTTPS is required (both APIs are HTTPS-only); `cert.h` pins the ISRG Root X1 CA covering both hosts, valid until 2035.
+> - HTTPS is required (all APIs are HTTPS-only); `cert.h` pins the root CAs for every host, valid until 2035.
 >
-> The OpenWeatherMap setup instructions in the original README below no longer apply to this fork — everything else (hardware, wiring, assembly) is unchanged.
+> The [Setup Guide](#setup-guide) below has been rewritten for this fork; hardware, wiring, and assembly are unchanged from upstream.
 
-A low-power weather display using a wifi-enabled ESP32 microcontroller and a 7.5" E-Paper display. Weather data is fetched from the OpenWeatherMap API, and an onboard sensor provides indoor temperature and humidity.
+A low-power weather display using a wifi-enabled ESP32 microcontroller and a 7.5" E-Paper display. Weather data is fetched from the weather.gov (NWS) API, and an onboard sensor provides indoor temperature and humidity.
 
 <p float="left">
   <img src="showcase/assembled-demo-raleigh-front.jpg" />
@@ -27,15 +27,15 @@ A low-power weather display using a wifi-enabled ESP32 microcontroller and a 7.5
 
 ## Features
 
-- Ultra-low power consumption: ~14μA in sleep, ~83mA during refresh (~15s).
+- Ultra-low power consumption: ~14μA in sleep, ~83mA during refresh (~1.5s on the B/W panel; color panels take longer).
 
 - Long battery life: 6-12 months on a 5000mAh battery with 30-minute update frequency.
 
-- Customizable display: Supports multiple languages, units, time/date formats, AQI scales, personalization options, and much more.
+- Customizable display: multiple languages, units, time/date formats, AQI scales, 5-7 day forecast, 10 or 12 widget slots, and much more — most of it reconfigurable from your phone.
 
 - Easy recharging: USB-C charging with battery monitoring.
 
-The hourly outlook graph (bottom right) shows a line indicating temperature and shaded bars indicating probability of precipitation (or optionally volume of precipitation).
+The hourly outlook graph (bottom right) shows a line indicating temperature and shaded bars indicating probability of precipitation.
 
 Here are two (slightly outdated) examples utilizing various configuration options:
 
@@ -52,8 +52,11 @@ Here are two (slightly outdated) examples utilizing various configuration option
   - [Solder-Free Component Selection](#solder-free-component-selection-optional)
 - [Setup Guide](#setup-guide)
   - [Wiring](#wiring)
-  - [Configuration, Compilation, and Upload](#configuration-compilation-and-upload)
-  - [OpenWeatherMap API Key](#openweathermap-api-key)
+  - [Compilation and First Flash](#compilation-and-first-flash)
+  - [First-Time Setup (Hotspot)](#first-time-setup-hotspot)
+  - [The Configuration Web Portal](#the-configuration-web-portal)
+  - [Runtime Configuration: config.json](#runtime-configuration-configjson)
+  - [Over-the-Air Firmware Updates](#over-the-air-firmware-updates)
 - [Error Messages and Troubleshooting](#error-messages-and-troubleshooting)
   - [Low Battery](#low-battery)
   - [WiFi Connection](#wifi-connection)
@@ -71,15 +74,17 @@ Here are two (slightly outdated) examples utilizing various configuration option
   | ESP32           | FireBeetle 2 ESP32-E                         | Features low-power design, USB-C, and battery management. | Available [here](https://www.dfrobot.com/product-2195.html?tracking=PfSxQ8). |
   | E-Paper Display | See [Panel Support](#panel-support).         | See [Panel Support](#panel-support).                      | See [Panel Support](#panel-support).                                         |
   | Adapter Board   | DESPI-C02                                    | Waveshare HATs (rev 2.2/2.3) are not recommended.         | Available [here](https://www.aliexpress.us/item/3256804446769469.html).      |
-  | Sensor          | BME280                                       | Temperature, humidity, and pressure. 3.3V/5V compatible.  | Available from multiple vendors.                                             |
+  | Sensor          | BME280 (optional)                            | Indoor temperature/humidity widgets. 3.3V/5V compatible.  | Available from multiple vendors.                                             |
   | Battery         | 3.7V LiPo w/ JST-PH2.0 connector             | Any capacity (e.g., 5000mAh for 6+ months runtime)        | Available from multiple vendors.                                             |
   | Enclosure       | See [Enclosure Options](#enclosure-options). | See [Enclosure Options](#enclosure-options).              | See [Enclosure Options](#enclosure-options).                                 |
+
+  **All-in-one alternative:** the [Seeed reTerminal E1002](https://www.seeedstudio.com/reTerminal-E1002-p-6533.html) packs an ESP32-S3, a 7.3" Spectra 6 full-color panel, a battery, an enclosure, front buttons, and an SHT4x indoor sensor into one device — no wiring, soldering, or enclosure needed. Build for it with `pio run -e seeed_reterminal_e1002` and everything (panel, sensor, pins, buttons) is selected automatically. Note its full refresh takes ~28s, so battery life is shorter than the B/W FireBeetle build.
 
 Other items needed:
 - Wires ("Jumper Wires" if looking to minimize/avoid soldering).
 - Solder Iron + Solder (unless following [Solder-Free Component Selection](#solder-free-component-selection-optional)).
-- Linux, Windows, or MacOS computer (used to configure and install ESP32 firmware).
-- Push Button (optional, if you want a reset button mounted on your enslosure, else you can use the on-board reset button).
+- Linux, Windows, or MacOS computer (used for the first firmware flash).
+- Push Button (optional, if you want a reset button mounted on your enclosure, else you can use the on-board reset button).
 
 ### Panel Support
 
@@ -91,13 +96,13 @@ Other items needed:
   | Good Display 7.5in e-paper (GDEY075T7)  | 800x480px  | Black/White     | Available [here](https://www.aliexpress.com/item/3256802683908868.html).             |
   | Waveshare 7.5in e-Paper (B)             | 800x480px  | Red/Black/White | Available [here](https://www.waveshare.com/product/7.5inch-e-paper-b.htm).                                            |
   | Good Display 7.5in e-paper (GDEY075Z08) | 800x480px  | Red/Black/White | Available [here](https://www.aliexpress.com/item/3256803540460035.html).                                              |
-  | Waveshare 7.3in ACeP e-Paper (F)        | 800x480px  | 7-Color         | Available [here](https://www.waveshare.com/product/displays/e-paper/epaper-1/7.3inch-e-paper-f.htm).                  |
-  | Good Display 7.3in e-paper (GDEY073D46) | 800x480px  | 7-Color         | Available [here](https://www.aliexpress.com/item/3256805485098421.html).                                              |
-  | Good Display 7.3in e-paper (GDEP073E01) | 800x480px  | 7-Color         | Available [here](https://www.good-display.com/blank7.html?productId=533).                                             |
+  | Waveshare 7.3in ACeP e-Paper (F)        | 800x480px  | 7-Color         | Available [here](https://www.waveshare.com/product/displays/e-paper/epaper-1/7.3inch-e-paper-f.htm). Full-color icons. |
+  | Good Display 7.3in e-paper (GDEY073D46) | 800x480px  | 7-Color         | Available [here](https://www.aliexpress.com/item/3256805485098421.html). Full-color icons.                            |
+  | Good Display 7.3in e-paper (GDEP073E01) | 800x480px  | 7-Color         | Available [here](https://www.good-display.com/blank7.html?productId=533). Spectra 6. Full-color icons. This is also the panel built into the reTerminal E1002. |
   | Waveshare 7.5in e-paper (v1)            | 640x384px  | Black/White     | Limited support. Some information not displayed, see [image](showcase/demo-waveshare75-version1.jpg).                 |
   | Good Display 7.5in e-paper (GDEW075T8)  | 640x384px  | Black/White     | Limited support. Some information not displayed, see [image](showcase/demo-waveshare75-version1.jpg).                 |
 
-  This software has limited support for accent colors. E-paper panels with additional colors tend to have longer refresh times, which will reduce battery life.
+  On the 7-color panels this fork renders full-color condition and widget icons plus a semantic color palette (red highs / blue lows, color-coded UV and AQI); the 3-color panels use a single red accent; B/W panels use line art. Panels with additional colors have much longer refresh times (~12s for 3-color, ~28s for 7-color), which reduces battery life.
 
 ### Enclosure Options
 
@@ -143,7 +148,11 @@ This project can be completed without any soldering, if you choose your componen
 
 ## Setup Guide
 
+The short version: wire it up, flash it once over USB, then join the hotspot it creates and finish setup from your phone. After that, settings changes *and firmware updates* happen over WiFi.
+
 ### Wiring
+
+*(Skip this section entirely for the reTerminal E1002 — everything is built in.)*
 
 The battery can be charged by plugging the FireBeetle ESP32 into the wall via the USB-C connector while the battery is plugged into the ESP32's JST connector.
 
@@ -171,9 +180,9 @@ Cut the low power pad for even longer battery life.
 ![Wiring diagram with DESPI-C02 driver board.](showcase/wiring_diagram_despi-c02.png)
 
 
-### Configuration, Compilation, and Upload
+### Compilation and First Flash
 
-PlatformIO for VSCode is used for managing dependencies, code compilation, and uploading to ESP32.
+PlatformIO for VSCode is used for managing dependencies, code compilation, and uploading to the ESP32. The first flash is the only step that requires a computer and USB cable.
 
 1. Clone this repository or download and extract the .zip.
 
@@ -187,80 +196,101 @@ PlatformIO for VSCode is used for managing dependencies, code compilation, and u
 
    b. Navigate to this project and select the folder called "platformio".
 
-5. Configure Options.
+5. Configure hardware options in [config.h](platformio/include/config.h).
 
-   - Most configuration options are located in [config.cpp](platformio/src/config.cpp), with a few  in [config.h](platformio/include/config.h).
+   Only *hardware* choices are compiled in; everything else (WiFi, location, schedule, layout) is configured later from your phone. In config.h, select exactly one of each:
 
-   - Important settings to configure in config.cpp:
+   - **E-Paper panel** (`DISP_BW_V2`, `DISP_3C_B`, `DISP_7C_F`, `DISP_7C_E6`, or `DISP_BW_V1`).
+   - **Indoor sensor** (`SENSOR_BME280` or `SENSOR_BME680`).
+   - **Units** (temperature, wind speed, pressure, distance) and **locale/language**.
 
-     - WiFi credentials (ssid, password).
+   *(reTerminal E1002 owners skip this step — building with the `seeed_reterminal_e1002` environment selects the panel, sensor, and pins automatically.)*
 
-     - Open Weather Map API key (it's free, see next section for important notes about obtaining an API key).
+6. Build and Upload.
 
-     - Latitude and longitude.
+   a. Connect the ESP32 to your computer via USB.
 
-     - Time and date formats.
+   b. Upload the **firmware**: click the upload arrow along the bottom of the VSCode window ("PlatformIO: Upload"). For the reTerminal E1002, select the `seeed_reterminal_e1002` environment first (or run `pio run -e seeed_reterminal_e1002 -t upload`).
 
-     - Sleep duration.
-
-   - Important settings to configure in config.h:
-
-     - Units (Metric or Imperial).
-
-   - Comments explain each option in detail.
-
-6. Build and Upload Code.
-
-   a. Connect ESP32 to your computer via USB.
-
-   b. Click the upload arrow along the bottom of the VSCode window. (Should say "PlatformIO: Upload" if you hover over it.)
-
-      - PlatformIO will automatically download the required third-party libraries, compile, and upload the code. :)
-
-      - You will only see this if you have the PlatformIO extension installed.
+   c. Upload the **filesystem** (the settings file and the portal web page): run "PlatformIO: Upload Filesystem Image" from the task list (or `pio run -t uploadfs`).
 
       - If using a FireBeetle 2 ESP32-E and you receive the error `Wrong boot mode detected (0x13)! The chip needs to be in download mode.` unplug the power from the board, connect GPIO0 ([labeled 0/D5](https://wiki.dfrobot.com/FireBeetle_Board_ESP32_E_SKU_DFR0654#target_5)) to GND, and power it back up to put the board in download mode.
 
       - If you are getting other errors during the upload process, you may need to install drivers to allow you to upload code to the ESP32.
 
-### OpenWeatherMap API Key
+### First-Time Setup (Hotspot)
 
-Sign up here to get an API key; it's free. <https://openweathermap.org/api>
+A freshly flashed device has no WiFi credentials, so on boot it starts its own hotspot and shows the connection details on the e-paper screen:
 
-This project will make calls to 2 different APIs ("One Call" and "Air Pollution").
+1. On your phone, join the WiFi network **`WeatherEPD-Setup`** (password: **`weatherepd`**).
+2. The setup page should pop up automatically (captive portal). If it doesn't, open **http://192.168.4.1/** in a browser.
+3. Fill in the page:
+   - **WiFi** — tap **🔍 Scan** to list nearby networks (strongest first) and tap yours, then enter its password. 2.4 GHz networks only.
+   - **Location** — tap **📍 Detect my location**, or enter latitude/longitude manually (long-press your spot in a maps app to copy coordinates). weather.gov covers US locations only.
+   - **Time zone** and formats — dropdowns with live previews.
+   - Everything else (schedule, forecast days, widget layout, AirNow key) can be set now or changed later.
+4. Tap **Save & Restart**. The device joins your WiFi and shows the weather within a minute or two.
 
-- The One Call API 3.0 is only included in the "One Call by Call" subscription. This separate subscription includes 1,000 calls/day for free and allows you to pay only for the number of API calls made to this product.
+### The Configuration Web Portal
 
-Here's how to subscribe and avoid any credit card changes:
-   - Go to <https://home.openweathermap.org/subscriptions/billing_info/onecall_30/base?key=base&service=onecall_30>
-   - Follow the instructions to complete the subscription.
-   - Go to <https://home.openweathermap.org/subscriptions> and set the "Calls per day (no more than)" to 1,000. This ensures you will never overrun the free calls.
+The same page used for first-time setup remains available after the device is configured:
+
+- **Enter it** by pressing the RST button **twice, a few seconds apart** (on the reTerminal E1002, just press the **middle front button** once while it sleeps). The display shows where to reach it — `http://weatherepd.local/` or the device's IP — for the next 10 minutes (configurable).
+- **Every setting** in `config.json` is editable: WiFi (with network scan), location (with phone-GPS detection), time zone and clock/date formats (dropdowns with live examples), refresh schedule and bedtime hours, forecast days (5–7), widget rows (5 = 10 slots, 6 = 12 slots — enough for every widget at once), and a per-slot widget picker that mirrors the physical layout.
+- An **advanced raw-JSON editor** exposes the settings not in the form (battery thresholds, NTP servers, portal options). Saves are validated on-device and keep a one-generation backup (`config.bak`).
+- The portal serves plain HTTP on your LAN while active.
+
+On the reTerminal E1002 the **green (right) front button** also wakes the device for an immediate weather refresh.
+
+### Runtime Configuration: config.json
+
+All non-hardware settings live in [`platformio/data/config.json`](platformio/data/config.json) on the device's flash filesystem, with `//` comments documenting every option: WiFi, location, timezone and formats, sleep schedule and bedtime, WiFi retry interval, battery thresholds, API options, forecast days, widget rows, and widget positions.
+
+Three ways to change it, in order of convenience:
+
+1. **The web portal** (above) — from any phone or computer on your network.
+2. **Edit the file and run `pio run -t uploadfs`** — useful when the device is already on USB.
+3. Delete a key to fall back to the compiled-in default in `config.cpp`.
+
+Notes on specific settings:
+
+- `api.nws_user_agent` — weather.gov requests a contact email in the User-Agent so they can reach you if your device misbehaves. Please set one.
+- `api.airnow_api_key` — optional; a free [AirNow key](https://docs.airnowapi.org/) upgrades the AQI widget to the EPA's official measured US AQI. Leave empty to use Open-Meteo's modeled values.
+- `widget_positions` — there are 12 widgets (sunrise, sunset, humidity, dewpoint, wind, UV, pressure, air quality, visibility, moon phase, indoor temp, indoor humidity) for 10 or 12 slots depending on `widget_rows`. Set a widget to -1 to hide it.
+
+### Over-the-Air Firmware Updates
+
+After the first USB flash, firmware updates can be installed through the portal:
+
+1. Build the new firmware (`pio run`, for your board's environment) and locate `.pio/build/<board>/firmware.bin`.
+2. Open the portal, scroll to **Firmware update** (it shows the currently installed build's timestamp), choose the `.bin`, and tap **Upload & Install**.
+3. The image installs to a spare flash slot and only takes effect once it completes and verifies — a failed or interrupted upload leaves the running firmware untouched. The device restarts on the new firmware.
+
+Make sure to upload the firmware built for **that device's** panel/board. Changes to the portal page itself or to `config.json` defaults still require a USB `uploadfs` (updating the filesystem over USB erases the on-device `config.json`, so re-enter settings via the portal afterward — or copy them into `data/config.json` first).
 
 ## Error Messages and Troubleshooting
 
 ### Low Battery
 <img src="showcase/demo-error-low-battery.jpg" align="left" width="25%" />
-This error screen appears once the battery voltage has fallen below LOW_BATTERY_VOLTAGE (default = 3.20v). The display will not refresh again until it detects battery voltage above LOW_BATTERY_VOLTAGE. When battery voltage is between LOW_BATTERY_VOLTAGE and VERY_LOW_BATTERY_VOLTAGE (default = 3.10v) the esp32 will deep-sleep for periods of LOW_BATTERY_SLEEP_INTERVAL (default = 30min) before checking battery voltage again. If the battery voltage falls between LOW_BATTERY_SLEEP_INTERVAL and CRIT_LOW_BATTERY_VOLTAGE (default = 3.00v), then the display will deep-sleep for periods VERY_LOW_BATTERY_SLEEP_INTERVAL (default = 120min). If battery voltage falls below CRIT_LOW_BATTERY_VOLTAGE, then the esp32 will enter hibernate mode and will require a manual push of the reset (RST) button to begin updating again.
+This error screen appears once the battery voltage has fallen below <code>low_voltage_mv</code> (default = 3.462v, ~10%). The display will not refresh again until the battery is charged. While between <code>low_voltage_mv</code> and <code>very_low_voltage_mv</code> (default = 3.442v) the esp32 deep-sleeps for <code>low_sleep_interval_minutes</code> (default = 30min) between voltage checks; below that, for <code>very_low_sleep_interval_minutes</code> (default = 120min). If the voltage falls below <code>crit_low_voltage_mv</code> (default = 3.404v), the esp32 hibernates and requires a manual press of the reset (RST) button once charged. All thresholds are configurable in the portal's raw-JSON editor.
 
 <br clear="left"/>
 
 ### WiFi Connection
 <img src="showcase/demo-error-wifi.jpg" align="left" width="25%" />
-This error screen appears when the ESP32 fails to connect to WiFi. If the message reads "WiFi Connection Failed" this might indicate an incorrect password. If the message reads "SSID Not Available" this might indicate that you mistyped the SSID or that the esp32 is out of the range of the access point. The esp32 will retry once every SLEEP_DURATION (default = 30min).
+This error screen appears when the ESP32 fails to connect to WiFi, with a second line explaining the likely cause: authentication failure (wrong password), network not found (mistyped SSID or out of range), no response from the access point, and so on. The device automatically retries every <code>wifi_retry_interval_minutes</code> (default = 15min) and recovers on its own once the network is reachable — no reset needed. To save battery, the error screen is only drawn once per outage. On mesh networks the device connects to the strongest access point broadcasting your SSID (logged over serial with its MAC and signal strength).
 
 <br clear="left"/>
 
 ### API Error
 <img src="showcase/demo-error-api.jpg" align="left" width="25%" />
-This error screen appears if an error (client or server) occurs when making an API request to OpenWeatherMap. The second line will give the error code followed by a descriptor phrase. Positive error codes correspond to HTTP response status codes, while error codes <= 0 indicate a client(esp32) error. The esp32 will retry once every SLEEP_DURATION (default = 30min).
-<br/><br/>
-In the example shown to the left, "401: Unauthorized" may be the result of an incorrect API key or that you are attempting to use the One Call v3 API without the proper account setup.
+This error screen appears if an error (client or server) occurs when making an API request to weather.gov or Open-Meteo. The second line gives the error code followed by a descriptor phrase. Positive error codes correspond to HTTP response status codes, while error codes <= 0 indicate a client (esp32) error. The esp32 will retry at the next scheduled refresh (default = every 15min). AirNow errors never show here — the AQI widget silently falls back to Open-Meteo (a note appears in the serial log).
 
 <br clear="left"/>
 
 ### Time Server Error
 <img src="showcase/demo-error-time.jpg" align="left" width="25%" />
-This error screen appears when the esp32 fails to fetch the time from NTP_SERVER_1/NTP_SERVER_2. This error sometimes occurs immediately after uploading to the esp32; in this case, just hit the reset button or wait for SLEEP_DURATION (default = 30min) and the esp32 to automatically retry. If the error persists, try selecting closer/lower latency time servers or increasing NTP_TIMEOUT.
+This error screen appears when the esp32 fails to fetch the time from <code>ntp_server_1</code>/<code>ntp_server_2</code>. This error sometimes occurs immediately after uploading to the esp32; in this case, just hit the reset button or wait for the automatic retry (every <code>wifi_retry_interval_minutes</code>, default = 15min). If the error persists, try selecting closer/lower latency time servers or increasing <code>ntp_timeout_ms</code> in the portal's raw-JSON editor.
 
 <br clear="left"/>
 
@@ -272,6 +302,7 @@ esp32-weather-epd is licensed under the [GNU General Public License v3.0](LICENS
 |---------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|
 | [Adafruit-GFX-Library: fontconvert](https://github.com/adafruit/Adafruit-GFX-Library/tree/master/fontconvert) | [BSD License](fonts/fontconvert/license.txt) | CLI tool for preprocessing fonts to be used with the Adafruit_GFX Arduino library. |
 | [pollutant-concentration-to-aqi](https://github.com/lmarzen/pollutant-concentration-to-aqi) | [GNU Lesser General Public License v2.1](platformio/lib/pollutant-concentration-to-aqi/LICENSE) | C library that converts pollutant concentrations to Air Quality Index(AQI). |
+| [InkyPi weather icons](https://github.com/fatihak/InkyPi) | [GNU General Public License v3.0](https://github.com/fatihak/InkyPi/blob/main/LICENSE) | (tools/inkypi_icons) Full-color weather icon artwork by Faith Akici, quantized for 7-color e-paper panels by tools/generate_color_icons.py. |
 | [GNU FreeFont](https://www.gnu.org/software/freefont/) | [GNU General Public License v3.0](https://www.gnu.org/software/freefont/license.html) | Font Family |
 | [Lato](https://fonts.google.com/specimen/Lato) | [SIL OFL v1.1](http://scripts.sil.org/OFL) | Font Family |
 | [Montserrat](https://fonts.google.com/specimen/Montserrat) | [SIL OFL v1.1](http://scripts.sil.org/OFL) | Font Family |
@@ -291,4 +322,3 @@ esp32-weather-epd is licensed under the [GNU General Public License v3.0](LICENS
 | [Ionizing Radiation Symbol](https://svgsilh.com/image/309911.html) | [CC0 v1.0](https://creativecommons.org/publicdomain/zero/1.0/) | (ionizing_radiation_symbol.svg) Ionizing radiation icons. |
 | [Phosphor Icons](https://github.com/phosphor-icons/homepage) | [MIT License](http://opensource.org/licenses/mit-license.html) | (wifi**.svg, warning_icon.svg, error_icon.svg) WiFi, Warning, and Error icons from Phosphor Icons. |
 | [Wind Direction Icon](https://www.onlinewebfonts.com/icon/251550) | [CC BY v3.0](http://creativecommons.org/licenses/by/3.0) | (meteorological_wind_direction_**deg.svg) Meteorological wind direction icon from Online Web Fonts. |
-
