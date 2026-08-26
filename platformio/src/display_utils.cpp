@@ -758,10 +758,10 @@ uint16_t getCurrentConditionsColor196(const owm_current_t &current)
  */
 static const uint8_t *getColorConditionsIcon(int id, bool day, int size)
 {
-  // NWS reports partly/mostly cloudy days where the sun is still the story;
-  // mirror the line art's choices: few clouds -> sun with small clouds
-  // ("022"), scattered/broken -> cloud with sun behind ("02"), overcast ->
-  // bare cloud ("04").
+  // NWS sky-cover semantics: few = mostly sunny, sct = partly/mostly sunny
+  // -- both sun-forward, so they get the sun-dominant icon ("022", big sun
+  // with small clouds); bkn = mostly cloudy gets the cloud-forward icon
+  // ("02", cloud with sun behind); only ovc is a bare cloud ("04").
   const char *base;
   if      (id >= 200 && id < 300) {base = "11";}
   else if (id >= 300 && id < 500) {base = "09";}
@@ -771,8 +771,8 @@ static const uint8_t *getColorConditionsIcon(int id, bool day, int size)
   else if (id >= 600 && id < 700) {base = "13";}
   else if (id >= 700 && id < 800) {base = "50";}
   else if (id == 800)             {base = "01";}
-  else if (id == 801)             {base = "022";}
-  else if (id == 802 || id == 803) {base = "02";}
+  else if (id == 801 || id == 802) {base = "022";}
+  else if (id == 803)             {base = "02";}
   else if (id > 803 && id < 900)  {base = "04";}
   else                            {return NULL;}
 
