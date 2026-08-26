@@ -131,7 +131,7 @@ static inline int wgtLabelY(int PosY)
 }
 static inline int wgtValueY(int PosY)
 {
-  return wgtValueY(PosY)
+  return wgtY(PosY) + 17 / 2 + wgtIconSize() / 2
          + ((WIDGET_ROWS > 5) ? 4 : 0);
 }
 
