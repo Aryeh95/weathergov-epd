@@ -282,12 +282,20 @@ void setup()
   // automatically when the device has no WiFi configured (fresh flash).
   // Arming happens after the low-battery check above so a battery-protection
   // wake can neither trigger nor be interrupted into the portal.
+#ifdef BOARD_RETERMINAL_E1002
+  // This board has a dedicated portal button, so the double-reset detector
+  // is unnecessary -- and skipping it means an interrupted wake (a firmware
+  // flash, most commonly) no longer drops the next boot into the portal.
+  bool portalRequested = false;
+  prefs.putBool("drd", false);
+#else
   bool portalRequested = prefs.getBool("drd", false);
   size_t drdWritten = prefs.putBool("drd", true); // armed; disarmed once WiFi connect concludes
 #if DEBUG_LEVEL >= 0
   Serial.printf("[drd] marker was %d, armed (%u bytes written)\n",
                 portalRequested, drdWritten);
 #endif
+#endif // BOARD_RETERMINAL_E1002
   // Wake buttons (see enableButtonWake): the PORTAL button wakes via EXT0,
   // the REFRESH button via EXT1. A refresh-button wake needs no special
   // handling -- proceeding with a normal update IS the response.

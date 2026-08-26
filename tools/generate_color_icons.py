@@ -21,6 +21,7 @@ Usage:  python tools/generate_color_icons.py [icon_dir]
 
 Requires: pip install pillow
 """
+import colorsys
 import os
 import sys
 import urllib.request
@@ -53,11 +54,8 @@ MOON_PALETTE = [0, 1, 2, 3]  # black, white, red, yellow
 # Widget icons whose pale blues read too blue on real ink at the full boost
 # (like the condition icons' clouds); they get CONDITION_SATURATION instead.
 SOFT_WIDGET_ICONS = {"wind"}
-# Saturation boost before quantization. On real ink the boost reads stronger
-# than on screen: at 1.8 the pale blue-gray clouds dither noticeably blue
-# (observed on the E1002), so condition icons use a gentler boost; the
-# widget icons' colors are saturated already and keep the higher value.
-CONDITION_SATURATION = 1.25
+# Saturation boost before quantization for widget icons (their colors are
+# saturated flat fills).
 SATURATION = 1.8
 ALPHA_THRESHOLD = 128
 # Quantization targets; palette indices are these positions + 1
@@ -123,6 +121,56 @@ def draw_custom_icons(icon_dir):
         im.save(os.path.join(icon_dir, name + ".png"))
 
 
+def condition_recolor(rgb):
+    """Per-pixel recolor for condition icons, tuned on the real panel.
+    The InkyPi raindrops share their exact blue with the clouds' shading,
+    so color alone cannot separate them -- geometry can: drops, snowflakes
+    and fog strokes are small disconnected blobs, cloud bodies are large
+    regions. Blue-family pixels are grouped into connected components;
+    small components keep a saturated blue ink, large ones (clouds) turn
+    neutral gray so they dither gray on the panel. Warm colors (sun,
+    lightning) get a saturation boost so the yellows stay strong."""
+    px = rgb.load()
+    w, h = rgb.size
+    blue = [[False] * w for _ in range(h)]
+    for y in range(h):
+        for x in range(w):
+            r, g, b = px[x, y]
+            hh, ss, vv = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
+            if 170 <= hh * 360 <= 260 and ss >= 0.08:
+                blue[y][x] = True
+            elif ss >= 0.08:  # warm detail: boost saturation
+                r2, g2, b2 = colorsys.hsv_to_rgb(hh, min(1.0, ss * 1.8), vv)
+                px[x, y] = (int(r2 * 255), int(g2 * 255), int(b2 * 255))
+    # label 4-connected blue components with BFS
+    seen = [[False] * w for _ in range(h)]
+    small_cutoff = (w * h) // 60  # blobs under ~1.7% of the icon are "drops"
+    for y0 in range(h):
+        for x0 in range(w):
+            if not blue[y0][x0] or seen[y0][x0]:
+                continue
+            comp = [(x0, y0)]
+            seen[y0][x0] = True
+            head = 0
+            while head < len(comp):
+                cx, cy = comp[head]
+                head += 1
+                for nx, ny in ((cx-1,cy),(cx+1,cy),(cx,cy-1),(cx,cy+1)):
+                    if 0 <= nx < w and 0 <= ny < h and blue[ny][nx]                        and not seen[ny][nx]:
+                        seen[ny][nx] = True
+                        comp.append((nx, ny))
+            drop = len(comp) <= small_cutoff
+            for cx, cy in comp:
+                if drop:
+                    px[cx, cy] = (0, 0, 255)
+                else:
+                    r, g, b = px[cx, cy]
+                    _, ss, vv = colorsys.rgb_to_hsv(r/255, g/255, b/255)
+                    lum = int(255 * vv * (1 - 0.35 * ss))
+                    px[cx, cy] = (lum, lum, lum)
+    return rgb
+
+
 def quantize(path, size, dither=True, allowed=None, saturation=SATURATION):
     """Returns a list of 4-bit palette indices, row-major. `allowed` limits
     quantization to a subset of PALETTE (list of PALETTE indices)."""
@@ -130,7 +178,10 @@ def quantize(path, size, dither=True, allowed=None, saturation=SATURATION):
     alpha = im.getchannel("A")
     rgb = Image.new("RGB", im.size, (255, 255, 255))
     rgb.paste(im, mask=alpha)
-    rgb = ImageEnhance.Color(rgb).enhance(saturation)
+    if saturation is None:  # condition icons: classify, don't boost
+        rgb = condition_recolor(rgb)
+    else:
+        rgb = ImageEnhance.Color(rgb).enhance(saturation)
     subset = allowed if allowed is not None else list(range(len(PALETTE)))
     pal_img = Image.new("P", (1, 1))
     flat = sum([list(PALETTE[i]) for i in subset], [])
@@ -143,6 +194,42 @@ def quantize(path, size, dither=True, allowed=None, saturation=SATURATION):
         for x in range(size):
             out.append(subset[qp[x, y]] + 1
                        if ap[x, y] >= ALPHA_THRESHOLD else 0)
+    return out
+
+
+def quantize_condition(path, size):
+    """Condition-icon quantization: recolor (see condition_recolor), then
+    dither the neutral cloud regions against black/white ONLY -- diffusing
+    their error through the full palette speckles the gray with colored
+    inks -- and the colored regions (rain, sun) against the full palette.
+    Returns 4-bit palette indices like quantize()."""
+    im = Image.open(path).convert("RGBA").resize((size, size), Image.LANCZOS)
+    alpha = im.getchannel("A")
+    rgb = Image.new("RGB", im.size, (255, 255, 255))
+    rgb.paste(im, mask=alpha)
+    rgb = condition_recolor(rgb)
+    # neutral mask: pixels the recolor left gray
+    px = rgb.load()
+    neutral = [[px[x, y][0] == px[x, y][1] == px[x, y][2]
+                for x in range(size)] for y in range(size)]
+    # layer A: grayscale 1-bit dither for the neutral regions
+    gray = rgb.convert("L").convert("1")  # PIL defaults to FS dithering
+    ga = gray.load()
+    # layer B: full-palette dither for the colored regions
+    pal_img = Image.new("P", (1, 1))
+    flat = sum([list(c) for c in PALETTE], [])
+    pal_img.putpalette(flat + [0] * (768 - len(flat)))
+    q = rgb.quantize(palette=pal_img, dither=Image.FLOYDSTEINBERG)
+    qp, ap = q.load(), alpha.load()
+    out = []
+    for y in range(size):
+        for x in range(size):
+            if ap[x, y] < ALPHA_THRESHOLD:
+                out.append(0)
+            elif neutral[y][x]:
+                out.append(2 if ga[x, y] else 1)  # white : black
+            else:
+                out.append(qp[x, y] + 1)
     return out
 
 
@@ -194,16 +281,14 @@ def main():
         for name in ICONS:
             path = os.path.join(icon_dir, name + ".png")
             for size in SIZES:
-                data = pack(quantize(path, size,
-                                     saturation=CONDITION_SATURATION))
+                data = pack(quantize_condition(path, size))
                 total += len(data)
                 emit(f, "ci_%s_%d" % (name, size), data)
                 print("%s @ %dpx: %d bytes" % (name, size, len(data)))
         for name in WIDGET_ICONS:
             path = os.path.join(icon_dir, name + ".png")
             moon = name in MOON_ICONS
-            sat = (CONDITION_SATURATION if name in SOFT_WIDGET_ICONS
-                   else SATURATION)
+            sat = None if name in SOFT_WIDGET_ICONS else SATURATION
             # 48px for the 5-row widget layout, 40px for the 6-row one
             for wsize in (48, 40):
                 data = pack(quantize(path, wsize, dither=not moon,
