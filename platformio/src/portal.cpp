@@ -21,6 +21,7 @@
 #include <ESPmDNS.h>
 #include <LittleFS.h>
 #include <Update.h>
+#include <driver/rtc_io.h>
 #include <WebServer.h>
 #include <WiFi.h>
 
@@ -368,6 +369,27 @@ void runConfigPortal(bool forceAp)
     }
     if (millis() - lastActivity >= timeoutMs)
     {
+      if (forceAp)
+      {
+        // Unconfigured device: restarting would just start another hotspot
+        // cycle forever (draining a battery in about a day). Show how to
+        // resume setup, then hibernate until the reset button (or, on
+        // boards that have one, the portal button) wakes it.
+        Serial.println("[portal] setup inactive for " + String(PORTAL_TIMEOUT)
+                       + "min, hibernating until reset");
+        drawPortalScreen("Setup paused to save power.",
+                         "Press the reset (RST) button",
+                         "to start the setup hotspot again.");
+        WiFi.mode(WIFI_OFF);
+        if (PIN_BTN_PORTAL != PIN_UNUSED)
+        {
+          rtc_gpio_pullup_en(static_cast<gpio_num_t>(PIN_BTN_PORTAL));
+          rtc_gpio_pulldown_dis(static_cast<gpio_num_t>(PIN_BTN_PORTAL));
+          esp_sleep_enable_ext0_wakeup(
+              static_cast<gpio_num_t>(PIN_BTN_PORTAL), 0);
+        }
+        esp_deep_sleep_start(); // no timer: sleeps until RST/button
+      }
       Serial.println("[portal] inactive for " + String(PORTAL_TIMEOUT)
                      + "min, restarting into normal cycle");
       esp_restart();

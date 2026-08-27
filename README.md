@@ -231,6 +231,8 @@ A freshly flashed device has no WiFi credentials, so on boot it starts its own h
    - Everything else (schedule, forecast days, widget layout, AirNow key) can be set now or changed later.
 4. Tap **Save & Restart**. The device joins your WiFi and shows the weather within a minute or two.
 
+If setup isn't completed within 10 minutes, the device shows a "Setup paused" screen and deep-sleeps to protect the battery — press the reset (RST) button to start the setup hotspot again. This means an unconfigured device can safely sit on battery power (in a gift box, say) without draining itself.
+
 ### The Configuration Web Portal
 
 The same page used for first-time setup remains available after the device is configured:
