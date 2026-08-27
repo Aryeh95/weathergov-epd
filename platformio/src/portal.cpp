@@ -16,6 +16,7 @@
  */
 
 #include <Arduino.h>
+#include <vector>
 #include <ArduinoJson.h>
 #include <DNSServer.h>
 #include <ESPmDNS.h>
@@ -44,6 +45,43 @@ static unsigned long lastActivity = 0;
 static unsigned long restartAt = 0; // 0 = no restart scheduled
 
 static const char *AP_SSID = "WeatherEPD-Setup";
+
+// Scan results cached right before the hotspot starts: scanning while the
+// soft-AP is up (AP_STA) is unreliable on some chips (observed on the
+// ESP32-S3: live scans return zero networks with a client connected), so
+// the page falls back to this snapshot when a live scan comes up empty.
+struct scan_entry_t { String ssid; int32_t rssi; bool open; };
+static std::vector<scan_entry_t> scanCache;
+
+static void cacheScanResults()
+{
+  int found = WiFi.scanNetworks();
+  for (int i = 0; i < found; ++i)
+  {
+    String ssid = WiFi.SSID(i);
+    if (ssid.isEmpty())
+    {
+      continue;
+    }
+    bool seen = false;
+    for (const scan_entry_t &e : scanCache)
+    {
+      if (e.ssid == ssid)
+      {
+        seen = true;
+        break;
+      }
+    }
+    if (!seen)
+    {
+      scanCache.push_back({ssid, WiFi.RSSI(i),
+                           WiFi.encryptionType(i) == WIFI_AUTH_OPEN});
+    }
+  }
+  WiFi.scanDelete();
+  Serial.printf("[portal] cached %u networks from pre-hotspot scan\n",
+                scanCache.size());
+}
 static const IPAddress AP_IP(192, 168, 4, 1);
 
 /* Serves the portal single-page UI from LittleFS.
@@ -205,6 +243,16 @@ static void handleScan()
     o["open"] = (WiFi.encryptionType(i) == WIFI_AUTH_OPEN);
   }
   WiFi.scanDelete();
+  if (arr.size() == 0)
+  { // live scan found nothing (unreliable in AP mode); serve the snapshot
+    for (const scan_entry_t &e : scanCache)
+    {
+      JsonObject o = arr.add<JsonObject>();
+      o["ssid"] = e.ssid;
+      o["rssi"] = e.rssi;
+      o["open"] = e.open;
+    }
+  }
   String out;
   serializeJson(doc, out);
   server.send(200, "application/json", out);
@@ -329,6 +377,8 @@ void runConfigPortal(bool forceAp)
   {
     apMode = true;
     WiFi.disconnect();
+    WiFi.mode(WIFI_STA);
+    cacheScanResults(); // AP-mode scans are unreliable; snapshot first
     // AP+STA so the STA half can run WiFi scans for the network picker while
     // the hotspot serves the page.
     WiFi.mode(WIFI_AP_STA);

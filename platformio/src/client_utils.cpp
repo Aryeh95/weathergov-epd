@@ -107,10 +107,6 @@ wl_status_t startWiFi(int &wifiRSSI)
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   }
 
-  // timeout if WiFi does not connect in WIFI_TIMEOUT ms from now
-  unsigned long timeout = millis() + WIFI_TIMEOUT;
-  wl_status_t connection_status = WiFi.status();
-
   // WIFI_TIMEOUT is a worst-case allowance for networks that are present but
   // slow to associate. When the failure is definitive (SSID not found in a
   // scan, or the AP rejected us), waiting out the rest of the timeout just
@@ -118,30 +114,52 @@ wl_status_t startWiFi(int &wifiRSSI)
   // WIFI_RETRY_INTERVAL minutes. Give up once a definitive failure state has
   // persisted for 10s, which still allows a few scan/auto-reconnect cycles
   // in case the network was only momentarily invisible.
-  unsigned long failedSince = 0;
-  while ((connection_status != WL_CONNECTED) && (millis() < timeout))
+  auto waitForConnect = []() -> wl_status_t
   {
-    if (connection_status == WL_NO_SSID_AVAIL
-     || connection_status == WL_CONNECT_FAILED)
+    unsigned long timeout = millis() + WIFI_TIMEOUT;
+    wl_status_t st = WiFi.status();
+    unsigned long failedSince = 0;
+    while ((st != WL_CONNECTED) && (millis() < timeout))
     {
-      if (failedSince == 0)
+      if (st == WL_NO_SSID_AVAIL || st == WL_CONNECT_FAILED)
       {
-        failedSince = millis();
+        if (failedSince == 0)
+        {
+          failedSince = millis();
+        }
+        else if (millis() - failedSince >= 10000)
+        {
+          break;
+        }
       }
-      else if (millis() - failedSince >= 10000)
+      else
       {
-        break;
+        failedSince = 0;
       }
+      Serial.print(".");
+      delay(50);
+      st = WiFi.status();
     }
-    else
-    {
-      failedSince = 0;
-    }
-    Serial.print(".");
-    delay(50);
-    connection_status = WiFi.status();
+    Serial.println();
+    return st;
+  };
+
+  wl_status_t connection_status = waitForConnect();
+
+  if (connection_status != WL_CONNECTED && haveBssid)
+  {
+    // Some mesh APs reject or mishandle authentication when the client pins
+    // a specific BSSID/channel (observed on hardware: auth failure 202
+    // against a healthy -39dBm AP whose password had not changed). Retry
+    // once without the lock, letting the AP group steer the association.
+    Serial.println("[wifi] locked connect failed, retrying without AP lock");
+    wifiDisconnectReason = 0;
+    WiFi.disconnect();
+    delay(100);
+    Serial.printf("%s '%s'", TXT_CONNECTING_TO, WIFI_SSID);
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    connection_status = waitForConnect();
   }
-  Serial.println();
 
   if (connection_status == WL_CONNECTED)
   {
