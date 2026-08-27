@@ -488,6 +488,38 @@ void setup()
     }
   }
 
+  // NWS serves the forecast as day/night periods and drops each period once
+  // it ends, so after the daytime period passes, "today" consists only of
+  // "Tonight" and its high collapses to the overnight low (70|70 while it
+  // was 85 all afternoon). Remember today's widest forecast Hi|Lo across
+  // wakes (NVS) instead: the 85 seen in the morning forecast still shows at
+  // 9pm. The column stays purely forecast-derived -- deliberately no blend
+  // with the current observation, whose station may be unrepresentative
+  // (urban heat island). Rolls over automatically when the local date
+  // changes. (Reaching this code implies the clock is synced, so the date
+  // stamp is trustworthy.)
+  prefs.begin(NVS_NAMESPACE, false);
+  const int32_t todayStamp = (timeInfo.tm_year + 1900) * 10000
+                             + (timeInfo.tm_mon + 1) * 100
+                             + timeInfo.tm_mday;
+  if (prefs.getInt("dayStamp", 0) == todayStamp)
+  {
+    float hi = prefs.getFloat("dayHi", daily[0].temp.max);
+    float lo = prefs.getFloat("dayLo", daily[0].temp.min);
+    if (hi > daily[0].temp.max && hi < 333.0f)
+    {
+      daily[0].temp.max = hi;
+    }
+    if (lo < daily[0].temp.min && lo > 200.0f)
+    {
+      daily[0].temp.min = lo;
+    }
+  }
+  prefs.putInt("dayStamp", todayStamp);
+  prefs.putFloat("dayHi", daily[0].temp.max);
+  prefs.putFloat("dayLo", daily[0].temp.min);
+  prefs.end();
+
   // SUNRISE/SUNSET
   // weather.gov does not report these, so they are computed locally from the
   // location and today's local date. Must happen after the API calls, which
