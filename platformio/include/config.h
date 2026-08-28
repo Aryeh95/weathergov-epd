@@ -32,7 +32,12 @@
 // (Building with -e seeed_reterminal_e1002 selects the panel automatically;
 //  the reTerminal E1002's built-in 7.3in Spectra 6 panel is a GDEP073E01,
 //  i.e. DISP_7C_E6.)
-#ifdef BOARD_RETERMINAL_E1002
+// (The reTerminal E1001 build defines both board flags: the E1002 flag for
+//  the shared E-series mainboard quirks, plus E1001 to swap the panel for
+//  its 7.5in monochrome one -- a GDEY075T7-class panel, i.e. DISP_BW_V2.)
+#if defined(BOARD_RETERMINAL_E1001)
+  #define DISP_BW_V2
+#elif defined(BOARD_RETERMINAL_E1002)
   #define DISP_7C_E6
 #else
 #define DISP_BW_V2
