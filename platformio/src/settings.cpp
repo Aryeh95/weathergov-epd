@@ -111,6 +111,14 @@ bool loadSettings()
   WIDGET_ROWS = doc["widget_rows"] | WIDGET_ROWS;
   WIDGET_ROWS = constrain(WIDGET_ROWS, 5, 6);
 
+#ifdef MULTICOLOR_DISPLAY
+  DARK_MODE = doc["dark_mode"] | DARK_MODE;
+#else
+  // Dark mode is a color-panel feature: pure white-on-black didn't earn
+  // its keep on the single-color panels, so the setting is ignored there.
+  DARK_MODE = false;
+#endif
+
   JsonObjectConst battery = doc["battery"];
   WARN_BATTERY_VOLTAGE     = battery["warn_voltage_mv"]     | WARN_BATTERY_VOLTAGE;
   LOW_BATTERY_VOLTAGE      = battery["low_voltage_mv"]      | LOW_BATTERY_VOLTAGE;

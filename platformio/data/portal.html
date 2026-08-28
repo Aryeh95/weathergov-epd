@@ -109,6 +109,7 @@
       <div><label>Graph hours</label><input id="s_graph" type="number" min="8" max="48"></div>
       <div><label>Forecast days</label><select id="s_fdays"><option value="5">5</option><option value="6">6</option><option value="7">7</option></select></div>
       <div><label>Widget rows</label><select id="s_wrows"><option value="5">5 (10 slots)</option><option value="6">6 (12 slots)</option></select></div>
+      <div><label>Theme (full-color panels only)</label><select id="s_dark"><option value="0">Light (white background)</option><option value="1">Dark (black background)</option></select></div>
     </div>
     <div class="hint">No updates between bed and wake hours (set both equal to disable).</div>
   </fieldset>
@@ -292,6 +293,7 @@ function populate() {
   el('s_graph').value = cfg.sleep?.hourly_graph_max ?? 24;
   el('s_fdays').value = String(cfg.forecast_days ?? 5);
   el('s_wrows').value = String(cfg.widget_rows ?? 5);
+  el('s_dark').value = cfg.dark_mode ? '1' : '0';
   el('a_ua').value = cfg.api?.nws_user_agent ?? '';
   el('a_airnow').value = cfg.api?.airnow_api_key ?? '';
   for (let slot = 0; slot < 12; slot++) el('slot_' + slot).value = '';
@@ -327,6 +329,7 @@ function collect() {
   cfg.sleep.hourly_graph_max = +el('s_graph').value;
   cfg.forecast_days = +el('s_fdays').value;
   cfg.widget_rows = +el('s_wrows').value;
+  cfg.dark_mode = el('s_dark').value === '1';
   cfg.api.nws_user_agent = el('a_ua').value.trim();
   cfg.api.airnow_api_key = el('a_airnow').value.trim();
   const rows = +el('s_wrows').value;

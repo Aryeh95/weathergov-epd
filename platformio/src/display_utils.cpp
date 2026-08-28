@@ -815,10 +815,11 @@ static const uint8_t *getColorConditionsIcon(int id, bool day, int size)
   snprintf(want, sizeof(want), "%s%c", base, day ? 'd' : 'n');
   char wantDay[8];
   snprintf(wantDay, sizeof(wantDay), "%sd", base);
+  const color_icon_t *table = DARK_MODE ? COLOR_ICONS_DARK : COLOR_ICONS;
   const color_icon_t *fallback = NULL;
   for (size_t i = 0; i < sizeof(COLOR_ICONS) / sizeof(COLOR_ICONS[0]); ++i)
   {
-    const color_icon_t &ci = COLOR_ICONS[i];
+    const color_icon_t &ci = table[i];
     if (strcmp(ci.code, want) == 0)
     {
       fallback = &ci;
@@ -869,26 +870,14 @@ const uint8_t *getColorIcon32(const owm_hourly_t &hourly)
  */
 const uint8_t *getColorWidgetIcon(const char *name, int size)
 {
-  struct entry_t { const char *name; const uint8_t *px48;
-                   const uint8_t *px40; };
-  static const entry_t TABLE[] = {
-    {"sunrise",    ci_w_sunrise_48,    ci_w_sunrise_40},
-    {"sunset",     ci_w_sunset_48,     ci_w_sunset_40},
-    {"wind",       ci_w_wind_48,       ci_w_wind_40},
-    {"humidity",   ci_w_humidity_48,   ci_w_humidity_40},
-    {"pressure",   ci_w_pressure_48,   ci_w_pressure_40},
-    {"uvi",        ci_w_uvi_48,        ci_w_uvi_40},
-    {"visibility", ci_w_visibility_48, ci_w_visibility_40},
-    {"aqi",        ci_w_aqi_48,        ci_w_aqi_40},
-    {"dewpoint",   ci_w_dewpoint_48,   ci_w_dewpoint_40},
-    {"intemp",     ci_w_intemp_48,     ci_w_intemp_40},
-    {"inhumidity", ci_w_inhumidity_48, ci_w_inhumidity_40},
-  };
-  for (size_t i = 0; i < sizeof(TABLE) / sizeof(TABLE[0]); ++i)
+  const color_widget_t *table = DARK_MODE ? COLOR_WIDGETS_DARK
+                                          : COLOR_WIDGETS;
+  for (size_t i = 0; i < sizeof(COLOR_WIDGETS) / sizeof(COLOR_WIDGETS[0]);
+       ++i)
   {
-    if (strcmp(TABLE[i].name, name) == 0)
+    if (strcmp(table[i].name, name) == 0)
     {
-      return (size == 40) ? TABLE[i].px40 : TABLE[i].px48;
+      return (size == 40) ? table[i].px40 : table[i].px48;
     }
   }
   return NULL;

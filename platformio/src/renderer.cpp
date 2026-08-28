@@ -84,6 +84,18 @@
   #define ACCENT_COLOR GxEPD_BLACK
 #endif
 
+/* Fills the page buffer with the background color. Must be called at the
+ * top of every paged-drawing loop iteration: firstPage()/nextPage() clear
+ * the buffer to white, so dark mode repaints it black before drawing.
+ */
+void fillDisplayBackground()
+{
+  if (DARK_MODE)
+  {
+    display.fillScreen(GxEPD_BLACK);
+  }
+} // end fillDisplayBackground
+
 #ifdef MULTICOLOR_DISPLAY
 // Palette for the full-color condition icons (icons/icons_color.h): 4-bit
 // indices, 0 = transparent (pixel skipped), 1..6 = the panel's native inks.
@@ -110,9 +122,12 @@ static void drawColorIcon(int16_t x, int16_t y, const uint8_t *data,
 } // end drawColorIcon
 #endif // MULTICOLOR_DISPLAY
 
-/* Draws a packed 4-bit dithered black/white icon (icons_moon.h format):
- * index 1 pixels draw black, everything else is left as background. Valid
- * on every panel type, unlike the multicolor-only drawColorIcon.
+/* Draws a packed 4-bit dithered black/white icon (icons_moon.h format).
+ * Both inks are drawn explicitly -- black AND white -- so the icon keeps
+ * its own contrast on either background: on paper the white pixels are
+ * invisible, in dark mode the black ones are, and the artwork (e.g. the
+ * moon's lit/shadow sides) reads correctly both ways. Valid on every
+ * panel type, unlike the multicolor-only drawColorIcon.
  */
 static void drawDitheredIcon(int16_t x, int16_t y, const uint8_t *data,
                              int16_t size)
@@ -121,9 +136,10 @@ static void drawDitheredIcon(int16_t x, int16_t y, const uint8_t *data,
   {
     uint8_t b = pgm_read_byte(&data[n >> 1]);
     uint8_t v = (n & 1) ? (b & 0x0F) : (b >> 4);
-    if (v == 1)
+    if (v == 1 || v == 2)
     {
-      display.drawPixel(x + (n % size), y + (n / size), GxEPD_BLACK);
+      display.drawPixel(x + (n % size), y + (n / size),
+                        (v == 1) ? GxEPD_BLACK : GxEPD_WHITE);
     }
   }
 } // end drawDitheredIcon
@@ -346,7 +362,7 @@ void initDisplay()
 
   display.setRotation(0);
   display.setTextSize(1);
-  display.setTextColor(GxEPD_BLACK);
+  display.setTextColor(DM_FG);
   display.setTextWrap(false);
   // display.fillScreen(GxEPD_WHITE);
   display.setFullWindow();
@@ -447,7 +463,7 @@ void drawCurrentWind(const owm_current_t &current)
 
   // icons
   drawWidgetIcon(162 * PosX, wgtY(PosY),
-                 wi_strong_wind_48x48, wi_strong_wind_40x40, "wind", GxEPD_BLACK);
+                 wi_strong_wind_48x48, wi_strong_wind_40x40, "wind", DM_FG);
 
   // labels
   display.setFont(&FONT_7pt8b);
@@ -458,7 +474,7 @@ void drawCurrentWind(const owm_current_t &current)
 #ifdef WIND_INDICATOR_ARROW
   display.drawInvertedBitmap(48 + (162 * PosX), wgtY(PosY) + 24 / 2,
                              getWindBitmap24(current.wind_deg),
-                             24, 24, GxEPD_BLACK);
+                             24, 24, DM_FG);
 #endif
 #ifdef UNITS_SPEED_METERSPERSECOND
   dataStr = String(static_cast<int>(std::round(current.wind_speed)));
@@ -534,7 +550,7 @@ void drawCurrentUVI(const owm_current_t &current)
 
   // icons
   drawWidgetIcon(162 * PosX, wgtY(PosY),
-                 wi_day_sunny_48x48, wi_day_sunny_40x40, "uvi", GxEPD_BLACK);
+                 wi_day_sunny_48x48, wi_day_sunny_40x40, "uvi", DM_FG);
 
   // labels
   display.setFont(&FONT_7pt8b);
@@ -548,7 +564,7 @@ void drawCurrentUVI(const owm_current_t &current)
   dataStr = String(uvi);
   // the value carries the risk-level color on multicolor panels
   drawString(48 + (162 * PosX), wgtValueY(PosY),
-             dataStr, LEFT, getUVIColor(uvi));
+             dataStr, LEFT, DM_GFX(getUVIColor(uvi)));
   display.setFont(&FONT_7pt8b);
   dataStr = String(getUVIdesc(uvi));
   int max_w = (162 + (PosX * 162) - sp) - (display.getCursorX() + sp);
@@ -694,7 +710,7 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   // are only defined for the United States AQI scale)
   const bool usScale = useAirNow || (AQI_SCALE == UNITED_STATES_AQI);
   drawWidgetIcon(162 * PosX, wgtY(PosY),
-                 air_filter_48x48, air_filter_40x40, "aqi", GxEPD_BLACK);
+                 air_filter_48x48, air_filter_40x40, "aqi", DM_FG);
   if (aqi > aqi_max)
   {
     dataStr = "> " + String(aqi_max);
@@ -705,7 +721,7 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   }
   // the value carries the risk-level color on multicolor panels
   drawString(48 + (162 * PosX), wgtValueY(PosY),
-             dataStr, LEFT, getAQIColor(aqi, usScale));
+             dataStr, LEFT, DM_GFX(getAQIColor(aqi, usScale)));
   display.setFont(&FONT_7pt8b);
   dataStr = useAirNow ? String(united_states_aqi_desc(aqi))
                       : String(aqi_desc(AQI_SCALE, aqi));
@@ -749,7 +765,7 @@ void drawCurrentInTemp(float inTemp)
 
   // icons
   drawWidgetIcon(162 * PosX, wgtY(PosY),
-                 house_thermometer_48x48, house_thermometer_40x40, "intemp", GxEPD_BLACK);
+                 house_thermometer_48x48, house_thermometer_40x40, "intemp", DM_FG);
 
   // labels
   display.setFont(&FONT_7pt8b);
@@ -795,7 +811,7 @@ void drawCurrentHumidity(const owm_current_t &current)
 
   // icons
   drawWidgetIcon(162 * PosX, wgtY(PosY),
-                 wi_humidity_48x48, wi_humidity_40x40, "humidity", GxEPD_BLACK);
+                 wi_humidity_48x48, wi_humidity_40x40, "humidity", DM_FG);
 
   // labels
   display.setFont(&FONT_7pt8b);
@@ -824,7 +840,7 @@ void drawCurrentPressure(const owm_current_t &current)
   int PosY = static_cast<int>(POS_PRESSURE / 2);
   //  icons
   drawWidgetIcon(162 * PosX, wgtY(PosY),
-                 wi_barometer_48x48, wi_barometer_40x40, "pressure", GxEPD_BLACK);
+                 wi_barometer_48x48, wi_barometer_40x40, "pressure", DM_FG);
 
   //  labels
   display.setFont(&FONT_7pt8b);
@@ -897,7 +913,7 @@ void drawCurrentVisibility(const owm_current_t &current)
 
   // icons
   drawWidgetIcon(162 * PosX, wgtY(PosY),
-                 visibility_icon_48x48, visibility_icon_40x40, "visibility", GxEPD_BLACK);
+                 visibility_icon_48x48, visibility_icon_40x40, "visibility", DM_FG);
 
   // labels
   display.setFont(&FONT_7pt8b);
@@ -955,7 +971,7 @@ void drawCurrentInHumidity(float inHumidity)
 
   // current weather data icons
   drawWidgetIcon(162 * PosX, wgtY(PosY),
-                 house_humidity_48x48, house_humidity_40x40, "inhumidity", GxEPD_BLACK);
+                 house_humidity_48x48, house_humidity_40x40, "inhumidity", DM_FG);
 
   // current weather data labels
   display.setFont(&FONT_7pt8b);
@@ -992,9 +1008,9 @@ void drawCurrentDewpoint(const owm_current_t &current)
   
   // icons
   drawWidgetIcon(162 * PosX, wgtY(PosY),
-                 wi_thermometer_48x48, wi_thermometer_40x40, "dewpoint", GxEPD_BLACK);
+                 wi_thermometer_48x48, wi_thermometer_40x40, "dewpoint", DM_FG);
   display.drawInvertedBitmap(162 * PosX + 48 - 24, wgtY(PosY) + 4,
-                             wi_raindrops_24x24, 24, 24, GxEPD_BLACK);
+                             wi_raindrops_24x24, 24, 24, DM_FG);
   
   // labels
   display.setFont(&FONT_7pt8b);
@@ -1102,7 +1118,7 @@ void drawCurrentConditions(const owm_current_t &current,
   drawString(156 + 164 / 2, 98 + 69 / 2 + 12 + 17, dataStr, CENTER);
 #endif
   // line dividing top and bottom display areas
-  // display.drawLine(0, 196, DISP_WIDTH - 1, 196, GxEPD_BLACK);
+  // display.drawLine(0, 196, DISP_WIDTH - 1, 196, DM_FG);
 
   // draw current data of the left panel.
   // Each widget function checks its own runtime position (config.json
@@ -1163,7 +1179,7 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
       int xDiv = xStart + static_cast<int>(i * colW);
       for (int y = 66; y <= 196; y += 3)
       {
-        display.drawPixel(xDiv, y, GxEPD_BLACK);
+        display.drawPixel(xDiv, y, DM_FG);
       }
     }
   }
@@ -1219,18 +1235,23 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
                 std::round(kelvin_to_fahrenheit(daily[i].temp.min)))) +
             "\260";
 #endif
+    // In dark mode the hi/lo inks (brick red, navy) are dim on black, so
+    // the digits are overstruck 1px right for a fake-bold weight.
+    for (int pass = 0; pass <= (DARK_MODE ? 1 : 0); ++pass)
+    {
 #ifdef TEMP_ORDER_HL
-    drawString(cx - 4, 98 + 69 / 2 + 38 - 6 + 12, hiStr, RIGHT,
-               COLOR_TEMP_HI);
-    drawString(cx + 5, 98 + 69 / 2 + 38 - 6 + 12, loStr, LEFT,
-               COLOR_TEMP_LO);
+      drawString(cx - 4 + pass, 98 + 69 / 2 + 38 - 6 + 12, hiStr, RIGHT,
+                 DM_TEXT(COLOR_TEMP_HI));
+      drawString(cx + 5 + pass, 98 + 69 / 2 + 38 - 6 + 12, loStr, LEFT,
+                 DM_TEXT(COLOR_TEMP_LO));
 #endif
 #ifdef TEMP_ORDER_LH
-    drawString(cx - 4, 98 + 69 / 2 + 38 - 6 + 12, loStr, RIGHT,
-               COLOR_TEMP_LO);
-    drawString(cx + 5, 98 + 69 / 2 + 38 - 6 + 12, hiStr, LEFT,
-               COLOR_TEMP_HI);
+      drawString(cx - 4 + pass, 98 + 69 / 2 + 38 - 6 + 12, loStr, RIGHT,
+                 DM_TEXT(COLOR_TEMP_LO));
+      drawString(cx + 5 + pass, 98 + 69 / 2 + 38 - 6 + 12, hiStr, LEFT,
+                 DM_TEXT(COLOR_TEMP_HI));
 #endif
+    }
 
 // daily forecast precipitation
 #if DISPLAY_DAILY_PRECIP
@@ -1266,7 +1287,7 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
 #endif
         display.setFont(&FONT_6pt8b);
         drawString(cx, 98 + 69 / 2 + 38 - 6 + 26,
-                   dataStr + unitStr, CENTER, COLOR_PRECIP);
+                   dataStr + unitStr, CENTER, DM_TEXT(COLOR_PRECIP));
 #if (DISPLAY_DAILY_PRECIP == 2) // smart
       }
 #endif
@@ -1339,7 +1360,8 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
 
     owm_alerts_t &cur_alert = alerts[alert_indices[0]];
     display.drawInvertedBitmap(196, 8, getAlertBitmap48(cur_alert), 48, 48,
-                               ACCENT_COLOR);
+                               DARK_MODE ? DM_GFX(COLOR_SUN)
+                                         : ACCENT_COLOR);
     // must be called after getAlertBitmap
     toTitleCase(cur_alert.event);
 
@@ -1373,7 +1395,8 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
       owm_alerts_t &cur_alert = alerts[alert_indices[i]];
 
       display.drawInvertedBitmap(196, (i * 32), getAlertBitmap32(cur_alert),
-                                 32, 32, ACCENT_COLOR);
+                                 32, 32, DARK_MODE ? DM_GFX(COLOR_SUN)
+                                                   : ACCENT_COLOR);
       // must be called after getAlertBitmap
       toTitleCase(cur_alert.event);
 
@@ -1399,7 +1422,7 @@ void drawLocationDate(const String &city, const String &date)
   // On multicolor panels red carries meaning (temperature, alerts, warnings),
   // so a red city name reads out of place -- keep it black there. The
   // single-accent panels keep the upstream red-accent look.
-  drawString(DISP_WIDTH - 2, 23, city, RIGHT, GxEPD_BLACK);
+  drawString(DISP_WIDTH - 2, 23, city, RIGHT, DM_FG);
 #else
   drawString(DISP_WIDTH - 2, 23, city, RIGHT, ACCENT_COLOR);
 #endif
@@ -1585,8 +1608,8 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
   }
 
   // draw x axis
-  display.drawLine(xPos0, yPos1    , xPos1, yPos1    , GxEPD_BLACK);
-  display.drawLine(xPos0, yPos1 - 1, xPos1, yPos1 - 1, GxEPD_BLACK);
+  display.drawLine(xPos0, yPos1    , xPos1, yPos1    , DM_FG);
+  display.drawLine(xPos0, yPos1 - 1, xPos1, yPos1 - 1, DM_FG);
 
   // draw y axis
   float yInterval = (yPos1 - yPos0) / static_cast<float>(yMajorTicks);
@@ -1600,7 +1623,7 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
 #if defined(UNITS_TEMP_CELSIUS) || defined(UNITS_TEMP_FAHRENHEIT)
     dataStr += "\260";
 #endif
-    drawString(xPos0 - 8, yTick + 4, dataStr, RIGHT, ACCENT_COLOR);
+    drawString(xPos0 - 8, yTick + 4, dataStr, RIGHT, DM_TEXT(ACCENT_COLOR));
 
     if (precipBoundMax > 0)
     { // don't labels if precip is 0
@@ -1625,10 +1648,10 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
 #endif
 #endif
 
-      drawString(xPos1 + 8, yTick + 4, dataStr, LEFT, COLOR_PRECIP);
+      drawString(xPos1 + 8, yTick + 4, dataStr, LEFT, DM_TEXT(COLOR_PRECIP));
       display.setFont(&FONT_5pt8b);
       drawString(display.getCursorX(), yTick + 4, precipUnit, LEFT,
-                 COLOR_PRECIP);
+                 DM_TEXT(COLOR_PRECIP));
     } // end draw labels if precip is >0
 
     // draw dotted line
@@ -1636,7 +1659,7 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     {
       for (int x = xPos0; x <= xPos1 + 1; x += 3)
       {
-        display.drawPixel(x, yTick + (yTick % 2), GxEPD_BLACK);
+        display.drawPixel(x, yTick + (yTick % 2), DM_FG);
       }
     }
   }
@@ -1678,9 +1701,14 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
       y0_t = y_t[i - 1];
       y1_t = y_t[i    ];
       // graph temperature
-      display.drawLine(x0_t    , y0_t    , x1_t    , y1_t    , ACCENT_COLOR);
-      display.drawLine(x0_t    , y0_t + 1, x1_t    , y1_t + 1, ACCENT_COLOR);
-      display.drawLine(x0_t - 1, y0_t    , x1_t - 1, y1_t    , ACCENT_COLOR);
+      display.drawLine(x0_t    , y0_t    , x1_t    , y1_t    , DM_GFX(ACCENT_COLOR));
+      display.drawLine(x0_t    , y0_t + 1, x1_t    , y1_t + 1, DM_GFX(ACCENT_COLOR));
+      display.drawLine(x0_t - 1, y0_t    , x1_t - 1, y1_t    , DM_GFX(ACCENT_COLOR));
+      if (DARK_MODE)
+      { // thicken the line: the red ink is dim against a black ground
+        display.drawLine(x0_t    , y0_t - 1, x1_t    , y1_t - 1, DM_GFX(ACCENT_COLOR));
+        display.drawLine(x0_t    , y0_t + 2, x1_t    , y1_t + 2, DM_GFX(ACCENT_COLOR));
+      }
 
       // draw hourly bitmap
 #if DISPLAY_HOURLY_ICONS
@@ -1766,15 +1794,15 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     {
       for (int x = x0_t + (x0_t % 2); x < x1_t; x += 2)
       {
-        display.drawPixel(x, y, COLOR_PRECIP);
+        display.drawPixel(x, y, DM_GFX(COLOR_PRECIP));
       }
     }
 
     if ((i % hourInterval) == 0)
     {
       // draw x tick marks
-      display.drawLine(xTick    , yPos1 + 1, xTick    , yPos1 + 4, GxEPD_BLACK);
-      display.drawLine(xTick + 1, yPos1 + 1, xTick + 1, yPos1 + 4, GxEPD_BLACK);
+      display.drawLine(xTick    , yPos1 + 1, xTick    , yPos1 + 4, DM_FG);
+      display.drawLine(xTick + 1, yPos1 + 1, xTick + 1, yPos1 + 4, DM_FG);
       // draw x axis labels
       char timeBuffer[12] = {}; // big enough to accommodate "hh:mm:ss am"
       time_t ts = hourly[i].dt;
@@ -1791,8 +1819,8 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     int xTick = static_cast<int>(
                 std::round(xPos0 + (HOURLY_GRAPH_MAX * xInterval)));
     // draw x tick marks
-    display.drawLine(xTick    , yPos1 + 1, xTick    , yPos1 + 4, GxEPD_BLACK);
-    display.drawLine(xTick + 1, yPos1 + 1, xTick + 1, yPos1 + 4, GxEPD_BLACK);
+    display.drawLine(xTick    , yPos1 + 1, xTick    , yPos1 + 4, DM_FG);
+    display.drawLine(xTick + 1, yPos1 + 1, xTick + 1, yPos1 + 4, DM_FG);
     // draw x axis labels
     char timeBuffer[12] = {}; // big enough to accommodate "hh:mm:ss am"
     time_t ts = hourly[HOURLY_GRAPH_MAX - 1].dt + 3600;
@@ -1811,7 +1839,7 @@ void drawStatusBar(const String &statusStr, const String &refreshTimeStr,
                    int rssi, uint32_t batVoltage)
 {
   String dataStr;
-  uint16_t dataColor = GxEPD_BLACK;
+  uint16_t dataColor = DM_FG;
   display.setFont(&FONT_6pt8b);
   int pos = DISP_WIDTH - 2;
   const int sp = 2;
@@ -1824,7 +1852,7 @@ void drawStatusBar(const String &statusStr, const String &refreshTimeStr,
 #if defined(DISP_3C_B) || defined(DISP_7C_F)
   if (batVoltage < WARN_BATTERY_VOLTAGE)
   {
-    dataColor = ACCENT_COLOR;
+    dataColor = DM_TEXT(ACCENT_COLOR);
   }
 #endif
 #if STATUS_BAR_EXTRAS_BAT_PERCENTAGE || STATUS_BAR_EXTRAS_BAT_VOLTAGE
@@ -1845,7 +1873,7 @@ void drawStatusBar(const String &statusStr, const String &refreshTimeStr,
 #endif
 
   // WiFi
-  dataColor = rssi >= -70 ? GxEPD_BLACK : ACCENT_COLOR;
+  dataColor = rssi >= -70 ? DM_FG : DM_TEXT(ACCENT_COLOR);
 #if STATUS_BAR_EXTRAS_WIFI_STRENGTH || STATUS_BAR_EXTRAS_WIFI_RSSI
   dataStr = "";
 #if STATUS_BAR_EXTRAS_WIFI_STRENGTH
@@ -1866,7 +1894,7 @@ void drawStatusBar(const String &statusStr, const String &refreshTimeStr,
   pos -= sp + 8;
 
   // last refresh
-  dataColor = GxEPD_BLACK;
+  dataColor = DM_FG;
   drawString(pos, DISP_HEIGHT - 1 - 2, refreshTimeStr, RIGHT, dataColor);
   pos -= getStringWidth(refreshTimeStr) + 25;
   display.drawInvertedBitmap(pos, DISP_HEIGHT - 1 - 21, wi_refresh_32x32,
@@ -1874,7 +1902,7 @@ void drawStatusBar(const String &statusStr, const String &refreshTimeStr,
   pos -= sp;
 
   // status
-  dataColor = ACCENT_COLOR;
+  dataColor = DM_TEXT(ACCENT_COLOR);
   if (!statusStr.isEmpty())
   {
     drawString(pos, DISP_HEIGHT - 1 - 2, statusStr, RIGHT, dataColor);
@@ -1907,7 +1935,7 @@ void drawConfigPortalScreen(const String &line1, const String &line2,
 #endif
 
   display.drawInvertedBitmap((DISP_WIDTH - 196) / 2, iconTop, wifi_196x196,
-                             196, 196, ACCENT_COLOR);
+                             196, 196, DM_GFX(ACCENT_COLOR));
 #ifndef DISP_BW_V1
   display.setFont(&FONT_26pt8b);
 #else
@@ -1967,7 +1995,7 @@ void drawError(const uint8_t *bitmap_196x196,
   }
   display.drawInvertedBitmap(DISP_WIDTH / 2 - 196 / 2,
                              DISP_HEIGHT / 2 - 196 / 2 - 21,
-                             bitmap_196x196, 196, 196, ACCENT_COLOR);
+                             bitmap_196x196, 196, 196, DM_GFX(ACCENT_COLOR));
   return;
 } // end drawError
 

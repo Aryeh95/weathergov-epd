@@ -86,6 +86,11 @@ int FORECAST_DAYS = 5;
 // rows are tighter and 40px icons are used.
 int WIDGET_ROWS = 5;
 
+// Dark mode: black background, white text, dark-variant icons. Runtime
+// setting (config.json "dark_mode"); full-color panels only -- ignored
+// (forced off) on single-color panels.
+bool DARK_MODE = false;
+
 // PER-DEPLOYMENT SETTINGS (WiFi, location, time, battery, widget layout)
 //
 // The values below are only FALLBACK DEFAULTS, used if data/config.json is

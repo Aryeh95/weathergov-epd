@@ -343,6 +343,7 @@ static void drawPortalScreen(const String &line1, const String &line2,
   initDisplay();
   do
   {
+    fillDisplayBackground();
     drawConfigPortalScreen(line1, line2, line3);
   } while (display.nextPage());
   powerOffDisplay();

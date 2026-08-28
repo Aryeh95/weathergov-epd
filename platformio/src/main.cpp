@@ -237,6 +237,7 @@ void setup()
       initDisplay();
       do
       {
+        fillDisplayBackground();
         drawError(battery_alert_0deg_196x196, TXT_LOW_BATTERY);
       } while (display.nextPage());
       powerOffDisplay();
@@ -381,6 +382,7 @@ void setup()
       initDisplay();
       do
       {
+        fillDisplayBackground();
         drawError(wifi_x_196x196, errTitle, errLine2);
       } while (display.nextPage());
       powerOffDisplay();
@@ -409,6 +411,7 @@ void setup()
     initDisplay();
     do
     {
+      fillDisplayBackground();
       drawError(wi_time_4_196x196, TXT_TIME_SYNCHRONIZATION_FAILED);
     } while (display.nextPage());
     powerOffDisplay();
@@ -440,6 +443,7 @@ void setup()
     initDisplay();
     do
     {
+      fillDisplayBackground();
       drawError(wi_cloud_down_196x196, statusStr, tmpStr);
     } while (display.nextPage());
     powerOffDisplay();
@@ -623,6 +627,7 @@ void setup()
   initDisplay();
   do
   {
+    fillDisplayBackground();
     drawCurrentConditions(current, daily[0], air_quality, inTemp, inHumidity);
     drawOutlookGraph(hourly, daily, timeInfo);
     drawForecast(daily, timeInfo);

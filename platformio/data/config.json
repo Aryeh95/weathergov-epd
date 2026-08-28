@@ -185,6 +185,10 @@
   // and 40px icons.
   "widget_rows": 5,
 
+  // Dark mode: black background, white text, dark-variant icons
+  // (full-color panels only; ignored on B/W and 3-color panels).
+  "dark_mode": false,
+
   // Which of the ten slots in the left-hand panel each widget occupies:
   //
   //     0   1

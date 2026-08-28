@@ -81,14 +81,31 @@ typedef enum alignment
   CENTER
 } alignment_t;
 
+// Dark mode (config.json "dark_mode") swaps ground and text colors at
+// runtime. Default text color arguments use DM_FG so every caller follows
+// the mode without changes (default args are evaluated at each call site).
+#define DM_FG (DARK_MODE ? GxEPD_WHITE : GxEPD_BLACK)
+#define DM_BG (DARK_MODE ? GxEPD_BLACK : GxEPD_WHITE)
+// Small text can't carry the dim red/blue inks on a black ground (verified
+// on real Spectra 6 ink), so accent-colored SMALL text falls back to white
+// in dark mode; the color semantics stay on large elements (graph line,
+// precip bars, icons) where the ink has enough area to read.
+#define DM_TEXT(c) (DARK_MODE ? GxEPD_WHITE : (c))
+// Graphics (lines, bars, bitmaps) keep their ink in dark mode -- except
+// when the panel's macro collapsed it to GxEPD_BLACK (single-color panels,
+// where every accent is black): black graphics flip to white so they stay
+// visible on the black ground.
+#define DM_GFX(c) ((DARK_MODE && (c) == GxEPD_BLACK) ? GxEPD_WHITE : (c))
+
 uint16_t getStringWidth(const String &text);
 uint16_t getStringHeight(const String &text);
 void drawString(int16_t x, int16_t y, const String &text, alignment_t alignment,
-                uint16_t color=GxEPD_BLACK);
+                uint16_t color=DM_FG);
 void drawMultiLnString(int16_t x, int16_t y, const String &text,
                        alignment_t alignment, uint16_t max_width,
                        uint16_t max_lines, int16_t line_spacing,
-                       uint16_t color=GxEPD_BLACK);
+                       uint16_t color=DM_FG);
+void fillDisplayBackground();
 void initDisplay();
 void powerOffDisplay();
 void drawCurrentConditions(const owm_current_t &current,

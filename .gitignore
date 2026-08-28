@@ -1,0 +1,9 @@
+
+# Icon-pipeline working directories (Google PNGs are Google property --
+# downloaded at generation time, never committed; the rest are previews)
+tools/google_icons/
+tools/native_preview/
+tools/native_icons/
+tools/hybrid_icons/
+tools/modern_widgets/
+tools/__pycache__/
