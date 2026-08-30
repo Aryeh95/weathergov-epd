@@ -90,6 +90,7 @@ const char *TXT_PRESSURE           = "Pressione";
 const char *TXT_AIR_QUALITY        = "Qualit\340 dell'aria";
 const char *TXT_AIR_POLLUTION      = "Inquinamento aria";
 const char *TXT_VISIBILITY         = "Visibilit\340";
+const char *TXT_POLLEN             = "Pollini";
 const char *TXT_INDOOR_TEMPERATURE = "Temperatura int.";
 const char *TXT_INDOOR_HUMIDITY    = "Umidit\340 int.";
 const char *TXT_DEWPOINT           = "Punto di rugiada";

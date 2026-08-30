@@ -48,6 +48,7 @@ static const uint16_t HTTPS_PORT = 443;
 static const char *NWS_ENDPOINT = "api.weather.gov";
 static const char *AIR_QUALITY_ENDPOINT = "air-quality-api.open-meteo.com";
 static const char *AIRNOW_ENDPOINT = "www.airnowapi.org";
+static const char *POLLEN_ENDPOINT = "pollen.googleapis.com";
 
 // Reason code from the most recent WiFi disconnect event, captured so a
 // failed connection can be explained on the error screen. 0 means no
@@ -508,6 +509,25 @@ int getAirNowAQI(WiFiClient &client, int &aqi)
       [&](WiFiClient &s) { return deserializeAirNow(s, aqi); }, logUri,
       30000, 2);
 } // end getAirNowAQI
+
+/* Fetches today's pollen forecast from the Google Pollen API
+ * (https://developers.google.com/maps/documentation/pollen). Requires a
+ * Google Maps Platform API key with the Pollen API enabled
+ * (config.json api.pollen_api_key). Non-fatal on failure.
+ */
+int getGooglePollen(WiFiClient &client, pollen_info_t &pollen)
+{
+  String baseUri = "/v1/forecast:lookup"
+                   "?location.latitude=" + LAT
+                 + "&location.longitude=" + LON
+                 + "&days=1";
+  String uri = baseUri + "&key=" + POLLEN_APIKEY;
+  // API key is censored from the serial log to reduce the risk of users
+  // exposing their key.
+  String logUri = baseUri + "&key={API key}";
+  return httpGetAndParse(client, POLLEN_ENDPOINT, HTTPS_PORT, uri, "",
+      [&](WiFiClient &s) { return deserializePollen(s, pollen); }, logUri);
+} // end getGooglePollen
 
 /* Prints debug information about heap usage.
  */

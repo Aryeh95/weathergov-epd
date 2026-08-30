@@ -132,6 +132,7 @@ bool loadSettings()
   JsonObjectConst api = doc["api"];
   NWS_USER_AGENT = api["nws_user_agent"] | NWS_USER_AGENT;
   AIRNOW_APIKEY  = api["airnow_api_key"] | AIRNOW_APIKEY;
+  POLLEN_APIKEY  = api["pollen_api_key"] | POLLEN_APIKEY;
 
   JsonObjectConst portal = doc["portal"];
   PORTAL_AP_PASSWORD = portal["ap_password"]     | PORTAL_AP_PASSWORD;
@@ -148,6 +149,7 @@ bool loadSettings()
   POS_PRESSURE   = widgets["pressure"]    | POS_PRESSURE;
   POS_AIR_QULITY = widgets["air_quality"] | POS_AIR_QULITY;
   POS_MOON_PHASE = widgets["moon_phase"]  | POS_MOON_PHASE;
+  POS_POLLEN     = widgets["pollen"]      | POS_POLLEN;
   POS_VISIBILITY = widgets["visibility"]  | POS_VISIBILITY;
   POS_INTEMP     = widgets["intemp"]      | POS_INTEMP;
   POS_INHUMIDITY = widgets["inhumidity"]  | POS_INHUMIDITY;

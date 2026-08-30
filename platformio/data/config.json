@@ -151,6 +151,13 @@
     // fails, the display automatically falls back to Open-Meteo as well.
     "airnow_api_key": "",
 
+    // OPTIONAL: Google Pollen API key (Google Maps Platform with the
+    // Pollen API enabled -- https://developers.google.com/maps/documentation/pollen).
+    // With a key set and the pollen widget given a slot below, the display
+    // shows today's Universal Pollen Index (highest of tree/grass/weed,
+    // 0-5). Fetched at most once per 3 hours. Leave empty to disable.
+    "pollen_api_key": "",
+
     // TCP timeout for API requests, in milliseconds. These errors in the
     // serial log usually mean this value is too low:
     //   -1   Connection Refused
@@ -225,6 +232,7 @@
     "air_quality": 7,
     "visibility": -1,
     "moon_phase": -1,
+    "pollen": -1,
     "intemp": 8,
     "inhumidity": 9
   }

@@ -118,6 +118,7 @@
     <label>NWS contact (User-Agent)</label><input id="a_ua">
     <div class="hint">weather.gov asks for a contact email in case your device misbehaves.</div>
     <label>AirNow API key (optional)</label><input id="a_airnow" autocomplete="off">
+    <label>Google Pollen API key (optional)</label><input id="a_pollen" autocomplete="off">
     <div class="hint">Free key from <a href="https://docs.airnowapi.org/" target="_blank"
       rel="noopener">docs.airnowapi.org</a> for the EPA's official AQI.
       Leave empty to use Open-Meteo instead.</div>
@@ -163,7 +164,7 @@ const WIDGETS = [
   ['dewpoint','Dew point'],['wind','Wind'],['uvi','UV index'],
   ['pressure','Pressure'],['air_quality','Air quality'],
   ['visibility','Visibility'],['intemp','Indoor temp'],['inhumidity','Indoor humidity'],
-  ['moon_phase','Moon phase']];
+  ['moon_phase','Moon phase'],['pollen','Pollen']];
 let cfg = null; // parsed config; the form writes back into this object
 
 // config.json may contain // and /* */ comments; strip them (outside strings)
@@ -296,6 +297,7 @@ function populate() {
   el('s_dark').value = cfg.dark_mode ? '1' : '0';
   el('a_ua').value = cfg.api?.nws_user_agent ?? '';
   el('a_airnow').value = cfg.api?.airnow_api_key ?? '';
+  el('a_pollen').value = cfg.api?.pollen_api_key ?? '';
   for (let slot = 0; slot < 12; slot++) el('slot_' + slot).value = '';
   for (const [key] of WIDGETS) {
     const v = +(cfg.widget_positions?.[key] ?? -1);
@@ -332,6 +334,7 @@ function collect() {
   cfg.dark_mode = el('s_dark').value === '1';
   cfg.api.nws_user_agent = el('a_ua').value.trim();
   cfg.api.airnow_api_key = el('a_airnow').value.trim();
+  cfg.api.pollen_api_key = el('a_pollen').value.trim();
   const rows = +el('s_wrows').value;
   for (const [key] of WIDGETS) cfg.widget_positions[key] = -1;
   for (let slot = 0; slot < rows * 2; slot++) {

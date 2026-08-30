@@ -397,6 +397,7 @@ extern unsigned long WIFI_TIMEOUT;
 extern unsigned HTTP_CLIENT_TCP_TIMEOUT;
 extern String NWS_USER_AGENT;
 extern String AIRNOW_APIKEY;
+extern String POLLEN_APIKEY;
 extern String PORTAL_AP_PASSWORD;
 extern int    PORTAL_TIMEOUT;
 extern String LAT;
@@ -439,6 +440,7 @@ extern int POS_PRESSURE;
 extern int POS_AIR_QULITY;
 extern int POS_VISIBILITY;
 extern int POS_MOON_PHASE;
+extern int POS_POLLEN;
 extern int POS_INTEMP;
 extern int POS_INHUMIDITY;
 

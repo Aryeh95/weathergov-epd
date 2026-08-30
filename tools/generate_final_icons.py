@@ -30,7 +30,58 @@ import generate_google_preview as gpre       # noqa: E402
 import preview_full_display as pfd           # noqa: E402
 
 OUT_PATH = legacy.OUT_PATH
+POLLEN_OUT_PATH = OUT_PATH.replace("icons_color.h", "icons_pollen.h")
 GOOGLE_SIZES = [168, 64, 48]
+# Widget list including the pollen flower (drawn by this script -- no
+# InkyPi counterpart).
+WIDGETS = legacy.WIDGET_ICONS + ["pollen"]
+
+
+def draw_pollen_icons(icon_dir):
+    """Flower art for the pollen widget: color version (red petals,
+    yellow center, green stem) for light and dark grounds, plus a
+    black line-art version for the single-color panels (emitted as a
+    dithered-format bitmap in icons_pollen.h)."""
+    import math, os
+    from PIL import Image, ImageDraw
+    RED = (255, 0, 0, 255)
+    YEL = (255, 255, 0, 255)
+    GRN = (0, 128, 0, 255)
+    BLK = (0, 0, 0, 255)
+    LTG = (205, 205, 205, 255)   # dithers near-white: dark-mode outline
+
+    def flower(outline, petal, center, stem, path):
+        im = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
+        d = ImageDraw.Draw(im)
+        cx, cy = 256, 210
+        # stem + leaf
+        d.line([(cx, cy + 60), (cx, 480)], fill=stem, width=30)
+        d.ellipse([cx + 10, 360, cx + 130, 430], fill=stem)
+        # petals: 6 ellipses radiating from the center
+        for i in range(6):
+            a = math.pi * 2 * i / 6
+            px_, py_ = cx + math.cos(a) * 95, cy + math.sin(a) * 95
+            d.ellipse([px_ - 62, py_ - 62, px_ + 62, py_ + 62],
+                      fill=petal, outline=outline, width=12)
+        d.ellipse([cx - 60, cy - 60, cx + 60, cy + 60],
+                  fill=center, outline=outline, width=12)
+        im.save(path)
+
+    flower(BLK, RED, YEL, GRN, os.path.join(icon_dir, "pollen.png"))
+    flower(LTG, RED, YEL, GRN, os.path.join(icon_dir, "pollen_dark.png"))
+    # line art: unfilled petals, black strokes
+    im = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    cx, cy = 256, 210
+    d.line([(cx, cy + 60), (cx, 480)], fill=BLK, width=22)
+    d.arc([cx + 4, 350, cx + 140, 440], 100, 340, fill=BLK, width=18)
+    for i in range(6):
+        a = math.pi * 2 * i / 6
+        px_, py_ = cx + math.cos(a) * 95, cy + math.sin(a) * 95
+        d.ellipse([px_ - 62, py_ - 62, px_ + 62, py_ + 62],
+                  outline=BLK, width=20)
+    d.ellipse([cx - 60, cy - 60, cx + 60, cy + 60], fill=BLK)
+    im.save(os.path.join(icon_dir, "pollen_line.png"))
 
 
 def invert_bw(indices):
@@ -42,6 +93,7 @@ def main():
     legacy.fetch_icons(icon_dir)
     legacy.draw_custom_icons(icon_dir)
     pfd.draw_custom_icons_dark(icon_dir)
+    draw_pollen_icons(icon_dir)
     total = 0
     with open(OUT_PATH, "w", newline="\n") as f:
         f.write(
@@ -90,10 +142,10 @@ def main():
                 legacy.emit(f, name, data)
             print(code, "done")
         # ---- widget icons (InkyPi light, on-black dark)
-        for name in legacy.WIDGET_ICONS:
+        for name in WIDGETS:
             path = os.path.join(icon_dir, name + ".png")
             dark_path = path
-            if name in ("intemp", "inhumidity"):
+            if name in ("intemp", "inhumidity", "pollen"):
                 dark_path = os.path.join(icon_dir, name + "_dark.png")
             sat = None if name in legacy.SOFT_WIDGET_ICONS else legacy.SATURATION
             for wsize in (48, 40):
@@ -128,11 +180,28 @@ def main():
         for tbl, pfx in (("COLOR_WIDGETS", "ci_w"),
                          ("COLOR_WIDGETS_DARK", "cid_w")):
             f.write("static const color_widget_t %s[] = {\n" % tbl)
-            for name in legacy.WIDGET_ICONS:
+            for name in WIDGETS:
                 f.write('  {"%s", %s_%s_48, %s_%s_40},\n'
                         % (name, pfx, name, pfx, name))
             f.write("};\n\n")
         f.write("#endif\n")
+    with open(POLLEN_OUT_PATH, "w", newline="\n") as f:
+        f.write("/* Line-art pollen (flower) widget icon in the dithered\n"
+                " * 4-bit format (0 transparent, 1 black, 2 white) --\n"
+                " * compiled into EVERY panel build, like icons_moon.h.\n"
+                " * GENERATED FILE -- do not edit by hand; regenerate with\n"
+                " *   python tools/generate_final_icons.py\n"
+                " */\n\n"
+                "#ifndef __ICONS_POLLEN_H__\n"
+                "#define __ICONS_POLLEN_H__\n\n"
+                "#include <Arduino.h>\n\n")
+        lpath = os.path.join(icon_dir, "pollen_line.png")
+        for wsize in (48, 40):
+            data = legacy.pack(legacy.quantize(lpath, wsize, dither=False,
+                                               allowed=[0]))
+            legacy.emit(f, "pollen_line_%d" % wsize, data)
+        f.write("#endif\n")
+    print("wrote %s" % POLLEN_OUT_PATH)
     print("wrote %s (%d bytes of icon data)" % (OUT_PATH, total))
 
 

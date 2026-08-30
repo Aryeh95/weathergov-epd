@@ -717,3 +717,44 @@ DeserializationError deserializeAirNow(WiFiClient &json, int &aqi)
 
   return error;
 } // end deserializeAirNow
+
+/* Parses the Google Pollen API forecast:lookup response (days=1):
+ * dailyInfo[0].pollenTypeInfo[] entries keyed by code TREE/GRASS/WEED,
+ * each with indexInfo.value = Universal Pollen Index 0-5. indexInfo is
+ * absent out of season, which counts as 0.
+ */
+DeserializationError deserializePollen(WiFiClient &json,
+                                       pollen_info_t &pollen)
+{
+  JsonDocument filter;
+  filter["dailyInfo"][0]["pollenTypeInfo"][0]["code"] = true;
+  filter["dailyInfo"][0]["pollenTypeInfo"][0]["indexInfo"]["value"] = true;
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, json,
+                                         DeserializationOption::Filter(filter));
+#if DEBUG_LEVEL >= 1
+  Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
+#endif
+#if DEBUG_LEVEL >= 2
+  serializeJsonPretty(doc, Serial);
+#endif
+  if (error)
+  {
+    return error;
+  }
+
+  pollen.tree = pollen.grass = pollen.weed = 0;
+  for (JsonObject t : doc["dailyInfo"][0]["pollenTypeInfo"].as<JsonArray>())
+  {
+    const char *code = t["code"] | "";
+    int upi = t["indexInfo"]["value"] | 0;
+    if      (strcmp(code, "TREE") == 0)  {pollen.tree = upi;}
+    else if (strcmp(code, "GRASS") == 0) {pollen.grass = upi;}
+    else if (strcmp(code, "WEED") == 0)  {pollen.weed = upi;}
+  }
+  pollen.max_upi = std::max(pollen.tree,
+                            std::max(pollen.grass, pollen.weed));
+
+  return error;
+} // end deserializePollen

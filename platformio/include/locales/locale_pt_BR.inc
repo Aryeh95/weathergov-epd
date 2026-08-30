@@ -89,6 +89,7 @@ const char *TXT_PRESSURE           = "Press\343o";
 const char *TXT_AIR_QUALITY        = "Qualidade do Ar";
 const char *TXT_AIR_POLLUTION      = "Polui\347\343o do Ar";
 const char *TXT_VISIBILITY         = "Visibilidade";
+const char *TXT_POLLEN             = "Pólen";
 const char *TXT_INDOOR_TEMPERATURE = "Temperatura Interna";
 const char *TXT_INDOOR_HUMIDITY    = "Umidade Interna";
 const char *TXT_DEWPOINT           = "Ponto de orvalho";

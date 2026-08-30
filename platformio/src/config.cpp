@@ -130,6 +130,15 @@ String NWS_USER_AGENT = "(esp32-weather-epd, your.email@example.com)";
 // concentrations instead (no key needed, slightly less authoritative).
 String AIRNOW_APIKEY = "";
 
+// GOOGLE POLLEN API (optional)
+// Google's Pollen API (Google Maps Platform) provides a Universal Pollen
+// Index forecast (tree/grass/weed). Requires an API key with the Pollen
+// API enabled: https://developers.google.com/maps/documentation/pollen
+// The device calls it at most once per 3 hours (cached in NVS), which
+// stays far inside the free monthly quota. Consider setting a daily
+// request cap in the Google Cloud Console as a billing safety net.
+String POLLEN_APIKEY = "";
+
 // CONFIGURATION WEB PORTAL
 // A browser UI for editing config.json without reflashing. Entered by
 // pressing RST twice a few seconds apart (config mode on your WiFi), or
@@ -245,6 +254,7 @@ int POS_VISIBILITY  = -1;
 // Moon phase is computed on-device (see sun.cpp), no API needed. Hidden by
 // default -- there are more widgets than the ten slots.
 int POS_MOON_PHASE  = -1;
+int POS_POLLEN      = -1;
 int POS_INTEMP      = 8;
 int POS_INHUMIDITY  = 9;
 

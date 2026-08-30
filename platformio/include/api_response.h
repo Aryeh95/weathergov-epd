@@ -197,4 +197,18 @@ DeserializationError deserializeAirQuality(WiFiClient &json,
                                            float &uvi);
 DeserializationError deserializeAirNow(WiFiClient &json, int &aqi);
 
+/* Pollen forecast (Google Pollen API). Universal Pollen Index per type,
+ * 0-5 (0 also covers out-of-season/no-data); max_upi is the highest of
+ * the three, -1 when the fetch failed or no key is configured.
+ */
+typedef struct pollen_info
+{
+  int tree;
+  int grass;
+  int weed;
+  int max_upi;
+} pollen_info_t;
+DeserializationError deserializePollen(WiFiClient &json,
+                                       pollen_info_t &pollen);
+
 #endif

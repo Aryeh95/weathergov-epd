@@ -68,5 +68,6 @@ int getAirQuality(WiFiClient &client, owm_resp_air_pollution_t &air,
  * Returns the HTTP Status Code.
  */
 int getAirNowAQI(WiFiClient &client, int &aqi);
+int getGooglePollen(WiFiClient &client, pollen_info_t &pollen);
 
 #endif

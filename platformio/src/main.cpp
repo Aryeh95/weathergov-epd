@@ -480,6 +480,52 @@ void setup()
   // status-bar warning is reserved for conditions that actually degrade
   // what's displayed (an Open-Meteo failure, which also loses the UV
   // index, still warns above).
+  // Pollen forecast from the Google Pollen API, when a key is configured
+  // and the widget occupies a slot. Non-fatal: on failure the widget shows
+  // "--".
+  pollen_info_t pollen;
+  pollen.tree = pollen.grass = pollen.weed = 0;
+  pollen.max_upi = -1;
+  if (!POLLEN_APIKEY.isEmpty() && POS_POLLEN >= 0)
+  {
+    // Pollen is a daily forecast, so the result is cached in NVS and the
+    // API is only called once per 3-hour bucket -- ~8 calls/day instead of
+    // one per wake, keeping usage far inside Google's free monthly tier.
+    time_t pNow = time(nullptr);
+    tm pTm;
+    localtime_r(&pNow, &pTm);
+    const int32_t pollenStamp = ((pTm.tm_year + 1900) * 10000
+                                 + (pTm.tm_mon + 1) * 100 + pTm.tm_mday) * 10
+                                + pTm.tm_hour / 3;
+    prefs.begin(NVS_NAMESPACE, false);
+    if (prefs.getInt("pollenStamp", 0) == pollenStamp)
+    {
+      pollen.tree    = prefs.getInt("pollenTree", 0);
+      pollen.grass   = prefs.getInt("pollenGrass", 0);
+      pollen.weed    = prefs.getInt("pollenWeed", 0);
+      pollen.max_upi = prefs.getInt("pollenMax", -1);
+    }
+    else
+    {
+      rxStatus = getGooglePollen(client, pollen);
+      if (rxStatus != HTTP_CODE_OK)
+      {
+        pollen.max_upi = -1;
+        Serial.println("Google Pollen API " + String(rxStatus, DEC) + ": "
+                       + getHttpResponsePhrase(rxStatus));
+      }
+      else
+      {
+        prefs.putInt("pollenStamp", pollenStamp);
+        prefs.putInt("pollenTree", pollen.tree);
+        prefs.putInt("pollenGrass", pollen.grass);
+        prefs.putInt("pollenWeed", pollen.weed);
+        prefs.putInt("pollenMax", pollen.max_upi);
+      }
+    }
+    prefs.end();
+  }
+
   air_quality.us_aqi = -1;
   if (!AIRNOW_APIKEY.isEmpty())
   {
@@ -628,7 +674,8 @@ void setup()
   do
   {
     fillDisplayBackground();
-    drawCurrentConditions(current, daily[0], air_quality, inTemp, inHumidity);
+    drawCurrentConditions(current, daily[0], air_quality, pollen,
+                          inTemp, inHumidity);
     drawOutlookGraph(hourly, daily, timeInfo);
     drawForecast(daily, timeInfo);
     drawLocationDate(CITY_STRING, dateStr);

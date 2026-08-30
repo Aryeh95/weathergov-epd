@@ -28,6 +28,7 @@
 #include FONT_HEADER
 
 // icon header files
+#include "icons/icons_pollen.h" // line-art pollen flower, all panel types
 #include "icons/icons_16x16.h"
 #include "icons/icons_24x24.h"
 #include "icons/icons_32x32.h"
@@ -958,6 +959,68 @@ void drawCurrentVisibility(const owm_current_t &current)
 }
 // end drawCurrentVisibility
 
+// drawCurrentPollen
+void drawCurrentPollen(const pollen_info_t &pollen)
+{
+  if (POS_POLLEN < 0 || POS_POLLEN / 2 >= WIDGET_ROWS)
+  {
+    return;
+  }
+  int PosX = (POS_POLLEN % 2);
+  int PosY = static_cast<int>(POS_POLLEN / 2);
+
+  // icons: full-color flower on multicolor panels, line art elsewhere
+  const int iconSize = wgtIconSize();
+#ifdef MULTICOLOR_DISPLAY
+  const uint8_t *ci = getColorWidgetIcon("pollen", iconSize);
+  if (ci)
+  {
+    drawColorIcon(162 * PosX, wgtY(PosY), ci, iconSize);
+  }
+#else
+  drawDitheredIcon(162 * PosX, wgtY(PosY),
+                   (iconSize == 40) ? pollen_line_40 : pollen_line_48,
+                   iconSize);
+#endif
+
+  // labels
+  display.setFont(&FONT_7pt8b);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_POLLEN, LEFT);
+
+  // value: highest Universal Pollen Index (0-5) of tree/grass/weed, with
+  // the UV-index category words (Google's UPI categories match: 1 very
+  // low ... 5 very high). -1 = fetch failed / no key.
+  display.setFont(&FONT_12pt8b);
+  if (pollen.max_upi < 0)
+  {
+    drawString(48 + (162 * PosX), wgtValueY(PosY), "--", LEFT);
+    return;
+  }
+  uint16_t color = DM_FG;
+#ifdef MULTICOLOR_DISPLAY
+  if      (pollen.max_upi >= 4) {color = COLOR_BAD;}
+  else if (pollen.max_upi == 3) {color = GxEPD_YELLOW;}
+  else                          {color = COLOR_GOOD;}
+#endif
+  drawString(48 + (162 * PosX), wgtValueY(PosY),
+             String(pollen.max_upi), LEFT, DM_GFX(color));
+  display.setFont(&FONT_8pt8b);
+  const char *desc;
+  switch (pollen.max_upi)
+  {
+  case 0:
+  case 1:  desc = TXT_UV_LOW;       break;
+  case 2:  desc = TXT_UV_LOW;       break;
+  case 3:  desc = TXT_UV_MODERATE;  break;
+  case 4:  desc = TXT_UV_HIGH;      break;
+  default: desc = TXT_UV_VERY_HIGH; break;
+  }
+  drawString(display.getCursorX() + 4, wgtValueY(PosY), desc, LEFT,
+             DM_GFX(color));
+  return;
+}
+// end drawCurrentPollen
+
 // drawCurrentInHumidit
 void drawCurrentInHumidity(float inHumidity)
 {
@@ -1051,6 +1114,7 @@ void drawCurrentDewpoint(const owm_current_t &current)
 void drawCurrentConditions(const owm_current_t &current,
                            const owm_daily_t &today,
                            const owm_resp_air_pollution_t &owm_air_pollution,
+                           const pollen_info_t &pollen,
                            float inTemp, float inHumidity)
 {
   String dataStr, unitStr;
@@ -1131,6 +1195,7 @@ void drawCurrentConditions(const owm_current_t &current,
   drawCurrentUVI(current);
   drawCurrentPressure(current);
   drawCurrentVisibility(current);
+  drawCurrentPollen(pollen);
   drawCurrentAirQuality(owm_air_pollution);
   drawCurrentInTemp(inTemp);
   drawCurrentInHumidity(inHumidity);

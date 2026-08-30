@@ -111,6 +111,7 @@ void powerOffDisplay();
 void drawCurrentConditions(const owm_current_t &current,
                            const owm_daily_t &today,
                            const owm_resp_air_pollution_t &owm_air_pollution,
+                           const pollen_info_t &pollen,
                            float inTemp, float inHumidity);
 void drawForecast(const owm_daily_t *daily, tm timeInfo);
 void drawAlerts(std::vector<owm_alerts_t> &alerts,
@@ -133,6 +134,7 @@ void drawCurrentHumidity(const owm_current_t &current);
 void drawCurrentUVI(const owm_current_t &current);
 void drawCurrentPressure(const owm_current_t &current);
 void drawCurrentVisibility(const owm_current_t &current);
+void drawCurrentPollen(const pollen_info_t &pollen);
 void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution);
 void drawCurrentDewpoint(const owm_current_t &current);
 
