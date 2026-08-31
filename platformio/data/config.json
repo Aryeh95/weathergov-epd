@@ -26,6 +26,12 @@
     // How long to wait for the WiFi connection before giving up, in
     // milliseconds. On timeout the display shows a "network not available"
     // error and goes back to sleep.
+    // OPTIONAL static IP: skips the DHCP exchange, saving 2-4s per wake.
+    // All four keys must be set and valid; leave empty (or remove) for DHCP.
+    "static_ip": "",
+    "gateway": "",
+    "subnet": "",
+    "dns": "",
     "timeout_ms": 60000
   },
 

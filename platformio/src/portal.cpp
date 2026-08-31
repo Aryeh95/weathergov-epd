@@ -432,6 +432,7 @@ void runConfigPortal(bool forceAp)
                          "Press the reset (RST) button",
                          "to start the setup hotspot again.");
         WiFi.mode(WIFI_OFF);
+#if SOC_PM_SUPPORT_EXT_WAKEUP
         if (PIN_BTN_PORTAL != PIN_UNUSED)
         {
           rtc_gpio_pullup_en(static_cast<gpio_num_t>(PIN_BTN_PORTAL));
@@ -439,6 +440,7 @@ void runConfigPortal(bool forceAp)
           esp_sleep_enable_ext0_wakeup(
               static_cast<gpio_num_t>(PIN_BTN_PORTAL), 0);
         }
+#endif
         esp_deep_sleep_start(); // no timer: sleeps until RST/button
       }
       Serial.println("[portal] inactive for " + String(PORTAL_TIMEOUT)

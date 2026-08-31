@@ -31,6 +31,7 @@
 #include "icons/icons_196x196.h"
 #include "portal.h"
 #include "renderer.h"
+#include "history.h"
 #include "settings.h"
 #include "sun.h"
 
@@ -79,7 +80,7 @@ static void disarmDoubleReset()
 // into the configuration portal, the REFRESH button (EXT1) wakes into an
 // immediate weather refresh. Both are active low, so internal RTC pullups
 // are enabled for the sleep period.
-#if defined(PIN_UNUSED)
+#if defined(PIN_UNUSED) && SOC_PM_SUPPORT_EXT_WAKEUP
 #include <driver/rtc_io.h>
 static void enableButtonWake()
 {
@@ -97,6 +98,9 @@ static void enableButtonWake()
                                  ESP_EXT1_WAKEUP_ALL_LOW);
   }
 }
+#else
+// No EXT0/EXT1 wake on this SoC (ESP32-C3) or no wake buttons wired.
+static void enableButtonWake() {}
 #endif
 
 /* Put esp32 into ultra low-power deep sleep (<11μA).
@@ -402,8 +406,41 @@ void setup()
   prefs.end();
 
   // TIME SYNCHRONIZATION
-  configTzTime(TIMEZONE, NTP_SERVER_1, NTP_SERVER_2);
-  bool timeConfigured = waitForSNTPSync(&timeInfo);
+  // The ESP32's RTC keeps time through deep sleep with only a few seconds
+  // of drift per day, so the 5-13s SNTP wait is only needed when the last
+  // successful sync (NVS "lastNtpSync") has gone stale. A power loss
+  // resets the RTC to the epoch, which fails the sanity checks below and
+  // forces a fresh sync.
+  const long NTP_RESYNC_INTERVAL_SEC = 6 * 3600L;
+  prefs.begin(NVS_NAMESPACE, false);
+  time_t lastNtpSync = static_cast<time_t>(prefs.getLong64("lastNtpSync", 0));
+  prefs.end();
+  time_t rtcNow = time(nullptr);
+  bool timeConfigured = false;
+  if (lastNtpSync > 1600000000L && rtcNow >= lastNtpSync
+      && rtcNow - lastNtpSync < NTP_RESYNC_INTERVAL_SEC)
+  {
+    setenv("TZ", TIMEZONE, 1);
+    tzset();
+    localtime_r(&rtcNow, &timeInfo);
+    timeConfigured = true;
+    Serial.println("[time] RTC synced " + String(rtcNow - lastNtpSync)
+                   + "s ago, skipping SNTP");
+  }
+  else
+  {
+    Serial.println("[time] full sync: rtcNow=" + String((long)rtcNow)
+                   + " lastNtpSync=" + String((long)lastNtpSync)
+                   + " delta=" + String((long)(rtcNow - lastNtpSync)));
+    configTzTime(TIMEZONE, NTP_SERVER_1, NTP_SERVER_2);
+    timeConfigured = waitForSNTPSync(&timeInfo);
+    if (timeConfigured)
+    {
+      prefs.begin(NVS_NAMESPACE, false);
+      prefs.putLong64("lastNtpSync", static_cast<int64_t>(time(nullptr)));
+      prefs.end();
+    }
+  }
   if (!timeConfigured)
   {
     Serial.println(TXT_TIME_SYNCHRONIZATION_FAILED);
@@ -529,13 +566,39 @@ void setup()
   air_quality.us_aqi = -1;
   if (!AIRNOW_APIKEY.isEmpty())
   {
-    rxStatus = getAirNowAQI(client, air_quality.us_aqi);
-    if (rxStatus != HTTP_CODE_OK)
+    // AirNow's gateway is routinely the slowest call of the wake (8-25s),
+    // and its stations only report hourly -- so the result is cached in
+    // NVS per clock hour, like the pollen forecast. A failed fetch is not
+    // cached, so the next wake retries.
+    time_t aNow = time(nullptr);
+    tm aTm;
+    localtime_r(&aNow, &aTm);
+    const int32_t airnowStamp = ((aTm.tm_year + 1900) * 10000
+                                 + (aTm.tm_mon + 1) * 100
+                                 + aTm.tm_mday) * 100 + aTm.tm_hour;
+    prefs.begin(NVS_NAMESPACE, false);
+    if (prefs.getInt("airnowStamp", 0) == airnowStamp)
     {
-      Serial.println("AirNow API " + String(rxStatus, DEC) + ": "
-                     + getHttpResponsePhrase(rxStatus)
-                     + " - using Open-Meteo AQI instead");
+      air_quality.us_aqi = prefs.getInt("airnowAqi", -1);
+      Serial.println("[airnow] cached AQI " + String(air_quality.us_aqi)
+                     + " for this hour, skipping fetch");
     }
+    else
+    {
+      rxStatus = getAirNowAQI(client, air_quality.us_aqi);
+      if (rxStatus != HTTP_CODE_OK)
+      {
+        Serial.println("AirNow API " + String(rxStatus, DEC) + ": "
+                       + getHttpResponsePhrase(rxStatus)
+                       + " - using Open-Meteo AQI instead");
+      }
+      else
+      {
+        prefs.putInt("airnowStamp", airnowStamp);
+        prefs.putInt("airnowAqi", air_quality.us_aqi);
+      }
+    }
+    prefs.end();
   }
 
   // NWS serves the forecast as day/night periods and drops each period once
@@ -589,6 +652,11 @@ void setup()
   killWiFi(); // WiFi no longer needed
 
   // GET INDOOR TEMPERATURE AND HUMIDITY, start indoor sensor...
+  float inTemp     = NAN;
+  float inHumidity = NAN;
+#ifdef SENSOR_NONE
+  // No environment sensor on this board; the indoor widgets show "--".
+#else
   if (PIN_BME_PWR != PIN_UNUSED)
   {
     pinMode(PIN_BME_PWR, OUTPUT);
@@ -604,8 +672,6 @@ void setup()
 #endif
   TwoWire I2C_bme = TwoWire(0);
   I2C_bme.begin(PIN_BME_SDA, PIN_BME_SCL, 100000); // 100kHz
-  float inTemp     = NAN;
-  float inHumidity = NAN;
 #if defined(SENSOR_BME280)
   Serial.print(String(TXT_READING_FROM) + " BME280... ");
   Adafruit_BME280 bme;
@@ -663,6 +729,7 @@ void setup()
   {
     digitalWrite(PIN_BME_PWR, LOW);
   }
+#endif // SENSOR_NONE
 
   String refreshTimeStr;
   getRefreshTimeStr(refreshTimeStr, timeConfigured, &timeInfo);
@@ -670,6 +737,21 @@ void setup()
   getDateStr(dateStr, &timeInfo);
 
   // RENDER FULL REFRESH
+  // Record this wake's readings into the NVS history and derive the
+  // pressure/indoor trends and the battery-runtime estimate shown on the
+  // display (see history.h).
+  prefs.begin(NVS_NAMESPACE, false);
+#if BATTERY_MONITORING
+  historyUpdate(time(nullptr), current.pressure, inTemp, batteryVoltage,
+                prefs);
+#else
+  historyUpdate(time(nullptr), current.pressure, inTemp, 0, prefs);
+#endif
+  prefs.end();
+  Serial.println("[history] pressure trend " + String(historyPressureTrend())
+                 + ", indoor trend " + String(historyIndoorTrend())
+                 + ", battery days left " + String(historyBatteryDaysLeft()));
+
   initDisplay();
   do
   {
@@ -682,7 +764,8 @@ void setup()
 #if DISPLAY_ALERTS
     drawAlerts(alerts, CITY_STRING, dateStr);
 #endif
-    drawStatusBar(statusStr, refreshTimeStr, wifiRSSI, batteryVoltage);
+    drawStatusBar(statusStr, refreshTimeStr, wifiRSSI, batteryVoltage,
+                  historyBatteryDaysLeft());
   } while (display.nextPage());
   powerOffDisplay();
 

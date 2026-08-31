@@ -18,6 +18,7 @@
 #include "_locale.h"
 #include "_strftime.h"
 #include "renderer.h"
+#include "history.h"
 #include "api_response.h"
 #include "config.h"
 #include "conversions.h"
@@ -753,8 +754,25 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
 }
 // end drawCurrentAirQuality
 
+/* Draws a small trend arrow (see history.h TREND_*) after a widget value.
+ * x is the cursor position right after the value text; y is the value
+ * baseline. TREND_UNKNOWN draws nothing.
+ */
+static void drawTrendArrow(int16_t x, int16_t y, int trend)
+{
+  const uint8_t *bmp;
+  switch (trend)
+  {
+  case TREND_RISING:  bmp = wi_direction_up_right_24x24;   break;
+  case TREND_STEADY:  bmp = wi_direction_right_24x24;      break;
+  case TREND_FALLING: bmp = wi_direction_down_right_24x24; break;
+  default: return;
+  }
+  display.drawInvertedBitmap(x + 1, y - 19, bmp, 24, 24, DM_FG);
+} // end drawTrendArrow
+
 // drawCurrentInTemp
-void drawCurrentInTemp(float inTemp)
+void drawCurrentInTemp(float inTemp, int trend)
 {
   if (POS_INTEMP < 0 || POS_INTEMP / 2 >= WIDGET_ROWS)
   {
@@ -795,6 +813,7 @@ void drawCurrentInTemp(float inTemp)
   dataStr += "\260";
 #endif
   drawString(48 + (162 * PosX), wgtValueY(PosY), dataStr, LEFT);
+  drawTrendArrow(display.getCursorX(), wgtValueY(PosY), trend);
   return;
 }
 // end drawCurrentInTemp
@@ -830,7 +849,7 @@ void drawCurrentHumidity(const owm_current_t &current)
 // end drawCurrentHumidity
 
 // drawCurrentPressure
-void drawCurrentPressure(const owm_current_t &current)
+void drawCurrentPressure(const owm_current_t &current, int trend)
 {
   if (POS_PRESSURE < 0 || POS_PRESSURE / 2 >= WIDGET_ROWS)
   {
@@ -896,6 +915,7 @@ void drawCurrentPressure(const owm_current_t &current)
   display.setFont(&FONT_8pt8b);
   drawString(display.getCursorX(), wgtValueY(PosY),
              unitStr, LEFT);
+  drawTrendArrow(display.getCursorX(), wgtValueY(PosY), trend);
 
   return;
 }
@@ -1193,11 +1213,11 @@ void drawCurrentConditions(const owm_current_t &current,
   drawCurrentWind(current);
   drawCurrentHumidity(current);
   drawCurrentUVI(current);
-  drawCurrentPressure(current);
+  drawCurrentPressure(current, historyPressureTrend());
   drawCurrentVisibility(current);
   drawCurrentPollen(pollen);
   drawCurrentAirQuality(owm_air_pollution);
-  drawCurrentInTemp(inTemp);
+  drawCurrentInTemp(inTemp, historyIndoorTrend());
   drawCurrentInHumidity(inHumidity);
   drawCurrentDewpoint(current);
   drawCurrentMoonPhase();
@@ -1901,7 +1921,7 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
  * the display.
  */
 void drawStatusBar(const String &statusStr, const String &refreshTimeStr,
-                   int rssi, uint32_t batVoltage)
+                   int rssi, uint32_t batVoltage, int batDaysLeft)
 {
   String dataStr;
   uint16_t dataColor = DM_FG;
@@ -1925,6 +1945,10 @@ void drawStatusBar(const String &statusStr, const String &refreshTimeStr,
 #if STATUS_BAR_EXTRAS_BAT_PERCENTAGE
   dataStr += String(batPercent) + "%";
 #endif
+  if (batDaysLeft >= 0)
+  { // estimated runtime from the multi-day discharge slope (history.cpp)
+    dataStr += " ~" + String(batDaysLeft) + "d";
+  }
 #if STATUS_BAR_EXTRAS_BAT_VOLTAGE
   dataStr += " (" + String( std::round(batVoltage / 10.f) / 100.f, 2 ) + "v)";
 #endif

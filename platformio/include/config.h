@@ -394,6 +394,12 @@ extern const uint8_t BME_ADDRESS;
 extern char   WIFI_SSID[33];
 extern char   WIFI_PASSWORD[65];
 extern unsigned long WIFI_TIMEOUT;
+// Optional static IP (skips DHCP, saving 2-4s per wake). All four must be
+// set for it to take effect; leave STATIC_IP empty to use DHCP.
+extern char STATIC_IP[16];
+extern char STATIC_GATEWAY[16];
+extern char STATIC_SUBNET[16];
+extern char STATIC_DNS[16];
 extern unsigned HTTP_CLIENT_TCP_TIMEOUT;
 extern String NWS_USER_AGENT;
 extern String AIRNOW_APIKEY;
@@ -449,7 +455,8 @@ extern int POS_INHUMIDITY;
       ^ defined(DISP_3C_B)   \
       ^ defined(DISP_7C_F)   \
       ^ defined(DISP_7C_E6)  \
-      ^ defined(DISP_BW_V1))
+      ^ defined(DISP_BW_V1)  \
+      ^ defined(DISP_BW_X3))
   #error Invalid configuration. Exactly one display panel must be selected.
 #endif
 #if !(  defined(DRIVER_WAVESHARE) \
@@ -458,7 +465,8 @@ extern int POS_INHUMIDITY;
 #endif
 #if !(  defined(SENSOR_BME280) \
       ^ defined(SENSOR_BME680) \
-      ^ defined(SENSOR_SHT4X))
+      ^ defined(SENSOR_SHT4X) \
+      ^ defined(SENSOR_NONE))
   #error Invalid configuration. Exactly one sensor must be selected.
 #endif
 #if !(defined(LOCALE))

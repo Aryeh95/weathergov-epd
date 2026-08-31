@@ -81,6 +81,10 @@ bool loadSettings()
   loadStrToCharArray(WIFI_SSID, sizeof(WIFI_SSID), wifi["ssid"]);
   loadStrToCharArray(WIFI_PASSWORD, sizeof(WIFI_PASSWORD), wifi["password"]);
   WIFI_TIMEOUT = wifi["timeout_ms"] | WIFI_TIMEOUT;
+  loadStrToCharArray(STATIC_IP, sizeof(STATIC_IP), wifi["static_ip"]);
+  loadStrToCharArray(STATIC_GATEWAY, sizeof(STATIC_GATEWAY), wifi["gateway"]);
+  loadStrToCharArray(STATIC_SUBNET, sizeof(STATIC_SUBNET), wifi["subnet"]);
+  loadStrToCharArray(STATIC_DNS, sizeof(STATIC_DNS), wifi["dns"]);
 
   JsonObjectConst location = doc["location"];
   LAT         = location["lat"]  | LAT;

@@ -120,19 +120,19 @@ void drawLocationDate(const String &city, const String &date);
 void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
                       tm timeInfo);
 void drawStatusBar(const String &statusStr, const String &refreshTimeStr,
-                   int rssi, uint32_t batVoltage);
+                   int rssi, uint32_t batVoltage, int batDaysLeft = -1);
 void drawError(const uint8_t *bitmap_196x196,
                const String &errMsgLn1, const String &errMsgLn2="");
 void drawConfigPortalScreen(const String &line1, const String &line2,
                             const String &line3);
 void drawCurrentSunrise(const owm_current_t &current);
 void drawCurrentSunset(const owm_current_t &current);
-void drawCurrentInTemp(float inTemp);
+void drawCurrentInTemp(float inTemp, int trend);
 void drawCurrentInHumidity(float inHumidity);
 void drawCurrentWind(const owm_current_t &current);
 void drawCurrentHumidity(const owm_current_t &current);
 void drawCurrentUVI(const owm_current_t &current);
-void drawCurrentPressure(const owm_current_t &current);
+void drawCurrentPressure(const owm_current_t &current, int trend);
 void drawCurrentVisibility(const owm_current_t &current);
 void drawCurrentPollen(const pollen_info_t &pollen);
 void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution);

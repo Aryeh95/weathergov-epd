@@ -105,6 +105,12 @@ bool DARK_MODE = false;
 char WIFI_SSID[33]     = "ssid";
 char WIFI_PASSWORD[65] = "password";
 unsigned long WIFI_TIMEOUT = 60000; // ms, WiFi connection timeout.
+// Optional static IP configuration (config.json wifi.static_ip etc.).
+// All four must be set to skip DHCP; empty = DHCP.
+char STATIC_IP[16]      = "";
+char STATIC_GATEWAY[16] = "";
+char STATIC_SUBNET[16]  = "";
+char STATIC_DNS[16]     = "";
 
 
 // HTTP
