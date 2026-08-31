@@ -1,4 +1,4 @@
-# ESP32 E-Paper Weather Display (weather.gov fork)
+# weathergov-epd — ESP32 E-Paper Weather Display
 
 > [!NOTE]
 > **This fork replaces OpenWeatherMap with the free, keyless [weather.gov (NWS) API](https://www.weather.gov/documentation/services-web-api).** US locations only. Major differences from upstream:
