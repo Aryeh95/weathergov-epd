@@ -60,7 +60,12 @@
       <button type="button" id="scanbtn" style="white-space:nowrap">&#x1F50D; Scan</button>
     </div>
     <div id="scanlist" style="display:none"></div>
-    <label>Password</label><input id="w_pass" type="password" autocomplete="off">
+    <label>Password</label>
+    <div style="display:flex;gap:0.4rem">
+      <input id="w_pass" type="password" autocomplete="off" style="flex:1">
+      <button type="button" id="passbtn" style="white-space:nowrap"
+              onclick="var p=el('w_pass'),s=p.type==='password';p.type=s?'text':'password';this.textContent=s?'&#x1F648; Hide':'&#x1F441; Show'">&#x1F441; Show</button>
+    </div>
     <div class="hint">2.4&nbsp;GHz networks only &mdash; the ESP32 cannot see 5&nbsp;GHz.</div>
   </fieldset>
 
