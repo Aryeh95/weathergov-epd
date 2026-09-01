@@ -21,6 +21,7 @@
 #include <DNSServer.h>
 #include <ESPmDNS.h>
 #include <LittleFS.h>
+#include <Preferences.h>
 #include <Update.h>
 #include <driver/rtc_io.h>
 #include <WebServer.h>
@@ -445,6 +446,15 @@ void runConfigPortal(bool forceAp)
       }
       Serial.println("[portal] inactive for " + String(PORTAL_TIMEOUT)
                      + "min, restarting into normal cycle");
+      // The portal screen (hotspot name/address) is still on the panel, but
+      // the hotspot is about to disappear. The normal cycle repaints the
+      // WiFi error screen only when the failure is new, so clear that
+      // marker: if WiFi still fails, the next wake redraws the error screen
+      // instead of leaving stale portal info on screen indefinitely.
+      Preferences p;
+      p.begin(NVS_NAMESPACE, false);
+      p.remove("wifiErr");
+      p.end();
       esp_restart();
     }
     delay(2);
