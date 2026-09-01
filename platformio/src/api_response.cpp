@@ -677,10 +677,10 @@ DeserializationError deserializeAirQuality(WiFiClient &json,
 } // end deserializeAirQuality
 
 /* Parses AirNow's current observations endpoint
- * (/aq/observation/latLong/current/). The response is an array of per-
- * pollutant observations (O3, PM2.5, PM10, ...) each carrying an official
- * pre-computed US EPA AQI. Per EPA practice, the reported overall AQI is
- * the maximum across pollutants.
+ * (/aq/data/ site-level NowCast feed). The response is an array of per-
+ * station, per-pollutant rows (O3, PM2.5, PM10, ...) each carrying an
+ * official pre-computed NowCast US EPA AQI. Per EPA practice, the reported
+ * overall AQI is the maximum across rows.
  *
  * aqi is left untouched if the response contains no observations (no
  * monitoring station within the search radius), so callers should
@@ -689,8 +689,7 @@ DeserializationError deserializeAirQuality(WiFiClient &json,
 DeserializationError deserializeAirNow(WiFiClient &json, int &aqi)
 {
   JsonDocument filter;
-  filter[0]["ParameterName"] = true;
-  filter[0]["AQI"]           = true;
+  filter[0]["AQI"] = true;
 
   JsonDocument doc;
   DeserializationError error = deserializeJson(doc, json,
