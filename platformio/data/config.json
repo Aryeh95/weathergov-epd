@@ -71,11 +71,11 @@
 
     // Time servers. ntp_server_1 is primary, ntp_server_2 is the fallback.
     // pool.ntp.org resolves to a server near you.
-    "ntp_server_1": "pool.ntp.org",
+    "ntp_server_1": "time.cloudflare.com",
     "ntp_server_2": "time.nist.gov",
     // If you hit the "failed to fetch the time" error, raise this or pick
     // closer/lower-latency time servers.
-    "ntp_timeout_ms": 20000
+    "ntp_timeout_ms": 35000
   },
 
   "sleep": {

@@ -194,6 +194,60 @@ static void drawWidgetIcon(int16_t x, int16_t y, const uint8_t *lineArt48,
                              size, size, lineColor);
 } // end drawWidgetIcon
 
+// Risk levels for drawRiskChip.
+#define RISK_PLAIN  0
+#define RISK_GREEN  1 // low/good: white text on green
+#define RISK_YELLOW 2 // moderate: black text on yellow (EPA yellow band)
+#define RISK_AMBER  3 // elevated: black text on the panel's amber ink
+#define RISK_RED    4 // high: white text on red
+#define RISK_PURPLE 5 // very high: white text on a red/blue dither (plum)
+#define RISK_MAROON 6 // hazardous: white text on a red/black dither
+
+/* Draws a risk-category word. On multicolor panels, elevated levels render
+ * as a colored badge -- the ink as AREA with solid text knocked out on top,
+ * which stays legible where colored glyphs do not (amber/red are too dim as
+ * 7pt text on this ink; verified on the E1002). Purple has no native ink,
+ * but a red/blue checker at area scale reads as a dark plum. Uses the
+ * currently selected font; x is the left edge, y the text baseline.
+ */
+static void drawRiskChip(int16_t x, int16_t y, const String &text, int level)
+{
+#ifndef MULTICOLOR_DISPLAY
+  (void)level;
+  drawString(x, y, text, LEFT);
+#else
+  if (level == RISK_PLAIN || text.isEmpty())
+  {
+    drawString(x, y, text, LEFT);
+    return;
+  }
+  uint16_t w = getStringWidth(text);
+  int16_t x0 = x - 2, y0 = y - 12, x1 = x + w + 4, y1 = y + 3;
+  if (level == RISK_PURPLE || level == RISK_MAROON)
+  { // no native ink: an area dither reads as dark plum / maroon
+    uint16_t alt = (level == RISK_PURPLE) ? GxEPD_BLUE : GxEPD_BLACK;
+    for (int16_t yy = y0; yy <= y1; ++yy)
+    {
+      for (int16_t xx = x0; xx <= x1; ++xx)
+      {
+        display.drawPixel(xx, yy, ((xx + yy) & 1) ? GxEPD_RED : alt);
+      }
+    }
+  }
+  else
+  {
+    uint16_t fill = GxEPD_RED;
+    if (level == RISK_YELLOW) {fill = GxEPD_YELLOW;}
+    if (level == RISK_AMBER)  {fill = GxEPD_ORANGE;}
+    if (level == RISK_GREEN)  {fill = GxEPD_GREEN;}
+    display.fillRoundRect(x0, y0, x1 - x0 + 1, y1 - y0 + 1, 3, fill);
+  }
+  const bool darkText = (level == RISK_YELLOW || level == RISK_AMBER);
+  drawString(x + 1, y, text,
+             (alignment_t)LEFT, darkText ? GxEPD_BLACK : GxEPD_WHITE);
+#endif
+} // end drawRiskChip
+
 /* Returns the string width in pixels
  */
 uint16_t getStringWidth(const String &text)
@@ -564,25 +618,29 @@ void drawCurrentUVI(const owm_current_t &current)
   // uv index
   display.setFont(&FONT_12pt8b);
   dataStr = String(uvi);
-  // the value carries the risk-level color on multicolor panels
-  drawString(48 + (162 * PosX), wgtValueY(PosY),
-             dataStr, LEFT, DM_GFX(getUVIColor(uvi)));
+  drawString(48 + (162 * PosX), wgtValueY(PosY), dataStr, LEFT);
   display.setFont(&FONT_7pt8b);
   dataStr = String(getUVIdesc(uvi));
+  // EPA/WHO UV index colors: green / yellow / orange / red / violet
+  const int uviRisk = (uvi <= 2)  ? RISK_GREEN
+                    : (uvi <= 5)  ? RISK_YELLOW
+                    : (uvi <= 7)  ? RISK_AMBER
+                    : (uvi <= 10) ? RISK_RED
+                                  : RISK_PURPLE;
   int max_w = (162 + (PosX * 162) - sp) - (display.getCursorX() + sp);
   if (getStringWidth(dataStr) <= max_w)
   { // Fits on a single line, draw along bottom
-    drawString(display.getCursorX() + sp, wgtValueY(PosY),
-               dataStr, LEFT);
+    drawRiskChip(display.getCursorX() + sp, wgtValueY(PosY),
+                 dataStr, uviRisk);
   }
   else
   { // use smaller font
     display.setFont(&FONT_5pt8b);
     if (getStringWidth(dataStr) <= max_w)
     { // Fits on a single line with smaller font, draw along bottom
-      drawString(display.getCursorX() + sp,
-                 wgtValueY(PosY),
-                 dataStr, LEFT);
+      drawRiskChip(display.getCursorX() + sp,
+                   wgtValueY(PosY),
+                   dataStr, uviRisk);
     }
     else
     { // Does not fit on a single line, draw higher to allow room for 2nd line
@@ -685,7 +743,16 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   {
     air_quality_index_label = TXT_AIR_POLLUTION;
   }
-  drawString(48 + (162 * PosX), wgtLabelY(PosY), air_quality_index_label, LEFT);
+  // Source tag: AirNow = measured at EPA monitoring stations; otherwise the
+  // AQI is computed from Open-Meteo's CAMS *model* pollutant fields -- worth
+  // telling apart at a glance. Drawn in the smallest font so it fits after
+  // the label in the widget column.
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), air_quality_index_label,
+             LEFT);
+  display.setFont(&FONT_5pt8b);
+  drawString(display.getCursorX() + 3, wgtLabelY(PosY),
+             useAirNow ? "(AirNow)" : "(model)", LEFT);
+  display.setFont(&FONT_7pt8b);
 
   // spacing between end of index value and start of descriptor text
   const int sp = 8;
@@ -721,26 +788,37 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   {
     dataStr = String(aqi);
   }
-  // the value carries the risk-level color on multicolor panels
-  drawString(48 + (162 * PosX), wgtValueY(PosY),
-             dataStr, LEFT, DM_GFX(getAQIColor(aqi, usScale)));
+  drawString(48 + (162 * PosX), wgtValueY(PosY), dataStr, LEFT);
   display.setFont(&FONT_7pt8b);
   dataStr = useAirNow ? String(united_states_aqi_desc(aqi))
                       : String(aqi_desc(AQI_SCALE, aqi));
+  // Full EPA color bands (defined for the US scale only)
+  const int aqiRisk = !usScale     ? RISK_PLAIN
+                    : (aqi <= 50)  ? RISK_GREEN
+                    : (aqi <= 100) ? RISK_YELLOW
+                    : (aqi <= 150) ? RISK_AMBER
+                    : (aqi <= 200) ? RISK_RED
+                    : (aqi <= 300) ? RISK_PURPLE
+                                   : RISK_MAROON;
   int max_w = (162 + (PosX * 162) - sp) - (display.getCursorX() + sp);
+  if (usScale && aqi > 100 && aqi <= 150 && getStringWidth(dataStr) > max_w)
+  { // "Unhealthy for Sensitive Groups" can't fit a one-line chip; the EPA's
+    // own legend abbreviates the band as "USG".
+    dataStr = "USG";
+  }
   if (getStringWidth(dataStr) <= max_w)
   { // Fits on a single line, draw along bottom
-    drawString(display.getCursorX() + sp, wgtValueY(PosY),
-               dataStr, LEFT);
+    drawRiskChip(display.getCursorX() + sp, wgtValueY(PosY),
+                 dataStr, aqiRisk);
   }
   else
   { // use smaller font
     display.setFont(&FONT_5pt8b);
     if (getStringWidth(dataStr) <= max_w)
     { // Fits on a single line with smaller font, draw along bottom
-      drawString(display.getCursorX() + sp,
-                 wgtValueY(PosY),
-                 dataStr, LEFT);
+      drawRiskChip(display.getCursorX() + sp,
+                   wgtValueY(PosY),
+                   dataStr, aqiRisk);
     }
     else
     { // Does not fit on a single line, draw higher to allow room for 2nd line
@@ -1016,17 +1094,9 @@ void drawCurrentPollen(const pollen_info_t &pollen)
     drawString(48 + (162 * PosX), wgtValueY(PosY), "--", LEFT);
     return;
   }
-  // Like the UV/AQI widgets: color only the clear signals. Yellow text on
-  // white ink is nearly invisible (verified on the E1002), so moderate
-  // renders in the default foreground.
-  uint16_t color = DM_FG;
-#ifdef MULTICOLOR_DISPLAY
-  if      (pollen.max_upi >= 4) {color = COLOR_BAD;}
-  else if (pollen.max_upi <= 2) {color = COLOR_GOOD;}
-#endif
   drawString(48 + (162 * PosX), wgtValueY(PosY),
-             String(pollen.max_upi), LEFT, DM_GFX(color));
-  display.setFont(&FONT_8pt8b);
+             String(pollen.max_upi), LEFT);
+  display.setFont(&FONT_7pt8b);
   const char *desc;
   switch (pollen.max_upi)
   {
@@ -1037,8 +1107,10 @@ void drawCurrentPollen(const pollen_info_t &pollen)
   case 4:  desc = TXT_UV_HIGH;      break;
   default: desc = TXT_UV_VERY_HIGH; break;
   }
-  drawString(display.getCursorX() + 4, wgtValueY(PosY), desc, LEFT,
-             DM_GFX(color));
+  const int pollenRisk = (pollen.max_upi <= 2) ? RISK_GREEN
+                       : (pollen.max_upi == 3) ? RISK_AMBER
+                                               : RISK_RED;
+  drawRiskChip(display.getCursorX() + 8, wgtValueY(PosY), desc, pollenRisk);
   return;
 }
 // end drawCurrentPollen
