@@ -1016,11 +1016,13 @@ void drawCurrentPollen(const pollen_info_t &pollen)
     drawString(48 + (162 * PosX), wgtValueY(PosY), "--", LEFT);
     return;
   }
+  // Like the UV/AQI widgets: color only the clear signals. Yellow text on
+  // white ink is nearly invisible (verified on the E1002), so moderate
+  // renders in the default foreground.
   uint16_t color = DM_FG;
 #ifdef MULTICOLOR_DISPLAY
   if      (pollen.max_upi >= 4) {color = COLOR_BAD;}
-  else if (pollen.max_upi == 3) {color = GxEPD_YELLOW;}
-  else                          {color = COLOR_GOOD;}
+  else if (pollen.max_upi <= 2) {color = COLOR_GOOD;}
 #endif
   drawString(48 + (162 * PosX), wgtValueY(PosY),
              String(pollen.max_upi), LEFT, DM_GFX(color));
