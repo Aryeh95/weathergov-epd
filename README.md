@@ -18,7 +18,7 @@
 A low-power weather display using a wifi-enabled ESP32 microcontroller and a 7.5" E-Paper display. Weather data is fetched from the weather.gov (NWS) API, and an onboard sensor provides indoor temperature and humidity.
 
 <p float="left">
-  <img src="showcase/assembled-demo-raleigh-front.jpg" />
+  <img src="showcase/demo-reterminal-e1002-front.jpg" />
   <img src="showcase/assembled-demo-raleigh-side.jpg" width="49%" />
   <img src="showcase/assembled-demo-raleigh-back.jpg" width="49%" />
   <img src="showcase/assembled-demo-bottom-cover.jpg" width="49%" />
