@@ -350,6 +350,20 @@ static void drawPortalScreen(const String &line1, const String &line2,
   powerOffDisplay();
 } // end drawPortalScreen
 
+/* The portal screen (hotspot name/address) stays on the panel after the
+ * portal exits, but the normal cycle repaints the WiFi error screen only
+ * when the failure is NEW (draw-once marker). Clearing the marker on every
+ * portal exit guarantees a still-failing network repaints the error screen
+ * on the next wake instead of leaving stale portal info up indefinitely.
+ */
+static void clearWifiErrMarker()
+{
+  Preferences p;
+  p.begin(NVS_NAMESPACE, false);
+  p.remove("wifiErr");
+  p.end();
+}
+
 void runConfigPortal(bool forceAp)
 {
   Serial.println("[portal] starting configuration portal");
@@ -417,6 +431,7 @@ void runConfigPortal(bool forceAp)
     if (restartAt != 0 && millis() >= restartAt)
     {
       Serial.println("[portal] configuration saved, restarting");
+      clearWifiErrMarker();
       esp_restart();
     }
     if (millis() - lastActivity >= timeoutMs)
@@ -446,15 +461,7 @@ void runConfigPortal(bool forceAp)
       }
       Serial.println("[portal] inactive for " + String(PORTAL_TIMEOUT)
                      + "min, restarting into normal cycle");
-      // The portal screen (hotspot name/address) is still on the panel, but
-      // the hotspot is about to disappear. The normal cycle repaints the
-      // WiFi error screen only when the failure is new, so clear that
-      // marker: if WiFi still fails, the next wake redraws the error screen
-      // instead of leaving stale portal info on screen indefinitely.
-      Preferences p;
-      p.begin(NVS_NAMESPACE, false);
-      p.remove("wifiErr");
-      p.end();
+      clearWifiErrMarker();
       esp_restart();
     }
     delay(2);
