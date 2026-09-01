@@ -198,7 +198,7 @@ static void drawWidgetIcon(int16_t x, int16_t y, const uint8_t *lineArt48,
 #define RISK_PLAIN  0
 #define RISK_GREEN  1 // low/good: white text on green
 #define RISK_YELLOW 2 // moderate: black text on yellow (EPA yellow band)
-#define RISK_AMBER  3 // elevated: black text on the panel's amber ink
+#define RISK_AMBER  3 // elevated: black text on a yellow/red dither (orange)
 #define RISK_RED    4 // high: white text on red
 #define RISK_PURPLE 5 // very high: white text on a red/blue dither (plum)
 #define RISK_MAROON 6 // hazardous: white text on a red/black dither
@@ -223,9 +223,12 @@ static void drawRiskChip(int16_t x, int16_t y, const String &text, int level)
   }
   uint16_t w = getStringWidth(text);
   int16_t x0 = x - 2, y0 = y - 12, x1 = x + w + 4, y1 = y + 3;
-  if (level == RISK_PURPLE || level == RISK_MAROON)
-  { // no native ink: an area dither reads as dark plum / maroon
-    uint16_t alt = (level == RISK_PURPLE) ? GxEPD_BLUE : GxEPD_BLACK;
+  if (level == RISK_PURPLE || level == RISK_MAROON || level == RISK_AMBER)
+  { // no usable native ink: an area dither reads as plum / maroon / orange
+    // (the panel's own "orange" code renders as a blotchy brown gradient)
+    uint16_t alt = (level == RISK_PURPLE) ? GxEPD_BLUE
+                 : (level == RISK_AMBER)  ? GxEPD_YELLOW
+                                          : GxEPD_BLACK;
     for (int16_t yy = y0; yy <= y1; ++yy)
     {
       for (int16_t xx = x0; xx <= x1; ++xx)
@@ -238,7 +241,6 @@ static void drawRiskChip(int16_t x, int16_t y, const String &text, int level)
   {
     uint16_t fill = GxEPD_RED;
     if (level == RISK_YELLOW) {fill = GxEPD_YELLOW;}
-    if (level == RISK_AMBER)  {fill = GxEPD_ORANGE;}
     if (level == RISK_GREEN)  {fill = GxEPD_GREEN;}
     display.fillRoundRect(x0, y0, x1 - x0 + 1, y1 - y0 + 1, 3, fill);
   }
