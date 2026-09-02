@@ -468,6 +468,87 @@ void fillCurrentFromFallback(const owm_hourly_t &fallback, owm_current_t &curren
   current.visibility  = 10000;
 } // end fillCurrentFromFallback
 
+/* Parses Open-Meteo's current-conditions block (/v1/forecast?current=...,
+ * requested with wind_speed_unit=ms). Values are model output interpolated
+ * to the configured coordinates, refreshed every ~15 minutes. Any missing
+ * field falls back to the first hourly forecast period, mirroring
+ * deserializeNWSObservation. The condition icon/description always comes
+ * from the forecast (fallback.weather) -- Open-Meteo's weather codes are
+ * not mapped.
+ */
+DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
+                                                 const owm_hourly_t &fallback,
+                                                 owm_current_t &current)
+{
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, json);
+#if DEBUG_LEVEL >= 1
+  Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
+#endif
+#if DEBUG_LEVEL >= 2
+  serializeJsonPretty(doc, Serial);
+#endif
+
+  if (error)
+  {
+    fillCurrentFromFallback(fallback, current);
+    return error;
+  }
+
+  current = {};
+  current.dt      = time(nullptr);
+  current.weather = fallback.weather;
+
+  JsonObject c = doc["current"];
+
+  JsonVariant tempVar = c["temperature_2m"];
+  current.temp = !tempVar.isNull() ? celsius_to_kelvin(tempVar.as<float>())
+                                    : fallback.temp;
+
+  JsonVariant feelVar = c["apparent_temperature"];
+  current.feels_like = !feelVar.isNull()
+                      ? celsius_to_kelvin(feelVar.as<float>())
+                      : current.temp;
+
+  JsonVariant humVar = c["relative_humidity_2m"];
+  current.humidity = !humVar.isNull()
+                    ? static_cast<int>(std::round(humVar.as<float>()))
+                    : 0;
+
+  JsonVariant dewVar = c["dew_point_2m"];
+  current.dew_point = !dewVar.isNull() ? celsius_to_kelvin(dewVar.as<float>())
+                                        : NAN;
+
+  JsonVariant pressVar = c["pressure_msl"];
+  current.pressure = !pressVar.isNull()
+                    ? static_cast<int>(std::round(pressVar.as<float>()))
+                    : 1013;
+
+  JsonVariant visVar = c["visibility"];
+  current.visibility = !visVar.isNull()
+                      ? static_cast<int>(visVar.as<float>())
+                      : 10000;
+
+  JsonVariant spdVar = c["wind_speed_10m"];
+  current.wind_speed = !spdVar.isNull() ? spdVar.as<float>()
+                                         : fallback.wind_speed;
+
+  JsonVariant gustVar = c["wind_gusts_10m"];
+  current.wind_gust = !gustVar.isNull() ? gustVar.as<float>()
+                                         : current.wind_speed;
+
+  JsonVariant dirVar = c["wind_direction_10m"];
+  current.wind_deg = !dirVar.isNull() ? static_cast<int>(dirVar.as<float>())
+                                       : fallback.wind_deg;
+
+  JsonVariant cloudVar = c["cloud_cover"];
+  current.clouds = !cloudVar.isNull()
+                  ? static_cast<int>(std::round(cloudVar.as<float>()))
+                  : fallback.clouds;
+
+  return error;
+} // end deserializeOpenMeteoCurrent
+
 /* Parses the latest observation from a weather.gov observation station.
  * Automated stations frequently omit individual fields (most commonly wind
  * and visibility); any missing field falls back to the corresponding value

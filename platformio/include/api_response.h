@@ -189,6 +189,9 @@ DeserializationError deserializeNWSStations(WiFiClient &json, String &stationId)
 DeserializationError deserializeNWSObservation(WiFiClient &json,
                                                const owm_hourly_t &fallback,
                                                owm_current_t &current);
+DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
+                                                 const owm_hourly_t &fallback,
+                                                 owm_current_t &current);
 void fillCurrentFromFallback(const owm_hourly_t &fallback, owm_current_t &current);
 DeserializationError deserializeNWSAlerts(WiFiClient &json,
                                           std::vector<owm_alerts_t> &alerts);
