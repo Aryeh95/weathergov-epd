@@ -46,8 +46,8 @@ float meters_to_kilometers(float meters);
 float meters_to_miles(float meters);
 float meters_to_feet(float meters);
 
-float millimeters_to_inches(float meters);
-float millimeters_to_centimeters(float meters);
+float millimeters_to_inches(float millimeters);
+float millimeters_to_centimeters(float millimeters);
 
 #endif
 

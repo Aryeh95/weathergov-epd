@@ -179,16 +179,11 @@ typedef struct owm_resp_air_pollution
 } owm_resp_air_pollution_t;
 
 DeserializationError deserializeNWSPoints(WiFiClient &json, String &forecastUrl,
-                                          String &forecastHourlyUrl,
-                                          String &stationsUrl);
+                                          String &forecastHourlyUrl);
 DeserializationError deserializeNWSForecastDaily(WiFiClient &json,
                                                  owm_daily_t *daily);
 DeserializationError deserializeNWSForecastHourly(WiFiClient &json,
                                                   owm_hourly_t *hourly);
-DeserializationError deserializeNWSStations(WiFiClient &json, String &stationId);
-DeserializationError deserializeNWSObservation(WiFiClient &json,
-                                               const owm_hourly_t &fallback,
-                                               owm_current_t &current);
 DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
                                                  const owm_hourly_t &fallback,
                                                  owm_current_t &current);

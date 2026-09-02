@@ -67,6 +67,18 @@
               onclick="var p=el('w_pass'),s=p.type==='password';p.type=s?'text':'password';this.textContent=s?'&#x1F648; Hide':'&#x1F441; Show'">&#x1F441; Show</button>
     </div>
     <div class="hint">2.4&nbsp;GHz networks only &mdash; the ESP32 cannot see 5&nbsp;GHz.</div>
+    <button class="toggle" id="statictoggle" type="button" style="margin-top:0.5rem">Advanced: Static IP (optional &mdash; skips DHCP)</button>
+    <div id="staticbox" style="display:none;margin-top:0.4rem">
+      <div class="hint">Setting a static IP skips the DHCP exchange and saves 2&ndash;4s of battery on every wake. All 4 fields must be set.</div>
+      <div class="row">
+        <div><label>Static IP</label><input id="w_static_ip" placeholder="192.168.1.150"></div>
+        <div><label>Gateway</label><input id="w_gateway" placeholder="192.168.1.1"></div>
+      </div>
+      <div class="row">
+        <div><label>Subnet Mask</label><input id="w_subnet" placeholder="255.255.255.0"></div>
+        <div><label>DNS Server</label><input id="w_dns" placeholder="192.168.1.1"></div>
+      </div>
+    </div>
   </fieldset>
 
   <fieldset><legend>Location</legend>
@@ -138,6 +150,17 @@
 
   <button id="save" type="submit">Save &amp; Restart</button>
 </form>
+
+<fieldset><legend>Backup &amp; Restore Configuration</legend>
+  <div class="hint">Export your current settings as a JSON file or restore a previously saved backup.</div>
+  <div style="display:flex;gap:0.4rem;margin-top:0.4rem">
+    <button type="button" id="dlbtn" style="background:#0891b2;color:#fff;flex:1">&#x2B07; Download Config</button>
+  </div>
+  <div style="display:flex;gap:0.4rem;margin-top:0.6rem">
+    <input type="file" id="restorefile" accept=".json" style="flex:1">
+    <button type="button" id="restorebtn" style="white-space:nowrap">&#x2B06; Restore &amp; Restart</button>
+  </div>
+</fieldset>
 
 <fieldset><legend>Firmware update</legend>
   <div class="hint">Install a new <code>firmware.bin</code> over WiFi (built with
@@ -286,6 +309,13 @@ function updateSlotVisibility() {
 function populate() {
   el('w_ssid').value = cfg.wifi?.ssid ?? '';
   el('w_pass').value = cfg.wifi?.password ?? '';
+  el('w_static_ip').value = cfg.wifi?.static_ip ?? '';
+  el('w_gateway').value = cfg.wifi?.gateway ?? '';
+  el('w_subnet').value = cfg.wifi?.subnet ?? '';
+  el('w_dns').value = cfg.wifi?.dns ?? '';
+  if (el('w_static_ip').value) {
+    el('staticbox').style.display = 'block';
+  }
   el('l_lat').value = cfg.location?.lat ?? '';
   el('l_lon').value = cfg.location?.lon ?? '';
   el('l_city').value = cfg.location?.city ?? '';
@@ -317,6 +347,10 @@ function collect() {
   cfg.api = cfg.api ?? {}; cfg.widget_positions = cfg.widget_positions ?? {};
   cfg.wifi.ssid = el('w_ssid').value.trim();
   cfg.wifi.password = el('w_pass').value;
+  cfg.wifi.static_ip = el('w_static_ip').value.trim();
+  cfg.wifi.gateway = el('w_gateway').value.trim();
+  cfg.wifi.subnet = el('w_subnet').value.trim();
+  cfg.wifi.dns = el('w_dns').value.trim();
   cfg.location.lat = el('l_lat').value.trim();
   cfg.location.lon = el('l_lon').value.trim();
   cfg.location.city = el('l_city').value.trim();
@@ -522,6 +556,37 @@ el('fwbtn').addEventListener('click', () => {
 });
 
 el('s_wrows').addEventListener('change', updateSlotVisibility);
+
+el('statictoggle').addEventListener('click', () => {
+  const box = el('staticbox');
+  box.style.display = box.style.display === 'none' ? 'block' : 'none';
+});
+
+el('dlbtn').addEventListener('click', () => {
+  const blob = new Blob([el('raw').value || (JSON.stringify(cfg, null, 2) + '\n')], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'config.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+el('restorebtn').addEventListener('click', () => {
+  const f = el('restorefile').files[0];
+  if (!f) { setStatus('err', 'Choose a config.json file first.'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const text = e.target.result;
+      JSON.parse(stripComments(text)); // test parse
+      el('raw').value = text;
+      save(text);
+    } catch (err) {
+      setStatus('err', 'Invalid JSON config file: ' + err.message);
+    }
+  };
+  reader.readAsText(f);
+});
 
 el('advtoggle').addEventListener('click', () => {
   const box = el('advbox');

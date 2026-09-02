@@ -7,3 +7,8 @@ tools/native_icons/
 tools/hybrid_icons/
 tools/modern_widgets/
 tools/__pycache__/
+
+# Local firmware & build artifacts
+*.bin
+platformio/.pio/
+

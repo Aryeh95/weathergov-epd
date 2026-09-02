@@ -439,7 +439,7 @@ void powerOffDisplay()
     digitalWrite(PIN_EPD_PWR, LOW);
   }
   return;
-} // end initDisplay
+} // end powerOffDisplay
 
 
 /* These functions are responsible for drawing the current conditions and
@@ -719,13 +719,13 @@ void drawCurrentMoonPhase()
 // drawCurrentAirQuality
 void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
 {
-  if (POS_AIR_QULITY < 0 || POS_AIR_QULITY / 2 >= WIDGET_ROWS)
+  if (POS_AIR_QUALITY < 0 || POS_AIR_QUALITY / 2 >= WIDGET_ROWS)
   {
     return;
   }
   String dataStr, unitStr;
-  int PosX = (POS_AIR_QULITY % 2);
-  int PosY = static_cast<int>(POS_AIR_QULITY / 2);
+  int PosX = (POS_AIR_QUALITY % 2);
+  int PosY = static_cast<int>(POS_AIR_QUALITY / 2);
 
   // labels
   display.setFont(&FONT_7pt8b);
@@ -1472,15 +1472,8 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
     return;
   }
 
-  int *ignore_list = (int *) calloc(alerts.size(), sizeof(*ignore_list));
-  int *alert_indices = (int *) calloc(alerts.size(), sizeof(*alert_indices));
-  if (!ignore_list || !alert_indices)
-  {
-    Serial.println("Error: Failed to allocate memory while handling alerts.");
-    free(ignore_list);
-    free(alert_indices);
-    return;
-  }
+  int ignore_list[OWM_NUM_ALERTS] = {0};
+  int alert_indices[OWM_NUM_ALERTS] = {0};
 
   // Converts all event text and tags to lowercase, removes extra information,
   // and filters out redundant alerts of lesser urgency.
@@ -1566,9 +1559,6 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
     } // end for-loop
   } // end 2 alerts
 
-  free(ignore_list);
-  free(alert_indices);
-
   return;
 } // end drawAlerts
 
@@ -1645,11 +1635,7 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
   float tempMin = kelvin_to_fahrenheit(hourly[0].temp);
 #endif
   float tempMax = tempMin;
-#ifdef UNITS_HOURLY_PRECIP_POP
   float precipMax = hourly[0].pop;
-#else
-  float precipMax = hourly[0].rain_1h + hourly[0].snow_1h;
-#endif
   int yTempMajorTicks = 5;
   float newTemp = 0;
   for (int i = 1; i < HOURLY_GRAPH_MAX; ++i)
@@ -1665,12 +1651,7 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
 #endif
     tempMin = std::min(tempMin, newTemp);
     tempMax = std::max(tempMax, newTemp);
-#ifdef UNITS_HOURLY_PRECIP_POP
     precipMax = std::max<float>(precipMax, hourly[i].pop);
-#else
-    precipMax = std::max<float>(
-                precipMax, hourly[i].rain_1h + hourly[i].snow_1h);
-#endif
   }
   int tempBoundMin = static_cast<int>(tempMin - 1)
                       - modulo(static_cast<int>(tempMin - 1), yTempMajorTicks);

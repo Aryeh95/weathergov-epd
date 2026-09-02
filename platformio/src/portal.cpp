@@ -361,6 +361,8 @@ static void clearWifiErrMarker()
   Preferences p;
   p.begin(NVS_NAMESPACE, false);
   p.remove("wifiErr");
+  p.remove("apiErr");
+  p.remove("timeErr");
   p.end();
 }
 

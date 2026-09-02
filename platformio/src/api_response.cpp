@@ -234,33 +234,15 @@ static void applyNwsIcon(const String &code, const String &dayNight,
   clouds = cl;
 } // end applyNwsIcon
 
-/* Converts a METAR-style sky cover abbreviation (as reported in an NWS
- * observation's cloudLayers) to an approximate cloud cover percentage.
- * Returns -1 if the abbreviation is not recognized.
- */
-static int cloudAmountToPercent(const char *amount)
-{
-  String a(amount);
-  if (a == "OVC")                    return 95;
-  if (a == "BKN")                    return 70;
-  if (a == "SCT")                    return 35;
-  if (a == "FEW")                    return 15;
-  if (a == "SKC" || a == "CLR" || a == "CAVOK") return 0;
-  if (a == "VV")                     return 100;
-  return -1;
-} // end cloudAmountToPercent
-
-/* Fetches the gridpoint forecast URLs and nearest observation stations URL
- * for a given lat/lon from weather.gov's /points endpoint.
+/* Fetches the gridpoint forecast URLs for a given lat/lon from weather.gov's
+ * /points endpoint.
  */
 DeserializationError deserializeNWSPoints(WiFiClient &json, String &forecastUrl,
-                                          String &forecastHourlyUrl,
-                                          String &stationsUrl)
+                                          String &forecastHourlyUrl)
 {
   JsonDocument filter;
-  filter["properties"]["forecast"]             = true;
-  filter["properties"]["forecastHourly"]       = true;
-  filter["properties"]["observationStations"]  = true;
+  filter["properties"]["forecast"]       = true;
+  filter["properties"]["forecastHourly"] = true;
 
   JsonDocument doc;
   DeserializationError error = deserializeJson(doc, json,
@@ -276,40 +258,11 @@ DeserializationError deserializeNWSPoints(WiFiClient &json, String &forecastUrl,
     return error;
   }
 
-  forecastUrl       = doc["properties"]["forecast"]            .as<const char *>();
-  forecastHourlyUrl = doc["properties"]["forecastHourly"]      .as<const char *>();
-  stationsUrl       = doc["properties"]["observationStations"] .as<const char *>();
+  forecastUrl       = doc["properties"]["forecast"]      .as<const char *>();
+  forecastHourlyUrl = doc["properties"]["forecastHourly"].as<const char *>();
 
   return error;
 } // end deserializeNWSPoints
-
-/* Fetches the nearest observation station identifier from a gridpoint's
- * /stations endpoint.
- */
-DeserializationError deserializeNWSStations(WiFiClient &json, String &stationId)
-{
-  JsonDocument filter;
-  filter["features"][0]["properties"]["stationIdentifier"] = true;
-
-  JsonDocument doc;
-  DeserializationError error = deserializeJson(doc, json,
-                                         DeserializationOption::Filter(filter));
-#if DEBUG_LEVEL >= 1
-  Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
-#endif
-  if (error)
-  {
-    return error;
-  }
-
-  JsonArray features = doc["features"].as<JsonArray>();
-  if (features.size() > 0)
-  {
-    stationId = features[0]["properties"]["stationIdentifier"].as<const char *>();
-  }
-
-  return error;
-} // end deserializeNWSStations
 
 /* Parses weather.gov's 12-hour period /forecast endpoint into up to
  * OWM_NUM_DAILY owm_daily_t entries, merging each day/night period pair into
@@ -548,105 +501,6 @@ DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
 
   return error;
 } // end deserializeOpenMeteoCurrent
-
-/* Parses the latest observation from a weather.gov observation station.
- * Automated stations frequently omit individual fields (most commonly wind
- * and visibility); any missing field falls back to the corresponding value
- * from the first hourly forecast period.
- */
-DeserializationError deserializeNWSObservation(WiFiClient &json,
-                                               const owm_hourly_t &fallback,
-                                               owm_current_t &current)
-{
-  JsonDocument doc;
-  DeserializationError error = deserializeJson(doc, json);
-#if DEBUG_LEVEL >= 1
-  Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
-#endif
-#if DEBUG_LEVEL >= 2
-  serializeJsonPretty(doc, Serial);
-#endif
-
-  if (error)
-  {
-    // could not fetch/parse the observation, fall back entirely to the
-    // hourly forecast
-    fillCurrentFromFallback(fallback, current);
-    return error;
-  }
-
-  current = {};
-  current.dt      = time(nullptr);
-  current.weather = fallback.weather;
-
-  JsonObject p = doc["properties"];
-
-  JsonVariant tempVar = p["temperature"]["value"];
-  current.temp = !tempVar.isNull() ? celsius_to_kelvin(tempVar.as<float>())
-                                    : fallback.temp;
-
-  JsonVariant dewVar = p["dewpoint"]["value"];
-  current.dew_point = !dewVar.isNull() ? celsius_to_kelvin(dewVar.as<float>())
-                                        : NAN;
-
-  JsonVariant humVar = p["relativeHumidity"]["value"];
-  current.humidity = !humVar.isNull()
-                    ? static_cast<int>(std::round(humVar.as<float>()))
-                    : 0;
-
-  JsonVariant pressVar = p["barometricPressure"]["value"];
-  current.pressure = !pressVar.isNull()
-                    ? static_cast<int>(std::round(pressVar.as<float>() / 100.f))
-                    : 1013;
-
-  JsonVariant visVar = p["visibility"]["value"];
-  current.visibility = !visVar.isNull()
-                      ? static_cast<int>(visVar.as<float>())
-                      : 10000;
-
-  JsonVariant spdVar = p["windSpeed"]["value"];
-  current.wind_speed = !spdVar.isNull()
-                      ? kilometersperhour_to_meterspersecond(spdVar.as<float>())
-                      : fallback.wind_speed;
-
-  JsonVariant gustVar = p["windGust"]["value"];
-  current.wind_gust = !gustVar.isNull()
-                     ? kilometersperhour_to_meterspersecond(gustVar.as<float>())
-                     : current.wind_speed;
-
-  JsonVariant dirVar = p["windDirection"]["value"];
-  current.wind_deg = !dirVar.isNull() ? static_cast<int>(dirVar.as<float>())
-                                       : fallback.wind_deg;
-
-  JsonVariant heatVar  = p["heatIndex"]["value"];
-  JsonVariant chillVar = p["windChill"]["value"];
-  if (!heatVar.isNull())
-  {
-    current.feels_like = celsius_to_kelvin(heatVar.as<float>());
-  }
-  else if (!chillVar.isNull())
-  {
-    current.feels_like = celsius_to_kelvin(chillVar.as<float>());
-  }
-  else
-  {
-    current.feels_like = current.temp;
-  }
-
-  int clouds = -1;
-  for (JsonObject layer : p["cloudLayers"].as<JsonArray>())
-  {
-    const char *amount = layer["amount"] | "";
-    int c = cloudAmountToPercent(amount);
-    if (c >= 0)
-    {
-      clouds = c;
-    }
-  }
-  current.clouds = (clouds >= 0) ? clouds : fallback.clouds;
-
-  return error;
-} // end deserializeNWSObservation
 
 /* Parses weather.gov's /alerts/active endpoint.
  */

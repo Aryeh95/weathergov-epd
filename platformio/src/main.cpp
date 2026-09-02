@@ -445,16 +445,39 @@ void setup()
   {
     Serial.println(TXT_TIME_SYNCHRONIZATION_FAILED);
     killWiFi();
-    initDisplay();
-    do
+
+    // The device retries every WIFI_RETRY_INTERVAL minutes. Avoid redrawing
+    // the expensive e-paper screen if the time error is already showing.
+    prefs.begin(NVS_NAMESPACE, false);
+    bool alreadyShown = prefs.isKey("timeErr") && prefs.getBool("timeErr", false);
+    if (!alreadyShown)
     {
-      fillDisplayBackground();
-      drawError(wi_time_4_196x196, TXT_TIME_SYNCHRONIZATION_FAILED);
-    } while (display.nextPage());
-    powerOffDisplay();
+      prefs.putBool("timeErr", true);
+    }
+    prefs.end();
+
+    if (!alreadyShown)
+    {
+      initDisplay();
+      do
+      {
+        fillDisplayBackground();
+        drawError(wi_time_4_196x196, TXT_TIME_SYNCHRONIZATION_FAILED);
+      } while (display.nextPage());
+      powerOffDisplay();
+    }
     // the clock is unreliable if sync failed, so use a fixed-interval sleep
     // rather than beginDeepSleep()'s clock-based calculation
     beginFixedSleep(startTime, WIFI_RETRY_INTERVAL);
+  }
+  else
+  {
+    prefs.begin(NVS_NAMESPACE, false);
+    if (prefs.isKey("timeErr"))
+    {
+      prefs.remove("timeErr");
+    }
+    prefs.end();
   }
 
   // MAKE API REQUESTS
@@ -477,15 +500,39 @@ void setup()
     killWiFi();
     statusStr = "weather.gov API (" + failedStep + ")";
     tmpStr = String(rxStatus, DEC) + ": " + getHttpResponsePhrase(rxStatus);
-    initDisplay();
-    do
+    Serial.println(statusStr + " - " + tmpStr);
+
+    // Avoid repeatedly redrawing the e-paper screen during prolonged API outages
+    String errDescriptor = statusStr + "|" + tmpStr;
+    prefs.begin(NVS_NAMESPACE, false);
+    bool alreadyShown = prefs.isKey("apiErr")
+                     && (prefs.getString("apiErr", "") == errDescriptor);
+    if (!alreadyShown)
     {
-      fillDisplayBackground();
-      drawError(wi_cloud_down_196x196, statusStr, tmpStr);
-    } while (display.nextPage());
-    powerOffDisplay();
+      prefs.putString("apiErr", errDescriptor);
+    }
+    prefs.end();
+
+    if (!alreadyShown)
+    {
+      initDisplay();
+      do
+      {
+        fillDisplayBackground();
+        drawError(wi_cloud_down_196x196, statusStr, tmpStr);
+      } while (display.nextPage());
+      powerOffDisplay();
+    }
     beginDeepSleep(startTime, &timeInfo);
   }
+
+  // Clear api error marker on successful fetch
+  prefs.begin(NVS_NAMESPACE, false);
+  if (prefs.isKey("apiErr"))
+  {
+    prefs.remove("apiErr");
+  }
+  prefs.end();
 
 #if DISPLAY_ALERTS
   // Alerts are non-fatal: if this fails, the display simply shows no

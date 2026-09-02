@@ -443,7 +443,7 @@ extern int POS_HUMIDITY;
 extern int POS_DEWPOINT;
 extern int POS_UVI;
 extern int POS_PRESSURE;
-extern int POS_AIR_QULITY;
+extern int POS_AIR_QUALITY;
 extern int POS_VISIBILITY;
 extern int POS_MOON_PHASE;
 extern int POS_POLLEN;
