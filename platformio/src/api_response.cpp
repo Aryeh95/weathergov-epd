@@ -433,8 +433,26 @@ DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
                                                  const owm_hourly_t &fallback,
                                                  owm_current_t &current)
 {
+  // Filter like every NWS parser does: the response also carries the
+  // request echo (latitude/longitude/elevation/timezone), generation time
+  // and a `current_units` block that is never read. Only the `current`
+  // block matters, and only the fields the request asked for.
+  JsonDocument filter;
+  JsonObject cur = filter["current"].to<JsonObject>();
+  cur["temperature_2m"]       = true;
+  cur["apparent_temperature"] = true;
+  cur["relative_humidity_2m"] = true;
+  cur["dew_point_2m"]         = true;
+  cur["pressure_msl"]         = true;
+  cur["cloud_cover"]          = true;
+  cur["visibility"]           = true;
+  cur["wind_speed_10m"]       = true;
+  cur["wind_gusts_10m"]       = true;
+  cur["wind_direction_10m"]   = true;
+
   JsonDocument doc;
-  DeserializationError error = deserializeJson(doc, json);
+  DeserializationError error = deserializeJson(doc, json,
+                                         DeserializationOption::Filter(filter));
 #if DEBUG_LEVEL >= 1
   Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
 #endif
@@ -560,8 +578,23 @@ DeserializationError deserializeAirQuality(WiFiClient &json,
                                            owm_resp_air_pollution_t &r,
                                            float &uvi)
 {
+  // Keep only the pollutant arrays that are read. The unfiltered document
+  // also held the `time` array (one ISO string per hour -- the single
+  // largest allocation in the response), `hourly_units`, and the request
+  // echo. Whole arrays are kept when the filter marks the key true.
+  JsonDocument filter;
+  JsonObject hourlyFilter = filter["hourly"].to<JsonObject>();
+  hourlyFilter["pm10"]             = true;
+  hourlyFilter["pm2_5"]            = true;
+  hourlyFilter["carbon_monoxide"]  = true;
+  hourlyFilter["nitrogen_dioxide"] = true;
+  hourlyFilter["sulphur_dioxide"]  = true;
+  hourlyFilter["ozone"]            = true;
+  hourlyFilter["uv_index"]         = true;
+
   JsonDocument doc;
-  DeserializationError error = deserializeJson(doc, json);
+  DeserializationError error = deserializeJson(doc, json,
+                                         DeserializationOption::Filter(filter));
 #if DEBUG_LEVEL >= 1
   Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
 #endif
