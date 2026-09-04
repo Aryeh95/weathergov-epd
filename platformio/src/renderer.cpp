@@ -1458,6 +1458,89 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
     return;
   } // end drawForecast
 
+#ifdef MULTICOLOR_DISPLAY
+/* Draws an inverted 1bpp bitmap in two inks alternating in a checker, which
+ * mixes them into a color the panel has no ink for. Dithering two INKS is
+ * what makes this usable on line art: every pixel of the stroke is still
+ * covered, where mixing an ink with white would punch paper holes through
+ * thin strokes (verified on the E1002 -- a blue/white snowflake falls apart
+ * at 32px, a blue/green one keeps its shape).
+ */
+static void drawDitheredBitmap(int16_t x, int16_t y, const uint8_t *bitmap,
+                               int16_t w, int16_t h, uint16_t inkA,
+                               uint16_t inkB)
+{
+  const int16_t byteWidth = (w + 7) / 8;
+  for (int16_t j = 0; j < h; ++j)
+  {
+    for (int16_t i = 0; i < w; ++i)
+    {
+      const uint8_t b = pgm_read_byte(&bitmap[j * byteWidth + (i >> 3)]);
+      if (!((b >> (7 - (i & 7))) & 1))
+      { // inverted bitmap: a cleared bit is ink
+        display.drawPixel(x + i, y + j, ((i + j) & 1) ? inkA : inkB);
+      }
+    }
+  }
+} // end drawDitheredBitmap
+#endif
+
+/* Draws an alert's icon, sized 48 or 32, in an ink chosen from its category.
+ *
+ * Black/white and 3-color panels keep the single ACCENT_COLOR every alert
+ * has always used. On multicolor panels the color carries meaning:
+ *   blue   water and cold (winter, flood, tsunami)
+ *   gold   lightning, as a yellow/red checker -- flat yellow is the
+ *          palette's weakest ink on white, and the bolt is a solid enough
+ *          glyph to hold a dither even at 32px
+ *   red    life-threatening events (tornado, hurricane, fire, heat,
+ *          volcano, nuclear, biohazard...) and the four marine icons,
+ *          which are red warning flags in reality
+ *   black  the low-urgency haze group, left quiet beside the alert text
+ */
+static void drawAlertIcon(int16_t x, int16_t y, const owm_alerts_t &alert,
+                          int size)
+{
+  const uint8_t *bitmap = (size == 48) ? getAlertBitmap48(alert)
+                                       : getAlertBitmap32(alert);
+#ifndef MULTICOLOR_DISPLAY
+  display.drawInvertedBitmap(x, y, bitmap, size, size,
+                             DARK_MODE ? DM_GFX(COLOR_SUN) : ACCENT_COLOR);
+#else
+  uint16_t ink = GxEPD_RED;
+  bool dither = false;
+  switch (getAlertCategory(alert))
+  {
+  case WINTER: case FLOOD: case TSUNAMI:
+    ink = GxEPD_BLUE;
+    break;
+  case LIGHTNING:
+    dither = true;
+    break;
+  case SMOG: case SMOKE: case FOG: case DUST: case SANDSTORM:
+  case AIR_QUALITY: case STRONG_WIND:
+    ink = GxEPD_BLACK;
+    break;
+  default: // tornado, hurricane, fire, heat, marine flags, unknown alerts
+    break;
+  }
+  if (DARK_MODE)
+  { // navy and black both vanish on a black ground; flat yellow beats the
+    // checker there, since yellow is the strongest ink against black
+    if (dither) {dither = false; ink = COLOR_SUN;}
+    else if (ink == GxEPD_BLUE || ink == GxEPD_BLACK) {ink = GxEPD_WHITE;}
+  }
+  if (dither)
+  {
+    drawDitheredBitmap(x, y, bitmap, size, size, GxEPD_YELLOW, GxEPD_RED);
+  }
+  else
+  {
+    display.drawInvertedBitmap(x, y, bitmap, size, size, ink);
+  }
+#endif
+} // end drawAlertIcon
+
   /* This function is responsible for drawing the current alerts if any.
    * Up to 2 alerts can be drawn.
    */
@@ -1513,9 +1596,7 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
     max_w -= 48;
 
     owm_alerts_t &cur_alert = alerts[alert_indices[0]];
-    display.drawInvertedBitmap(196, 8, getAlertBitmap48(cur_alert), 48, 48,
-                               DARK_MODE ? DM_GFX(COLOR_SUN)
-                                         : ACCENT_COLOR);
+    drawAlertIcon(196, 8, cur_alert, 48);
     // must be called after getAlertBitmap
     toTitleCase(cur_alert.event);
 
@@ -1548,9 +1629,7 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
     {
       owm_alerts_t &cur_alert = alerts[alert_indices[i]];
 
-      display.drawInvertedBitmap(196, (i * 32), getAlertBitmap32(cur_alert),
-                                 32, 32, DARK_MODE ? DM_GFX(COLOR_SUN)
-                                                   : ACCENT_COLOR);
+      drawAlertIcon(196, (i * 32), cur_alert, 32);
       // must be called after getAlertBitmap
       toTitleCase(cur_alert.event);
 
