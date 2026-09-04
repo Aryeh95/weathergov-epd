@@ -1418,6 +1418,7 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
 #if DISPLAY_DAILY_PRECIP
     float dailyPrecip;
     bool  showPrecip = true;
+    bool  trace = false; // an amount above zero that rounds to zero
 #if defined(UNITS_DAILY_PRECIP_POP)
     dailyPrecip = daily[i].pop * 100;
     dataStr = String(static_cast<int>(dailyPrecip));
@@ -1425,31 +1426,33 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
 #else
     // Liquid-equivalent amount, NaN when neither source covered the day
     // (precip.h) -- then nothing is drawn rather than "nan".
-    dailyPrecip = daily[i].snow + daily[i].rain;
-    showPrecip = !std::isnan(dailyPrecip);
+    //
+    // A TRACE -- rain is forecast and the source expects some, but less than
+    // the display's 0.1 in / 0.1 cm / 1 mm step -- is written as "<0.1 in"
+    // rather than "0.0 in", and is never hidden by smart mode: a rain icon
+    // over a blank would otherwise read as a gap where the data says
+    // "a little". A true zero still shows nothing in smart mode.
+    const float rawMm = daily[i].snow + daily[i].rain;
+    showPrecip = !std::isnan(rawMm);
 #if defined(UNITS_DAILY_PRECIP_MILLIMETERS)
-    // Round to nearest mm
-    dailyPrecip = std::round(dailyPrecip);
-    dataStr = String(static_cast<int>(dailyPrecip));
+    dailyPrecip = std::round(rawMm);
+    trace = (rawMm > 0.0f && dailyPrecip <= 0.0f);
+    dataStr = trace ? String("<1") : String(static_cast<int>(dailyPrecip));
     unitStr = String(" ") + TXT_UNITS_PRECIP_MILLIMETERS;
 #elif defined(UNITS_DAILY_PRECIP_CENTIMETERS)
-    // Round to nearest 0.1 cm
-    dailyPrecip = millimeters_to_centimeters(dailyPrecip);
-    dailyPrecip = std::round(dailyPrecip * 10) / 10.0f;
-    dataStr = String(dailyPrecip, 1);
+    dailyPrecip = std::round(millimeters_to_centimeters(rawMm) * 10) / 10.0f;
+    trace = (rawMm > 0.0f && dailyPrecip <= 0.0f);
+    dataStr = trace ? String("<0.1") : String(dailyPrecip, 1);
     unitStr = String(" ") + TXT_UNITS_PRECIP_CENTIMETERS;
 #elif defined(UNITS_DAILY_PRECIP_INCHES)
-    // Round to nearest 0.1 inch
-    dailyPrecip = millimeters_to_inches(dailyPrecip);
-    dailyPrecip = std::round(dailyPrecip * 10) / 10.0f;
-    dataStr = String(dailyPrecip, 1);
+    dailyPrecip = std::round(millimeters_to_inches(rawMm) * 10) / 10.0f;
+    trace = (rawMm > 0.0f && dailyPrecip <= 0.0f);
+    dataStr = trace ? String("<0.1") : String(dailyPrecip, 1);
     unitStr = String(" ") + TXT_UNITS_PRECIP_INCHES;
 #endif
 #endif
 #if (DISPLAY_DAILY_PRECIP == 2) // smart: a dry day shows nothing
-    // Tested on the ROUNDED value, so a trace that would print as "0.0 in"
-    // is hidden along with the true zeros.
-    showPrecip = showPrecip && (dailyPrecip > 0.0f);
+    showPrecip = showPrecip && (dailyPrecip > 0.0f || trace);
 #endif
     if (showPrecip)
     {
