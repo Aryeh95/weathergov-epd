@@ -109,6 +109,8 @@ bool loadSettings()
   WAKE_TIME        = sleep["wake_time_hour"]         | WAKE_TIME;
   HOURLY_GRAPH_MAX = sleep["hourly_graph_max"]       | HOURLY_GRAPH_MAX;
 
+  GRAPH_DEWPOINT = doc["graph_dewpoint"] | GRAPH_DEWPOINT;
+
   FORECAST_DAYS = doc["forecast_days"] | FORECAST_DAYS;
   FORECAST_DAYS = constrain(FORECAST_DAYS, 5, 7);
 

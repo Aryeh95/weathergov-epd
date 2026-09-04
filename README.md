@@ -258,6 +258,7 @@ Notes on specific settings:
 
 - `api.nws_user_agent` — weather.gov requests a contact email in the User-Agent so they can reach you if your device misbehaves. Please set one.
 - `api.airnow_api_key` — optional; a free [AirNow key](https://docs.airnowapi.org/) upgrades the AQI widget to the EPA's official measured US AQI. Leave empty to use Open-Meteo's modeled values.
+- `graph_dewpoint` — optional second curve on the hourly graph: the forecast dew point, thinner than the temperature line and blue on full-color panels, with a small legend above the graph. The temperature axis rescales to include it. Handy for judging mugginess and overnight fog/frost risk (dew point closing on the temperature). Off by default; also a toggle in the portal.
 - `widget_positions` — there are 12 widgets (sunrise, sunset, humidity, dewpoint, wind, UV, pressure, air quality, visibility, moon phase, indoor temp, indoor humidity) for 10 or 12 slots depending on `widget_rows`. Set a widget to -1 to hide it.
 
 ### Over-the-Air Firmware Updates

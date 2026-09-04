@@ -93,6 +93,7 @@ const char *TXT_POLLEN             = "Pólen";
 const char *TXT_INDOOR_TEMPERATURE = "Temperatura Interna";
 const char *TXT_INDOOR_HUMIDITY    = "Umidade Interna";
 const char *TXT_DEWPOINT           = "Ponto de orvalho";
+const char *TXT_TEMPERATURE        = "Temperatura";
 
 // MOON PHASE
 const char *TXT_MOONPHASE       = "Fase lunar";

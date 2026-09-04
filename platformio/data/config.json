@@ -202,6 +202,12 @@
   // (full-color panels only; ignored on B/W and 3-color panels).
   "dark_mode": false,
 
+  // Dew point curve on the hourly outlook graph: a second, thinner line
+  // under the temperature, in blue on full-color panels, with a small
+  // legend above the graph. The temperature axis rescales to fit it. Useful for reading mugginess, and fog or frost
+  // risk (dew point approaching the temperature overnight).
+  "graph_dewpoint": false,
+
   // Which of the ten slots in the left-hand panel each widget occupies:
   //
   //     0   1

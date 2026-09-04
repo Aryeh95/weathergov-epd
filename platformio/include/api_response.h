@@ -96,7 +96,7 @@ typedef struct owm_hourly
   float   feels_like;       // unused, reserved
   int     pressure;         // unused, reserved
   int     humidity;         // unused, reserved
-  float   dew_point;        // unused, reserved
+  float   dew_point;        // Dew point, kelvin (NAN when NWS reports none for the hour). Drawn on the outlook graph when GRAPH_DEWPOINT is set.
   int     clouds;           // Cloudiness, % (approximated from NWS sky cover category)
   float   uvi;              // unused, reserved
   int     visibility;       // unused, reserved

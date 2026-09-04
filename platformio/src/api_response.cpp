@@ -277,6 +277,7 @@ DeserializationError deserializeNWSForecastDaily(WiFiClient &json,
   period["startTime"]                          = true;
   period["temperature"]                        = true;
   period["probabilityOfPrecipitation"]["value"] = true;
+  period["dewpoint"]["value"]                  = true;
   period["windSpeed"]                          = true;
   period["windDirection"]                      = true;
   period["icon"]                               = true;
@@ -383,6 +384,14 @@ DeserializationError deserializeNWSForecastHourly(WiFiClient &json,
 
     JsonVariant popVar = p["probabilityOfPrecipitation"]["value"];
     hourly[i].pop = popVar.isNull() ? 0.f : (popVar.as<float>() / 100.f);
+
+    // Always degC on the hourly endpoint (unitCode wmoUnit:degC), whatever
+    // temperatureUnit says about the integer temperature beside it. NaN when
+    // NWS has no value for the hour, so the graph can skip that segment
+    // rather than plot a zero.
+    JsonVariant dewVar = p["dewpoint"]["value"];
+    hourly[i].dew_point = dewVar.isNull() ? NAN
+                                          : celsius_to_kelvin(dewVar.as<float>());
 
     String dayNight, code;
     parseIconUrl(p["icon"].as<const char *>(), dayNight, code);

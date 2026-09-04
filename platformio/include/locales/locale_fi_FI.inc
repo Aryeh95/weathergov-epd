@@ -94,6 +94,7 @@ const char *TXT_POLLEN             = "Siitepöly";
 const char *TXT_INDOOR_TEMPERATURE = "L\xE4mp\xF6tila";
 const char *TXT_INDOOR_HUMIDITY    = "Ilmankosteus";
 const char *TXT_DEWPOINT           = "Kastepiste";
+const char *TXT_TEMPERATURE        = "L\344mp\366tila";
 
 // MOON PHASE
 const char *TXT_MOONPHASE       = "Kuunvaihe";

@@ -58,6 +58,7 @@ extern const char *TXT_POLLEN;
 extern const char *TXT_INDOOR_TEMPERATURE;
 extern const char *TXT_INDOOR_HUMIDITY;
 extern const char *TXT_DEWPOINT;
+extern const char *TXT_TEMPERATURE;
 
 // MOON PHASE
 extern const char *TXT_MOONPHASE;

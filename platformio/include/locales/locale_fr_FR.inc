@@ -94,6 +94,7 @@ const char *TXT_POLLEN             = "Pollen";
 const char *TXT_INDOOR_TEMPERATURE = "Temp\351rature";
 const char *TXT_INDOOR_HUMIDITY    = "Humidit\351";
 const char *TXT_DEWPOINT           = "Point de ros\351e";
+const char *TXT_TEMPERATURE        = "Temp\351rature";
 
 // MOON PHASE
 const char *TXT_MOONPHASE          = "Phase lunaire";

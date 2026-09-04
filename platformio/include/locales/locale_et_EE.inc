@@ -93,6 +93,7 @@ const char *TXT_POLLEN             = "Õietolm";
 const char *TXT_INDOOR_TEMPERATURE = "Temperatuur";
 const char *TXT_INDOOR_HUMIDITY    = "\xD5huniiskus";
 const char *TXT_DEWPOINT           = "Kastepunkt";
+const char *TXT_TEMPERATURE        = "Temperatuur";
 
 // MOON PHASE
 const char *TXT_MOONPHASE       = "Kuufaas";

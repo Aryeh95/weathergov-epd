@@ -94,6 +94,8 @@
 //   COLOR_PRECIP  : rain/snow weather icons, precipitation bars + axis labels
 //   COLOR_TEMP_HI : daily forecast high temperature
 //   COLOR_TEMP_LO : daily forecast low temperature
+//   COLOR_DEWPOINT: hourly dew point curve on the outlook graph (optional,
+//                   config.json "graph_dewpoint")
 //   COLOR_GOOD    : AQI/UVI icon when conditions are good/low
 //   COLOR_BAD     : AQI/UVI icon when conditions are unhealthy/very high,
 //                   tornado icon
@@ -106,6 +108,7 @@
   #define COLOR_PRECIP  GxEPD_BLUE
   #define COLOR_TEMP_HI GxEPD_RED
   #define COLOR_TEMP_LO GxEPD_BLUE
+  #define COLOR_DEWPOINT GxEPD_BLUE
   #define COLOR_GOOD    GxEPD_GREEN
   #define COLOR_BAD     GxEPD_RED
 #else
@@ -113,6 +116,7 @@
   #define COLOR_PRECIP  GxEPD_BLACK
   #define COLOR_TEMP_HI GxEPD_BLACK
   #define COLOR_TEMP_LO GxEPD_BLACK
+  #define COLOR_DEWPOINT GxEPD_BLACK
   #define COLOR_GOOD    GxEPD_BLACK
   #define COLOR_BAD     GxEPD_BLACK
 #endif
@@ -422,6 +426,7 @@ extern int    WIFI_RETRY_INTERVAL;
 extern int    BED_TIME;
 extern int    WAKE_TIME;
 extern int    HOURLY_GRAPH_MAX;
+extern bool   GRAPH_DEWPOINT;
 extern int    FORECAST_DAYS;
 extern int    WIDGET_ROWS;
 extern bool   DARK_MODE;

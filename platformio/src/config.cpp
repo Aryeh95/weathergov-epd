@@ -225,6 +225,11 @@ int WAKE_TIME = 05; // Hour of first update after BED_TIME, 06:00.
 // HOURLY OUTLOOK GRAPH
 // Number of hours to display on the outlook graph. (range: [8-48])
 int HOURLY_GRAPH_MAX = 24;
+// Draw the hourly dew point as a second curve under the temperature. Runtime
+// setting (config.json "graph_dewpoint"). Off by default: it is a second
+// line on an already busy graph, and only earns its place for people who
+// read dew point (mugginess, fog and frost risk) rather than humidity.
+bool GRAPH_DEWPOINT = false;
 
 // BATTERY
 // To protect the battery upon LOW_BATTERY_VOLTAGE, the display will cease to

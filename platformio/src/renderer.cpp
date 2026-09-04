@@ -1672,6 +1672,21 @@ inline int modulo(int a, int b)
   return result >= 0 ? result : result + b;
 }
 
+/* Convert kelvin to the temperature unit the graph's axis is drawn in.
+ */
+static float kelvin_to_graph_units(float kelvin)
+{
+#ifdef UNITS_TEMP_KELVIN
+  return kelvin;
+#endif
+#ifdef UNITS_TEMP_CELSIUS
+  return kelvin_to_celsius(kelvin);
+#endif
+#ifdef UNITS_TEMP_FAHRENHEIT
+  return kelvin_to_fahrenheit(kelvin);
+#endif
+}
+
 /* Convert temperature in kelvin to the display y coordinate to be plotted.
  */
 int kelvin_to_plot_y(float kelvin, int tempBoundMin, float yPxPerUnit,
@@ -1717,6 +1732,13 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
   float precipMax = hourly[0].pop;
   int yTempMajorTicks = 5;
   float newTemp = 0;
+  // The dew point never exceeds the temperature, so it only ever pulls the
+  // axis floor down -- but it has to be in the bounds or the curve is drawn
+  // straight through the x axis on a dry afternoon.
+  if (GRAPH_DEWPOINT && !std::isnan(hourly[0].dew_point))
+  {
+    tempMin = std::min(tempMin, kelvin_to_graph_units(hourly[0].dew_point));
+  }
   for (int i = 1; i < HOURLY_GRAPH_MAX; ++i)
   {
 #ifdef UNITS_TEMP_KELVIN
@@ -1730,6 +1752,10 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
 #endif
     tempMin = std::min(tempMin, newTemp);
     tempMax = std::max(tempMax, newTemp);
+    if (GRAPH_DEWPOINT && !std::isnan(hourly[i].dew_point))
+    {
+      tempMin = std::min(tempMin, kelvin_to_graph_units(hourly[i].dew_point));
+    }
     precipMax = std::max<float>(precipMax, hourly[i].pop);
   }
   int tempBoundMin = static_cast<int>(tempMin - 1)
@@ -1885,6 +1911,40 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     }
   }
 
+  if (GRAPH_DEWPOINT)
+  {
+    // Legend -- only when there are two curves to tell apart; the default
+    // graph keeps its unlabelled look. It sits in the gap between the daily
+    // forecast row (separators end at y=196) and the first y-axis label
+    // (8 pt, baseline 220, so from ~212): 5 pt text on baseline yPos0-8,
+    // right-aligned to the plot edge, which keeps it clear of the y-axis
+    // numbers on both sides and of the weather icons, which stack above the
+    // temperature curve inside the plot. Each label is drawn in its curve's
+    // colour beside a swatch of the same thickness as the line it names, so
+    // on a black/white panel -- where both curves are black -- the thickness
+    // alone still identifies them.
+    display.setFont(&FONT_5pt8b);
+    const int legendY = yPos0 - 8;
+    int legendX = xPos1;
+    auto legendItem = [&](const char *label, uint16_t color, int thickness)
+    {
+      int16_t bx, by;
+      uint16_t bw, bh;
+      display.getTextBounds(label, 0, 0, &bx, &by, &bw, &bh);
+      legendX -= bw;
+      drawString(legendX, legendY, label, LEFT, DM_TEXT(color));
+      legendX -= 4 + 14; // gap, then the swatch
+      for (int t = 0; t < thickness; ++t)
+      {
+        display.drawLine(legendX, legendY - 4 + t, legendX + 14, legendY - 4 + t,
+                         DM_GFX(color));
+      }
+      legendX -= 12; // gap before the next item to the left
+    };
+    legendItem(TXT_DEWPOINT, COLOR_DEWPOINT, 2);
+    legendItem(TXT_TEMPERATURE, ACCENT_COLOR, 3);
+  }
+
   int xMaxTicks = 8;
   int hourInterval = static_cast<int>(ceil(HOURLY_GRAPH_MAX
                                            / static_cast<float>(xMaxTicks)));
@@ -1898,11 +1958,19 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
   std::vector<int> y_t;
   x_t.reserve(HOURLY_GRAPH_MAX);
   y_t.reserve(HOURLY_GRAPH_MAX);
+  // Dew point y per hour; INT_MIN marks an hour NWS gave no value for, and
+  // the segment on either side of it is skipped rather than drawn to a zero.
+  std::vector<int> y_d(HOURLY_GRAPH_MAX, INT_MIN);
     for (int i = 0; i < HOURLY_GRAPH_MAX; ++i)
   {
     y_t[i] = kelvin_to_plot_y(hourly[i].temp, tempBoundMin, yPxPerUnit, yPos1);
     x_t[i] = static_cast<int>(std::round(xPos0 + (i * xInterval)
                                           + (0.5 * xInterval) ));
+    if (GRAPH_DEWPOINT && !std::isnan(hourly[i].dew_point))
+    {
+      y_d[i] = kelvin_to_plot_y(hourly[i].dew_point, tempBoundMin, yPxPerUnit,
+                                yPos1);
+    }
   }
 
 #if DISPLAY_HOURLY_ICONS
@@ -1921,6 +1989,21 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
       x1_t = x_t[i    ];
       y0_t = y_t[i - 1];
       y1_t = y_t[i    ];
+      // graph dew point -- drawn BEFORE the temperature so that where the two
+      // meet (saturated air: fog, drizzle) the temperature paints on top, and
+      // one line thinner than the temperature's three so the primary curve
+      // stays primary. Blue on colour panels (COLOR_DEWPOINT), the same hue
+      // as the precipitation bars; the bars are a 50 % dither and this is a
+      // solid stroke, which keeps them apart.
+      if (y_d[i - 1] != INT_MIN && y_d[i] != INT_MIN)
+      {
+        display.drawLine(x0_t, y_d[i - 1]    , x1_t, y_d[i]    , DM_GFX(COLOR_DEWPOINT));
+        display.drawLine(x0_t, y_d[i - 1] + 1, x1_t, y_d[i] + 1, DM_GFX(COLOR_DEWPOINT));
+        if (DARK_MODE)
+        { // as for the temperature line: colour ink is dim on a black ground
+          display.drawLine(x0_t, y_d[i - 1] - 1, x1_t, y_d[i] - 1, DM_GFX(COLOR_DEWPOINT));
+        }
+      }
       // graph temperature
       display.drawLine(x0_t    , y0_t    , x1_t    , y1_t    , DM_GFX(ACCENT_COLOR));
       display.drawLine(x0_t    , y0_t + 1, x1_t    , y1_t + 1, DM_GFX(ACCENT_COLOR));

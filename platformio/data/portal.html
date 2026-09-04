@@ -127,6 +127,7 @@
       <div><label>Forecast days</label><select id="s_fdays"><option value="5">5</option><option value="6">6</option><option value="7">7</option></select></div>
       <div><label>Widget rows</label><select id="s_wrows"><option value="5">5 (10 slots)</option><option value="6">6 (12 slots)</option></select></div>
       <div><label>Theme (full-color panels only)</label><select id="s_dark"><option value="0">Light (white background)</option><option value="1">Dark (black background)</option></select></div>
+      <div><label>Dew point on graph</label><select id="s_dew"><option value="0">Off</option><option value="1">On (blue curve under temperature)</option></select></div>
     </div>
     <div class="hint">No updates between bed and wake hours (set both equal to disable).</div>
   </fieldset>
@@ -330,6 +331,7 @@ function populate() {
   el('s_fdays').value = String(cfg.forecast_days ?? 5);
   el('s_wrows').value = String(cfg.widget_rows ?? 5);
   el('s_dark').value = cfg.dark_mode ? '1' : '0';
+  el('s_dew').value = cfg.graph_dewpoint ? '1' : '0';
   el('a_ua').value = cfg.api?.nws_user_agent ?? '';
   el('a_airnow').value = cfg.api?.airnow_api_key ?? '';
   el('a_pollen').value = cfg.api?.pollen_api_key ?? '';
@@ -371,6 +373,7 @@ function collect() {
   cfg.forecast_days = +el('s_fdays').value;
   cfg.widget_rows = +el('s_wrows').value;
   cfg.dark_mode = el('s_dark').value === '1';
+  cfg.graph_dewpoint = el('s_dew').value === '1';
   cfg.api.nws_user_agent = el('a_ua').value.trim();
   cfg.api.airnow_api_key = el('a_airnow').value.trim();
   cfg.api.pollen_api_key = el('a_pollen').value.trim();
