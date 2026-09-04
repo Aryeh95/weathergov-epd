@@ -277,7 +277,6 @@ DeserializationError deserializeNWSForecastDaily(WiFiClient &json,
   period["startTime"]                          = true;
   period["temperature"]                        = true;
   period["probabilityOfPrecipitation"]["value"] = true;
-  period["dewpoint"]["value"]                  = true;
   period["windSpeed"]                          = true;
   period["windDirection"]                      = true;
   period["icon"]                               = true;
@@ -357,6 +356,10 @@ DeserializationError deserializeNWSForecastHourly(WiFiClient &json,
   period["startTime"]                          = true;
   period["temperature"]                        = true;
   period["probabilityOfPrecipitation"]["value"] = true;
+  // Without this line the filter drops dewpoint entirely and every hour
+  // parses as NaN -- which is exactly what the graph showed the first time:
+  // legend present, no curve, axis unchanged.
+  period["dewpoint"]["value"]                  = true;
   period["windSpeed"]                          = true;
   period["windDirection"]                      = true;
   period["icon"]                               = true;

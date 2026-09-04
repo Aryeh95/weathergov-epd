@@ -1982,6 +1982,49 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     int xTick = static_cast<int>(xPos0 + (i * xInterval));
     int x0_t, x1_t, y0_t, y1_t;
 
+    // Precipitation bars go down FIRST, so both curves paint over them. The
+    // dew point curve is the same blue as the bars and on a humid day sits
+    // right in their band (67-74 F dew point under 20-40 % bars, seen live),
+    // so it must be drawn on top of the dither, not under it.
+#ifdef UNITS_HOURLY_PRECIP_POP
+    float precipVal = hourly[i].pop * 100;
+#else
+    float precipVal = hourly[i].rain_1h + hourly[i].snow_1h;
+#ifdef UNITS_HOURLY_PRECIP_CENTIMETERS
+    precipVal = millimeters_to_centimeters(precipVal);
+#endif
+#ifdef UNITS_HOURLY_PRECIP_INCHES
+    precipVal = millimeters_to_inches(precipVal);
+#endif
+#endif
+
+    x0_t = static_cast<int>(std::round( xPos0 + 1 + (i * xInterval)));
+    x1_t = static_cast<int>(std::round( xPos0 + 1 + ((i + 1) * xInterval) ));
+    // precipBoundMax is 0 when no precipitation is forecast over the whole
+    // graph (a dry 24 hours is common). Dividing by it would make yPxPerUnit
+    // infinite and y0_t NaN, and casting that NaN to int is undefined --
+    // which at best draws a bogus full-height bar and at worst spins the
+    // fill loop below for billions of iterations.
+    if (precipBoundMax > 0)
+    {
+      yPxPerUnit = (yPos1 - yPos0) / precipBoundMax;
+      y0_t = static_cast<int>(std::round( yPos1 - (yPxPerUnit * (precipVal)) ));
+    }
+    else
+    {
+      y0_t = yPos1; // nothing to fill
+    }
+    y1_t = yPos1;
+
+    // graph Precipitation
+    for (int y = y1_t - 1; y > y0_t; y -= 2)
+    {
+      for (int x = x0_t + (x0_t % 2); x < x1_t; x += 2)
+      {
+        display.drawPixel(x, y, DM_GFX(COLOR_PRECIP));
+      }
+    }
+
     if (i > 0)
     {
       // temperature
@@ -1989,19 +2032,26 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
       x1_t = x_t[i    ];
       y0_t = y_t[i - 1];
       y1_t = y_t[i    ];
-      // graph dew point -- drawn BEFORE the temperature so that where the two
-      // meet (saturated air: fog, drizzle) the temperature paints on top, and
-      // one line thinner than the temperature's three so the primary curve
-      // stays primary. Blue on colour panels (COLOR_DEWPOINT), the same hue
-      // as the precipitation bars; the bars are a 50 % dither and this is a
-      // solid stroke, which keeps them apart.
+      // graph dew point -- over the bars, under the temperature: where the
+      // two curves meet (saturated air: fog, drizzle) the temperature paints
+      // on top, and the primary curve stays the thicker one. It is the same
+      // blue as the precipitation bars, so it gets a one-pixel halo in the
+      // background colour on each side; without it a 2 px blue stroke
+      // through 50 % blue dither reads as slightly denser dither, not a line.
       if (y_d[i - 1] != INT_MIN && y_d[i] != INT_MIN)
       {
-        display.drawLine(x0_t, y_d[i - 1]    , x1_t, y_d[i]    , DM_GFX(COLOR_DEWPOINT));
-        display.drawLine(x0_t, y_d[i - 1] + 1, x1_t, y_d[i] + 1, DM_GFX(COLOR_DEWPOINT));
+        const int y0_d = y_d[i - 1];
+        const int y1_d = y_d[i];
+        // dark mode: colour ink is dim on a black ground, so the line is 3 px
+        // (as the temperature's is thickened) and the halo sits one further out
+        const int below = DARK_MODE ? 2 : 1;
+        display.drawLine(x0_t, y0_d - below, x1_t, y1_d - below, DM_BG);
+        display.drawLine(x0_t, y0_d + 2    , x1_t, y1_d + 2    , DM_BG);
+        display.drawLine(x0_t, y0_d        , x1_t, y1_d        , DM_GFX(COLOR_DEWPOINT));
+        display.drawLine(x0_t, y0_d + 1    , x1_t, y1_d + 1    , DM_GFX(COLOR_DEWPOINT));
         if (DARK_MODE)
-        { // as for the temperature line: colour ink is dim on a black ground
-          display.drawLine(x0_t, y_d[i - 1] - 1, x1_t, y_d[i] - 1, DM_GFX(COLOR_DEWPOINT));
+        {
+          display.drawLine(x0_t, y0_d - 1, x1_t, y1_d - 1, DM_GFX(COLOR_DEWPOINT));
         }
       }
       // graph temperature
@@ -2061,45 +2111,6 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
         }
       }
 #endif
-    }
-
-#ifdef UNITS_HOURLY_PRECIP_POP
-    float precipVal = hourly[i].pop * 100;
-#else
-    float precipVal = hourly[i].rain_1h + hourly[i].snow_1h;
-#ifdef UNITS_HOURLY_PRECIP_CENTIMETERS
-    precipVal = millimeters_to_centimeters(precipVal);
-#endif
-#ifdef UNITS_HOURLY_PRECIP_INCHES
-    precipVal = millimeters_to_inches(precipVal);
-#endif
-#endif
-
-    x0_t = static_cast<int>(std::round( xPos0 + 1 + (i * xInterval)));
-    x1_t = static_cast<int>(std::round( xPos0 + 1 + ((i + 1) * xInterval) ));
-    // precipBoundMax is 0 when no precipitation is forecast over the whole
-    // graph (a dry 24 hours is common). Dividing by it would make yPxPerUnit
-    // infinite and y0_t NaN, and casting that NaN to int is undefined --
-    // which at best draws a bogus full-height bar and at worst spins the
-    // fill loop below for billions of iterations.
-    if (precipBoundMax > 0)
-    {
-      yPxPerUnit = (yPos1 - yPos0) / precipBoundMax;
-      y0_t = static_cast<int>(std::round( yPos1 - (yPxPerUnit * (precipVal)) ));
-    }
-    else
-    {
-      y0_t = yPos1; // nothing to fill
-    }
-    y1_t = yPos1;
-
-    // graph Precipitation
-    for (int y = y1_t - 1; y > y0_t; y -= 2)
-    {
-      for (int x = x0_t + (x0_t % 2); x < x1_t; x += 2)
-      {
-        display.drawPixel(x, y, DM_GFX(COLOR_PRECIP));
-      }
     }
 
     if ((i % hourInterval) == 0)
