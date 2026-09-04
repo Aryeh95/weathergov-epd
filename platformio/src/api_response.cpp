@@ -433,6 +433,61 @@ void fillCurrentFromFallback(const owm_hourly_t &fallback, owm_current_t &curren
   current.visibility  = 10000;
 } // end fillCurrentFromFallback
 
+/* Parses weather.gov's raw gridpoint (/gridpoints/WFO/x,y) for its
+ * quantitativePrecipitation series. The response is large (~230 KB -- every
+ * grid variable for 7 days) but the filter keeps only the QPF buckets, so
+ * the document stays a few hundred bytes. Values are mm over each bucket;
+ * the bucket is an ISO 8601 interval "start/duration", e.g.
+ * "2026-09-04T18:00:00+00:00/PT6H".
+ */
+DeserializationError deserializeNWSGridpointQPF(WiFiClient &json,
+                                                std::vector<qpf_bucket_t> &qpf)
+{
+  JsonDocument filter;
+  JsonObject v = filter["properties"]["quantitativePrecipitation"]["values"][0]
+                   .to<JsonObject>();
+  v["validTime"] = true;
+  v["value"]     = true;
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, json,
+                                         DeserializationOption::Filter(filter));
+#if DEBUG_LEVEL >= 1
+  Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
+#endif
+  if (error)
+  {
+    return error;
+  }
+
+  qpf.clear();
+  for (JsonObject b : doc["properties"]["quantitativePrecipitation"]["values"]
+                        .as<JsonArray>())
+  {
+    const char *vt = b["validTime"].as<const char *>();
+    if (!vt)
+    {
+      continue;
+    }
+    String interval(vt);
+    int slash = interval.indexOf('/');
+    if (slash < 0)
+    {
+      continue;
+    }
+    qpf_bucket_t q;
+    q.start   = parseISO8601(interval.substring(0, slash));
+    q.seconds = parseIsoDurationSeconds(interval.c_str() + slash + 1);
+    JsonVariant val = b["value"];
+    q.mm = val.isNull() ? 0.f : val.as<float>();
+    if (q.start > 0 && q.seconds > 0)
+    {
+      qpf.push_back(q);
+    }
+  }
+  return error;
+} // end deserializeNWSGridpointQPF
+
 /* Parses Open-Meteo's current-conditions block (/v1/forecast?current=...,
  * requested with wind_speed_unit=ms). Values are model output interpolated
  * to the configured coordinates, refreshed every ~15 minutes. Any missing
@@ -443,8 +498,10 @@ void fillCurrentFromFallback(const owm_hourly_t &fallback, owm_current_t &curren
  */
 DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
                                                  const owm_hourly_t &fallback,
-                                                 owm_current_t &current)
+                                                 owm_current_t &current,
+                                                 om_daily_precip_t &omDaily)
 {
+  omDaily.n = 0;
   // Filter like every NWS parser does: the response also carries the
   // request echo (latitude/longitude/elevation/timezone), generation time
   // and a `current_units` block that is never read. Only the `current`
@@ -461,6 +518,11 @@ DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
   cur["wind_speed_10m"]       = true;
   cur["wind_gusts_10m"]       = true;
   cur["wind_direction_10m"]   = true;
+  // Daily precipitation totals ride along on the same request (same host,
+  // same endpoint): the days weather.gov's QPF does not reach fall back to
+  // these -- see precip.h.
+  filter["daily"]["time"]              = true;
+  filter["daily"]["precipitation_sum"] = true;
 
   JsonDocument doc;
   DeserializationError error = deserializeJson(doc, json,
@@ -483,6 +545,17 @@ DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
   current.weather = fallback.weather;
 
   JsonObject c = doc["current"];
+
+  JsonArray dTime = doc["daily"]["time"].as<JsonArray>();
+  JsonArray dSum  = doc["daily"]["precipitation_sum"].as<JsonArray>();
+  for (size_t k = 0; k < dTime.size() && k < dSum.size()
+                     && omDaily.n < OM_DAILY_MAX; ++k)
+  {
+    omDaily.time[omDaily.n] = dTime[k].as<int64_t>();
+    JsonVariant v = dSum[k];
+    omDaily.mm[omDaily.n] = v.isNull() ? NAN : v.as<float>();
+    ++omDaily.n;
+  }
 
   JsonVariant tempVar = c["temperature_2m"];
   current.temp = !tempVar.isNull() ? celsius_to_kelvin(tempVar.as<float>())

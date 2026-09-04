@@ -177,24 +177,32 @@
 #define UNITS_DIST_MILES
 
 // UNITS - PRECIPITATION (HOURLY)
-// Measure of precipitation.
-// weather.gov's forecast endpoints only provide Probability of Precipitation
-// (PoP); hourly/daily volume amounts require parsing much more complex raw
-// gridpoint data, which is not supported. PoP is the only supported option.
+// The hourly outlook graph's bars. weather.gov's hourly forecast carries only
+// Probability of Precipitation; its amounts exist solely in the raw gridpoint
+// as 6-hour buckets, which would draw as four flat steps a day -- so PoP is
+// the only hourly option.
 #define UNITS_HOURLY_PRECIP_POP
 // #define UNITS_HOURLY_PRECIP_MILLIMETERS  // unsupported, see above
 // #define UNITS_HOURLY_PRECIP_CENTIMETERS  // unsupported, see above
 // #define UNITS_HOURLY_PRECIP_INCHES       // unsupported, see above
 
 // UNITS - PRECIPITATION (DAILY)
-// Measure of precipitation.
-// weather.gov's forecast endpoints only provide Probability of Precipitation
-// (PoP); hourly/daily volume amounts require parsing much more complex raw
-// gridpoint data, which is not supported. PoP is the only supported option.
-#define UNITS_DAILY_PRECIP_POP
-// #define UNITS_DAILY_PRECIP_MILLIMETERS  // unsupported, see above
-// #define UNITS_DAILY_PRECIP_CENTIMETERS  // unsupported, see above
-// #define UNITS_DAILY_PRECIP_INCHES       // unsupported, see above
+// The number under each day in the forecast row: probability, or an amount.
+// Amounts are liquid-equivalent totals from two sources -- weather.gov's
+// gridpoint QPF for the ~3 days it reaches (today counts only what is still
+// ahead), then Open-Meteo's daily sum for the days beyond -- see precip.h.
+// Selecting an amount adds one ~230 KB weather.gov request per refresh.
+// #define UNITS_DAILY_PRECIP_POP
+// #define UNITS_DAILY_PRECIP_MILLIMETERS
+// #define UNITS_DAILY_PRECIP_CENTIMETERS
+#define UNITS_DAILY_PRECIP_INCHES
+
+// Derived: the daily row shows amounts, so fetch them.
+#if !defined(UNITS_DAILY_PRECIP_POP)
+  #define DAILY_PRECIP_AMOUNTS 1
+#else
+  #define DAILY_PRECIP_AMOUNTS 0
+#endif
 
 // Hypertext Transfer Protocol (HTTP)
 // HTTP
@@ -511,8 +519,11 @@ extern int POS_INHUMIDITY;
       ^ defined(TEMP_ORDER_LH))
   #error Invalid configuration. Exactly one temperature order must be selected.
 #endif
-#if !defined(UNITS_DAILY_PRECIP_POP)
-  #error Invalid configuration. weather.gov only provides probability of precipitation (PoP); UNITS_DAILY_PRECIP_POP must be selected.
+#if !(  defined(UNITS_DAILY_PRECIP_POP)          \
+      ^ defined(UNITS_DAILY_PRECIP_MILLIMETERS)  \
+      ^ defined(UNITS_DAILY_PRECIP_CENTIMETERS)  \
+      ^ defined(UNITS_DAILY_PRECIP_INCHES))
+  #error Invalid configuration. Exactly one daily precipitation unit must be selected.
 #endif
 #if !(  defined(USE_HTTP)                   \
       ^ defined(USE_HTTPS_NO_CERT_VERIF)    \

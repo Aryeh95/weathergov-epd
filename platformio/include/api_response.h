@@ -22,6 +22,7 @@
 #include <vector>
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include "precip.h"
 #include <HTTPClient.h>
 #include <WiFi.h>
 
@@ -126,6 +127,9 @@ typedef struct owm_daily
   float   wind_gust;        // Wind gust. Units – default: metre/sec, metric: metre/sec, imperial: miles/hour.
   int     wind_deg;         // Wind direction, degrees (meteorological)
   float   pop;              // Probability of precipitation. The values of the parameter vary between 0 and 1, where 0 is equal to 0%, 1 is equal to 100%
+  float   rain;             // Liquid-equivalent precipitation for the day, mm (NaN = no source covered it). weather.gov QPF where it reaches, Open-Meteo beyond -- see precip_src.
+  float   snow;             // Always 0: both sources report liquid equivalent; kept so the renderer's rain+snow sum reads as upstream's did.
+  uint8_t precip_src;       // PRECIP_SRC_NONE / PRECIP_SRC_NWS / PRECIP_SRC_OPEN_METEO
   owm_weather_t         weather;
 } owm_daily_t;
 
@@ -186,7 +190,10 @@ DeserializationError deserializeNWSForecastHourly(WiFiClient &json,
                                                   owm_hourly_t *hourly);
 DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
                                                  const owm_hourly_t &fallback,
-                                                 owm_current_t &current);
+                                                 owm_current_t &current,
+                                                 om_daily_precip_t &omDaily);
+DeserializationError deserializeNWSGridpointQPF(WiFiClient &json,
+                                                std::vector<qpf_bucket_t> &qpf);
 void fillCurrentFromFallback(const owm_hourly_t &fallback, owm_current_t &current);
 DeserializationError deserializeNWSAlerts(WiFiClient &json,
                                           std::vector<owm_alerts_t> &alerts);

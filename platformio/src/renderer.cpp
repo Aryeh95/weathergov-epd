@@ -1417,41 +1417,46 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
 // daily forecast precipitation
 #if DISPLAY_DAILY_PRECIP
     float dailyPrecip;
+    bool  showPrecip = true;
 #if defined(UNITS_DAILY_PRECIP_POP)
     dailyPrecip = daily[i].pop * 100;
     dataStr = String(static_cast<int>(dailyPrecip));
     unitStr = "%";
 #else
+    // Liquid-equivalent amount, NaN when neither source covered the day
+    // (precip.h) -- then nothing is drawn rather than "nan".
     dailyPrecip = daily[i].snow + daily[i].rain;
+    showPrecip = !std::isnan(dailyPrecip);
 #if defined(UNITS_DAILY_PRECIP_MILLIMETERS)
-    // Round up to nearest mm
+    // Round to nearest mm
     dailyPrecip = std::round(dailyPrecip);
     dataStr = String(static_cast<int>(dailyPrecip));
     unitStr = String(" ") + TXT_UNITS_PRECIP_MILLIMETERS;
 #elif defined(UNITS_DAILY_PRECIP_CENTIMETERS)
-    // Round up to nearest 0.1 cm
+    // Round to nearest 0.1 cm
     dailyPrecip = millimeters_to_centimeters(dailyPrecip);
     dailyPrecip = std::round(dailyPrecip * 10) / 10.0f;
     dataStr = String(dailyPrecip, 1);
     unitStr = String(" ") + TXT_UNITS_PRECIP_CENTIMETERS;
 #elif defined(UNITS_DAILY_PRECIP_INCHES)
-    // Round up to nearest 0.1 inch
+    // Round to nearest 0.1 inch
     dailyPrecip = millimeters_to_inches(dailyPrecip);
     dailyPrecip = std::round(dailyPrecip * 10) / 10.0f;
     dataStr = String(dailyPrecip, 1);
     unitStr = String(" ") + TXT_UNITS_PRECIP_INCHES;
 #endif
 #endif
-#if (DISPLAY_DAILY_PRECIP == 2) // smart
-      if (dailyPrecip > 0.0f)
-      {
+#if (DISPLAY_DAILY_PRECIP == 2) // smart: a dry day shows nothing
+    // Tested on the ROUNDED value, so a trace that would print as "0.0 in"
+    // is hidden along with the true zeros.
+    showPrecip = showPrecip && (dailyPrecip > 0.0f);
 #endif
-        display.setFont(&FONT_6pt8b);
-        drawString(cx, 98 + 69 / 2 + 38 - 6 + 26,
-                   dataStr + unitStr, CENTER, DM_TEXT(COLOR_PRECIP));
-#if (DISPLAY_DAILY_PRECIP == 2) // smart
-      }
-#endif
+    if (showPrecip)
+    {
+      display.setFont(&FONT_6pt8b);
+      drawString(cx, 98 + 69 / 2 + 38 - 6 + 26,
+                 dataStr + unitStr, CENTER, DM_TEXT(COLOR_PRECIP));
+    }
 #endif // DISPLAY_DAILY_PRECIP
     }
 
