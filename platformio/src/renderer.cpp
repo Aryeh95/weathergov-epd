@@ -23,6 +23,7 @@
 #include "config.h"
 #include "conversions.h"
 #include "display_utils.h"
+#include "roundrect.h"
 #include "sun.h"
 
 // fonts
@@ -203,6 +204,32 @@ static void drawWidgetIcon(int16_t x, int16_t y, const uint8_t *lineArt48,
 #define RISK_PURPLE 5 // very high: white text on a red/blue dither (plum)
 #define RISK_MAROON 6 // hazardous: white text on a red/black dither
 
+/* Vertical run painted as a two-ink checker -- the dithered analogue of
+ * GFX's writeFastVLine. Parity is keyed to ABSOLUTE screen coordinates, so
+ * adjacent spans continue one checkerboard instead of each starting its own
+ * phase (which would show as a seam down the badge).
+ */
+static void ditherVLine(int16_t x, int16_t y, int16_t h,
+                        uint16_t inkA, uint16_t inkB)
+{
+  for (int16_t i = 0; i < h; ++i)
+  {
+    const int16_t yy = static_cast<int16_t>(y + i);
+    display.drawPixel(x, yy, ((x + yy) & 1) ? inkA : inkB);
+  }
+}
+
+/* fillRoundRect for a color the panel has no ink for: the same spans GFX
+ * would fill (roundrect.h), each painted as a two-ink checker.
+ */
+static void fillRoundRectDithered(int16_t x, int16_t y, int16_t w, int16_t h,
+                                  int16_t r, uint16_t inkA, uint16_t inkB)
+{
+  roundRectSpans(x, y, w, h, r,
+                 [&](int16_t sx, int16_t sy, int16_t sh)
+                 { ditherVLine(sx, sy, sh, inkA, inkB); });
+}
+
 /* Draws a risk-category word. On multicolor panels, elevated levels render
  * as a colored badge -- the ink as AREA with solid text knocked out on top,
  * which stays legible where colored glyphs do not (amber/red are too dim as
@@ -229,13 +256,11 @@ static void drawRiskChip(int16_t x, int16_t y, const String &text, int level)
     uint16_t alt = (level == RISK_PURPLE) ? GxEPD_BLUE
                  : (level == RISK_AMBER)  ? GxEPD_YELLOW
                                           : GxEPD_BLACK;
-    for (int16_t yy = y0; yy <= y1; ++yy)
-    {
-      for (int16_t xx = x0; xx <= x1; ++xx)
-      {
-        display.drawPixel(xx, yy, ((xx + yy) & 1) ? GxEPD_RED : alt);
-      }
-    }
+    // Rounded like its solid neighbours: this used to be a nested loop over
+    // the whole rectangle, which had no notion of the corner radius and so
+    // gave every dithered badge -- UV High and Extreme, AQI 101-150 /
+    // 201-300 / 300+, pollen 3 -- square corners beside rounded ones.
+    fillRoundRectDithered(x0, y0, x1 - x0 + 1, y1 - y0 + 1, 3, GxEPD_RED, alt);
   }
   else
   {
