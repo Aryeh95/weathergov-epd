@@ -220,52 +220,65 @@ static void drawRiskChip(int16_t x, int16_t y, const std::string &text,
  * "does it fit?" fallback to the 5pt font, which is why "Very Unhealthy"
  * is smaller than its neighbours on a real panel.
  */
-struct Badge { const char *widget, *cond, *value, *label; int level; bool fits; };
+struct Badge { const char *widget, *cond, *value, *label, *shortLabel;
+               int level; bool fits; const char *drawn; };
 static Badge BADGES[] = {
-  {"UV index", "0-2",     "1",     "Low",            RISK_GREEN,  true},
-  {"UV index", "3-5",     "4",     "Moderate",       RISK_YELLOW, true},
-  {"UV index", "6-7",     "7",     "High",           RISK_AMBER,  true},
-  {"UV index", "8-10",    "9",     "Very High",      RISK_RED,    true},
-  {"UV index", "11+",     "11",    "Extreme",        RISK_PURPLE, true},
-  {"AQI (US)", "0-50",    "32",    "Good",           RISK_GREEN,  true},
-  {"AQI (US)", "51-100",  "78",    "Moderate",       RISK_YELLOW, true},
-  {"AQI (US)", "101-150", "126",   "USG",            RISK_AMBER,  true},
-  {"AQI (US)", "151-200", "172",   "Unhealthy",      RISK_RED,    true},
-  {"AQI (US)", "201-300", "255",   "Very Unhealthy", RISK_PURPLE, true},
-  {"AQI (US)", "301-500", "350",   "Hazardous",      RISK_MAROON, true},
-  {"AQI (US)", "> 500",   "> 500", "Hazardous",      RISK_MAROON, true},
-  {"Pollen",   "UPI 0-2", "2",     "Low",            RISK_GREEN,  true},
-  {"Pollen",   "UPI 3",   "3",     "Moderate",       RISK_AMBER,  true},
-  {"Pollen",   "UPI 4",   "4",     "High",           RISK_RED,    true},
-  {"Pollen",   "UPI 5",   "5",     "Very High",      RISK_RED,    true},
-  {"AQI (other scale)", "any", "78", "Moderate",     RISK_PLAIN,  true},
+  {"UV index", "0-2",     "1",     "Low",            nullptr,          RISK_GREEN,  true, ""},
+  {"UV index", "3-5",     "4",     "Moderate",       nullptr,          RISK_YELLOW, true, ""},
+  {"UV index", "6-7",     "7",     "High",           nullptr,          RISK_AMBER,  true, ""},
+  {"UV index", "8-10",    "9",     "Very High",      nullptr,          RISK_RED,    true, ""},
+  {"UV index", "11+",     "11",    "Extreme",        nullptr,          RISK_PURPLE, true, ""},
+  {"AQI (US)", "0-50",    "32",    "Good",           "Good",           RISK_GREEN,  true, ""},
+  {"AQI (US)", "51-100",  "78",    "Moderate",       "Moderate",       RISK_YELLOW, true, ""},
+  {"AQI (US)", "101-150", "126",   "Unhealthy for Sensitive Groups",
+                                                     "USG",            RISK_AMBER,  true, ""},
+  {"AQI (US)", "151-200", "172",   "Unhealthy",      "Unhealthy",      RISK_RED,    true, ""},
+  {"AQI (US)", "201-300", "255",   "Very Unhealthy", "V. Unhealthy",   RISK_PURPLE, true, ""},
+  {"AQI (US)", "301-500", "350",   "Hazardous",      "Hazard",         RISK_MAROON, true, ""},
+  {"AQI (US)", "> 500",   "> 500", "Hazardous",      "Hazard",         RISK_MAROON, true, ""},
+  {"Pollen",   "UPI 0-2", "2",     "Low",            nullptr,          RISK_GREEN,  true, ""},
+  {"Pollen",   "UPI 3",   "3",     "Moderate",       nullptr,          RISK_AMBER,  true, ""},
+  {"Pollen",   "UPI 4",   "4",     "High",           nullptr,          RISK_RED,    true, ""},
+  {"Pollen",   "UPI 5",   "5",     "Very High",      nullptr,          RISK_RED,    true, ""},
+  {"AQI (other scale)", "any", "78", "Moderate",     nullptr,          RISK_PLAIN,  true, ""},
 };
 
-/* The widget's own layout: number in 12pt at x=48, badge sp px later, and
- * the 7pt -> 5pt fallback when the descriptor will not fit the column.
+/* The widget's own layout: number in 12pt at x=48, badge sp px later, then
+ * drawCurrentAirQuality's fit loop -- the full name at 7pt, at 5pt, then the
+ * locale's short form the same way. Nothing fits: no badge, the full name
+ * wraps as plain text.
  */
-static bool drawWidgetRow(Badge &b, int16_t baseline)
+static const char *drawWidgetRow(Badge &b, int16_t baseline)
 {
   const int sp = 8;
   setFont(&FreeSans_12pt8b);
   gfxPrint(48, baseline, b.value, GxEPD_BLACK);
-  int16_t cursorX = 48 + (int16_t)advanceWidth(b.value);
-  setFont(&FreeSans_7pt8b);
-  const int max_w = (162 - sp) - (cursorX + sp);
-  if ((int)getStringWidth(b.label) > max_w)
+  const int16_t chipX = 48 + (int16_t)advanceWidth(b.value) + sp;
+  const int max_w = (162 - sp) - chipX;
+
+  const char *names[2] = { b.label, b.shortLabel };
+  const GFXfont *fonts[2] = { &FreeSans_7pt8b, &FreeSans_5pt8b };
+  static const char *WHICH[2][2] = { {"full 7pt", "full 5pt"},
+                                     {"short 7pt", "short 5pt"} };
+  for (int n = 0; n < 2; ++n)
   {
-    setFont(&FreeSans_5pt8b);
-    if ((int)getStringWidth(b.label) > max_w)
-    { // the firmware gives up on the badge here and wraps as plain text
-      b.fits = false;
-      setFont(&FreeSans_7pt8b);
-      return false;
+    if (n && (!names[n] || !strcmp(names[n], names[0]))) { continue; }
+    for (int f = 0; f < 2; ++f)
+    {
+      setFont(fonts[f]);
+      if ((int)getStringWidth(names[n]) <= max_w)
+      {
+        drawRiskChip(chipX, baseline, names[n], b.level);
+        setFont(&FreeSans_7pt8b);
+        return WHICH[n][f];
+      }
     }
   }
-  drawRiskChip(cursorX + sp, baseline, b.label, b.level);
-  const bool small = (gfxFont == &FreeSans_5pt8b);
+  b.fits = false;
+  setFont(&FreeSans_5pt8b);
+  gfxPrint(chipX, baseline - 10, b.label, GxEPD_BLACK); // stand-in for the wrap
   setFont(&FreeSans_7pt8b);
-  return small;
+  return "wraps";
 }
 
 int main(int argc, char **argv)
@@ -279,11 +292,11 @@ int main(int argc, char **argv)
   {
     display.px.assign(W * H, GxEPD_WHITE);
     g_cx0 = g_cy0 = g_cx1 = g_cy1 = -1;
-    const bool small = drawWidgetRow(b, 21);
+    const char *how = drawWidgetRow(b, 21);
     cells.push_back(display.px);
-    printf("%s\t%s\t%s\t%s\t%d\t%s\t%d\t%d\t%d\t%d\n", b.widget, b.cond,
-           b.value, b.label, b.level,
-           !b.fits ? "wraps" : small ? "5pt" : "7pt",
+    printf("%s\t%s\t%s\t%s\t%s\t%d\t%s\t%d\t%d\t%d\t%d\n", b.widget, b.cond,
+           b.value, b.label,
+           strstr(how, "short") ? b.shortLabel : b.label, b.level, how,
            b.fits ? g_cx0 : -1, b.fits ? g_cy0 : -1,
            b.fits ? g_cx1 : -1, b.fits ? g_cy1 : -1);
   }

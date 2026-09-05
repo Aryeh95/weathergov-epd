@@ -59,20 +59,28 @@ d.text((COL1, HEAD - 20), "widget value row (the 162 px left-panel column)", fon
 d.text((COL2, HEAD - 20), "corner", font=FS, fill=(130, 130, 130))
 d.text((COL3, HEAD - 20), "was", font=FSB, fill=(185, 55, 55))
 
-for i, (widget, cond, value, label, lvl, fit, x0, y0, x1, y1) in enumerate(rows):
+for i, (widget, cond, value, label, drawn, lvl, fit, x0, y0, x1, y1) in enumerate(rows):
     lvl, x0, y0 = int(lvl), int(x0), int(y0)
     y = HEAD + i * ROW_H
     if i % 2 == 0:
         d.rectangle([0, y - 8, Wt, y + ROW_H - 10], fill=(238, 238, 241))
     name, how = LEVEL[lvl]
-    d.text((PAD, y + 2), "%s  %s" % (widget, cond), font=FB, fill=(20, 20, 20))
-    d.text((PAD, y + 22), '"%s"' % label, font=F, fill=(60, 60, 60))
-    d.text((PAD, y + 42), "%s — %s" % (name, how), font=FS,
+    line = y + 2
+    d.text((PAD, line), "%s  %s" % (widget, cond), font=FB, fill=(20, 20, 20))
+    line += 20
+    d.text((PAD, line), '"%s"' % drawn, font=F, fill=(60, 60, 60))
+    line += 18
+    if drawn != label:
+        d.text((PAD, line), 'short for "%s"' % label, font=FS, fill=(110, 110, 110))
+        line += 16
+    d.text((PAD, line), "%s — %s" % (name, how), font=FS,
            fill=(175, 75, 15) if lvl in DITHERED else (120, 120, 120))
-    note = {"wraps": "never badges here: too wide, wraps as plain text",
-            "5pt": "drops to the 5pt font to fit"}.get(fit)
+    line += 16
+    note = {"wraps": "no badge: wraps as plain text",
+            "full 5pt": "drops to the 5pt font to fit",
+            "short 5pt": "at 5pt as well, to fit"}.get(fit)
     if note:
-        d.text((PAD, y + 60), note, font=FS, fill=(150, 80, 20))
+        d.text((PAD, line), note, font=FS, fill=(150, 80, 20))
 
     cell = new.crop((0, i * CELL_H, CELL_W, (i + 1) * CELL_H)).resize(
         (CELL_W * SC, CELL_H * SC), Image.NEAREST)

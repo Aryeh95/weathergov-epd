@@ -351,6 +351,19 @@ const char *UNITED_STATES_AQI_TXT[6] =
   "Hazardous",
 };
 } // end extern "C"
+/* Short forms of the above, for the AQI widget's badge when the column is
+ * too narrow for the full name (see _locale.h).
+ */
+const char *UNITED_STATES_AQI_SHORT_TXT[6] =
+{
+  "Good",
+  "Moderate",
+  "USG",
+  "Unhealthy",
+  "V. Unhealthy",
+  "Hazard",
+};
+
 
 // COMPASS POINT
 const char *COMPASS_POINT_NOTATION[32] = {

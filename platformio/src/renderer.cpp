@@ -204,6 +204,22 @@ static void drawWidgetIcon(int16_t x, int16_t y, const uint8_t *lineArt48,
 #define RISK_PURPLE 5 // very high: white text on a red/blue dither (plum)
 #define RISK_MAROON 6 // hazardous: white text on a red/black dither
 
+/* Which United States AQI band a value falls in: an index into
+ * UNITED_STATES_AQI_TXT, its short-form twin, and AQI_BAND_RISK below.
+ * Kept in one place so the color and the word can never disagree.
+ */
+static int usScaleAqiBand(int aqi)
+{
+  return (aqi <= 50)  ? 0
+       : (aqi <= 100) ? 1
+       : (aqi <= 150) ? 2
+       : (aqi <= 200) ? 3
+       : (aqi <= 300) ? 4
+                      : 5;
+}
+static const int AQI_BAND_RISK[6] = { RISK_GREEN, RISK_YELLOW, RISK_AMBER,
+                                      RISK_RED,   RISK_PURPLE, RISK_MAROON };
+
 /* Vertical run painted as a two-ink checker -- the dithered analogue of
  * GFX's writeFastVLine. Parity is keyed to ABSOLUTE screen coordinates, so
  * adjacent spans continue one checkerboard instead of each starting its own
@@ -820,39 +836,45 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   dataStr = useAirNow ? String(united_states_aqi_desc(aqi))
                       : String(aqi_desc(AQI_SCALE, aqi));
   // Full EPA color bands (defined for the US scale only)
-  const int aqiRisk = !usScale     ? RISK_PLAIN
-                    : (aqi <= 50)  ? RISK_GREEN
-                    : (aqi <= 100) ? RISK_YELLOW
-                    : (aqi <= 150) ? RISK_AMBER
-                    : (aqi <= 200) ? RISK_RED
-                    : (aqi <= 300) ? RISK_PURPLE
-                                   : RISK_MAROON;
-  int max_w = (162 + (PosX * 162) - sp) - (display.getCursorX() + sp);
-  if (usScale && aqi > 100 && aqi <= 150 && getStringWidth(dataStr) > max_w)
-  { // "Unhealthy for Sensitive Groups" can't fit a one-line chip; the EPA's
-    // own legend abbreviates the band as "USG".
-    dataStr = "USG";
+  const int band = usScaleAqiBand(aqi);
+  const int aqiRisk = usScale ? AQI_BAND_RISK[band] : RISK_PLAIN;
+  const int16_t chipX = display.getCursorX() + sp;
+  int max_w = (162 + (PosX * 162) - sp) - chipX;
+
+  /* Fit the band name into what the value left of the column.
+   *
+   * Several names are wider than that: a three-digit AQI leaves 59px and
+   * "> 500" only 39, against 89px for "Very Unhealthy" at 7pt. So try the
+   * full name at 7pt, then at 5pt, then the locale's short form the same
+   * way -- preferring a smaller font over a clipped word, which is why
+   * "Hazardous" stays whole at 301-500 but becomes "Hazard" past 500.
+   * Nothing fits: wrap the full name as plain text, with no badge.
+   */
+  const String names[2] = { dataStr,
+                            usScale ? String(UNITED_STATES_AQI_SHORT_TXT[band])
+                                    : String() };
+  const GFXfont *const fonts[2] = { &FONT_7pt8b, &FONT_5pt8b };
+  bool drawn = false;
+  for (int n = 0; n < 2 && !drawn; ++n)
+  {
+    if (n && (names[n].isEmpty() || names[n] == names[0]))
+    { // no short form, or the band needs none
+      continue;
+    }
+    for (int f = 0; f < 2 && !drawn; ++f)
+    {
+      display.setFont(fonts[f]);
+      if (getStringWidth(names[n]) <= max_w)
+      {
+        drawRiskChip(chipX, wgtValueY(PosY), names[n], aqiRisk);
+        drawn = true;
+      }
+    }
   }
-  if (getStringWidth(dataStr) <= max_w)
-  { // Fits on a single line, draw along bottom
-    drawRiskChip(display.getCursorX() + sp, wgtValueY(PosY),
-                 dataStr, aqiRisk);
-  }
-  else
-  { // use smaller font
+  if (!drawn)
+  { // draw higher to allow room for a 2nd line
     display.setFont(&FONT_5pt8b);
-    if (getStringWidth(dataStr) <= max_w)
-    { // Fits on a single line with smaller font, draw along bottom
-      drawRiskChip(display.getCursorX() + sp,
-                   wgtValueY(PosY),
-                   dataStr, aqiRisk);
-    }
-    else
-    { // Does not fit on a single line, draw higher to allow room for 2nd line
-      drawMultiLnString(display.getCursorX() + sp,
-                        wgtValueY(PosY) - 10,
-                        dataStr, LEFT, max_w, 2, 10);
-    }
+    drawMultiLnString(chipX, wgtValueY(PosY) - 10, dataStr, LEFT, max_w, 2, 10);
   }
 
   return;

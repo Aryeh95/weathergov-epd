@@ -191,6 +191,16 @@ extern const char *SOUTH_KOREA_CAI_TXT[4];
 extern const char *UNITED_KINGDOM_DAQI_TXT[4];
 extern const char *UNITED_STATES_AQI_TXT[6];
 }
+/* Short forms of the United States AQI band names, same order.
+ *
+ * The left-panel widget draws the band name as a colored badge, and several
+ * of the full names are wider than the column: a three-digit AQI leaves 59px
+ * and "> 500" leaves 39, against 89px for "Very Unhealthy" at 7pt. The
+ * renderer falls back to these when the full name will not fit at either
+ * font size. Best-effort: where a short form still does not fit, the full
+ * name wraps as plain text exactly as it did before these existed.
+ */
+extern const char *UNITED_STATES_AQI_SHORT_TXT[6];
 
 // COMPASS POINT
 extern const char *COMPASS_POINT_NOTATION[32];

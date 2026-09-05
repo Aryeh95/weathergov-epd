@@ -352,6 +352,19 @@ const char *UNITED_STATES_AQI_TXT[6] =
   "Vaarallinen",
 };
 } // end extern "C"
+/* Short forms of the above, for the AQI widget's badge when the column is
+ * too narrow for the full name (see _locale.h).
+ */
+const char *UNITED_STATES_AQI_SHORT_TXT[6] =
+{
+  "Hyv\xE4",
+  "Kohtal.",
+  "Ep\xE4t. herkille",
+  "Ep\xE4terv.",
+  "Eritt. ep\xE4terv.",
+  "Vaarall.",
+};
+
 
 // COMPASS POINT
 const char *COMPASS_POINT_NOTATION[32] = {
