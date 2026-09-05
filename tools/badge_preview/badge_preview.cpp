@@ -23,6 +23,7 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <algorithm>
 #include <vector>
 
 // ---- the little Arduino surface the font headers expect -------------------
@@ -43,7 +44,7 @@ enum : uint16_t { GxEPD_BLACK, GxEPD_WHITE, GxEPD_RED, GxEPD_YELLOW,
 static const uint8_t RGB[6][3] = {
   {0,0,0}, {255,255,255}, {255,0,0}, {255,255,0}, {0,128,0}, {0,0,255} };
 
-static const int W = 162, H = 30; // one left-panel widget column
+static const int W = 162, H = 56; // one full widget row (5-row layout pitch)
 struct Canvas
 {
   std::vector<uint8_t> px = std::vector<uint8_t>(W * H, GxEPD_WHITE);
@@ -175,6 +176,7 @@ static void fillRoundRectDithered(int16_t x, int16_t y, int16_t w, int16_t h,
                  { ditherVLine(sx, sy, sh, inkA, inkB); });
 }
 
+static bool g_twoLine = false;      // --twoline: option B
 static bool g_squareDither = false; // --old: reproduce the pre-fix badges
 static int16_t g_cx0, g_cy0, g_cx1, g_cy1; // last chip rect, for the contact sheet
 
@@ -213,6 +215,65 @@ static void drawRiskChip(int16_t x, int16_t y, const std::string &text,
   gfxPrint(x + 1, y, text, darkText ? GxEPD_BLACK : GxEPD_WHITE);
 }
 
+/* Option B: the same chip carrying two 5pt lines instead of one 7pt line.
+ * Geometry follows drawRiskChip -- 2 px of bleed left, 4 right, baseline
+ * +3 at the bottom -- with the top raised by drawMultiLnString's 10 px
+ * line spacing so the two baselines sit where a wrapped string's would.
+ */
+static void drawRiskChipWrapped(int16_t x, int16_t y, const std::string &a,
+                                const std::string &b, int level)
+{
+  const uint16_t w = std::max(getStringWidth(a), getStringWidth(b));
+  const int16_t x0 = x - 2, y0 = y - 10 - 9, x1 = x + w + 4, y1 = y + 3;
+  g_cx0 = x0; g_cy0 = y0; g_cx1 = x1; g_cy1 = y1;
+  if (level == RISK_PURPLE || level == RISK_MAROON || level == RISK_AMBER)
+  {
+    uint16_t alt = (level == RISK_PURPLE) ? GxEPD_BLUE
+                 : (level == RISK_AMBER)  ? GxEPD_YELLOW
+                                          : GxEPD_BLACK;
+    fillRoundRectDithered(x0, y0, x1 - x0 + 1, y1 - y0 + 1, 3, GxEPD_RED, alt);
+  }
+  else
+  {
+    uint16_t fill = GxEPD_RED;
+    if (level == RISK_YELLOW) { fill = GxEPD_YELLOW; }
+    if (level == RISK_GREEN)  { fill = GxEPD_GREEN; }
+    fillRoundRect(x0, y0, x1 - x0 + 1, y1 - y0 + 1, 3, fill);
+  }
+  const bool darkText = (level == RISK_YELLOW || level == RISK_AMBER);
+  const uint16_t ink = darkText ? GxEPD_BLACK : GxEPD_WHITE;
+  gfxPrint(x + 1, y - 10, a, ink);
+  gfxPrint(x + 1, y, b, ink);
+}
+
+/* drawMultiLnString's greedy break, restricted to two lines: the longest
+ * word run that fits, then the rest. Returns false if the rest still does
+ * not fit -- two lines are not always enough.
+ */
+static bool wrapTwo(const std::string &text, int max_w,
+                    std::string &a, std::string &b)
+{
+  std::vector<std::string> words;
+  for (size_t i = 0, j; i <= text.size(); i = j + 1)
+  {
+    j = text.find(' ', i);
+    if (j == std::string::npos) { j = text.size(); }
+    words.push_back(text.substr(i, j - i));
+    if (j == text.size()) { break; }
+  }
+  if (words.size() < 2) { return false; } // one word: nothing to break on
+  for (size_t split = words.size() - 1; split >= 1; --split)
+  {
+    a.clear(); b.clear();
+    for (size_t i = 0; i < split; ++i) { a += (i ? " " : "") + words[i]; }
+    for (size_t i = split; i < words.size(); ++i)
+    { b += (i > split ? " " : "") + words[i]; }
+    if ((int)getStringWidth(a) <= max_w && (int)getStringWidth(b) <= max_w)
+    { return true; }
+  }
+  return false;
+}
+
 // ---- the catalogue --------------------------------------------------------
 /* Each row is the value line of one left-panel widget: the big number the
  * widget prints first, then the badge, laid out exactly as drawCurrentUVI /
@@ -220,27 +281,27 @@ static void drawRiskChip(int16_t x, int16_t y, const std::string &text,
  * "does it fit?" fallback to the 5pt font, which is why "Very Unhealthy"
  * is smaller than its neighbours on a real panel.
  */
-struct Badge { const char *widget, *cond, *value, *label, *shortLabel;
+struct Badge { const char *widget, *cond, *value, *label, *shortLabel, *widgetLabel;
                int level; bool fits; const char *drawn; };
 static Badge BADGES[] = {
-  {"UV index", "0-2",     "1",     "Low",            nullptr,          RISK_GREEN,  true, ""},
-  {"UV index", "3-5",     "4",     "Moderate",       nullptr,          RISK_YELLOW, true, ""},
-  {"UV index", "6-7",     "7",     "High",           nullptr,          RISK_AMBER,  true, ""},
-  {"UV index", "8-10",    "9",     "Very High",      nullptr,          RISK_RED,    true, ""},
-  {"UV index", "11+",     "11",    "Extreme",        nullptr,          RISK_PURPLE, true, ""},
-  {"AQI (US)", "0-50",    "32",    "Good",           "Good",           RISK_GREEN,  true, ""},
-  {"AQI (US)", "51-100",  "78",    "Moderate",       "Moderate",       RISK_YELLOW, true, ""},
+  {"UV index", "0-2",     "1",     "Low",            nullptr,          "UV Index", RISK_GREEN,  true, ""},
+  {"UV index", "3-5",     "4",     "Moderate",       nullptr,          "UV Index", RISK_YELLOW, true, ""},
+  {"UV index", "6-7",     "7",     "High",           nullptr,          "UV Index", RISK_AMBER,  true, ""},
+  {"UV index", "8-10",    "9",     "Very High",      nullptr,          "UV Index", RISK_RED,    true, ""},
+  {"UV index", "11+",     "11",    "Extreme",        nullptr,          "UV Index", RISK_PURPLE, true, ""},
+  {"AQI (US)", "0-50",    "32",    "Good",           "Good",           "Air Quality", RISK_GREEN,  true, ""},
+  {"AQI (US)", "51-100",  "78",    "Moderate",       "Moderate",       "Air Quality", RISK_YELLOW, true, ""},
   {"AQI (US)", "101-150", "126",   "Unhealthy for Sensitive Groups",
-                                                     "USG",            RISK_AMBER,  true, ""},
-  {"AQI (US)", "151-200", "172",   "Unhealthy",      "Unhealthy",      RISK_RED,    true, ""},
-  {"AQI (US)", "201-300", "255",   "Very Unhealthy", "V. Unhealthy",   RISK_PURPLE, true, ""},
-  {"AQI (US)", "301-500", "350",   "Hazardous",      "Hazard",         RISK_MAROON, true, ""},
-  {"AQI (US)", "> 500",   "> 500", "Hazardous",      "Hazard",         RISK_MAROON, true, ""},
-  {"Pollen",   "UPI 0-2", "2",     "Low",            nullptr,          RISK_GREEN,  true, ""},
-  {"Pollen",   "UPI 3",   "3",     "Moderate",       nullptr,          RISK_AMBER,  true, ""},
-  {"Pollen",   "UPI 4",   "4",     "High",           nullptr,          RISK_RED,    true, ""},
-  {"Pollen",   "UPI 5",   "5",     "Very High",      nullptr,          RISK_RED,    true, ""},
-  {"AQI (other scale)", "any", "78", "Moderate",     nullptr,          RISK_PLAIN,  true, ""},
+                                     "USG", "Air Quality", RISK_AMBER,  true, ""},
+  {"AQI (US)", "151-200", "172",   "Unhealthy",      "Unhealthy",      "Air Quality", RISK_RED,    true, ""},
+  {"AQI (US)", "201-300", "255",   "Very Unhealthy", "V. Unhealthy",   "Air Quality", RISK_PURPLE, true, ""},
+  {"AQI (US)", "301-500", "350",   "Hazardous",      "Hazard",         "Air Quality", RISK_MAROON, true, ""},
+  {"AQI (US)", "> 500",   "> 500", "Hazardous",      "Hazard",         "Air Quality", RISK_MAROON, true, ""},
+  {"Pollen",   "UPI 0-2", "2",     "Low",            nullptr,          "Pollen", RISK_GREEN,  true, ""},
+  {"Pollen",   "UPI 3",   "3",     "Moderate",       nullptr,          "Pollen", RISK_AMBER,  true, ""},
+  {"Pollen",   "UPI 4",   "4",     "High",           nullptr,          "Pollen", RISK_RED,    true, ""},
+  {"Pollen",   "UPI 5",   "5",     "Very High",      nullptr,          "Pollen", RISK_RED,    true, ""},
+  {"AQI (other scale)", "any", "78", "Moderate",     nullptr,          "Air Quality", RISK_PLAIN,  true, ""},
 };
 
 /* The widget's own layout: number in 12pt at x=48, badge sp px later, then
@@ -251,11 +312,31 @@ static Badge BADGES[] = {
 static const char *drawWidgetRow(Badge &b, int16_t baseline)
 {
   const int sp = 8;
+  setFont(&FreeSans_7pt8b);
+  gfxPrint(48, 10, b.widgetLabel, GxEPD_BLACK); // wgtLabelY: baseline y+10
   setFont(&FreeSans_12pt8b);
   gfxPrint(48, baseline, b.value, GxEPD_BLACK);
   const int16_t chipX = 48 + (int16_t)advanceWidth(b.value) + sp;
   const int max_w = (162 - sp) - chipX;
 
+  if (g_twoLine)
+  { // full name at 7pt if it fits, else two 5pt lines, else the short form
+    setFont(&FreeSans_7pt8b);
+    if ((int)getStringWidth(b.label) <= max_w)
+    {
+      drawRiskChip(chipX, baseline, b.label, b.level);
+      return "full 7pt";
+    }
+    setFont(&FreeSans_5pt8b);
+    std::string l1, l2;
+    if (wrapTwo(b.label, max_w, l1, l2))
+    {
+      drawRiskChipWrapped(chipX, baseline, l1, l2, b.level);
+      setFont(&FreeSans_7pt8b);
+      return "2 lines 5pt";
+    }
+    setFont(&FreeSans_7pt8b);
+  }
   const char *names[2] = { b.label, b.shortLabel };
   const GFXfont *fonts[2] = { &FreeSans_7pt8b, &FreeSans_5pt8b };
   static const char *WHICH[2][2] = { {"full 7pt", "full 5pt"},
@@ -286,13 +367,14 @@ int main(int argc, char **argv)
   const char *out = (argc > 1) ? argv[1] : "badges.ppm";
   for (int i = 2; i < argc; ++i)
     if (!strcmp(argv[i], "--old")) { g_squareDither = true; }
+    else if (!strcmp(argv[i], "--twoline")) { g_twoLine = true; }
   const int n = sizeof(BADGES) / sizeof(BADGES[0]);
   std::vector<std::vector<uint8_t>> cells;
   for (Badge &b : BADGES)
   {
     display.px.assign(W * H, GxEPD_WHITE);
     g_cx0 = g_cy0 = g_cx1 = g_cy1 = -1;
-    const char *how = drawWidgetRow(b, 21);
+    const char *how = drawWidgetRow(b, 32); // wgtValueY: baseline y+32
     cells.push_back(display.px);
     printf("%s\t%s\t%s\t%s\t%s\t%d\t%s\t%d\t%d\t%d\t%d\n", b.widget, b.cond,
            b.value, b.label,
