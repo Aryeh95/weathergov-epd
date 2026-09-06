@@ -38,15 +38,18 @@ bool calcSunriseSunset(int year, int month, int day, double lat, double lon,
 
 /* Calculates the moon phase for the given moment (Unix timestamp, UTC).
  *
- * Returns a phase index 0-7:
- *   0 new moon        4 full moon
- *   1 waxing crescent 5 waning gibbous
- *   2 first quarter   6 last (third) quarter
- *   3 waxing gibbous  7 waning crescent
- * and writes the illuminated fraction (0-100, rounded) to illumPct if
- * non-NULL. Computed from the mean synodic month; accurate to well within a
- * day, which is finer than the 8-phase bucketing can show anyway.
+ * Returns a phase index 0 .. MOON_PHASE_STEPS-1, evenly spaced around the
+ * cycle from 0 = new, and writes the illuminated fraction (0-100, rounded)
+ * to illumPct if non-NULL. Computed from the mean synodic month; accurate
+ * to well within a day.
+ *
+ * The steps are evenly spaced in TIME, not in appearance: the terminator
+ * barely moves either side of new and full, so those neighbours look nearly
+ * identical while the ones around the quarters change a lot. That is the
+ * moon, not a rounding choice -- and it is why the icon count stops at 16
+ * (tools/moon_preview measures where the 48px icon stops resolving them).
  */
+#define MOON_PHASE_STEPS 16
 int calcMoonPhase(int64_t t, int *illumPct);
 
 #endif

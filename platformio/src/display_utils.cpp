@@ -29,6 +29,7 @@
 #include "api_response.h"
 #include "config.h"
 #include "display_utils.h"
+#include "sun.h" // MOON_PHASE_STEPS
 
 // icon header files
 #include "icons/icons.h"
@@ -884,53 +885,28 @@ const uint8_t *getColorWidgetIcon(const char *name, int size)
 } // end getColorWidgetIcon
 #endif // MULTICOLOR_DISPLAY
 
-/* Moon-phase widget helpers. Phase index 0-7 as returned by calcMoonPhase
- * (see sun.h). The line-art set has intermediate crescent/gibbous steps;
- * the middle (step 4) icon represents each of those phases.
+/* Moon-phase widget helpers.
+ *
+ * calcMoonPhase returns one of MOON_PHASE_STEPS indices and the icon set
+ * has one bitmap per index, but only 8 phase NAMES exist, so several
+ * indices share a name. The split is the conventional one and NOT a
+ * rounding of the index: "quarter" is the single step that is exactly half
+ * lit, crescent is everything less than half, gibbous everything more.
  */
-const uint8_t *getMoonPhaseBitmap48(int phase)
-{
-  switch (phase)
-  {
-  case 0:  return wi_moon_alt_new_48x48;
-  case 1:  return wi_moon_alt_waxing_crescent_4_48x48;
-  case 2:  return wi_moon_alt_first_quarter_48x48;
-  case 3:  return wi_moon_alt_waxing_gibbous_4_48x48;
-  case 4:  return wi_moon_alt_full_48x48;
-  case 5:  return wi_moon_alt_waning_gibbous_4_48x48;
-  case 6:  return wi_moon_alt_third_quarter_48x48;
-  default: return wi_moon_alt_waning_crescent_4_48x48;
-  }
-} // end getMoonPhaseBitmap48
-
-const uint8_t *getMoonPhaseBitmap40(int phase)
-{
-  switch (phase)
-  {
-  case 0:  return wi_moon_alt_new_40x40;
-  case 1:  return wi_moon_alt_waxing_crescent_4_40x40;
-  case 2:  return wi_moon_alt_first_quarter_40x40;
-  case 3:  return wi_moon_alt_waxing_gibbous_4_40x40;
-  case 4:  return wi_moon_alt_full_40x40;
-  case 5:  return wi_moon_alt_waning_gibbous_4_40x40;
-  case 6:  return wi_moon_alt_third_quarter_40x40;
-  default: return wi_moon_alt_waning_crescent_4_40x40;
-  }
-} // end getMoonPhaseBitmap40
-
 const char *getMoonPhaseDesc(int phase)
 {
-  switch (phase)
-  {
-  case 0:  return TXT_NEW_MOON;
-  case 1:  return TXT_WAXING_CRESCENT;
-  case 2:  return TXT_FIRST_QUARTER;
-  case 3:  return TXT_WAXING_GIBBOUS;
-  case 4:  return TXT_FULL_MOON;
-  case 5:  return TXT_WANING_GIBBOUS;
-  case 6:  return TXT_THIRD_QUARTER;
-  default: return TXT_WANING_CRESCENT;
-  }
+  static_assert(MOON_PHASE_STEPS % 4 == 0,
+                "the quarter points have to land on a step");
+  const int q = MOON_PHASE_STEPS / 4; // steps per quarter cycle
+  const int i = phase % MOON_PHASE_STEPS;
+  if (i == 0)      {return TXT_NEW_MOON;}
+  if (i <  q)      {return TXT_WAXING_CRESCENT;}
+  if (i == q)      {return TXT_FIRST_QUARTER;}
+  if (i <  2 * q)  {return TXT_WAXING_GIBBOUS;}
+  if (i == 2 * q)  {return TXT_FULL_MOON;}
+  if (i <  3 * q)  {return TXT_WANING_GIBBOUS;}
+  if (i == 3 * q)  {return TXT_THIRD_QUARTER;}
+  return TXT_WANING_CRESCENT;
 } // end getMoonPhaseDesc
 
 /* Returns the dithered grayscale moon bitmap (icons_moon.h) for a phase at
@@ -938,7 +914,12 @@ const char *getMoonPhaseDesc(int phase)
  */
 const uint8_t *getMoonPhaseDithered(int phase, int size)
 {
-  return (size == 40) ? MOON_DITHER_40[phase & 7] : MOON_DITHER_48[phase & 7];
+  static_assert(sizeof(MOON_DITHER_48) / sizeof(*MOON_DITHER_48)
+                    == MOON_PHASE_STEPS,
+                "icons_moon.h and MOON_PHASE_STEPS disagree -- regenerate "
+                "with tools/generate_color_icons.py");
+  const int i = phase % MOON_PHASE_STEPS;
+  return (size == 40) ? MOON_DITHER_40[i] : MOON_DITHER_48[i];
 } // end getMoonPhaseDithered
 
 /* Color for the UV index widget icon (sun), by WHO risk level.

@@ -43,19 +43,22 @@ WIDGET_ICONS = ["sunrise", "sunset", "wind", "humidity", "pressure",
 # The moons are emitted into their own header (icons_moon.h): being pure
 # black/white dither they render identically on every panel, so they are
 # compiled into single-color builds too, unlike the color set.
-MOON_NAMES = ["newmoon", "waxingcrescent", "firstquarter", "waxinggibbous",
-              "fullmoon", "waninggibbous", "lastquarter", "waningcrescent"]
-CUSTOM_ICONS = ["dewpoint", "intemp", "inhumidity",
-                "newmoon", "waxingcrescent", "firstquarter", "waxinggibbous",
-                "fullmoon", "waninggibbous", "lastquarter", "waningcrescent"]
+#
+# 16 steps, not the 8 named phases. tools/moon_preview measures what the
+# 48px icon can actually resolve: at 16 every step still differs, at 24 a
+# pair collapses and at 28 four pairs quantize identically. The names stay
+# at 8 (getMoonPhaseDesc maps 2 icons to each) -- there is no accepted word
+# for a sixteenth of a cycle, and the illuminated % beside the icon already
+# carries the precision.
+MOON_STEPS = 16
+MOON_NAMES = ["moon%02d" % i for i in range(MOON_STEPS)]
+CUSTOM_ICONS = ["dewpoint", "intemp", "inhumidity"]
 # Moon phase icons are drawn by this script (draw_moons): a grayscale moon
 # -- light lit side with subtle craters, dark shadow side, per-phase
 # terminator -- quantized against black/white only, so the grays become
 # clean B/W dither on the panel (the same treatment that makes the clouds
 # read gray). Real-panel iterations ruled out InkyPi's yellow moon and a
 # plain white-with-outline disk.
-MOON_ICONS = {"newmoon", "waxingcrescent", "firstquarter", "waxinggibbous",
-              "fullmoon", "waninggibbous", "lastquarter", "waningcrescent"}
 MOON_PALETTE = [0, 1]  # black, white
 # Widget icons whose pale blues read too blue on real ink at the full boost
 # (like the condition icons' clouds); they get CONDITION_SATURATION instead.
@@ -131,19 +134,25 @@ def draw_custom_icons(icon_dir):
 
 
 def draw_moons(icon_dir):
-    """Draws the 8 grayscale moon-phase icons. Phase geometry: the
+    """Draws the MOON_STEPS grayscale moon-phase icons. Phase geometry: the
     terminator is the ellipse x = cos(theta)*sqrt(r^2-y^2) for phase angle
-    theta; waxing phases are lit from the right, waning from the left."""
+    theta; waxing phases are lit from the right, waning from the left.
+
+    The shadow and the limb are pure black (0), not a gray that dithers:
+    a dithered shadow speckles, and at this size the speckle reads as
+    texture on the dark side rather than as darkness. Only the lit side
+    dithers, which is what puts the craters there."""
     import math
     S, R = 512, 220
     CX = CY = 256
-    LIT, SHADOW, EDGE = 208, 58, 40
+    LIT, SHADOW, EDGE = 208, 0, 0
     CRATERS = [(-70, -60, 46), (60, 30, 34), (-20, 90, 28), (95, -95, 24),
                (-115, 55, 20)]
-    names = ["newmoon", "waxingcrescent", "firstquarter", "waxinggibbous",
-             "fullmoon", "waninggibbous", "lastquarter", "waningcrescent"]
-    for pidx, name in enumerate(names):
-        theta = math.pi * 2 * pidx / 8  # 0 = new, pi = full
+    for pidx, name in enumerate(MOON_NAMES):
+        theta = math.pi * 2 * pidx / MOON_STEPS  # 0 = new, pi = full
+        new_moon = (pidx == 0)
+        full_moon = (pidx * 2 == MOON_STEPS)
+        waxing = pidx * 2 < MOON_STEPS
         im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
         px = im.load()
         for y in range(S):
@@ -154,13 +163,13 @@ def draw_moons(icon_dir):
                     continue
                 half = math.sqrt(R * R - dy * dy)
                 xt = math.cos(theta) * half
-                if pidx == 0:
+                if new_moon:
                     lit = False
-                elif pidx == 4:
+                elif full_moon:
                     lit = True
-                elif pidx < 4:  # waxing, lit from the right
+                elif waxing:  # lit from the right
                     lit = dx >= xt
-                else:           # waning, lit from the left
+                else:         # lit from the left
                     lit = dx <= -xt
                 g = LIT if lit else SHADOW
                 if lit:
@@ -338,92 +347,59 @@ def emit(f, name, data):
     f.write("};\n\n")
 
 
-def main():
-    icon_dir = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
-        os.path.dirname(__file__), "inkypi_icons")
-    fetch_icons(icon_dir)
-    draw_custom_icons(icon_dir)
-    draw_moons(icon_dir)
+def write_moon_header(icon_dir):
+    """Emits icons_moon.h from the PNGs draw_moons left in icon_dir."""
     total = 0
-    with open(OUT_PATH, "w", newline="\n") as f:
-        f.write(
-"""/* Full-color weather condition icons for multicolor e-paper panels.
- *
- * GENERATED FILE -- do not edit by hand; regenerate with
- *   python tools/generate_color_icons.py
- *
- * Icon artwork from the InkyPi project by Faith Akici,
- * https://github.com/fatihak/InkyPi (GPL-3.0), quantized to the six native
- * inks of Spectra 6 / ACeP panels with Floyd-Steinberg dithering.
- *
- * Format: 4-bit palette indices, two pixels per byte (high nibble first),
- * row-major. Index 0 is transparent; 1..6 map to black, white, red, yellow,
- * green, blue (see CI_PALETTE in renderer.cpp).
- */
-
-#ifndef __ICONS_COLOR_H__
-#define __ICONS_COLOR_H__
-
-#include <Arduino.h>
-
-""")
-        for name in ICONS:
-            path = os.path.join(icon_dir, name + ".png")
-            for size in SIZES:
-                data = pack(quantize_condition(path, size))
-                total += len(data)
-                emit(f, "ci_%s_%d" % (name, size), data)
-                print("%s @ %dpx: %d bytes" % (name, size, len(data)))
-        for name in WIDGET_ICONS:
-            path = os.path.join(icon_dir, name + ".png")
-            sat = None if name in SOFT_WIDGET_ICONS else SATURATION
-            # 48px for the 5-row widget layout, 40px for the 6-row one
-            for wsize in (48, 40):
-                data = pack(quantize(path, wsize, dither=True,
-                                     saturation=sat))
-                total += len(data)
-                emit(f, "ci_w_%s_%d" % (name, wsize), data)
-                print("%s @ %dpx: %d bytes" % (name, wsize, len(data)))
-        f.write("typedef struct {\n"
-                "  const char code[8];\n"
-                "  const uint8_t *px168;\n"
-                "  const uint8_t *px64;\n"
-                "  const uint8_t *px48;\n"
-                "  const uint8_t *px32;\n"
-                "} color_icon_t;\n\n")
-        f.write("static const color_icon_t COLOR_ICONS[] = {\n")
-        for name in ICONS:
-            f.write('  {"%s", ci_%s_168, ci_%s_64, ci_%s_48, ci_%s_32},\n'
-                    % (name, name, name, name, name))
-        f.write("};\n\n#endif\n")
     with open(MOON_OUT_PATH, 'w', newline='\n') as f:
-        f.write('/* Dithered grayscale moon-phase widget icons, drawn by\n'
+        f.write('/* Moon-phase widget icons, drawn by\n'
                 ' * tools/generate_color_icons.py (see draw_moons). Pure\n'
                 ' * black/white, so unlike icons_color.h these are compiled\n'
                 ' * into EVERY panel build. Same 4-bit index format:\n'
                 ' * 0 transparent, 1 black, 2 white.\n'
                 ' *\n'
+                ' * %d steps around the synodic cycle, index 0 = new. The\n'
+                ' * shadow and the limb are solid black; only the lit side\n'
+                ' * is dithered, which is what puts the craters there.\n'
+                ' *\n'
                 ' * GENERATED FILE -- do not edit by hand.\n'
                 ' */\n\n'
                 '#ifndef __ICONS_MOON_H__\n'
                 '#define __ICONS_MOON_H__\n\n'
-                '#include <Arduino.h>\n\n')
+                '#include <Arduino.h>\n\n' % MOON_STEPS)
         for name in MOON_NAMES:
             path = os.path.join(icon_dir, name + '.png')
             for wsize in (48, 40):
                 data = pack(quantize(path, wsize, dither=True,
                                      allowed=MOON_PALETTE))
                 total += len(data)
-                emit(f, 'moon_%s_%d' % (name, wsize), data)
-        f.write('static const uint8_t * const MOON_DITHER_48[8] = {\n')
+                emit(f, '%s_%d' % (name, wsize), data)
+        f.write('static const uint8_t * const MOON_DITHER_48[%d] = {\n'
+                % MOON_STEPS)
         for name in MOON_NAMES:
-            f.write('  moon_%s_48,\n' % name)
-        f.write('};\nstatic const uint8_t * const MOON_DITHER_40[8] = {\n')
+            f.write('  %s_48,\n' % name)
+        f.write('};\nstatic const uint8_t * const MOON_DITHER_40[%d] = {\n'
+                % MOON_STEPS)
         for name in MOON_NAMES:
-            f.write('  moon_%s_40,\n' % name)
+            f.write('  %s_40,\n' % name)
         f.write('};\n\n#endif\n')
-    print("wrote %s (%d bytes of icon data)" % (OUT_PATH, total))
+    print("wrote %s (%d bytes of icon data)" % (MOON_OUT_PATH, total))
 
+
+def main():
+    """Regenerates icons_moon.h only.
+
+    This script used to emit icons_color.h as well, but that header is
+    produced by generate_final_icons.py now -- it carries a dark-background
+    variant of every icon that this script knows nothing about, so letting
+    the old writer run here silently deleted half the file. The rest of the
+    module is still the shared toolbox (fetch_icons, quantize, pack, emit);
+    generate_final_icons.py imports it.
+    """
+    icon_dir = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
+        os.path.dirname(__file__), "inkypi_icons")
+    os.makedirs(icon_dir, exist_ok=True)
+    draw_moons(icon_dir)
+    write_moon_header(icon_dir)
 
 
 if __name__ == "__main__":
