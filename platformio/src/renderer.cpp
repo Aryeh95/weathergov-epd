@@ -15,6 +15,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
 #include "_locale.h"
 #include "_strftime.h"
 #include "renderer.h"
@@ -290,6 +291,130 @@ static void drawRiskChip(int16_t x, int16_t y, const String &text, int level)
              (alignment_t)LEFT, darkText ? GxEPD_BLACK : GxEPD_WHITE);
 #endif
 } // end drawRiskChip
+
+/* drawRiskChip carrying two lines instead of one, for a name too wide for
+ * the column in one piece. Same horizontal geometry -- 2px of bleed left, 4
+ * right -- and the same 10px line spacing drawMultiLnString uses.
+ *
+ * Vertically it does NOT sit on the value's baseline the way the one-line
+ * chip does: two 5pt lines need 23px against the one-line chip's 16, and
+ * hanging that off the baseline puts the chip's top hard against the
+ * widget's own label (measured: zero clear rows under "Air Quality"). So
+ * the block straddles the baseline instead -- one line above, one just
+ * below -- putting the chip's top on the row the 12pt value's digits start
+ * at, so the two line up and clear the label by the same 2px, and spending
+ * the slack downward where the widget row is empty anyway.
+ */
+static void drawRiskChipWrapped(int16_t x, int16_t y, const String &lineA,
+                                const String &lineB, int level)
+{
+  // No chip to make room for: plain text keeps drawMultiLnString's placement
+#ifndef MULTICOLOR_DISPLAY
+  (void)level;
+  drawString(x, y - 10, lineA, LEFT);
+  drawString(x, y, lineB, LEFT);
+#else
+  if (level == RISK_PLAIN)
+  {
+    drawString(x, y - 10, lineA, LEFT);
+    drawString(x, y, lineB, LEFT);
+    return;
+  }
+  const int16_t baseA = y - 7, baseB = y + 3; // 10px apart, as wrapped text
+  const uint16_t w = std::max(getStringWidth(lineA), getStringWidth(lineB));
+  const int16_t x0 = x - 2, y0 = y - 16, x1 = x + w + 4, y1 = y + 6;
+  if (level == RISK_PURPLE || level == RISK_MAROON || level == RISK_AMBER)
+  {
+    uint16_t alt = (level == RISK_PURPLE) ? GxEPD_BLUE
+                 : (level == RISK_AMBER)  ? GxEPD_YELLOW
+                                          : GxEPD_BLACK;
+    fillRoundRectDithered(x0, y0, x1 - x0 + 1, y1 - y0 + 1, 3, GxEPD_RED, alt);
+  }
+  else
+  {
+    uint16_t fill = GxEPD_RED;
+    if (level == RISK_YELLOW) {fill = GxEPD_YELLOW;}
+    if (level == RISK_GREEN)  {fill = GxEPD_GREEN;}
+    display.fillRoundRect(x0, y0, x1 - x0 + 1, y1 - y0 + 1, 3, fill);
+  }
+  const bool darkText = (level == RISK_YELLOW || level == RISK_AMBER);
+  const uint16_t ink = darkText ? GxEPD_BLACK : GxEPD_WHITE;
+  drawString(x + 1, baseA, lineA, (alignment_t)LEFT, ink);
+  drawString(x + 1, baseB, lineB, (alignment_t)LEFT, ink);
+#endif
+} // end drawRiskChipWrapped
+
+/* Breaks text onto two lines at a space, both within max_w, keeping the
+ * first line as long as it can (drawMultiLnString's rule). False if two
+ * lines cannot do it -- one word has nothing to break on, and three-word
+ * names like "Unhealthy for Sensitive Groups" need three.
+ * Measured in the CURRENT font.
+ */
+static bool wrapTwoLines(const String &text, int max_w,
+                         String &lineA, String &lineB)
+{
+  for (int i = text.length() - 1; i > 0; --i)
+  {
+    if (text.charAt(i) != ' ') {continue;}
+    lineA = text.substring(0, i);
+    lineB = text.substring(i + 1);
+    if (getStringWidth(lineA) <= max_w && getStringWidth(lineB) <= max_w)
+    {
+      return true;
+    }
+  }
+  return false;
+} // end wrapTwoLines
+
+/* Draws a risk badge in the fullest form that fits max_w, trying in order:
+ * the full name at 7pt, at 5pt, wrapped onto two 5pt lines, then shortForm
+ * at 7pt and 5pt. A smaller font is preferred over a clipped word, and two
+ * lines over an abbreviation. When nothing fits, the full name wraps as
+ * plain text with no badge, as it did before there were badges.
+ *
+ * shortForm may be NULL (the UV and pollen widgets have no abbreviations).
+ * Leaves the font at 7pt.
+ */
+static void drawFittedRiskChip(int16_t x, int16_t y, const String &full,
+                               const char *shortForm, int level, int max_w)
+{
+  const GFXfont *const fonts[2] = {&FONT_7pt8b, &FONT_5pt8b};
+  String lineA, lineB;
+  for (int f = 0; f < 2; ++f)
+  {
+    display.setFont(fonts[f]);
+    if (getStringWidth(full) <= max_w)
+    {
+      drawRiskChip(x, y, full, level);
+      display.setFont(&FONT_7pt8b);
+      return;
+    }
+  }
+  // still at 5pt: two lines before giving up the words
+  if (wrapTwoLines(full, max_w, lineA, lineB))
+  {
+    drawRiskChipWrapped(x, y, lineA, lineB, level);
+    display.setFont(&FONT_7pt8b);
+    return;
+  }
+  if (shortForm && full != shortForm)
+  {
+    for (int f = 0; f < 2; ++f)
+    {
+      display.setFont(fonts[f]);
+      if (getStringWidth(shortForm) <= max_w)
+      {
+        drawRiskChip(x, y, shortForm, level);
+        display.setFont(&FONT_7pt8b);
+        return;
+      }
+    }
+  }
+  // draw higher to allow room for a 2nd line
+  display.setFont(&FONT_5pt8b);
+  drawMultiLnString(x, y - 10, full, LEFT, max_w, 2, 10);
+  display.setFont(&FONT_7pt8b);
+} // end drawFittedRiskChip
 
 /* Returns the string width in pixels
  */
@@ -670,28 +795,9 @@ void drawCurrentUVI(const owm_current_t &current)
                     : (uvi <= 7)  ? RISK_AMBER
                     : (uvi <= 10) ? RISK_RED
                                   : RISK_PURPLE;
-  int max_w = (162 + (PosX * 162) - sp) - (display.getCursorX() + sp);
-  if (getStringWidth(dataStr) <= max_w)
-  { // Fits on a single line, draw along bottom
-    drawRiskChip(display.getCursorX() + sp, wgtValueY(PosY),
-                 dataStr, uviRisk);
-  }
-  else
-  { // use smaller font
-    display.setFont(&FONT_5pt8b);
-    if (getStringWidth(dataStr) <= max_w)
-    { // Fits on a single line with smaller font, draw along bottom
-      drawRiskChip(display.getCursorX() + sp,
-                   wgtValueY(PosY),
-                   dataStr, uviRisk);
-    }
-    else
-    { // Does not fit on a single line, draw higher to allow room for 2nd line
-      drawMultiLnString(display.getCursorX() + sp,
-                        wgtValueY(PosY) - 10,
-                        dataStr, LEFT, max_w, 2, 10);
-    }
-  }
+  const int16_t chipX = display.getCursorX() + sp;
+  const int max_w = (162 + (PosX * 162) - sp) - chipX;
+  drawFittedRiskChip(chipX, wgtValueY(PosY), dataStr, nullptr, uviRisk, max_w);
   return;
 }
 // end drawCurrentUVI
@@ -732,27 +838,10 @@ void drawCurrentMoonPhase()
              dataStr, LEFT);
   display.setFont(&FONT_7pt8b);
   dataStr = String(getMoonPhaseDesc(phase));
-  int max_w = (162 + (PosX * 162) - sp) - (display.getCursorX() + sp);
-  if (getStringWidth(dataStr) <= max_w)
-  {
-    drawString(display.getCursorX() + sp,
-               wgtValueY(PosY), dataStr, LEFT);
-  }
-  else
-  {
-    display.setFont(&FONT_5pt8b);
-    if (getStringWidth(dataStr) <= max_w)
-    {
-      drawString(display.getCursorX() + sp,
-                 wgtValueY(PosY), dataStr, LEFT);
-    }
-    else
-    {
-      drawMultiLnString(display.getCursorX() + sp,
-                        wgtValueY(PosY) - 10,
-                        dataStr, LEFT, max_w, 2, 10);
-    }
-  }
+  // no badge here, but the same fitting ladder: 7pt, 5pt, then two lines
+  const int16_t textX = display.getCursorX() + sp;
+  drawFittedRiskChip(textX, wgtValueY(PosY), dataStr, nullptr, RISK_PLAIN,
+                     (162 + (PosX * 162) - sp) - textX);
   return;
 }
 // end drawCurrentMoonPhase
@@ -839,43 +928,15 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   const int band = usScaleAqiBand(aqi);
   const int aqiRisk = usScale ? AQI_BAND_RISK[band] : RISK_PLAIN;
   const int16_t chipX = display.getCursorX() + sp;
-  int max_w = (162 + (PosX * 162) - sp) - chipX;
-
-  /* Fit the band name into what the value left of the column.
-   *
-   * Several names are wider than that: a three-digit AQI leaves 59px and
-   * "> 500" only 39, against 89px for "Very Unhealthy" at 7pt. So try the
-   * full name at 7pt, then at 5pt, then the locale's short form the same
-   * way -- preferring a smaller font over a clipped word, which is why
-   * "Hazardous" stays whole at 301-500 but becomes "Hazard" past 500.
-   * Nothing fits: wrap the full name as plain text, with no badge.
+  const int max_w = (162 + (PosX * 162) - sp) - chipX;
+  /* The band names outgrow the column at several values: a three-digit AQI
+   * leaves 59px and "> 500" only 39, against 89px for "Very Unhealthy" at
+   * 7pt. drawFittedRiskChip works down from the full name; the locale's
+   * short form (the EPA's own "USG" for 101-150) is its last resort.
    */
-  const String names[2] = { dataStr,
-                            usScale ? String(UNITED_STATES_AQI_SHORT_TXT[band])
-                                    : String() };
-  const GFXfont *const fonts[2] = { &FONT_7pt8b, &FONT_5pt8b };
-  bool drawn = false;
-  for (int n = 0; n < 2 && !drawn; ++n)
-  {
-    if (n && (names[n].isEmpty() || names[n] == names[0]))
-    { // no short form, or the band needs none
-      continue;
-    }
-    for (int f = 0; f < 2 && !drawn; ++f)
-    {
-      display.setFont(fonts[f]);
-      if (getStringWidth(names[n]) <= max_w)
-      {
-        drawRiskChip(chipX, wgtValueY(PosY), names[n], aqiRisk);
-        drawn = true;
-      }
-    }
-  }
-  if (!drawn)
-  { // draw higher to allow room for a 2nd line
-    display.setFont(&FONT_5pt8b);
-    drawMultiLnString(chipX, wgtValueY(PosY) - 10, dataStr, LEFT, max_w, 2, 10);
-  }
+  drawFittedRiskChip(chipX, wgtValueY(PosY), dataStr,
+                     usScale ? UNITED_STATES_AQI_SHORT_TXT[band] : nullptr,
+                     aqiRisk, max_w);
 
   return;
 }
@@ -1159,7 +1220,10 @@ void drawCurrentPollen(const pollen_info_t &pollen)
   const int pollenRisk = (pollen.max_upi <= 2) ? RISK_GREEN
                        : (pollen.max_upi == 3) ? RISK_AMBER
                                                : RISK_RED;
-  drawRiskChip(display.getCursorX() + 8, wgtValueY(PosY), desc, pollenRisk);
+  const int sp = 8;
+  const int16_t chipX = display.getCursorX() + sp;
+  drawFittedRiskChip(chipX, wgtValueY(PosY), desc, nullptr, pollenRisk,
+                     (162 + (PosX * 162) - sp) - chipX);
   return;
 }
 // end drawCurrentPollen

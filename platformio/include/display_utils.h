@@ -79,8 +79,6 @@ const uint8_t *getColorWidgetIcon(const char *name, int size);
 uint16_t getHourlyForecastColor32(const owm_hourly_t &hourly);
 uint16_t getDailyForecastColor64(const owm_daily_t &daily);
 uint16_t getCurrentConditionsColor196(const owm_current_t &current);
-const uint8_t *getMoonPhaseBitmap48(int phase);
-const uint8_t *getMoonPhaseBitmap40(int phase);
 const char *getMoonPhaseDesc(int phase);
 const uint8_t *getMoonPhaseDithered(int phase, int size);
 void setSunTimes(int64_t sunrise, int64_t sunset);

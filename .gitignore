@@ -6,9 +6,10 @@ tools/native_preview/
 tools/native_icons/
 tools/hybrid_icons/
 tools/modern_widgets/
-tools/__pycache__/
+__pycache__/
 
 # Local firmware & build artifacts
 *.bin
 platformio/.pio/
 
+moon_preview_out/

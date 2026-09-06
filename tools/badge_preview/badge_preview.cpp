@@ -215,16 +215,16 @@ static void drawRiskChip(int16_t x, int16_t y, const std::string &text,
   gfxPrint(x + 1, y, text, darkText ? GxEPD_BLACK : GxEPD_WHITE);
 }
 
-/* Option B: the same chip carrying two 5pt lines instead of one 7pt line.
- * Geometry follows drawRiskChip -- 2 px of bleed left, 4 right, baseline
- * +3 at the bottom -- with the top raised by drawMultiLnString's 10 px
- * line spacing so the two baselines sit where a wrapped string's would.
+/* drawRiskChipWrapped as shipped: the two lines straddle the value baseline
+ * (one above, one just below) so the chip's top lands on the 12pt value's
+ * cap height rather than against the widget's label above it.
  */
 static void drawRiskChipWrapped(int16_t x, int16_t y, const std::string &a,
                                 const std::string &b, int level)
 {
+  const int16_t baseA = y - 7, baseB = y + 3;
   const uint16_t w = std::max(getStringWidth(a), getStringWidth(b));
-  const int16_t x0 = x - 2, y0 = y - 10 - 9, x1 = x + w + 4, y1 = y + 3;
+  const int16_t x0 = x - 2, y0 = y - 16, x1 = x + w + 4, y1 = y + 6;
   g_cx0 = x0; g_cy0 = y0; g_cx1 = x1; g_cy1 = y1;
   if (level == RISK_PURPLE || level == RISK_MAROON || level == RISK_AMBER)
   {
@@ -242,14 +242,10 @@ static void drawRiskChipWrapped(int16_t x, int16_t y, const std::string &a,
   }
   const bool darkText = (level == RISK_YELLOW || level == RISK_AMBER);
   const uint16_t ink = darkText ? GxEPD_BLACK : GxEPD_WHITE;
-  gfxPrint(x + 1, y - 10, a, ink);
-  gfxPrint(x + 1, y, b, ink);
+  gfxPrint(x + 1, baseA, a, ink);
+  gfxPrint(x + 1, baseB, b, ink);
 }
 
-/* drawMultiLnString's greedy break, restricted to two lines: the longest
- * word run that fits, then the rest. Returns false if the rest still does
- * not fit -- two lines are not always enough.
- */
 static bool wrapTwo(const std::string &text, int max_w,
                     std::string &a, std::string &b)
 {
@@ -320,7 +316,10 @@ static const char *drawWidgetRow(Badge &b, int16_t baseline)
   const int max_w = (162 - sp) - chipX;
 
   if (g_twoLine)
-  { // full name at 7pt if it fits, else two 5pt lines, else the short form
+  { /* drawFittedRiskChip's ladder as shipped: the full name at 7pt, at
+     * 5pt, then wrapped onto two 5pt lines, and only then the short form.
+     * A smaller font beats a clipped word; two lines beat an abbreviation.
+     */
     setFont(&FreeSans_7pt8b);
     if ((int)getStringWidth(b.label) <= max_w)
     {
@@ -328,6 +327,12 @@ static const char *drawWidgetRow(Badge &b, int16_t baseline)
       return "full 7pt";
     }
     setFont(&FreeSans_5pt8b);
+    if ((int)getStringWidth(b.label) <= max_w)
+    {
+      drawRiskChip(chipX, baseline, b.label, b.level);
+      setFont(&FreeSans_7pt8b);
+      return "full 5pt";
+    }
     std::string l1, l2;
     if (wrapTwo(b.label, max_w, l1, l2))
     {

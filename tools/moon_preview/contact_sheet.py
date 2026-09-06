@@ -34,7 +34,7 @@ d.text((PAD, 60), "Under each icon: illuminated %, then how many of the 2304 pix
 
 def strip(y, n, title, sub):
     d.text((PAD, y), title, font=FB, fill=(20, 20, 20))
-    d.text((PAD + 190, y + 2), sub, font=FS, fill=(120, 120, 120))
+    d.text((PAD + 240, y + 2), sub, font=FS, fill=(120, 120, 120))
     yy = y + 22
     step = (W - PAD * 2 - CELL) / (n - 1)
     for i in range(n):
@@ -49,9 +49,9 @@ def strip(y, n, title, sub):
             d.text((x, yy + CELL + 18), NAMES[i], font=FS, fill=(120, 120, 120))
     return yy + CELL + 36
 
-y = strip(96, 8, "Today — 8 steps", "one icon per named phase")
-y = strip(y + 18, 16, "Proposed — 16 steps",
-          "every step still distinct: the smallest change is 109 px")
+y = strip(96, 8, "8 steps", "one icon per named phase, as it was before")
+y = strip(y + 18, 16, "16 steps — as shipped",
+          "MOON_PHASE_STEPS")
 
 # the pairs 28 steps cannot separate
 d.text((PAD, y + 20), "Why not 28 (one per day)", font=FB, fill=(20, 20, 20))

@@ -120,5 +120,6 @@ int calcMoonPhase(int64_t t, int *illumPct)
     *illumPct = static_cast<int>(
         std::lround((1.0 - std::cos(2.0 * M_PI * frac)) / 2.0 * 100.0));
   }
-  return static_cast<int>(std::lround(frac * 8.0)) % 8;
+  return static_cast<int>(std::lround(frac * MOON_PHASE_STEPS))
+         % MOON_PHASE_STEPS;
 } // end calcMoonPhase

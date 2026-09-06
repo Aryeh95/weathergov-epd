@@ -18,9 +18,9 @@ import generate_color_icons as gen
 OUT = os.environ.get("MOON_PREVIEW_OUT", "moon_preview_out")
 os.makedirs(OUT, exist_ok=True)
 S, R, CX, CY = 512, 220, 256, 256
-LIT, SHADOW, EDGE = 208, 58, 40
-CRATERS = gen.CRATERS if hasattr(gen, "CRATERS") else [
-    (-70, -60, 46), (60, 30, 34), (-20, 90, 28), (95, -95, 24), (-115, 55, 20)]
+LIT, SHADOW, EDGE = 208, 0, 0  # mirrors draw_moons: only the lit side dithers
+CRATERS = [(-70, -60, 46), (60, 30, 34), (-20, 90, 28), (95, -95, 24),
+           (-115, 55, 20)]
 
 def draw(theta, path):
     """draw_moons' geometry, parameterised on the phase angle instead of
