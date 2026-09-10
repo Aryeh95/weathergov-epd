@@ -211,6 +211,9 @@ void setup()
 #endif
 
   disableBuiltinLED();
+  // Before any SPI activity: an unparked microSD slot on the panel's bus
+  // stops the display refreshing whenever a card is inserted.
+  idleSDCard();
 
   // Load WiFi/location/time/battery/widget-layout settings from
   // data/config.json (LittleFS). Falls back to the compiled-in defaults in
