@@ -1191,9 +1191,49 @@ void drawCurrentPollen(const pollen_info_t &pollen)
                    iconSize);
 #endif
 
-  // labels
+  // labels: "Pollen", plus a small tag naming whichever type is driving
+  // the index, since the value alone cannot say whether it is tree,
+  // grass or weed. Types that tie for the highest are joined with "+".
+  // Nothing is tagged when the fetch failed or every type reads 0.
   display.setFont(&FONT_7pt8b);
   drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_POLLEN, LEFT);
+  if (pollen.max_upi > 0)
+  {
+    String types;
+    const bool allTie = (pollen.tree  == pollen.max_upi)
+                     && (pollen.grass == pollen.max_upi)
+                     && (pollen.weed  == pollen.max_upi);
+    if (allTie)
+    { // "(tree+grass+weed)" overflows the cell; say it in one word
+      types = TXT_POLLEN_ALL;
+    }
+    else
+    {
+      if (pollen.tree  == pollen.max_upi) {types += TXT_POLLEN_TREE;}
+      if (pollen.grass == pollen.max_upi)
+      {
+        if (!types.isEmpty()) {types += "+";}
+        types += TXT_POLLEN_GRASS;
+      }
+      if (pollen.weed  == pollen.max_upi)
+      {
+        if (!types.isEmpty()) {types += "+";}
+        types += TXT_POLLEN_WEED;
+      }
+    }
+    if (!types.isEmpty())
+    {
+      display.setFont(&FONT_5pt8b);
+      const int16_t tagX = display.getCursorX() + 3;
+      types = "(" + types + ")";
+      // never let the tag overflow into the next widget cell
+      if (tagX + getStringWidth(types) <= 162 + (162 * PosX))
+      {
+        drawString(tagX, wgtLabelY(PosY), types, LEFT);
+      }
+      display.setFont(&FONT_7pt8b);
+    }
+  }
 
   // value: highest Universal Pollen Index (0-5) of tree/grass/weed, with
   // the UV-index category words (Google's UPI categories match: 1 very

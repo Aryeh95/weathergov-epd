@@ -90,6 +90,12 @@ const char *TXT_AIR_QUALITY        = "Luchtkwaliteit";
 const char *TXT_AIR_POLLUTION      = "Luchtvervuiling";
 const char *TXT_VISIBILITY         = "Zichtbaarheid";
 const char *TXT_POLLEN             = "Pollen";
+// Pollen type driving the index, shown as a small tag beside the
+// "Pollen" label. Keep these short -- they must fit the widget cell.
+const char *TXT_POLLEN_TREE        = "boom";
+const char *TXT_POLLEN_GRASS       = "gras";
+const char *TXT_POLLEN_WEED        = "onkruid";
+const char *TXT_POLLEN_ALL         = "alle";
 const char *TXT_INDOOR_TEMPERATURE = "Temperatuur";
 const char *TXT_INDOOR_HUMIDITY    = "Vochtigheid";
 const char *TXT_DEWPOINT           = "Dauwpunt";
