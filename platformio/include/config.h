@@ -420,6 +420,7 @@ extern unsigned HTTP_CLIENT_TCP_TIMEOUT;
 extern String NWS_USER_AGENT;
 extern String AIRNOW_APIKEY;
 extern String POLLEN_APIKEY;
+extern String CURRENT_SOURCE;
 extern String PORTAL_AP_PASSWORD;
 extern int    PORTAL_TIMEOUT;
 extern String LAT;

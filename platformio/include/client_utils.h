@@ -35,7 +35,8 @@ bool waitForSNTPSync(tm *timeInfo);
 bool printLocalTime(tm *timeInfo);
 
 /* Fetches weather.gov's gridpoint forecast (12-hour periods and hourly), and
- * current conditions from the nearest observation station. Populates
+ * current conditions from the source selected by CURRENT_SOURCE
+ * (Open-Meteo, Google Weather API, or the NWS hourly forecast). Populates
  * current/hourly/daily.
  *
  * If a step in the chain fails, failedStep is set to a short description of
@@ -68,6 +69,13 @@ int getAirQuality(WiFiClient &client, owm_resp_air_pollution_t &air,
  * Returns the HTTP Status Code.
  */
 int getAirNowAQI(WiFiClient &client, int &aqi);
+/* Fetches current conditions from the Google Weather API (uses
+ * POLLEN_APIKEY). On failure `current` is filled from `fallback`.
+ *
+ * Returns the HTTP Status Code.
+ */
+int getGoogleCurrent(WiFiClient &client, const owm_hourly_t &fallback,
+                     owm_current_t &current);
 int getGooglePollen(WiFiClient &client, pollen_info_t &pollen);
 
 #endif
