@@ -360,6 +360,7 @@ DeserializationError deserializeNWSForecastHourly(WiFiClient &json,
   // parses as NaN -- which is exactly what the graph showed the first time:
   // legend present, no curve, axis unchanged.
   period["dewpoint"]["value"]                  = true;
+  period["relativeHumidity"]["value"]          = true;
   period["windSpeed"]                          = true;
   period["windDirection"]                      = true;
   period["icon"]                               = true;
@@ -396,6 +397,10 @@ DeserializationError deserializeNWSForecastHourly(WiFiClient &json,
     hourly[i].dew_point = dewVar.isNull() ? NAN
                                           : celsius_to_kelvin(dewVar.as<float>());
 
+    JsonVariant rhVar = p["relativeHumidity"]["value"];
+    hourly[i].humidity = rhVar.isNull()
+                       ? 0 : static_cast<int>(std::round(rhVar.as<float>()));
+
     String dayNight, code;
     parseIconUrl(p["icon"].as<const char *>(), dayNight, code);
     applyNwsIcon(code, dayNight, hourly[i].weather, hourly[i].clouds);
@@ -414,9 +419,10 @@ DeserializationError deserializeNWSForecastHourly(WiFiClient &json,
   return error;
 } // end deserializeNWSForecastHourly
 
-/* Populates owm_current_t entirely from the first hourly forecast period,
- * used when a station observation is unavailable or could not be
- * fetched/parsed.
+/* Populates owm_current_t entirely from the first hourly forecast period
+ * (weather.gov's period for the current hour). This is the "nws" current
+ * conditions source, and the fallback when the chosen source could not be
+ * fetched/parsed. The hourly forecast carries no pressure or visibility.
  */
 void fillCurrentFromFallback(const owm_hourly_t &fallback, owm_current_t &current)
 {
@@ -429,7 +435,8 @@ void fillCurrentFromFallback(const owm_hourly_t &fallback, owm_current_t &curren
   current.wind_gust   = fallback.wind_gust;
   current.wind_deg    = fallback.wind_deg;
   current.clouds      = fallback.clouds;
-  current.dew_point   = NAN;
+  current.humidity    = fallback.humidity;
+  current.dew_point   = fallback.dew_point;
   current.visibility  = 10000;
 } // end fillCurrentFromFallback
 
@@ -495,11 +502,16 @@ DeserializationError deserializeNWSGridpointQPF(WiFiClient &json,
  * deserializeNWSObservation. The condition icon/description always comes
  * from the forecast (fallback.weather) -- Open-Meteo's weather codes are
  * not mapped.
+ *
+ * With wantCurrent == false only the daily block is parsed and `current`
+ * is left untouched (used when CURRENT_SOURCE is another provider but the
+ * forecast row still needs Open-Meteo's daily precipitation).
  */
 DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
                                                  const owm_hourly_t &fallback,
                                                  owm_current_t &current,
-                                                 om_daily_precip_t &omDaily)
+                                                 om_daily_precip_t &omDaily,
+                                                 bool wantCurrent)
 {
   omDaily.n = 0;
   // Filter like every NWS parser does: the response also carries the
@@ -536,15 +548,12 @@ DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
 
   if (error)
   {
-    fillCurrentFromFallback(fallback, current);
+    if (wantCurrent)
+    {
+      fillCurrentFromFallback(fallback, current);
+    }
     return error;
   }
-
-  current = {};
-  current.dt      = time(nullptr);
-  current.weather = fallback.weather;
-
-  JsonObject c = doc["current"];
 
   JsonArray dTime = doc["daily"]["time"].as<JsonArray>();
   JsonArray dSum  = doc["daily"]["precipitation_sum"].as<JsonArray>();
@@ -556,6 +565,19 @@ DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
     omDaily.mm[omDaily.n] = v.isNull() ? NAN : v.as<float>();
     ++omDaily.n;
   }
+
+  if (!wantCurrent)
+  {
+    // Another source supplies the current conditions; this request only
+    // carried the daily precipitation totals (see getNWSWeather).
+    return error;
+  }
+
+  current = {};
+  current.dt      = time(nullptr);
+  current.weather = fallback.weather;
+
+  JsonObject c = doc["current"];
 
   JsonVariant tempVar = c["temperature_2m"];
   current.temp = !tempVar.isNull() ? celsius_to_kelvin(tempVar.as<float>())
@@ -604,6 +626,101 @@ DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
 
   return error;
 } // end deserializeOpenMeteoCurrent
+
+/* Parses the Google Maps Platform Weather API's current conditions
+ * (/v1/currentConditions:lookup, default METRIC units): a nowcast blended
+ * from nearby stations, refreshed every 15 minutes. Any missing field falls
+ * back to the first hourly forecast period, like deserializeOpenMeteoCurrent.
+ * The condition icon/description always comes from the forecast
+ * (fallback.weather) -- Google's weatherCondition types are not mapped.
+ */
+DeserializationError deserializeGoogleCurrent(WiFiClient &json,
+                                              const owm_hourly_t &fallback,
+                                              owm_current_t &current)
+{
+  // The response also carries a 24-hour history block, icon URIs, localized
+  // descriptions and precipitation probabilities that are never read.
+  JsonDocument filter;
+  filter["temperature"]["degrees"]          = true;
+  filter["feelsLikeTemperature"]["degrees"] = true;
+  filter["dewPoint"]["degrees"]             = true;
+  filter["relativeHumidity"]                = true;
+  filter["airPressure"]["meanSeaLevelMillibars"] = true;
+  filter["wind"]["speed"]["value"]          = true;
+  filter["wind"]["gust"]["value"]           = true;
+  filter["wind"]["direction"]["degrees"]    = true;
+  filter["visibility"]["distance"]          = true;
+  filter["cloudCover"]                      = true;
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, json,
+                                         DeserializationOption::Filter(filter));
+#if DEBUG_LEVEL >= 1
+  Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
+#endif
+#if DEBUG_LEVEL >= 2
+  serializeJsonPretty(doc, Serial);
+#endif
+
+  if (error)
+  {
+    fillCurrentFromFallback(fallback, current);
+    return error;
+  }
+
+  current = {};
+  current.dt      = time(nullptr);
+  current.weather = fallback.weather;
+
+  JsonVariant tempVar = doc["temperature"]["degrees"];
+  current.temp = !tempVar.isNull() ? celsius_to_kelvin(tempVar.as<float>())
+                                    : fallback.temp;
+
+  JsonVariant feelVar = doc["feelsLikeTemperature"]["degrees"];
+  current.feels_like = !feelVar.isNull()
+                      ? celsius_to_kelvin(feelVar.as<float>())
+                      : current.temp;
+
+  JsonVariant humVar = doc["relativeHumidity"];
+  current.humidity = !humVar.isNull()
+                    ? static_cast<int>(std::round(humVar.as<float>()))
+                    : fallback.humidity;
+
+  JsonVariant dewVar = doc["dewPoint"]["degrees"];
+  current.dew_point = !dewVar.isNull() ? celsius_to_kelvin(dewVar.as<float>())
+                                        : fallback.dew_point;
+
+  JsonVariant pressVar = doc["airPressure"]["meanSeaLevelMillibars"];
+  current.pressure = !pressVar.isNull()
+                    ? static_cast<int>(std::round(pressVar.as<float>()))
+                    : 1013;
+
+  // METRIC visibility is in kilometres; the display expects metres.
+  JsonVariant visVar = doc["visibility"]["distance"];
+  current.visibility = !visVar.isNull()
+                      ? static_cast<int>(visVar.as<float>() * 1000.f)
+                      : 10000;
+
+  // METRIC wind is in km/h; every other source stores m/s.
+  JsonVariant spdVar = doc["wind"]["speed"]["value"];
+  current.wind_speed = !spdVar.isNull() ? spdVar.as<float>() / 3.6f
+                                         : fallback.wind_speed;
+
+  JsonVariant gustVar = doc["wind"]["gust"]["value"];
+  current.wind_gust = !gustVar.isNull() ? gustVar.as<float>() / 3.6f
+                                         : current.wind_speed;
+
+  JsonVariant dirVar = doc["wind"]["direction"]["degrees"];
+  current.wind_deg = !dirVar.isNull() ? static_cast<int>(dirVar.as<float>())
+                                       : fallback.wind_deg;
+
+  JsonVariant cloudVar = doc["cloudCover"];
+  current.clouds = !cloudVar.isNull()
+                  ? static_cast<int>(std::round(cloudVar.as<float>()))
+                  : fallback.clouds;
+
+  return error;
+} // end deserializeGoogleCurrent
 
 /* Parses weather.gov's /alerts/active endpoint.
  */

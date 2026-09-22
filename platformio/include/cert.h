@@ -20,7 +20,8 @@
 
 ////////////////////////////////////////////////////////////
 // root CA bundle for api.weather.gov:443,
-// air-quality-api.open-meteo.com:443, www.airnowapi.org:443, and pollen.googleapis.com:443
+// air-quality-api.open-meteo.com:443, www.airnowapi.org:443, pollen.googleapis.com:443,
+// and weather.googleapis.com:443 (same GTS Root R1 as pollen.googleapis.com)
 
 // http://x1.i.lencr.org/
 // CN: ISRG Root X1 => name: ISRG_Root_X1

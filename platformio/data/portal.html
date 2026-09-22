@@ -136,10 +136,22 @@
     <label>NWS contact (User-Agent)</label><input id="a_ua">
     <div class="hint">weather.gov asks for a contact email in case your device misbehaves.</div>
     <label>AirNow API key (optional)</label><input id="a_airnow" autocomplete="off">
-    <label>Google Pollen API key (optional)</label><input id="a_pollen" autocomplete="off">
+    <label>Google API key (optional: pollen, Google current conditions)</label><input id="a_pollen" autocomplete="off">
     <div class="hint">Free key from <a href="https://docs.airnowapi.org/" target="_blank"
       rel="noopener">docs.airnowapi.org</a> for the EPA's official AQI.
-      Leave empty to use Open-Meteo instead.</div>
+      Leave empty to use Open-Meteo instead. The Google key is a Maps
+      Platform key with the Pollen API (and, for the source below, the
+      Weather API) enabled.</div>
+    <label>Current conditions source</label>
+    <select id="a_cursrc">
+      <option value="open-meteo">Open-Meteo model (default, no key)</option>
+      <option value="google">Google Weather API (needs Google key)</option>
+      <option value="nws">weather.gov hourly forecast (no key)</option>
+    </select>
+    <div class="hint">Where the big temperature and the humidity, dew point,
+      pressure, wind and visibility widgets come from. Forecasts and alerts
+      always use weather.gov. The weather.gov option has no pressure or
+      visibility.</div>
   </fieldset>
 
   <fieldset><legend>Widgets</legend>
@@ -335,6 +347,7 @@ function populate() {
   el('a_ua').value = cfg.api?.nws_user_agent ?? '';
   el('a_airnow').value = cfg.api?.airnow_api_key ?? '';
   el('a_pollen').value = cfg.api?.pollen_api_key ?? '';
+  el('a_cursrc').value = cfg.api?.current_source ?? 'open-meteo';
   for (let slot = 0; slot < 12; slot++) el('slot_' + slot).value = '';
   for (const [key] of WIDGETS) {
     const v = +(cfg.widget_positions?.[key] ?? -1);
@@ -377,6 +390,7 @@ function collect() {
   cfg.api.nws_user_agent = el('a_ua').value.trim();
   cfg.api.airnow_api_key = el('a_airnow').value.trim();
   cfg.api.pollen_api_key = el('a_pollen').value.trim();
+  cfg.api.current_source = el('a_cursrc').value;
   const rows = +el('s_wrows').value;
   for (const [key] of WIDGETS) cfg.widget_positions[key] = -1;
   for (let slot = 0; slot < rows * 2; slot++) {

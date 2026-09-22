@@ -191,7 +191,11 @@ DeserializationError deserializeNWSForecastHourly(WiFiClient &json,
 DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
                                                  const owm_hourly_t &fallback,
                                                  owm_current_t &current,
-                                                 om_daily_precip_t &omDaily);
+                                                 om_daily_precip_t &omDaily,
+                                                 bool wantCurrent = true);
+DeserializationError deserializeGoogleCurrent(WiFiClient &json,
+                                              const owm_hourly_t &fallback,
+                                              owm_current_t &current);
 DeserializationError deserializeNWSGridpointQPF(WiFiClient &json,
                                                 std::vector<qpf_bucket_t> &qpf);
 void fillCurrentFromFallback(const owm_hourly_t &fallback, owm_current_t &current);

@@ -164,6 +164,21 @@
     // 0-5). Fetched at most once per 3 hours. Leave empty to disable.
     "pollen_api_key": "",
 
+    // Source of the current conditions (the big temperature and the
+    // humidity / dew point / pressure / wind / visibility widgets).
+    // Forecasts and alerts always come from weather.gov.
+    //   "open-meteo" - Open-Meteo's model at your coordinates, refreshed
+    //                  every ~15 minutes. Free, no key. (default)
+    //   "google"     - Google Weather API current conditions: nearby
+    //                  stations blended with a 15-minute nowcast. Reuses
+    //                  pollen_api_key, which must also have the Weather API
+    //                  enabled in the Google Cloud Console. Falls back to
+    //                  Open-Meteo when the key is empty.
+    //   "nws"        - weather.gov's hourly forecast for the current hour.
+    //                  Free, no key, no extra request; pressure and
+    //                  visibility widgets have no data with this source.
+    "current_source": "open-meteo",
+
     // TCP timeout for API requests, in milliseconds. These errors in the
     // serial log usually mean this value is too low:
     //   -1   Connection Refused

@@ -153,6 +153,24 @@ String AIRNOW_APIKEY = "";
 // request cap in the Google Cloud Console as a billing safety net.
 String POLLEN_APIKEY = "";
 
+// CURRENT CONDITIONS SOURCE
+// Where the "right now" temperature, feels-like, humidity, dew point,
+// pressure, wind, cloud cover and visibility come from. Forecasts and
+// alerts always come from weather.gov regardless of this setting.
+//   "open-meteo" (default) - Open-Meteo's model interpolated to LAT/LON,
+//                            refreshed every ~15 minutes. Free, no key.
+//   "google"               - Google Maps Platform Weather API current
+//                            conditions (station-blended nowcast, refreshed
+//                            every 15 minutes). Uses POLLEN_APIKEY, which
+//                            must have the Weather API enabled. Falls back
+//                            to Open-Meteo when no key is configured.
+//   "nws"                  - weather.gov's gridpoint hourly forecast period
+//                            for the current hour. Free, no key, no extra
+//                            request, but no pressure or visibility.
+// If the chosen source fails, current conditions fall back to the hourly
+// forecast (plus the last cached humidity/dew point/pressure/visibility).
+String CURRENT_SOURCE = "open-meteo";
+
 // CONFIGURATION WEB PORTAL
 // A browser UI for editing config.json without reflashing. Entered by
 // pressing RST twice a few seconds apart (config mode on your WiFi), or
