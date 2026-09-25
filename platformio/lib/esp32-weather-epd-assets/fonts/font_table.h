@@ -8,19 +8,48 @@
 // (config.json "font", portal dropdown). Each costs roughly 150-250 KB of
 // flash. The FONT_*pt8b names used throughout the renderer resolve to the
 // selected family's face of that size.
+//
+// A face is only referenced (and so only linked) when this build can draw
+// it: FONT_TABLE_HAS_<size> mirrors the preprocessor conditions around the
+// uses of FONT_<size> in the sources.
 #pragma once
+
+#define FONT_TABLE_HAS_5pt8b 1
+#define FONT_TABLE_HAS_6pt8b 1
+#define FONT_TABLE_HAS_7pt8b 1
+#define FONT_TABLE_HAS_8pt8b 1
+#if (!(!defined(DISP_BW_V1)))
+  #define FONT_TABLE_HAS_9pt8b 1
+#else
+  #define FONT_TABLE_HAS_9pt8b 0
+#endif
+#define FONT_TABLE_HAS_11pt8b 1
+#define FONT_TABLE_HAS_12pt8b 1
+#define FONT_TABLE_HAS_14pt8b 1
+#define FONT_TABLE_HAS_16pt8b 1
+#if (!(!defined(DISP_BW_V1)))
+  #define FONT_TABLE_HAS_22pt8b 1
+#else
+  #define FONT_TABLE_HAS_22pt8b 0
+#endif
+#define FONT_TABLE_HAS_26pt8b 1
+#define FONT_TABLE_HAS_48pt8b_temperature 1
 
 #if defined(FONT_INCLUDE_FreeSans) && FONT_INCLUDE_FreeSans
 #include "FreeSans/FreeSans_5pt8b.h"
 #include "FreeSans/FreeSans_6pt8b.h"
 #include "FreeSans/FreeSans_7pt8b.h"
 #include "FreeSans/FreeSans_8pt8b.h"
-#include "FreeSans/FreeSans_9pt8b.h"
+#if FONT_TABLE_HAS_9pt8b
+  #include "FreeSans/FreeSans_9pt8b.h"
+#endif
 #include "FreeSans/FreeSans_11pt8b.h"
 #include "FreeSans/FreeSans_12pt8b.h"
 #include "FreeSans/FreeSans_14pt8b.h"
 #include "FreeSans/FreeSans_16pt8b.h"
-#include "FreeSans/FreeSans_22pt8b.h"
+#if FONT_TABLE_HAS_22pt8b
+  #include "FreeSans/FreeSans_22pt8b.h"
+#endif
 #include "FreeSans/FreeSans_26pt8b.h"
 #include "FreeSans/FreeSans_48pt8b_temperature.h"
 #endif
@@ -30,12 +59,16 @@
 #include "Bitter/Bitter_6pt8b.h"
 #include "Bitter/Bitter_7pt8b.h"
 #include "Bitter/Bitter_8pt8b.h"
-#include "Bitter/Bitter_9pt8b.h"
+#if FONT_TABLE_HAS_9pt8b
+  #include "Bitter/Bitter_9pt8b.h"
+#endif
 #include "Bitter/Bitter_11pt8b.h"
 #include "Bitter/Bitter_12pt8b.h"
 #include "Bitter/Bitter_14pt8b.h"
 #include "Bitter/Bitter_16pt8b.h"
-#include "Bitter/Bitter_22pt8b.h"
+#if FONT_TABLE_HAS_22pt8b
+  #include "Bitter/Bitter_22pt8b.h"
+#endif
 #include "Bitter/Bitter_26pt8b.h"
 #include "Bitter/Bitter_48pt8b_temperature.h"
 #endif
@@ -45,12 +78,16 @@
 #include "FreeMono/FreeMono_6pt8b.h"
 #include "FreeMono/FreeMono_7pt8b.h"
 #include "FreeMono/FreeMono_8pt8b.h"
-#include "FreeMono/FreeMono_9pt8b.h"
+#if FONT_TABLE_HAS_9pt8b
+  #include "FreeMono/FreeMono_9pt8b.h"
+#endif
 #include "FreeMono/FreeMono_11pt8b.h"
 #include "FreeMono/FreeMono_12pt8b.h"
 #include "FreeMono/FreeMono_14pt8b.h"
 #include "FreeMono/FreeMono_16pt8b.h"
-#include "FreeMono/FreeMono_22pt8b.h"
+#if FONT_TABLE_HAS_22pt8b
+  #include "FreeMono/FreeMono_22pt8b.h"
+#endif
 #include "FreeMono/FreeMono_26pt8b.h"
 #include "FreeMono/FreeMono_48pt8b_temperature.h"
 #endif
@@ -60,12 +97,16 @@
 #include "FreeSerif/FreeSerif_6pt8b.h"
 #include "FreeSerif/FreeSerif_7pt8b.h"
 #include "FreeSerif/FreeSerif_8pt8b.h"
-#include "FreeSerif/FreeSerif_9pt8b.h"
+#if FONT_TABLE_HAS_9pt8b
+  #include "FreeSerif/FreeSerif_9pt8b.h"
+#endif
 #include "FreeSerif/FreeSerif_11pt8b.h"
 #include "FreeSerif/FreeSerif_12pt8b.h"
 #include "FreeSerif/FreeSerif_14pt8b.h"
 #include "FreeSerif/FreeSerif_16pt8b.h"
-#include "FreeSerif/FreeSerif_22pt8b.h"
+#if FONT_TABLE_HAS_22pt8b
+  #include "FreeSerif/FreeSerif_22pt8b.h"
+#endif
 #include "FreeSerif/FreeSerif_26pt8b.h"
 #include "FreeSerif/FreeSerif_48pt8b_temperature.h"
 #endif
@@ -75,12 +116,16 @@
 #include "Lato_Regular/Lato_Regular_6pt8b.h"
 #include "Lato_Regular/Lato_Regular_7pt8b.h"
 #include "Lato_Regular/Lato_Regular_8pt8b.h"
-#include "Lato_Regular/Lato_Regular_9pt8b.h"
+#if FONT_TABLE_HAS_9pt8b
+  #include "Lato_Regular/Lato_Regular_9pt8b.h"
+#endif
 #include "Lato_Regular/Lato_Regular_11pt8b.h"
 #include "Lato_Regular/Lato_Regular_12pt8b.h"
 #include "Lato_Regular/Lato_Regular_14pt8b.h"
 #include "Lato_Regular/Lato_Regular_16pt8b.h"
-#include "Lato_Regular/Lato_Regular_22pt8b.h"
+#if FONT_TABLE_HAS_22pt8b
+  #include "Lato_Regular/Lato_Regular_22pt8b.h"
+#endif
 #include "Lato_Regular/Lato_Regular_26pt8b.h"
 #include "Lato_Regular/Lato_Regular_48pt8b_temperature.h"
 #endif
@@ -90,12 +135,16 @@
 #include "Montserrat_Regular/Montserrat_Regular_6pt8b.h"
 #include "Montserrat_Regular/Montserrat_Regular_7pt8b.h"
 #include "Montserrat_Regular/Montserrat_Regular_8pt8b.h"
-#include "Montserrat_Regular/Montserrat_Regular_9pt8b.h"
+#if FONT_TABLE_HAS_9pt8b
+  #include "Montserrat_Regular/Montserrat_Regular_9pt8b.h"
+#endif
 #include "Montserrat_Regular/Montserrat_Regular_11pt8b.h"
 #include "Montserrat_Regular/Montserrat_Regular_12pt8b.h"
 #include "Montserrat_Regular/Montserrat_Regular_14pt8b.h"
 #include "Montserrat_Regular/Montserrat_Regular_16pt8b.h"
-#include "Montserrat_Regular/Montserrat_Regular_22pt8b.h"
+#if FONT_TABLE_HAS_22pt8b
+  #include "Montserrat_Regular/Montserrat_Regular_22pt8b.h"
+#endif
 #include "Montserrat_Regular/Montserrat_Regular_26pt8b.h"
 #include "Montserrat_Regular/Montserrat_Regular_48pt8b_temperature.h"
 #endif
@@ -105,12 +154,16 @@
 #include "OpenSans_Regular/OpenSans_Regular_6pt8b.h"
 #include "OpenSans_Regular/OpenSans_Regular_7pt8b.h"
 #include "OpenSans_Regular/OpenSans_Regular_8pt8b.h"
-#include "OpenSans_Regular/OpenSans_Regular_9pt8b.h"
+#if FONT_TABLE_HAS_9pt8b
+  #include "OpenSans_Regular/OpenSans_Regular_9pt8b.h"
+#endif
 #include "OpenSans_Regular/OpenSans_Regular_11pt8b.h"
 #include "OpenSans_Regular/OpenSans_Regular_12pt8b.h"
 #include "OpenSans_Regular/OpenSans_Regular_14pt8b.h"
 #include "OpenSans_Regular/OpenSans_Regular_16pt8b.h"
-#include "OpenSans_Regular/OpenSans_Regular_22pt8b.h"
+#if FONT_TABLE_HAS_22pt8b
+  #include "OpenSans_Regular/OpenSans_Regular_22pt8b.h"
+#endif
 #include "OpenSans_Regular/OpenSans_Regular_26pt8b.h"
 #include "OpenSans_Regular/OpenSans_Regular_48pt8b_temperature.h"
 #endif
@@ -120,12 +173,16 @@
 #include "Poppins_Regular/Poppins_Regular_6pt8b.h"
 #include "Poppins_Regular/Poppins_Regular_7pt8b.h"
 #include "Poppins_Regular/Poppins_Regular_8pt8b.h"
-#include "Poppins_Regular/Poppins_Regular_9pt8b.h"
+#if FONT_TABLE_HAS_9pt8b
+  #include "Poppins_Regular/Poppins_Regular_9pt8b.h"
+#endif
 #include "Poppins_Regular/Poppins_Regular_11pt8b.h"
 #include "Poppins_Regular/Poppins_Regular_12pt8b.h"
 #include "Poppins_Regular/Poppins_Regular_14pt8b.h"
 #include "Poppins_Regular/Poppins_Regular_16pt8b.h"
-#include "Poppins_Regular/Poppins_Regular_22pt8b.h"
+#if FONT_TABLE_HAS_22pt8b
+  #include "Poppins_Regular/Poppins_Regular_22pt8b.h"
+#endif
 #include "Poppins_Regular/Poppins_Regular_26pt8b.h"
 #include "Poppins_Regular/Poppins_Regular_48pt8b_temperature.h"
 #endif
@@ -135,12 +192,16 @@
 #include "Quicksand_Regular/Quicksand_Regular_6pt8b.h"
 #include "Quicksand_Regular/Quicksand_Regular_7pt8b.h"
 #include "Quicksand_Regular/Quicksand_Regular_8pt8b.h"
-#include "Quicksand_Regular/Quicksand_Regular_9pt8b.h"
+#if FONT_TABLE_HAS_9pt8b
+  #include "Quicksand_Regular/Quicksand_Regular_9pt8b.h"
+#endif
 #include "Quicksand_Regular/Quicksand_Regular_11pt8b.h"
 #include "Quicksand_Regular/Quicksand_Regular_12pt8b.h"
 #include "Quicksand_Regular/Quicksand_Regular_14pt8b.h"
 #include "Quicksand_Regular/Quicksand_Regular_16pt8b.h"
-#include "Quicksand_Regular/Quicksand_Regular_22pt8b.h"
+#if FONT_TABLE_HAS_22pt8b
+  #include "Quicksand_Regular/Quicksand_Regular_22pt8b.h"
+#endif
 #include "Quicksand_Regular/Quicksand_Regular_26pt8b.h"
 #include "Quicksand_Regular/Quicksand_Regular_48pt8b_temperature.h"
 #endif
@@ -150,12 +211,16 @@
 #include "Raleway_Regular/Raleway_Regular_6pt8b.h"
 #include "Raleway_Regular/Raleway_Regular_7pt8b.h"
 #include "Raleway_Regular/Raleway_Regular_8pt8b.h"
-#include "Raleway_Regular/Raleway_Regular_9pt8b.h"
+#if FONT_TABLE_HAS_9pt8b
+  #include "Raleway_Regular/Raleway_Regular_9pt8b.h"
+#endif
 #include "Raleway_Regular/Raleway_Regular_11pt8b.h"
 #include "Raleway_Regular/Raleway_Regular_12pt8b.h"
 #include "Raleway_Regular/Raleway_Regular_14pt8b.h"
 #include "Raleway_Regular/Raleway_Regular_16pt8b.h"
-#include "Raleway_Regular/Raleway_Regular_22pt8b.h"
+#if FONT_TABLE_HAS_22pt8b
+  #include "Raleway_Regular/Raleway_Regular_22pt8b.h"
+#endif
 #include "Raleway_Regular/Raleway_Regular_26pt8b.h"
 #include "Raleway_Regular/Raleway_Regular_48pt8b_temperature.h"
 #endif
@@ -165,12 +230,16 @@
 #include "RobotoMono_Regular/RobotoMono_Regular_6pt8b.h"
 #include "RobotoMono_Regular/RobotoMono_Regular_7pt8b.h"
 #include "RobotoMono_Regular/RobotoMono_Regular_8pt8b.h"
-#include "RobotoMono_Regular/RobotoMono_Regular_9pt8b.h"
+#if FONT_TABLE_HAS_9pt8b
+  #include "RobotoMono_Regular/RobotoMono_Regular_9pt8b.h"
+#endif
 #include "RobotoMono_Regular/RobotoMono_Regular_11pt8b.h"
 #include "RobotoMono_Regular/RobotoMono_Regular_12pt8b.h"
 #include "RobotoMono_Regular/RobotoMono_Regular_14pt8b.h"
 #include "RobotoMono_Regular/RobotoMono_Regular_16pt8b.h"
-#include "RobotoMono_Regular/RobotoMono_Regular_22pt8b.h"
+#if FONT_TABLE_HAS_22pt8b
+  #include "RobotoMono_Regular/RobotoMono_Regular_22pt8b.h"
+#endif
 #include "RobotoMono_Regular/RobotoMono_Regular_26pt8b.h"
 #include "RobotoMono_Regular/RobotoMono_Regular_48pt8b_temperature.h"
 #endif
@@ -180,12 +249,16 @@
 #include "RobotoSlab_Regular/RobotoSlab_Regular_6pt8b.h"
 #include "RobotoSlab_Regular/RobotoSlab_Regular_7pt8b.h"
 #include "RobotoSlab_Regular/RobotoSlab_Regular_8pt8b.h"
-#include "RobotoSlab_Regular/RobotoSlab_Regular_9pt8b.h"
+#if FONT_TABLE_HAS_9pt8b
+  #include "RobotoSlab_Regular/RobotoSlab_Regular_9pt8b.h"
+#endif
 #include "RobotoSlab_Regular/RobotoSlab_Regular_11pt8b.h"
 #include "RobotoSlab_Regular/RobotoSlab_Regular_12pt8b.h"
 #include "RobotoSlab_Regular/RobotoSlab_Regular_14pt8b.h"
 #include "RobotoSlab_Regular/RobotoSlab_Regular_16pt8b.h"
-#include "RobotoSlab_Regular/RobotoSlab_Regular_22pt8b.h"
+#if FONT_TABLE_HAS_22pt8b
+  #include "RobotoSlab_Regular/RobotoSlab_Regular_22pt8b.h"
+#endif
 #include "RobotoSlab_Regular/RobotoSlab_Regular_26pt8b.h"
 #include "RobotoSlab_Regular/RobotoSlab_Regular_48pt8b_temperature.h"
 #endif
@@ -195,12 +268,16 @@
 #include "Roboto_Regular/Roboto_Regular_6pt8b.h"
 #include "Roboto_Regular/Roboto_Regular_7pt8b.h"
 #include "Roboto_Regular/Roboto_Regular_8pt8b.h"
-#include "Roboto_Regular/Roboto_Regular_9pt8b.h"
+#if FONT_TABLE_HAS_9pt8b
+  #include "Roboto_Regular/Roboto_Regular_9pt8b.h"
+#endif
 #include "Roboto_Regular/Roboto_Regular_11pt8b.h"
 #include "Roboto_Regular/Roboto_Regular_12pt8b.h"
 #include "Roboto_Regular/Roboto_Regular_14pt8b.h"
 #include "Roboto_Regular/Roboto_Regular_16pt8b.h"
-#include "Roboto_Regular/Roboto_Regular_22pt8b.h"
+#if FONT_TABLE_HAS_22pt8b
+  #include "Roboto_Regular/Roboto_Regular_22pt8b.h"
+#endif
 #include "Roboto_Regular/Roboto_Regular_26pt8b.h"
 #include "Roboto_Regular/Roboto_Regular_48pt8b_temperature.h"
 #endif
@@ -210,12 +287,16 @@
 #include "UbuntuMono_R/UbuntuMono_R_6pt8b.h"
 #include "UbuntuMono_R/UbuntuMono_R_7pt8b.h"
 #include "UbuntuMono_R/UbuntuMono_R_8pt8b.h"
-#include "UbuntuMono_R/UbuntuMono_R_9pt8b.h"
+#if FONT_TABLE_HAS_9pt8b
+  #include "UbuntuMono_R/UbuntuMono_R_9pt8b.h"
+#endif
 #include "UbuntuMono_R/UbuntuMono_R_11pt8b.h"
 #include "UbuntuMono_R/UbuntuMono_R_12pt8b.h"
 #include "UbuntuMono_R/UbuntuMono_R_14pt8b.h"
 #include "UbuntuMono_R/UbuntuMono_R_16pt8b.h"
-#include "UbuntuMono_R/UbuntuMono_R_22pt8b.h"
+#if FONT_TABLE_HAS_22pt8b
+  #include "UbuntuMono_R/UbuntuMono_R_22pt8b.h"
+#endif
 #include "UbuntuMono_R/UbuntuMono_R_26pt8b.h"
 #include "UbuntuMono_R/UbuntuMono_R_48pt8b_temperature.h"
 #endif
@@ -225,15 +306,41 @@
 #include "Ubuntu_R/Ubuntu_R_6pt8b.h"
 #include "Ubuntu_R/Ubuntu_R_7pt8b.h"
 #include "Ubuntu_R/Ubuntu_R_8pt8b.h"
-#include "Ubuntu_R/Ubuntu_R_9pt8b.h"
+#if FONT_TABLE_HAS_9pt8b
+  #include "Ubuntu_R/Ubuntu_R_9pt8b.h"
+#endif
 #include "Ubuntu_R/Ubuntu_R_11pt8b.h"
 #include "Ubuntu_R/Ubuntu_R_12pt8b.h"
 #include "Ubuntu_R/Ubuntu_R_14pt8b.h"
 #include "Ubuntu_R/Ubuntu_R_16pt8b.h"
-#include "Ubuntu_R/Ubuntu_R_22pt8b.h"
+#if FONT_TABLE_HAS_22pt8b
+  #include "Ubuntu_R/Ubuntu_R_22pt8b.h"
+#endif
 #include "Ubuntu_R/Ubuntu_R_26pt8b.h"
 #include "Ubuntu_R/Ubuntu_R_48pt8b_temperature.h"
 #endif
+
+// one slot per face in use; nullptr where this build never draws it
+#define FONT_FACE_5pt8b(F) &F##_5pt8b
+#define FONT_FACE_6pt8b(F) &F##_6pt8b
+#define FONT_FACE_7pt8b(F) &F##_7pt8b
+#define FONT_FACE_8pt8b(F) &F##_8pt8b
+#if FONT_TABLE_HAS_9pt8b
+  #define FONT_FACE_9pt8b(F) &F##_9pt8b
+#else
+  #define FONT_FACE_9pt8b(F) nullptr
+#endif
+#define FONT_FACE_11pt8b(F) &F##_11pt8b
+#define FONT_FACE_12pt8b(F) &F##_12pt8b
+#define FONT_FACE_14pt8b(F) &F##_14pt8b
+#define FONT_FACE_16pt8b(F) &F##_16pt8b
+#if FONT_TABLE_HAS_22pt8b
+  #define FONT_FACE_22pt8b(F) &F##_22pt8b
+#else
+  #define FONT_FACE_22pt8b(F) nullptr
+#endif
+#define FONT_FACE_26pt8b(F) &F##_26pt8b
+#define FONT_FACE_48pt8b_temperature(F) &F##_48pt8b_temperature
 
 struct font_family_t
 {
@@ -244,49 +351,49 @@ struct font_family_t
 
 static const font_family_t FONT_FAMILIES[] = {
 #if defined(FONT_INCLUDE_FreeSans) && FONT_INCLUDE_FreeSans
-  {"FreeSans", {&FreeSans_5pt8b, &FreeSans_6pt8b, &FreeSans_7pt8b, &FreeSans_8pt8b, &FreeSans_9pt8b, &FreeSans_11pt8b, &FreeSans_12pt8b, &FreeSans_14pt8b, &FreeSans_16pt8b, &FreeSans_22pt8b, &FreeSans_26pt8b, &FreeSans_48pt8b_temperature}},
+  {"FreeSans", {FONT_FACE_5pt8b(FreeSans), FONT_FACE_6pt8b(FreeSans), FONT_FACE_7pt8b(FreeSans), FONT_FACE_8pt8b(FreeSans), FONT_FACE_9pt8b(FreeSans), FONT_FACE_11pt8b(FreeSans), FONT_FACE_12pt8b(FreeSans), FONT_FACE_14pt8b(FreeSans), FONT_FACE_16pt8b(FreeSans), FONT_FACE_22pt8b(FreeSans), FONT_FACE_26pt8b(FreeSans), FONT_FACE_48pt8b_temperature(FreeSans)}},
 #endif
 #if defined(FONT_INCLUDE_Bitter) && FONT_INCLUDE_Bitter
-  {"Bitter", {&Bitter_5pt8b, &Bitter_6pt8b, &Bitter_7pt8b, &Bitter_8pt8b, &Bitter_9pt8b, &Bitter_11pt8b, &Bitter_12pt8b, &Bitter_14pt8b, &Bitter_16pt8b, &Bitter_22pt8b, &Bitter_26pt8b, &Bitter_48pt8b_temperature}},
+  {"Bitter", {FONT_FACE_5pt8b(Bitter), FONT_FACE_6pt8b(Bitter), FONT_FACE_7pt8b(Bitter), FONT_FACE_8pt8b(Bitter), FONT_FACE_9pt8b(Bitter), FONT_FACE_11pt8b(Bitter), FONT_FACE_12pt8b(Bitter), FONT_FACE_14pt8b(Bitter), FONT_FACE_16pt8b(Bitter), FONT_FACE_22pt8b(Bitter), FONT_FACE_26pt8b(Bitter), FONT_FACE_48pt8b_temperature(Bitter)}},
 #endif
 #if defined(FONT_INCLUDE_FreeMono) && FONT_INCLUDE_FreeMono
-  {"FreeMono", {&FreeMono_5pt8b, &FreeMono_6pt8b, &FreeMono_7pt8b, &FreeMono_8pt8b, &FreeMono_9pt8b, &FreeMono_11pt8b, &FreeMono_12pt8b, &FreeMono_14pt8b, &FreeMono_16pt8b, &FreeMono_22pt8b, &FreeMono_26pt8b, &FreeMono_48pt8b_temperature}},
+  {"FreeMono", {FONT_FACE_5pt8b(FreeMono), FONT_FACE_6pt8b(FreeMono), FONT_FACE_7pt8b(FreeMono), FONT_FACE_8pt8b(FreeMono), FONT_FACE_9pt8b(FreeMono), FONT_FACE_11pt8b(FreeMono), FONT_FACE_12pt8b(FreeMono), FONT_FACE_14pt8b(FreeMono), FONT_FACE_16pt8b(FreeMono), FONT_FACE_22pt8b(FreeMono), FONT_FACE_26pt8b(FreeMono), FONT_FACE_48pt8b_temperature(FreeMono)}},
 #endif
 #if defined(FONT_INCLUDE_FreeSerif) && FONT_INCLUDE_FreeSerif
-  {"FreeSerif", {&FreeSerif_5pt8b, &FreeSerif_6pt8b, &FreeSerif_7pt8b, &FreeSerif_8pt8b, &FreeSerif_9pt8b, &FreeSerif_11pt8b, &FreeSerif_12pt8b, &FreeSerif_14pt8b, &FreeSerif_16pt8b, &FreeSerif_22pt8b, &FreeSerif_26pt8b, &FreeSerif_48pt8b_temperature}},
+  {"FreeSerif", {FONT_FACE_5pt8b(FreeSerif), FONT_FACE_6pt8b(FreeSerif), FONT_FACE_7pt8b(FreeSerif), FONT_FACE_8pt8b(FreeSerif), FONT_FACE_9pt8b(FreeSerif), FONT_FACE_11pt8b(FreeSerif), FONT_FACE_12pt8b(FreeSerif), FONT_FACE_14pt8b(FreeSerif), FONT_FACE_16pt8b(FreeSerif), FONT_FACE_22pt8b(FreeSerif), FONT_FACE_26pt8b(FreeSerif), FONT_FACE_48pt8b_temperature(FreeSerif)}},
 #endif
 #if defined(FONT_INCLUDE_Lato_Regular) && FONT_INCLUDE_Lato_Regular
-  {"Lato_Regular", {&Lato_Regular_5pt8b, &Lato_Regular_6pt8b, &Lato_Regular_7pt8b, &Lato_Regular_8pt8b, &Lato_Regular_9pt8b, &Lato_Regular_11pt8b, &Lato_Regular_12pt8b, &Lato_Regular_14pt8b, &Lato_Regular_16pt8b, &Lato_Regular_22pt8b, &Lato_Regular_26pt8b, &Lato_Regular_48pt8b_temperature}},
+  {"Lato_Regular", {FONT_FACE_5pt8b(Lato_Regular), FONT_FACE_6pt8b(Lato_Regular), FONT_FACE_7pt8b(Lato_Regular), FONT_FACE_8pt8b(Lato_Regular), FONT_FACE_9pt8b(Lato_Regular), FONT_FACE_11pt8b(Lato_Regular), FONT_FACE_12pt8b(Lato_Regular), FONT_FACE_14pt8b(Lato_Regular), FONT_FACE_16pt8b(Lato_Regular), FONT_FACE_22pt8b(Lato_Regular), FONT_FACE_26pt8b(Lato_Regular), FONT_FACE_48pt8b_temperature(Lato_Regular)}},
 #endif
 #if defined(FONT_INCLUDE_Montserrat_Regular) && FONT_INCLUDE_Montserrat_Regular
-  {"Montserrat_Regular", {&Montserrat_Regular_5pt8b, &Montserrat_Regular_6pt8b, &Montserrat_Regular_7pt8b, &Montserrat_Regular_8pt8b, &Montserrat_Regular_9pt8b, &Montserrat_Regular_11pt8b, &Montserrat_Regular_12pt8b, &Montserrat_Regular_14pt8b, &Montserrat_Regular_16pt8b, &Montserrat_Regular_22pt8b, &Montserrat_Regular_26pt8b, &Montserrat_Regular_48pt8b_temperature}},
+  {"Montserrat_Regular", {FONT_FACE_5pt8b(Montserrat_Regular), FONT_FACE_6pt8b(Montserrat_Regular), FONT_FACE_7pt8b(Montserrat_Regular), FONT_FACE_8pt8b(Montserrat_Regular), FONT_FACE_9pt8b(Montserrat_Regular), FONT_FACE_11pt8b(Montserrat_Regular), FONT_FACE_12pt8b(Montserrat_Regular), FONT_FACE_14pt8b(Montserrat_Regular), FONT_FACE_16pt8b(Montserrat_Regular), FONT_FACE_22pt8b(Montserrat_Regular), FONT_FACE_26pt8b(Montserrat_Regular), FONT_FACE_48pt8b_temperature(Montserrat_Regular)}},
 #endif
 #if defined(FONT_INCLUDE_OpenSans_Regular) && FONT_INCLUDE_OpenSans_Regular
-  {"OpenSans_Regular", {&OpenSans_Regular_5pt8b, &OpenSans_Regular_6pt8b, &OpenSans_Regular_7pt8b, &OpenSans_Regular_8pt8b, &OpenSans_Regular_9pt8b, &OpenSans_Regular_11pt8b, &OpenSans_Regular_12pt8b, &OpenSans_Regular_14pt8b, &OpenSans_Regular_16pt8b, &OpenSans_Regular_22pt8b, &OpenSans_Regular_26pt8b, &OpenSans_Regular_48pt8b_temperature}},
+  {"OpenSans_Regular", {FONT_FACE_5pt8b(OpenSans_Regular), FONT_FACE_6pt8b(OpenSans_Regular), FONT_FACE_7pt8b(OpenSans_Regular), FONT_FACE_8pt8b(OpenSans_Regular), FONT_FACE_9pt8b(OpenSans_Regular), FONT_FACE_11pt8b(OpenSans_Regular), FONT_FACE_12pt8b(OpenSans_Regular), FONT_FACE_14pt8b(OpenSans_Regular), FONT_FACE_16pt8b(OpenSans_Regular), FONT_FACE_22pt8b(OpenSans_Regular), FONT_FACE_26pt8b(OpenSans_Regular), FONT_FACE_48pt8b_temperature(OpenSans_Regular)}},
 #endif
 #if defined(FONT_INCLUDE_Poppins_Regular) && FONT_INCLUDE_Poppins_Regular
-  {"Poppins_Regular", {&Poppins_Regular_5pt8b, &Poppins_Regular_6pt8b, &Poppins_Regular_7pt8b, &Poppins_Regular_8pt8b, &Poppins_Regular_9pt8b, &Poppins_Regular_11pt8b, &Poppins_Regular_12pt8b, &Poppins_Regular_14pt8b, &Poppins_Regular_16pt8b, &Poppins_Regular_22pt8b, &Poppins_Regular_26pt8b, &Poppins_Regular_48pt8b_temperature}},
+  {"Poppins_Regular", {FONT_FACE_5pt8b(Poppins_Regular), FONT_FACE_6pt8b(Poppins_Regular), FONT_FACE_7pt8b(Poppins_Regular), FONT_FACE_8pt8b(Poppins_Regular), FONT_FACE_9pt8b(Poppins_Regular), FONT_FACE_11pt8b(Poppins_Regular), FONT_FACE_12pt8b(Poppins_Regular), FONT_FACE_14pt8b(Poppins_Regular), FONT_FACE_16pt8b(Poppins_Regular), FONT_FACE_22pt8b(Poppins_Regular), FONT_FACE_26pt8b(Poppins_Regular), FONT_FACE_48pt8b_temperature(Poppins_Regular)}},
 #endif
 #if defined(FONT_INCLUDE_Quicksand_Regular) && FONT_INCLUDE_Quicksand_Regular
-  {"Quicksand_Regular", {&Quicksand_Regular_5pt8b, &Quicksand_Regular_6pt8b, &Quicksand_Regular_7pt8b, &Quicksand_Regular_8pt8b, &Quicksand_Regular_9pt8b, &Quicksand_Regular_11pt8b, &Quicksand_Regular_12pt8b, &Quicksand_Regular_14pt8b, &Quicksand_Regular_16pt8b, &Quicksand_Regular_22pt8b, &Quicksand_Regular_26pt8b, &Quicksand_Regular_48pt8b_temperature}},
+  {"Quicksand_Regular", {FONT_FACE_5pt8b(Quicksand_Regular), FONT_FACE_6pt8b(Quicksand_Regular), FONT_FACE_7pt8b(Quicksand_Regular), FONT_FACE_8pt8b(Quicksand_Regular), FONT_FACE_9pt8b(Quicksand_Regular), FONT_FACE_11pt8b(Quicksand_Regular), FONT_FACE_12pt8b(Quicksand_Regular), FONT_FACE_14pt8b(Quicksand_Regular), FONT_FACE_16pt8b(Quicksand_Regular), FONT_FACE_22pt8b(Quicksand_Regular), FONT_FACE_26pt8b(Quicksand_Regular), FONT_FACE_48pt8b_temperature(Quicksand_Regular)}},
 #endif
 #if defined(FONT_INCLUDE_Raleway_Regular) && FONT_INCLUDE_Raleway_Regular
-  {"Raleway_Regular", {&Raleway_Regular_5pt8b, &Raleway_Regular_6pt8b, &Raleway_Regular_7pt8b, &Raleway_Regular_8pt8b, &Raleway_Regular_9pt8b, &Raleway_Regular_11pt8b, &Raleway_Regular_12pt8b, &Raleway_Regular_14pt8b, &Raleway_Regular_16pt8b, &Raleway_Regular_22pt8b, &Raleway_Regular_26pt8b, &Raleway_Regular_48pt8b_temperature}},
+  {"Raleway_Regular", {FONT_FACE_5pt8b(Raleway_Regular), FONT_FACE_6pt8b(Raleway_Regular), FONT_FACE_7pt8b(Raleway_Regular), FONT_FACE_8pt8b(Raleway_Regular), FONT_FACE_9pt8b(Raleway_Regular), FONT_FACE_11pt8b(Raleway_Regular), FONT_FACE_12pt8b(Raleway_Regular), FONT_FACE_14pt8b(Raleway_Regular), FONT_FACE_16pt8b(Raleway_Regular), FONT_FACE_22pt8b(Raleway_Regular), FONT_FACE_26pt8b(Raleway_Regular), FONT_FACE_48pt8b_temperature(Raleway_Regular)}},
 #endif
 #if defined(FONT_INCLUDE_RobotoMono_Regular) && FONT_INCLUDE_RobotoMono_Regular
-  {"RobotoMono_Regular", {&RobotoMono_Regular_5pt8b, &RobotoMono_Regular_6pt8b, &RobotoMono_Regular_7pt8b, &RobotoMono_Regular_8pt8b, &RobotoMono_Regular_9pt8b, &RobotoMono_Regular_11pt8b, &RobotoMono_Regular_12pt8b, &RobotoMono_Regular_14pt8b, &RobotoMono_Regular_16pt8b, &RobotoMono_Regular_22pt8b, &RobotoMono_Regular_26pt8b, &RobotoMono_Regular_48pt8b_temperature}},
+  {"RobotoMono_Regular", {FONT_FACE_5pt8b(RobotoMono_Regular), FONT_FACE_6pt8b(RobotoMono_Regular), FONT_FACE_7pt8b(RobotoMono_Regular), FONT_FACE_8pt8b(RobotoMono_Regular), FONT_FACE_9pt8b(RobotoMono_Regular), FONT_FACE_11pt8b(RobotoMono_Regular), FONT_FACE_12pt8b(RobotoMono_Regular), FONT_FACE_14pt8b(RobotoMono_Regular), FONT_FACE_16pt8b(RobotoMono_Regular), FONT_FACE_22pt8b(RobotoMono_Regular), FONT_FACE_26pt8b(RobotoMono_Regular), FONT_FACE_48pt8b_temperature(RobotoMono_Regular)}},
 #endif
 #if defined(FONT_INCLUDE_RobotoSlab_Regular) && FONT_INCLUDE_RobotoSlab_Regular
-  {"RobotoSlab_Regular", {&RobotoSlab_Regular_5pt8b, &RobotoSlab_Regular_6pt8b, &RobotoSlab_Regular_7pt8b, &RobotoSlab_Regular_8pt8b, &RobotoSlab_Regular_9pt8b, &RobotoSlab_Regular_11pt8b, &RobotoSlab_Regular_12pt8b, &RobotoSlab_Regular_14pt8b, &RobotoSlab_Regular_16pt8b, &RobotoSlab_Regular_22pt8b, &RobotoSlab_Regular_26pt8b, &RobotoSlab_Regular_48pt8b_temperature}},
+  {"RobotoSlab_Regular", {FONT_FACE_5pt8b(RobotoSlab_Regular), FONT_FACE_6pt8b(RobotoSlab_Regular), FONT_FACE_7pt8b(RobotoSlab_Regular), FONT_FACE_8pt8b(RobotoSlab_Regular), FONT_FACE_9pt8b(RobotoSlab_Regular), FONT_FACE_11pt8b(RobotoSlab_Regular), FONT_FACE_12pt8b(RobotoSlab_Regular), FONT_FACE_14pt8b(RobotoSlab_Regular), FONT_FACE_16pt8b(RobotoSlab_Regular), FONT_FACE_22pt8b(RobotoSlab_Regular), FONT_FACE_26pt8b(RobotoSlab_Regular), FONT_FACE_48pt8b_temperature(RobotoSlab_Regular)}},
 #endif
 #if defined(FONT_INCLUDE_Roboto_Regular) && FONT_INCLUDE_Roboto_Regular
-  {"Roboto_Regular", {&Roboto_Regular_5pt8b, &Roboto_Regular_6pt8b, &Roboto_Regular_7pt8b, &Roboto_Regular_8pt8b, &Roboto_Regular_9pt8b, &Roboto_Regular_11pt8b, &Roboto_Regular_12pt8b, &Roboto_Regular_14pt8b, &Roboto_Regular_16pt8b, &Roboto_Regular_22pt8b, &Roboto_Regular_26pt8b, &Roboto_Regular_48pt8b_temperature}},
+  {"Roboto_Regular", {FONT_FACE_5pt8b(Roboto_Regular), FONT_FACE_6pt8b(Roboto_Regular), FONT_FACE_7pt8b(Roboto_Regular), FONT_FACE_8pt8b(Roboto_Regular), FONT_FACE_9pt8b(Roboto_Regular), FONT_FACE_11pt8b(Roboto_Regular), FONT_FACE_12pt8b(Roboto_Regular), FONT_FACE_14pt8b(Roboto_Regular), FONT_FACE_16pt8b(Roboto_Regular), FONT_FACE_22pt8b(Roboto_Regular), FONT_FACE_26pt8b(Roboto_Regular), FONT_FACE_48pt8b_temperature(Roboto_Regular)}},
 #endif
 #if defined(FONT_INCLUDE_UbuntuMono_R) && FONT_INCLUDE_UbuntuMono_R
-  {"UbuntuMono_R", {&UbuntuMono_R_5pt8b, &UbuntuMono_R_6pt8b, &UbuntuMono_R_7pt8b, &UbuntuMono_R_8pt8b, &UbuntuMono_R_9pt8b, &UbuntuMono_R_11pt8b, &UbuntuMono_R_12pt8b, &UbuntuMono_R_14pt8b, &UbuntuMono_R_16pt8b, &UbuntuMono_R_22pt8b, &UbuntuMono_R_26pt8b, &UbuntuMono_R_48pt8b_temperature}},
+  {"UbuntuMono_R", {FONT_FACE_5pt8b(UbuntuMono_R), FONT_FACE_6pt8b(UbuntuMono_R), FONT_FACE_7pt8b(UbuntuMono_R), FONT_FACE_8pt8b(UbuntuMono_R), FONT_FACE_9pt8b(UbuntuMono_R), FONT_FACE_11pt8b(UbuntuMono_R), FONT_FACE_12pt8b(UbuntuMono_R), FONT_FACE_14pt8b(UbuntuMono_R), FONT_FACE_16pt8b(UbuntuMono_R), FONT_FACE_22pt8b(UbuntuMono_R), FONT_FACE_26pt8b(UbuntuMono_R), FONT_FACE_48pt8b_temperature(UbuntuMono_R)}},
 #endif
 #if defined(FONT_INCLUDE_Ubuntu_R) && FONT_INCLUDE_Ubuntu_R
-  {"Ubuntu_R", {&Ubuntu_R_5pt8b, &Ubuntu_R_6pt8b, &Ubuntu_R_7pt8b, &Ubuntu_R_8pt8b, &Ubuntu_R_9pt8b, &Ubuntu_R_11pt8b, &Ubuntu_R_12pt8b, &Ubuntu_R_14pt8b, &Ubuntu_R_16pt8b, &Ubuntu_R_22pt8b, &Ubuntu_R_26pt8b, &Ubuntu_R_48pt8b_temperature}},
+  {"Ubuntu_R", {FONT_FACE_5pt8b(Ubuntu_R), FONT_FACE_6pt8b(Ubuntu_R), FONT_FACE_7pt8b(Ubuntu_R), FONT_FACE_8pt8b(Ubuntu_R), FONT_FACE_9pt8b(Ubuntu_R), FONT_FACE_11pt8b(Ubuntu_R), FONT_FACE_12pt8b(Ubuntu_R), FONT_FACE_14pt8b(Ubuntu_R), FONT_FACE_16pt8b(Ubuntu_R), FONT_FACE_22pt8b(Ubuntu_R), FONT_FACE_26pt8b(Ubuntu_R), FONT_FACE_48pt8b_temperature(Ubuntu_R)}},
 #endif
 };
 static const int FONT_FAMILY_COUNT =
