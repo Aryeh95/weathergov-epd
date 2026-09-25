@@ -437,7 +437,11 @@ void fillCurrentFromFallback(const owm_hourly_t &fallback, owm_current_t &curren
   current.clouds      = fallback.clouds;
   current.humidity    = fallback.humidity;
   current.dew_point   = fallback.dew_point;
-  current.visibility  = 10000;
+  // The hourly forecast carries neither of these. Mark them unavailable so
+  // the widgets show "--" and the pressure history skips the sample (see
+  // main.cpp), instead of displaying a fabricated 1013 hPa / 10 km.
+  current.pressure    = 0;
+  current.visibility  = -1;
 } // end fillCurrentFromFallback
 
 /* Parses weather.gov's raw gridpoint (/gridpoints/WFO/x,y) for its
@@ -600,12 +604,12 @@ DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
   JsonVariant pressVar = c["pressure_msl"];
   current.pressure = !pressVar.isNull()
                     ? static_cast<int>(std::round(pressVar.as<float>()))
-                    : 1013;
+                    : 0;  // not available
 
   JsonVariant visVar = c["visibility"];
   current.visibility = !visVar.isNull()
                       ? static_cast<int>(visVar.as<float>())
-                      : 10000;
+                      : -1; // not available
 
   JsonVariant spdVar = c["wind_speed_10m"];
   current.wind_speed = !spdVar.isNull() ? spdVar.as<float>()
@@ -693,13 +697,13 @@ DeserializationError deserializeGoogleCurrent(WiFiClient &json,
   JsonVariant pressVar = doc["airPressure"]["meanSeaLevelMillibars"];
   current.pressure = !pressVar.isNull()
                     ? static_cast<int>(std::round(pressVar.as<float>()))
-                    : 1013;
+                    : 0;  // not available
 
   // METRIC visibility is in kilometres; the display expects metres.
   JsonVariant visVar = doc["visibility"]["distance"];
   current.visibility = !visVar.isNull()
                       ? static_cast<int>(visVar.as<float>() * 1000.f)
-                      : 10000;
+                      : -1; // not available
 
   // METRIC wind is in km/h; every other source stores m/s.
   JsonVariant spdVar = doc["wind"]["speed"]["value"];
