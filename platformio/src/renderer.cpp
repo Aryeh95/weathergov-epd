@@ -885,26 +885,20 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   {
     air_quality_index_label = TXT_AIR_POLLUTION;
   }
-  // Source tag: AirNow = measured at EPA monitoring stations; otherwise the
-  // AQI is computed from Open-Meteo's CAMS *model* pollutant fields -- worth
-  // telling apart at a glance. Drawn in the smallest font after the label;
-  // wider typefaces (Bitter) push "(AirNow)" into the graph's axis labels,
-  // so it shortens to "(EPA)" when needed and is dropped if even that won't
-  // fit.
+  // Source tag: "(EPA)" when the value is AirNow's, i.e. measured at the
+  // EPA's monitoring stations; "(model)" when it is computed from
+  // Open-Meteo's CAMS model pollutant fields -- worth telling apart at a
+  // glance. Drawn in the smallest font after the label, and left out if it
+  // would run into the graph's axis labels.
   drawString(48 + (162 * PosX), wgtLabelY(PosY), air_quality_index_label,
              LEFT);
   display.setFont(&FONT_5pt8b);
   {
     const int16_t tagX = display.getCursorX() + 3;
-    const char *tags[] = {useAirNow ? "(AirNow)" : "(model)",
-                          useAirNow ? "(EPA)" : nullptr};
-    for (const char *tag : tags)
+    const char *tag = useAirNow ? "(EPA)" : "(model)";
+    if (tagX + getStringWidth(tag) <= wgtTagRight(PosX))
     {
-      if (tag && tagX + getStringWidth(tag) <= wgtTagRight(PosX))
-      {
-        drawString(tagX, wgtLabelY(PosY), tag, LEFT);
-        break;
-      }
+      drawString(tagX, wgtLabelY(PosY), tag, LEFT);
     }
   }
   display.setFont(&FONT_7pt8b);
@@ -2120,9 +2114,10 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     // right-aligned to the plot edge, which keeps it clear of the y-axis
     // numbers on both sides and of the weather icons, which stack above the
     // temperature curve inside the plot. Each label is drawn in its curve's
-    // colour beside a swatch of the same thickness as the line it names, so
-    // on a black/white panel -- where both curves are black -- the thickness
-    // alone still identifies them.
+    // colour beside a swatch of the same thickness as the line it names: on
+    // a black/white panel -- where both curves are black -- the dew point is
+    // the thinner one and the thickness alone identifies them; on a colour
+    // panel the colour does, and both curves share one stroke.
     display.setFont(&FONT_5pt8b);
     const int legendY = yPos0 - 8;
     int legendX = xPos1;
@@ -2141,7 +2136,11 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
       }
       legendX -= 12; // gap before the next item to the left
     };
+#ifdef MULTICOLOR_DISPLAY
+    legendItem(TXT_DEWPOINT, COLOR_DEWPOINT, 3);
+#else
     legendItem(TXT_DEWPOINT, COLOR_DEWPOINT, 2);
+#endif
     legendItem(TXT_TEMPERATURE, ACCENT_COLOR, 3);
   }
 
@@ -2234,7 +2233,9 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
       y1_t = y_t[i    ];
       // graph dew point -- over the bars, under the temperature: where the
       // two curves meet (saturated air: fog, drizzle) the temperature paints
-      // on top, and the primary curve stays the thicker one. It is the same
+      // on top. On a black/white panel the dew point stays the thinner
+      // curve, which is all that tells the two apart; on a colour panel the
+      // blue does that, so it gets the temperature's stroke. It is the same
       // blue as the precipitation bars, so it gets a one-pixel halo in the
       // background colour on each side; without it a 2 px blue stroke
       // through 50 % blue dither reads as slightly denser dither, not a line.
@@ -2249,6 +2250,9 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
         display.drawLine(x0_t, y0_d + 2    , x1_t, y1_d + 2    , DM_BG);
         display.drawLine(x0_t, y0_d        , x1_t, y1_d        , DM_GFX(COLOR_DEWPOINT));
         display.drawLine(x0_t, y0_d + 1    , x1_t, y1_d + 1    , DM_GFX(COLOR_DEWPOINT));
+#ifdef MULTICOLOR_DISPLAY
+        display.drawLine(x0_t - 1, y0_d    , x1_t - 1, y1_d    , DM_GFX(COLOR_DEWPOINT));
+#endif
         if (DARK_MODE)
         {
           display.drawLine(x0_t, y0_d - 1, x1_t, y1_d - 1, DM_GFX(COLOR_DEWPOINT));
