@@ -1145,10 +1145,9 @@ enum alert_category getAlertCategory(const owm_alerts_t &alert)
   {
     return alert_category::GALE_WARNING;
   }
-  if (containsTerminology(alert.event, TERM_STORM_WARNING))
-  {
-    return alert_category::STORM_WARNING;
-  }
+  // The two hurricane categories must be tested before the generic storm
+  // warning: "tropical storm warning" contains "storm warning", and matched
+  // the storm-flag icon while "tropical storm watch" got the hurricane one.
   if (containsTerminology(alert.event, TERM_HURRICANE_WARNING))
   {
     return alert_category::HURRICANE_WARNING;
@@ -1156,6 +1155,10 @@ enum alert_category getAlertCategory(const owm_alerts_t &alert)
   if (containsTerminology(alert.event, TERM_HURRICANE))
   {
     return alert_category::HURRICANE;
+  }
+  if (containsTerminology(alert.event, TERM_STORM_WARNING))
+  {
+    return alert_category::STORM_WARNING;
   }
   if (containsTerminology(alert.event, TERM_DUST))
   {
