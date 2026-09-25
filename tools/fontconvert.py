@@ -12,7 +12,14 @@ in the shipped families, which keeps its bitmap table under the 64 KB that
 GFXglyph's 16-bit offsets can address.
 
 Usage:
-    python tools/fontconvert.py <Family> <font.ttf> [size ...]
+    python tools/fontconvert.py [--autohint] <Family> <font.ttf> [size ...]
+
+--autohint runs FreeType's auto-hinter (FT_LOAD_FORCE_AUTOHINT) instead of
+the font's own hints. For TrueType fonts, and instanced variable fonts in
+particular, it snaps every stem to the pixel grid, so 1-bit text at 5-8 pt
+comes out with even strokes instead of a mix of 1- and 2-pixel ones (Bitter
+was generated with it). The GNU FreeFont headers upstream ships were made
+without it, and a plain run still reproduces them exactly.
 
 Writes lib/esp32-weather-epd-assets/fonts/<Family>/<Family>_<size>pt8b.h for
 each size (default: the same 17 sizes every existing family ships), plus
@@ -37,7 +44,7 @@ FONT_DIR = os.path.join(HERE, "..", "platformio", "lib",
                         "esp32-weather-epd-assets", "fonts")
 
 
-def render(ttf, size, first=FIRST, last=LAST, only=None):
+def render(ttf, size, first=FIRST, last=LAST, only=None, autohint=False):
     """Returns (bitmaps: bytes, glyphs: [(off, w, h, xAdv, xOff, yOff)], yAdvance).
 
     With `only` (a string), characters outside it become empty 1x1 glyphs
@@ -46,16 +53,19 @@ def render(ttf, size, first=FIRST, last=LAST, only=None):
     """
     face = freetype.Face(ttf)
     face.set_char_size(size << 6, 0, DPI, 0)
+    flags = freetype.FT_LOAD_TARGET_MONO
+    if autohint:
+        flags |= freetype.FT_LOAD_FORCE_AUTOHINT
     bitmaps = bytearray()
     glyphs = []
-    face.load_glyph(0, freetype.FT_LOAD_TARGET_MONO)
+    face.load_glyph(0, flags)
     notdef_advance = face.glyph.advance.x >> 6
     for code in range(first, last + 1):
         if only is not None and chr(code) not in only:
             glyphs.append((len(bitmaps), 1, 1, notdef_advance, 0, 0))
             bitmaps.append(0)
             continue
-        face.load_char(code, freetype.FT_LOAD_TARGET_MONO)
+        face.load_char(code, flags)
         face.glyph.render(freetype.FT_RENDER_MODE_MONO)
         g = face.glyph
         bm = g.bitmap
@@ -103,20 +113,20 @@ def emit(name, bitmaps, glyphs, y_advance, first=FIRST, last=LAST):
     return "\n".join(out) + "\n"
 
 
-def write_family(family, ttf, sizes):
+def write_family(family, ttf, sizes, autohint=False):
     fam_dir = os.path.join(FONT_DIR, family)
     os.makedirs(fam_dir, exist_ok=True)
     written = []
     for size in sizes:
         name = "%s_%dpt8b" % (family, size)
-        bitmaps, glyphs, ya = render(ttf, size)
+        bitmaps, glyphs, ya = render(ttf, size, autohint=autohint)
         path = os.path.join(fam_dir, name + ".h")
         with open(path, "w", encoding="utf-8", newline="\n") as f:
             f.write(emit(name, bitmaps, glyphs, ya))
         written.append((name, len(bitmaps) + len(glyphs) * 7))
     # the 48 pt face used for the current temperature: digits and friends only
     name = "%s_48pt8b_temperature" % family
-    bitmaps, glyphs, ya = render(ttf, 48, only=TEMP_CHARS)
+    bitmaps, glyphs, ya = render(ttf, 48, only=TEMP_CHARS, autohint=autohint)
     with open(os.path.join(fam_dir, name + ".h"), "w", encoding="utf-8",
               newline="\n") as f:
         f.write(emit(name, bitmaps, glyphs, ya))
@@ -135,12 +145,15 @@ def write_family(family, ttf, sizes):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
+    args = sys.argv[1:]
+    autohint = "--autohint" in args
+    args = [a for a in args if a != "--autohint"]
+    if len(args) < 2:
         sys.exit(__doc__)
-    family, ttf = sys.argv[1], sys.argv[2]
-    sizes = [int(s) for s in sys.argv[3:]] or DEFAULT_SIZES
+    family, ttf = args[0], args[1]
+    sizes = [int(s) for s in args[2:]] or DEFAULT_SIZES
     total = 0
-    for name, size in write_family(family, ttf, sizes):
+    for name, size in write_family(family, ttf, sizes, autohint):
         print("%-36s %7d bytes" % (name, size))
         total += size
     print("%-36s %7d bytes (%.0f KB of flash)" % ("total", total, total / 1024))

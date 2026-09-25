@@ -164,6 +164,15 @@ static inline int wgtY(int PosY)
 // The 6-row layout's smaller icons pull the value line up toward the label;
 // nudge the label up and the value down so the label/value gap matches the
 // 5-row layout.
+/* Rightmost x a small source tag after a widget label may reach. The right
+ * column's cell ends at 324, but the outlook graph's temperature axis labels
+ * (right-aligned at 342) begin a few pixels before that.
+ */
+static inline int wgtTagRight(int PosX)
+{
+  return (PosX == 0) ? 162 : 318;
+}
+
 static inline int wgtLabelY(int PosY)
 {
   return wgtY(PosY) + ((WIDGET_ROWS > 5) ? 8 : 10);
@@ -878,13 +887,26 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   }
   // Source tag: AirNow = measured at EPA monitoring stations; otherwise the
   // AQI is computed from Open-Meteo's CAMS *model* pollutant fields -- worth
-  // telling apart at a glance. Drawn in the smallest font so it fits after
-  // the label in the widget column.
+  // telling apart at a glance. Drawn in the smallest font after the label;
+  // wider typefaces (Bitter) push "(AirNow)" into the graph's axis labels,
+  // so it shortens to "(EPA)" when needed and is dropped if even that won't
+  // fit.
   drawString(48 + (162 * PosX), wgtLabelY(PosY), air_quality_index_label,
              LEFT);
   display.setFont(&FONT_5pt8b);
-  drawString(display.getCursorX() + 3, wgtLabelY(PosY),
-             useAirNow ? "(AirNow)" : "(model)", LEFT);
+  {
+    const int16_t tagX = display.getCursorX() + 3;
+    const char *tags[] = {useAirNow ? "(AirNow)" : "(model)",
+                          useAirNow ? "(EPA)" : nullptr};
+    for (const char *tag : tags)
+    {
+      if (tag && tagX + getStringWidth(tag) <= wgtTagRight(PosX))
+      {
+        drawString(tagX, wgtLabelY(PosY), tag, LEFT);
+        break;
+      }
+    }
+  }
   display.setFont(&FONT_7pt8b);
 
   // spacing between end of index value and start of descriptor text
@@ -1245,8 +1267,8 @@ void drawCurrentPollen(const pollen_info_t &pollen)
       display.setFont(&FONT_5pt8b);
       const int16_t tagX = display.getCursorX() + 3;
       types = "(" + types + ")";
-      // never let the tag overflow into the next widget cell
-      if (tagX + getStringWidth(types) <= 162 + (162 * PosX))
+      // never let the tag overflow into the next cell or the graph's axis
+      if (tagX + getStringWidth(types) <= wgtTagRight(PosX))
       {
         drawString(tagX, wgtLabelY(PosY), types, LEFT);
       }
