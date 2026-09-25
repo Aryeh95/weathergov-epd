@@ -99,6 +99,11 @@ int WIDGET_ROWS = 5;
 // (forced off) on single-color panels.
 bool DARK_MODE = false;
 
+// Font family: index into FONT_FAMILIES (fonts/font_table.h), the families
+// compiled in by config.h's FONT_INCLUDE_ switches. Runtime setting
+// (config.json "font", by name); unknown names fall back to the first.
+int FONT_FAMILY_INDEX = 0;
+
 // PER-DEPLOYMENT SETTINGS (WiFi, location, time, battery, widget layout)
 //
 // The values below are only FALLBACK DEFAULTS, used if data/config.json is

@@ -291,34 +291,43 @@
 
 
 // FONTS
-// A handful of popular Open Source typefaces have been included with this
-// project for your convenience. Change the font by selecting its corresponding
-// header file.
+// A handful of popular Open Source typefaces are included with this project.
+// Every family switched on here is compiled into the firmware and can then
+// be chosen at runtime: config.json "font", or the Font dropdown in the
+// portal (with a live preview). Each family costs roughly 150-250 KB of
+// flash, so boards with a 4 MB flash (FireBeetle) have room for one or two;
+// the reTerminal E1002 (8 MB) can carry several.
 //
-//   FONT           HEADER FILE              FAMILY          LICENSE
-//   FreeMono       FreeMono.h               GNU FreeFont    GNU GPL v3.0
-//   FreeSans       FreeSans.h               GNU FreeFont    GNU GPL v3.0
-//   FreeSerif      FreeSerif.h              GNU FreeFont    GNU GPL v3.0
-//   Lato           Lato_Regular.h           Lato            SIL OFL v1.1
-//   Montserrat     Montserrat_Regular.h     Montserrat      SIL OFL v1.1
-//   Open Sans      OpenSans_Regular.h       Open Sans       SIL OFL v1.1
-//   Poppins        Poppins_Regular.h        Poppins         SIL OFL v1.1
-//   Quicksand      Quicksand_Regular.h      Quicksand       SIL OFL v1.1
-//   Raleway        Raleway_Regular.h        Raleway         SIL OFL v1.1
-//   Roboto         Roboto_Regular.h         Roboto          Apache v2.0
-//   Roboto Mono    RobotoMono_Regular.h     Roboto Mono     Apache v2.0
-//   Roboto Slab    RobotoSlab_Regular.h     Roboto Slab     Apache v2.0
-//   Ubuntu         Ubuntu_R.h               Ubuntu font     UFL v1.0
-//   Ubuntu Mono    UbuntuMono_R.h           Ubuntu font     UFL v1.0
+//   FONT           FONT_INCLUDE_ NAME       FAMILY          LICENSE
+//   Bitter         Bitter                   Bitter          SIL OFL v1.1
+//   FreeMono       FreeMono                 GNU FreeFont    GNU GPL v3.0
+//   FreeSans       FreeSans                 GNU FreeFont    GNU GPL v3.0
+//   FreeSerif      FreeSerif                GNU FreeFont    GNU GPL v3.0
+//   Lato           Lato_Regular             Lato            SIL OFL v1.1
+//   Montserrat     Montserrat_Regular       Montserrat      SIL OFL v1.1
+//   Open Sans      OpenSans_Regular         Open Sans       SIL OFL v1.1
+//   Poppins        Poppins_Regular          Poppins         SIL OFL v1.1
+//   Quicksand      Quicksand_Regular        Quicksand       SIL OFL v1.1
+//   Raleway        Raleway_Regular          Raleway         SIL OFL v1.1
+//   Roboto         Roboto_Regular           Roboto          Apache v2.0
+//   Roboto Mono    RobotoMono_Regular       Roboto Mono     Apache v2.0
+//   Roboto Slab    RobotoSlab_Regular       Roboto Slab     Apache v2.0
+//   Ubuntu         Ubuntu_R                 Ubuntu font     UFL v1.0
+//   Ubuntu Mono    UbuntuMono_R             Ubuntu font     UFL v1.0
 //
-// Adding new fonts is relatively straightforward, see fonts/README.
+// Adding a font: python tools/fontconvert.py <Name> <font.ttf>, then
+// python tools/gen_font_table.py, then switch it on below.
 //
 // Note:
 //   The layout of the display was designed around spacing and size of the GNU
 //   FreeSans font, but this project supports the ability to modularly swap
 //   fonts. Using a font other than FreeSans may result in undesired spacing or
-//   other artifacts.
-#define FONT_HEADER "fonts/FreeSans.h"
+//   other artifacts. An unknown or missing "font" setting falls back to the
+//   first family switched on here.
+#define FONT_INCLUDE_FreeSans 1
+#if defined(BOARD_RETERMINAL_E1002)
+  #define FONT_INCLUDE_Bitter 1
+#endif
 
 // FORECAST TEMPERATURE ORDER
 // The order of temperture Hi|Lo can optionally be configured using
@@ -443,6 +452,7 @@ extern bool   GRAPH_DEWPOINT;
 extern int    FORECAST_DAYS;
 extern int    WIDGET_ROWS;
 extern bool   DARK_MODE;
+extern int    FONT_FAMILY_INDEX;
 extern uint32_t WARN_BATTERY_VOLTAGE;
 extern uint32_t LOW_BATTERY_VOLTAGE;
 extern uint32_t VERY_LOW_BATTERY_VOLTAGE;
@@ -556,9 +566,6 @@ extern int POS_INHUMIDITY;
       ^ defined(WIND_ICONS_TERTIARY_INTERCARDINAL)  \
       ^ defined(WIND_ICONS_360))
   #error Invalid configuration. Exactly one wind direction icon precision level must be selected.
-#endif
-#if !(defined(FONT_HEADER))
-  #error Invalid configuration. Font not selected.
 #endif
 #if !(defined(DISPLAY_DAILY_PRECIP))
   #error Invalid configuration. DISPLAY_DAILY_PRECIP not defined.

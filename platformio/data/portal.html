@@ -24,6 +24,11 @@
   .hint { font-size: 0.75rem; opacity: 0.65; margin-top: 0.1rem; }
   input, select, textarea { width: 100%; padding: 0.45rem 0.5rem;
     border: 1px solid #bbb; border-radius: 6px; font-size: 0.95rem; }
+  .fontprev { background: #fff; color: #000; border: 1px solid #ccc;
+              border-radius: 6px; padding: 0.5rem 0.8rem; margin-top: 0.5rem;
+              line-height: 1.2; }
+  .fp-big { font-size: 2.6rem; } .fp-mid { font-size: 1.25rem; }
+  .fp-small { font-size: 0.85rem; }
   textarea { font-family: ui-monospace, monospace; font-size: 0.8rem;
              min-height: 20rem; white-space: pre; }
   .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 0.8rem; }
@@ -128,8 +133,17 @@
       <div><label>Widget rows</label><select id="s_wrows"><option value="5">5 (10 slots)</option><option value="6">6 (12 slots)</option></select></div>
       <div><label>Theme (full-color panels only)</label><select id="s_dark"><option value="0">Light (white background)</option><option value="1">Dark (black background)</option></select></div>
       <div><label>Dew point on graph</label><select id="s_dew"><option value="0">Off</option><option value="1">On (blue curve under temperature)</option></select></div>
+      <div><label>Font</label><select id="s_font"></select></div>
     </div>
     <div class="hint">No updates between bed and wake hours (set both equal to disable).</div>
+    <div id="fontprev" class="fontprev">
+      <div class="fp-big">72&deg;</div>
+      <div class="fp-mid">Partly Cloudy</div>
+      <div class="fp-small">Feels like 75&deg; &nbsp; Hi 78&deg; Lo 61&deg; &nbsp; Wind 8 mph &nbsp; Updated 12:30 PM</div>
+    </div>
+    <div class="hint">Only fonts compiled into this firmware are listed
+      (see FONT_INCLUDE_ in config.h). The preview uses the web version of the
+      font and needs internet access; the display draws its own bitmap copy.</div>
   </fieldset>
 
   <fieldset><legend>API</legend>
@@ -207,6 +221,74 @@ const WIDGETS = [
   ['visibility','Visibility'],['intemp','Indoor temp'],['inhumidity','Indoor humidity'],
   ['moon_phase','Moon phase'],['pollen','Pollen']];
 let cfg = null; // parsed config; the form writes back into this object
+
+// Font preview. Web equivalents of the display fonts: Google-hosted where
+// the family is on Google Fonts, common system twins for the GNU FreeFonts.
+const FONT_CSS = {
+  FreeSans: 'Helvetica, Arial, "Liberation Sans", FreeSans, sans-serif',
+  FreeSerif: '"Times New Roman", Times, "Liberation Serif", FreeSerif, serif',
+  FreeMono: '"Courier New", Courier, "Liberation Mono", FreeMono, monospace',
+  Bitter: 'Bitter, "Roboto Slab", serif',
+  Lato_Regular: 'Lato, sans-serif',
+  Montserrat_Regular: 'Montserrat, sans-serif',
+  OpenSans_Regular: '"Open Sans", sans-serif',
+  Poppins_Regular: 'Poppins, sans-serif',
+  Quicksand_Regular: 'Quicksand, sans-serif',
+  Raleway_Regular: 'Raleway, sans-serif',
+  Roboto_Regular: 'Roboto, sans-serif',
+  RobotoMono_Regular: '"Roboto Mono", monospace',
+  RobotoSlab_Regular: '"Roboto Slab", serif',
+  Ubuntu_R: 'Ubuntu, sans-serif',
+  UbuntuMono_R: '"Ubuntu Mono", monospace'
+};
+const GOOGLE_FONTS = {
+  Bitter: 'Bitter', Lato_Regular: 'Lato', Montserrat_Regular: 'Montserrat',
+  OpenSans_Regular: 'Open Sans', Poppins_Regular: 'Poppins',
+  Quicksand_Regular: 'Quicksand', Raleway_Regular: 'Raleway',
+  Roboto_Regular: 'Roboto', RobotoMono_Regular: 'Roboto Mono',
+  RobotoSlab_Regular: 'Roboto Slab', Ubuntu_R: 'Ubuntu', UbuntuMono_R: 'Ubuntu Mono'
+};
+let fontList = null; // families in this firmware, from /info
+function fontLabel(name) {
+  return name.replace(/_(Regular|R)$/, '').replace(/([a-z])([A-Z])/g, '$1 $2');
+}
+function setFontOptions(names) {
+  fontList = names;
+  const sel = el('s_font');
+  sel.innerHTML = '';
+  for (const n of names) {
+    const o = document.createElement('option');
+    o.value = n; o.textContent = fontLabel(n); sel.appendChild(o);
+  }
+  // one stylesheet for the Google-hosted families; the browser only
+  // downloads a face once the preview actually uses it
+  const gf = names.map(n => GOOGLE_FONTS[n]).filter(Boolean);
+  if (gf.length && !document.getElementById('gfcss')) {
+    const l = document.createElement('link');
+    l.id = 'gfcss'; l.rel = 'stylesheet';
+    l.href = 'https://fonts.googleapis.com/css2?'
+      + gf.map(f => 'family=' + f.replace(/ /g, '+')).join('&') + '&display=swap';
+    document.head.appendChild(l);
+  }
+  selectFont(cfg ? cfg.font : null);
+}
+function selectFont(name) {
+  const sel = el('s_font');
+  name = name || (sel.options[0] ? sel.options[0].value : 'FreeSans');
+  if (![...sel.options].some(o => o.value === name)) {
+    // configured family missing from this firmware (or /info not in yet):
+    // keep the setting as-is rather than silently changing it
+    const o = document.createElement('option');
+    o.value = name;
+    o.textContent = fontLabel(name) + (fontList ? ' (not in this firmware)' : '');
+    sel.appendChild(o);
+  }
+  sel.value = name;
+  previewFont();
+}
+function previewFont() {
+  el('fontprev').style.fontFamily = FONT_CSS[el('s_font').value] || 'sans-serif';
+}
 
 // config.json may contain // and /* */ comments; strip them (outside strings)
 // so JSON.parse accepts it
@@ -344,6 +426,7 @@ function populate() {
   el('s_wrows').value = String(cfg.widget_rows ?? 5);
   el('s_dark').value = cfg.dark_mode ? '1' : '0';
   el('s_dew').value = cfg.graph_dewpoint ? '1' : '0';
+  selectFont(cfg.font);
   el('a_ua').value = cfg.api?.nws_user_agent ?? '';
   el('a_airnow').value = cfg.api?.airnow_api_key ?? '';
   el('a_pollen').value = cfg.api?.pollen_api_key ?? '';
@@ -387,6 +470,7 @@ function collect() {
   cfg.widget_rows = +el('s_wrows').value;
   cfg.dark_mode = el('s_dark').value === '1';
   cfg.graph_dewpoint = el('s_dew').value === '1';
+  cfg.font = el('s_font').value;
   cfg.api.nws_user_agent = el('a_ua').value.trim();
   cfg.api.airnow_api_key = el('a_airnow').value.trim();
   cfg.api.pollen_api_key = el('a_pollen').value.trim();
@@ -631,10 +715,12 @@ function showConnInfo(i) {
     + ' minutes of inactivity.';
   box.style.display = 'block';
   if (i.build) { el('fwbuild').textContent = i.build; }
+  if (i.fonts) { setFontOptions(i.fonts); }
 }
 
 buildWidgetSelects();
 buildTimeSelects();
+el('s_font').addEventListener('change', previewFont);
 fetch('/info').then(r => r.json()).then(showConnInfo).catch(() => {});
 fetch('/config').then(r => r.text()).then(t => {
   el('raw').value = t;

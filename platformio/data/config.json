@@ -217,6 +217,13 @@
   // (full-color panels only; ignored on B/W and 3-color panels).
   "dark_mode": false,
 
+  // Typeface for all text, by family name. Only families compiled into the
+  // firmware are available (config.h FONT_INCLUDE_<Family>: FreeSans
+  // everywhere, plus Bitter on the reTerminal E1002 build); anything else
+  // falls back to the first compiled-in family. Also a dropdown in the
+  // portal, with a preview.
+  "font": "FreeSans",
+
   // Dew point curve on the hourly outlook graph: a second, thinner line
   // under the temperature, in blue on full-color panels, with a small
   // legend above the graph. The temperature axis rescales to fit it. Useful for reading mugginess, and fog or frost

@@ -20,6 +20,7 @@
 #include <LittleFS.h>
 #include "config.h"
 #include "settings.h"
+#include "fonts/font_names.h"
 
 /* Copies a JSON string field into a fixed-size char buffer, truncating
  * safely. Leaves dst untouched if the field is absent/null.
@@ -124,6 +125,20 @@ bool loadSettings()
   // its keep on the single-color panels, so the setting is ignored there.
   DARK_MODE = false;
 #endif
+
+  // Font family by name. Only the families compiled in (config.h
+  // FONT_INCLUDE_<Family>) are known; anything else falls back to the first.
+  const char *fontName = doc["font"] | FONT_FAMILY_NAMES[0];
+  FONT_FAMILY_INDEX = 0;
+  for (int i = 0; i < FONT_FAMILY_NAME_COUNT; ++i)
+  {
+    if (String(fontName).equalsIgnoreCase(FONT_FAMILY_NAMES[i]))
+    {
+      FONT_FAMILY_INDEX = i;
+      break;
+    }
+  }
+  Serial.println("[font] " + String(FONT_FAMILY_NAMES[FONT_FAMILY_INDEX]));
 
   JsonObjectConst battery = doc["battery"];
   WARN_BATTERY_VOLTAGE     = battery["warn_voltage_mv"]     | WARN_BATTERY_VOLTAGE;
