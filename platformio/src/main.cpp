@@ -496,10 +496,24 @@ void setup()
   client.setCACert(cert_root_ca_bundle);
 #endif
 
+  int rxStatus = HTTP_CODE_OK;
+#if DISPLAY_ALERTS
+  // Alerts first: the reply is small and arrives over HTTP/1.1 keep-alive,
+  // so the forecast requests that follow reuse its TLS session instead of
+  // paying their own ~1.2 s handshake. Non-fatal: if this fails, the display
+  // simply shows no alerts.
+  rxStatus = getNWSAlerts(client, alerts);
+  if (rxStatus != HTTP_CODE_OK)
+  {
+    statusStr = "weather.gov Alerts API";
+    tmpStr = String(rxStatus, DEC) + ": " + getHttpResponsePhrase(rxStatus);
+  }
+#endif
+
   // weather.gov forecast + current conditions. This is the primary data
   // source; if it fails there is nothing worth displaying.
   String failedStep;
-  int rxStatus = getNWSWeather(client, current, hourly, daily, failedStep);
+  rxStatus = getNWSWeather(client, current, hourly, daily, failedStep);
   if (rxStatus != HTTP_CODE_OK)
   {
     killWiFi();
@@ -538,17 +552,6 @@ void setup()
     prefs.remove("apiErr");
   }
   prefs.end();
-
-#if DISPLAY_ALERTS
-  // Alerts are non-fatal: if this fails, the display simply shows no
-  // alerts.
-  rxStatus = getNWSAlerts(client, alerts);
-  if (rxStatus != HTTP_CODE_OK)
-  {
-    statusStr = "weather.gov Alerts API";
-    tmpStr = String(rxStatus, DEC) + ": " + getHttpResponsePhrase(rxStatus);
-  }
-#endif
 
   // UV index and air quality (weather.gov does not provide either). Also
   // non-fatal: if this fails, the UVI/Air Quality widgets show "0".
