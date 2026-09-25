@@ -126,19 +126,27 @@ bool loadSettings()
   DARK_MODE = false;
 #endif
 
-  // Font family by name. Only the families compiled in (config.h
-  // FONT_INCLUDE_<Family>) are known; anything else falls back to the first.
-  const char *fontName = doc["font"] | FONT_FAMILY_NAMES[0];
-  FONT_FAMILY_INDEX = 0;
-  for (int i = 0; i < FONT_FAMILY_NAME_COUNT; ++i)
-  {
-    if (String(fontName).equalsIgnoreCase(FONT_FAMILY_NAMES[i]))
+  // Font families by name. Only the families compiled in (config.h
+  // FONT_INCLUDE_<Family>) are known. "font" is the main family (11 pt and
+  // up: header, forecast, widget values, the big temperature) and falls
+  // back to the first; "font_small" draws the labels, axis text and tags
+  // below that and follows "font" when empty or unknown.
+  auto fontIndex = [](const char *name, int fallback) {
+    for (int i = 0; i < FONT_FAMILY_NAME_COUNT; ++i)
     {
-      FONT_FAMILY_INDEX = i;
-      break;
+      if (String(name).equalsIgnoreCase(FONT_FAMILY_NAMES[i]))
+      {
+        return i;
+      }
     }
-  }
-  Serial.println("[font] " + String(FONT_FAMILY_NAMES[FONT_FAMILY_INDEX]));
+    return fallback;
+  };
+  FONT_FAMILY_INDEX       = fontIndex(doc["font"] | "", 0);
+  FONT_SMALL_FAMILY_INDEX = fontIndex(doc["font_small"] | "",
+                                      FONT_FAMILY_INDEX);
+  Serial.println("[font] " + String(FONT_FAMILY_NAMES[FONT_FAMILY_INDEX])
+                 + ", small text "
+                 + String(FONT_FAMILY_NAMES[FONT_SMALL_FAMILY_INDEX]));
 
   JsonObjectConst battery = doc["battery"];
   WARN_BATTERY_VOLTAGE     = battery["warn_voltage_mv"]     | WARN_BATTERY_VOLTAGE;

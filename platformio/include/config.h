@@ -293,7 +293,8 @@
 // FONTS
 // A handful of popular Open Source typefaces are included with this project.
 // Every family switched on here is compiled into the firmware and can then
-// be chosen at runtime: config.json "font", or the Font dropdown in the
+// be chosen at runtime: config.json "font" (and "font_small" for the
+// labels, axis text and tags under 11 pt), or the Font dropdowns in the
 // portal (with a live preview). Each family costs roughly 150-250 KB of
 // flash, so boards with a 4 MB flash (FireBeetle) have room for one or two;
 // the reTerminal E1002 (8 MB) can carry several.
@@ -453,6 +454,7 @@ extern int    FORECAST_DAYS;
 extern int    WIDGET_ROWS;
 extern bool   DARK_MODE;
 extern int    FONT_FAMILY_INDEX;
+extern int    FONT_SMALL_FAMILY_INDEX;
 extern uint32_t WARN_BATTERY_VOLTAGE;
 extern uint32_t LOW_BATTERY_VOLTAGE;
 extern uint32_t VERY_LOW_BATTERY_VOLTAGE;

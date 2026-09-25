@@ -4,15 +4,18 @@
 
 //
 // Every family whose FONT_INCLUDE_<Family> macro is set (config.h) is
-// compiled in and selectable at runtime through FONT_FAMILY_INDEX
-// (config.json "font", portal dropdown). Each costs roughly 150-250 KB of
-// flash. The FONT_*pt8b names used throughout the renderer resolve to the
-// selected family's face of that size.
+// compiled in and selectable at runtime: FONT_FAMILY_INDEX (config.json
+// "font") for faces of FONT_SMALL_BELOW_PT and up, FONT_SMALL_FAMILY_INDEX
+// ("font_small") for the smaller labels, axis text and tags. Each family
+// costs roughly 150-250 KB of flash. The FONT_*pt8b names used throughout
+// the renderer resolve to the right family's face of that size.
 //
 // A face is only referenced (and so only linked) when this build can draw
 // it: FONT_TABLE_HAS_<size> mirrors the preprocessor conditions around the
 // uses of FONT_<size> in the sources.
 #pragma once
+
+#define FONT_SMALL_BELOW_PT 11
 
 #define FONT_TABLE_HAS_5pt8b 1
 #define FONT_TABLE_HAS_6pt8b 1
@@ -401,11 +404,11 @@ static const int FONT_FAMILY_COUNT =
 static_assert(sizeof(FONT_FAMILIES) > 0,
               "enable at least one FONT_INCLUDE_<Family> in config.h");
 
-#define FONT_5pt8b                (*FONT_FAMILIES[FONT_FAMILY_INDEX].size[0])
-#define FONT_6pt8b                (*FONT_FAMILIES[FONT_FAMILY_INDEX].size[1])
-#define FONT_7pt8b                (*FONT_FAMILIES[FONT_FAMILY_INDEX].size[2])
-#define FONT_8pt8b                (*FONT_FAMILIES[FONT_FAMILY_INDEX].size[3])
-#define FONT_9pt8b                (*FONT_FAMILIES[FONT_FAMILY_INDEX].size[4])
+#define FONT_5pt8b                (*FONT_FAMILIES[FONT_SMALL_FAMILY_INDEX].size[0])
+#define FONT_6pt8b                (*FONT_FAMILIES[FONT_SMALL_FAMILY_INDEX].size[1])
+#define FONT_7pt8b                (*FONT_FAMILIES[FONT_SMALL_FAMILY_INDEX].size[2])
+#define FONT_8pt8b                (*FONT_FAMILIES[FONT_SMALL_FAMILY_INDEX].size[3])
+#define FONT_9pt8b                (*FONT_FAMILIES[FONT_SMALL_FAMILY_INDEX].size[4])
 #define FONT_11pt8b               (*FONT_FAMILIES[FONT_FAMILY_INDEX].size[5])
 #define FONT_12pt8b               (*FONT_FAMILIES[FONT_FAMILY_INDEX].size[6])
 #define FONT_14pt8b               (*FONT_FAMILIES[FONT_FAMILY_INDEX].size[7])

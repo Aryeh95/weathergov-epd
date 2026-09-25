@@ -134,16 +134,20 @@
       <div><label>Theme (full-color panels only)</label><select id="s_dark"><option value="0">Light (white background)</option><option value="1">Dark (black background)</option></select></div>
       <div><label>Dew point on graph</label><select id="s_dew"><option value="0">Off</option><option value="1">On (blue curve under temperature)</option></select></div>
       <div><label>Font</label><select id="s_font"></select></div>
+      <div><label>Small text font (labels, axis)</label><select id="s_font_small"></select></div>
     </div>
     <div class="hint">No updates between bed and wake hours (set both equal to disable).</div>
     <div id="fontprev" class="fontprev">
       <div class="fp-big">72&deg;</div>
       <div class="fp-mid">Partly Cloudy</div>
-      <div class="fp-small">Feels like 75&deg; &nbsp; Hi 78&deg; Lo 61&deg; &nbsp; Wind 8 mph &nbsp; Updated 12:30 PM</div>
+      <div class="fp-small">Humidity &nbsp; Dew Point &nbsp; Air Quality (AirNow) &nbsp; 12am 3am 6am 9am &nbsp; 0.1in</div>
     </div>
     <div class="hint">Only fonts compiled into this firmware are listed
-      (see FONT_INCLUDE_ in config.h). The preview uses the web version of the
-      font and needs internet access; the display draws its own bitmap copy.</div>
+      (see FONT_INCLUDE_ in config.h). The small text font covers everything
+      under 11 pt: widget labels, the graph axis, source tags. A sans like
+      FreeSans stays crisper there than a serif. The preview uses the web
+      version of the fonts and needs internet access; the display draws its
+      own bitmap copies.</div>
   </fieldset>
 
   <fieldset><legend>API</legend>
@@ -252,13 +256,18 @@ let fontList = null; // families in this firmware, from /info
 function fontLabel(name) {
   return name.replace(/_(Regular|R)$/, '').replace(/([a-z])([A-Z])/g, '$1 $2');
 }
+function addOption(sel, value, text) {
+  const o = document.createElement('option');
+  o.value = value; o.textContent = text; sel.appendChild(o);
+}
 function setFontOptions(names) {
   fontList = names;
-  const sel = el('s_font');
-  sel.innerHTML = '';
+  el('s_font').innerHTML = '';
+  el('s_font_small').innerHTML = '';
+  addOption(el('s_font_small'), '', 'Same as font');
   for (const n of names) {
-    const o = document.createElement('option');
-    o.value = n; o.textContent = fontLabel(n); sel.appendChild(o);
+    addOption(el('s_font'), n, fontLabel(n));
+    addOption(el('s_font_small'), n, fontLabel(n));
   }
   // one stylesheet for the Google-hosted families; the browser only
   // downloads a face once the preview actually uses it
@@ -270,24 +279,28 @@ function setFontOptions(names) {
       + gf.map(f => 'family=' + f.replace(/ /g, '+')).join('&') + '&display=swap';
     document.head.appendChild(l);
   }
-  selectFont(cfg ? cfg.font : null);
+  selectFont(cfg ? cfg.font : null, cfg ? cfg.font_small : null);
 }
-function selectFont(name) {
-  const sel = el('s_font');
-  name = name || (sel.options[0] ? sel.options[0].value : 'FreeSans');
+function selectFontIn(id, name) {
+  const sel = el(id);
   if (![...sel.options].some(o => o.value === name)) {
     // configured family missing from this firmware (or /info not in yet):
     // keep the setting as-is rather than silently changing it
-    const o = document.createElement('option');
-    o.value = name;
-    o.textContent = fontLabel(name) + (fontList ? ' (not in this firmware)' : '');
-    sel.appendChild(o);
+    addOption(sel, name, fontLabel(name) + (fontList ? ' (not in this firmware)' : ''));
   }
   sel.value = name;
+}
+function selectFont(name, small) {
+  const first = el('s_font').options[0];
+  selectFontIn('s_font', name || (first ? first.value : 'FreeSans'));
+  selectFontIn('s_font_small', small || '');
   previewFont();
 }
 function previewFont() {
-  el('fontprev').style.fontFamily = FONT_CSS[el('s_font').value] || 'sans-serif';
+  const main = FONT_CSS[el('s_font').value] || 'sans-serif';
+  const small = el('s_font_small').value ? (FONT_CSS[el('s_font_small').value] || 'sans-serif') : main;
+  el('fontprev').style.fontFamily = main;
+  el('fontprev').querySelector('.fp-small').style.fontFamily = small;
 }
 
 // config.json may contain // and /* */ comments; strip them (outside strings)
@@ -426,7 +439,7 @@ function populate() {
   el('s_wrows').value = String(cfg.widget_rows ?? 5);
   el('s_dark').value = cfg.dark_mode ? '1' : '0';
   el('s_dew').value = cfg.graph_dewpoint ? '1' : '0';
-  selectFont(cfg.font);
+  selectFont(cfg.font, cfg.font_small);
   el('a_ua').value = cfg.api?.nws_user_agent ?? '';
   el('a_airnow').value = cfg.api?.airnow_api_key ?? '';
   el('a_pollen').value = cfg.api?.pollen_api_key ?? '';
@@ -471,6 +484,7 @@ function collect() {
   cfg.dark_mode = el('s_dark').value === '1';
   cfg.graph_dewpoint = el('s_dew').value === '1';
   cfg.font = el('s_font').value;
+  cfg.font_small = el('s_font_small').value;
   cfg.api.nws_user_agent = el('a_ua').value.trim();
   cfg.api.airnow_api_key = el('a_airnow').value.trim();
   cfg.api.pollen_api_key = el('a_pollen').value.trim();
@@ -721,6 +735,7 @@ function showConnInfo(i) {
 buildWidgetSelects();
 buildTimeSelects();
 el('s_font').addEventListener('change', previewFont);
+el('s_font_small').addEventListener('change', previewFont);
 fetch('/info').then(r => r.json()).then(showConnInfo).catch(() => {});
 fetch('/config').then(r => r.text()).then(t => {
   el('raw').value = t;
