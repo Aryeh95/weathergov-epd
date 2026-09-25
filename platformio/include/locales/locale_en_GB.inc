@@ -212,9 +212,9 @@ const std::vector<String> TERM_FOG =
 const std::vector<String> TERM_METEOR =
     {"meteor", "asteroid"};
 const std::vector<String> TERM_NUCLEAR =
-    {"nuclear", "ionizing radiation"};
+    {"nuclear", "ionizing radiation", "radiological"};
 const std::vector<String> TERM_BIOHAZARD =
-    {"biohazard", "biological hazard"};
+    {"biohazard", "biological hazard", "hazardous materials"};
 const std::vector<String> TERM_EARTHQUAKE =
     {"earthquake"};
 const std::vector<String> TERM_FIRE =
@@ -223,9 +223,9 @@ const std::vector<String> TERM_HEAT =
     {"heat"};
 const std::vector<String> TERM_WINTER =
     {"blizzard", "winter", "ice", "icy", "snow", "sleet", "cold",
-     "freezing rain", "wind chill", "freeze", "frost", "hail"};
+     "freezing", "wind chill", "freeze", "frost", "hail", "avalanche"};
 const std::vector<String> TERM_TSUNAMI =
-    {"tsunami", "surf"};
+    {"tsunami", "surf", "rip current", "beach", "seas"};
 const std::vector<String> TERM_LIGHTNING =
     {"thunderstorm", "storm cell", "pulse storm", "squall line", "supercell",
      "lightning"};
@@ -245,7 +245,7 @@ const std::vector<String> TERM_SMALL_CRAFT_ADVISORY =
 const std::vector<String> TERM_GALE_WARNING =
     {"gale"};
 const std::vector<String> TERM_STORM_WARNING =
-    {"storm warning"};
+    {"storm warning", "storm watch", "marine"};
 const std::vector<String> TERM_HURRICANE_WARNING =
     {"hurricane force wind", "extreme wind", "high wind"};
 const std::vector<String> TERM_HURRICANE =
