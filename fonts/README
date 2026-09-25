@@ -1,3 +1,11 @@
+NOTE: tools/fontconvert.py at the repository root is the maintained path. It
+needs only 'pip install freetype-py' and reproduces the shipped headers
+byte for byte:
+  python tools/fontconvert.py <Family> <font.ttf>
+  python tools/gen_font_table.py
+then switch the family on in platformio/include/config.h
+(FONT_INCLUDE_<Family>). The shell-script route below still works.
+
 Instructions for running ttf_to_adafruit_gfx.sh:
 
 Dependencies:

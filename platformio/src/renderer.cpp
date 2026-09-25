@@ -27,8 +27,9 @@
 #include "roundrect.h"
 #include "sun.h"
 
-// fonts
-#include FONT_HEADER
+// fonts: every compiled-in family, and the FONT_*pt8b names resolved at
+// runtime through FONT_FAMILY_INDEX
+#include "fonts/font_table.h"
 
 // icon header files
 #include "icons/icons_pollen.h" // line-art pollen flower, all panel types

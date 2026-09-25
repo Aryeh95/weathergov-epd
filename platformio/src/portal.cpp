@@ -32,6 +32,7 @@
 #include "portal.h"
 #include "renderer.h"
 #include "build_rev.h"
+#include "fonts/font_names.h"
 
 // icon header files
 #include "icons/icons_196x196.h"
@@ -192,6 +193,12 @@ static void handleGetInfo()
   // commit the firmware was built from (scripts/git_rev.py), plus the
   // compile time, so an update can be confirmed from a phone
   doc["build"] = String(GIT_REV) + " (" __DATE__ " " __TIME__ ")";
+  // font families compiled into this firmware, for the Font dropdown
+  JsonArray fonts = doc["fonts"].to<JsonArray>();
+  for (int i = 0; i < FONT_FAMILY_NAME_COUNT; ++i)
+  {
+    fonts.add(FONT_FAMILY_NAMES[i]);
+  }
   String out;
   serializeJson(doc, out);
   server.send(200, "application/json", out);
