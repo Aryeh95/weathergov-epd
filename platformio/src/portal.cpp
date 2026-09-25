@@ -31,6 +31,7 @@
 #include "config.h"
 #include "portal.h"
 #include "renderer.h"
+#include "build_rev.h"
 
 // icon header files
 #include "icons/icons_196x196.h"
@@ -188,7 +189,9 @@ static void handleGetInfo()
     doc["mdns"] = "weatherepd.local";
   }
   doc["timeout_minutes"] = PORTAL_TIMEOUT;
-  doc["build"] = __DATE__ " " __TIME__;
+  // commit the firmware was built from (scripts/git_rev.py), plus the
+  // compile time, so an update can be confirmed from a phone
+  doc["build"] = String(GIT_REV) + " (" __DATE__ " " __TIME__ ")";
   String out;
   serializeJson(doc, out);
   server.send(200, "application/json", out);

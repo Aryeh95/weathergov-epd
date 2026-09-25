@@ -11,5 +11,7 @@ __pycache__/
 # Local firmware & build artifacts
 *.bin
 platformio/.pio/
+# generated at build time by platformio/scripts/git_rev.py
+platformio/include/build_rev.h
 
 moon_preview_out/
