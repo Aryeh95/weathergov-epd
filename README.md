@@ -269,7 +269,7 @@ Notes on specific settings:
 After the first USB flash, firmware updates can be installed through the portal:
 
 1. Build the new firmware (`pio run`, for your board's environment) and locate `.pio/build/<board>/firmware.bin`.
-2. Open the portal, scroll to **Firmware update** (it shows the currently installed build's timestamp), choose the `.bin`, and tap **Upload & Install**.
+2. Open the portal, scroll to **Firmware update** (it shows the currently installed build's commit hash and compile time — compare it after the restart to confirm the update took), choose the `.bin`, and tap **Upload & Install**.
 3. The image installs to a spare flash slot and only takes effect once it completes and verifies — a failed or interrupted upload leaves the running firmware untouched. The device restarts on the new firmware.
 
 Make sure to upload the firmware built for **that device's** panel/board. Changes to the portal page itself or to `config.json` defaults still require a USB `uploadfs` (updating the filesystem over USB erases the on-device `config.json`, so re-enter settings via the portal afterward — or copy them into `data/config.json` first).

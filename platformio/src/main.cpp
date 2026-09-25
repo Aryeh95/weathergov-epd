@@ -31,6 +31,7 @@
 #include "icons/icons_196x196.h"
 #include "portal.h"
 #include "renderer.h"
+#include "build_rev.h"
 #include "history.h"
 #include "settings.h"
 #include "sun.h"
@@ -205,6 +206,7 @@ void setup()
 {
   unsigned long startTime = millis();
   Serial.begin(115200);
+  Serial.println("[build] " GIT_REV " (" __DATE__ " " __TIME__ ")");
 
 #if DEBUG_LEVEL >= 1
   printHeapUsage();
