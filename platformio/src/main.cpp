@@ -20,6 +20,7 @@
 #include <Adafruit_Sensor.h>
 #include <Preferences.h>
 #include <time.h>
+#include <esp_sntp.h>
 #include <WiFi.h>
 #include <Wire.h>
 
@@ -411,26 +412,33 @@ void setup()
   prefs.end();
 
   // TIME SYNCHRONIZATION
-  // The ESP32's RTC keeps time through deep sleep with only a few seconds
-  // of drift per day, so the 5-13s SNTP wait is only needed when the last
-  // successful sync (NVS "lastNtpSync") has gone stale. A power loss
-  // resets the RTC to the epoch, which fails the sanity checks below and
-  // forces a fresh sync.
+  // The ESP32's RTC keeps time through deep sleep, but its slow clock is an
+  // RC oscillator: it wanders by up to a minute over a few hours, and since
+  // each wake is scheduled by that same clock the device always believes it
+  // woke exactly on the minute while the real time slips. So the wake never
+  // blocks on SNTP while the last sync (NVS "lastNtpSync") is recent -- the
+  // RTC is good enough to start the API calls -- but SNTP is still kicked
+  // off in the background and, once it has answered (well within the ~10 s
+  // of network traffic), the corrected clock is what the status bar shows
+  // and the next wake is aligned to. A blocking sync happens only when the
+  // last one is stale, or after a power loss reset the RTC to the epoch.
   const long NTP_RESYNC_INTERVAL_SEC = 6 * 3600L;
   prefs.begin(NVS_NAMESPACE, false);
   time_t lastNtpSync = static_cast<time_t>(prefs.getLong64("lastNtpSync", 0));
   prefs.end();
   time_t rtcNow = time(nullptr);
+  const unsigned long wakeMillis = millis();
   bool timeConfigured = false;
+  bool ntpInBackground = false;
   if (lastNtpSync > 1600000000L && rtcNow >= lastNtpSync
       && rtcNow - lastNtpSync < NTP_RESYNC_INTERVAL_SEC)
   {
-    setenv("TZ", TIMEZONE, 1);
-    tzset();
     localtime_r(&rtcNow, &timeInfo);
     timeConfigured = true;
     Serial.println("[time] RTC synced " + String(rtcNow - lastNtpSync)
-                   + "s ago, skipping SNTP");
+                   + "s ago, SNTP in the background");
+    configTzTime(TIMEZONE, NTP_SERVER_1, NTP_SERVER_2); // sets TZ, no wait
+    ntpInBackground = true;
   }
   else
   {
@@ -786,6 +794,25 @@ void setup()
   }
 #endif // SENSOR_NONE
 
+  // Re-read the clock now that the network work is done: if the background
+  // SNTP answered, this is the corrected time (and the drift it removed is
+  // logged); otherwise it is the RTC, a few seconds on from the wake.
+  if (timeConfigured)
+  {
+    time_t now = time(nullptr);
+    if (ntpInBackground
+        && sntp_get_sync_status() == SNTP_SYNC_STATUS_COMPLETED)
+    {
+      const long expected = rtcNow + (millis() - wakeMillis) / 1000;
+      Serial.println("[time] SNTP corrected the RTC by "
+                     + String((long)(now - expected)) + " s ("
+                     + String((long)(rtcNow - lastNtpSync)) + " s since the last sync)");
+      prefs.begin(NVS_NAMESPACE, false);
+      prefs.putLong64("lastNtpSync", static_cast<int64_t>(now));
+      prefs.end();
+    }
+    localtime_r(&now, &timeInfo);
+  }
   String refreshTimeStr;
   getRefreshTimeStr(refreshTimeStr, timeConfigured, &timeInfo);
   String dateStr;
