@@ -102,7 +102,11 @@ bool DARK_MODE = false;
 // Font family: index into FONT_FAMILIES (fonts/font_table.h), the families
 // compiled in by config.h's FONT_INCLUDE_ switches. Runtime setting
 // (config.json "font", by name); unknown names fall back to the first.
+// FONT_SMALL_FAMILY_INDEX is the family for the small text (widget labels,
+// graph axis, tags -- everything under FONT_SMALL_BELOW_PT); config.json
+// "font_small", following "font" when empty or unknown.
 int FONT_FAMILY_INDEX = 0;
+int FONT_SMALL_FAMILY_INDEX = 0;
 
 // PER-DEPLOYMENT SETTINGS (WiFi, location, time, battery, widget layout)
 //
