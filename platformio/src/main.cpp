@@ -791,11 +791,16 @@ void setup()
   // pressure/indoor trends and the battery-runtime estimate shown on the
   // display (see history.h).
   prefs.begin(NVS_NAMESPACE, false);
+  // 0 = pressure not available (the "nws" source, or a failed fetch with
+  // nothing cached). NaN makes the history ring skip the sample; logging a
+  // 0 hPa would read as a 1000 hPa crash and pin the trend arrow for hours.
+  const float pressureSample = (current.pressure > 0)
+                             ? static_cast<float>(current.pressure) : NAN;
 #if BATTERY_MONITORING
-  historyUpdate(time(nullptr), current.pressure, inTemp, batteryVoltage,
+  historyUpdate(time(nullptr), pressureSample, inTemp, batteryVoltage,
                 prefs);
 #else
-  historyUpdate(time(nullptr), current.pressure, inTemp, 0, prefs);
+  historyUpdate(time(nullptr), pressureSample, inTemp, 0, prefs);
 #endif
   prefs.end();
   Serial.println("[history] pressure trend " + String(historyPressureTrend())

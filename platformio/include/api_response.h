@@ -75,12 +75,12 @@ typedef struct owm_current
   int64_t sunset;           // Sunset time, Unix, UTC. Computed locally (see sun.h), weather.gov does not report it.
   float   temp;             // Temperature. Units - default: kelvin, metric: Celsius, imperial: Fahrenheit.
   float   feels_like;       // Apparent temperature (heat index or wind chill, when applicable). Units – default: kelvin, metric: Celsius, imperial: Fahrenheit.
-  int     pressure;         // Atmospheric pressure on the sea level, hPa
+  int     pressure;         // Atmospheric pressure on the sea level, hPa. 0 = not available
   int     humidity;         // Humidity, %
   float   dew_point;        // Atmospheric temperature (varying according to pressure and humidity) below which water droplets begin to condense and dew can form. Units – default: kelvin, metric: Celsius, imperial: Fahrenheit.
   int     clouds;           // Cloudiness, % (approximated from NWS sky cover category)
   float   uvi;              // Current UV index (from Open-Meteo)
-  int     visibility;       // Average visibility, metres.
+  int     visibility;       // Average visibility, metres. -1 = not available
   float   wind_speed;       // Wind speed. Units – default: metre/sec, metric: metre/sec, imperial: miles/hour.
   float   wind_gust;        // (where available) Wind gust. Units – default: metre/sec, metric: metre/sec, imperial: miles/hour.
   int     wind_deg;         // Wind direction, degrees (meteorological)

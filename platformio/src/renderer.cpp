@@ -1054,6 +1054,16 @@ void drawCurrentPressure(const owm_current_t &current, int trend)
   display.setFont(&FONT_7pt8b);
   drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_PRESSURE, LEFT);
 
+  // 0 = not available (the "nws" current-conditions source, or a failed
+  // fetch with nothing cached): show a placeholder rather than a fabricated
+  // reading, and no trend arrow.
+  if (current.pressure <= 0)
+  {
+    display.setFont(&FONT_12pt8b);
+    drawString(48 + (162 * PosX), wgtValueY(PosY), "--", LEFT);
+    return;
+  }
+
   // pressure
 #ifdef UNITS_PRES_HECTOPASCALS
   dataStr = String(current.pressure);
@@ -1127,6 +1137,14 @@ void drawCurrentVisibility(const owm_current_t &current)
   // labels
   display.setFont(&FONT_7pt8b);
   drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_VISIBILITY, LEFT);
+
+  // -1 = not available, see drawCurrentPressure
+  if (current.visibility < 0)
+  {
+    display.setFont(&FONT_12pt8b);
+    drawString(48 + (162 * PosX), wgtValueY(PosY), "--", LEFT);
+    return;
+  }
 
   // visibility
   display.setFont(&FONT_12pt8b);
