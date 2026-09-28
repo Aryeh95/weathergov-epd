@@ -15,6 +15,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
+// The GDEB0709E01 (1600x1200) has a layout and a renderer of its own, in
+// renderer709.cpp; nothing in this file is built for it.
+#ifndef DISP_7C_709
+
 #include <algorithm>
 #include "_locale.h"
 #include "_strftime.h"
@@ -2521,4 +2526,6 @@ void drawError(const uint8_t *bitmap_196x196,
                              bitmap_196x196, 196, 196, DM_GFX(ACCENT_COLOR));
   return;
 } // end drawError
+
+#endif // !DISP_7C_709
 

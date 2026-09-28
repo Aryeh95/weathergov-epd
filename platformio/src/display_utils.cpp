@@ -1846,7 +1846,14 @@ void idleSDCard()
  */
 void disableBuiltinLED()
 {
-#ifdef BOARD_RETERMINAL_E1002
+#if defined(BOARD_XIAO_EE02)
+  // The XIAO's user LED is on GPIO21 and lights when the pin is LOW, so off
+  // means holding it HIGH.
+  pinMode(21, OUTPUT);
+  digitalWrite(21, HIGH);
+  gpio_hold_en(static_cast<gpio_num_t>(21));
+  gpio_deep_sleep_hold_en();
+#elif defined(BOARD_RETERMINAL_E1002)
   // The XIAO module's LED_BUILTIN define is GPIO21, which on this board is
   // the battery-measure enable pin -- holding it low breaks the battery
   // reading. The E1002's actual user LED is GPIO6, inverted (LOW = on), so

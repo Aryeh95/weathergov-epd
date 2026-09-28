@@ -28,6 +28,9 @@
 //   DISP_7C_F  - 7.3in ACeP e-Paper (F)       800x480px  7-Color
 //   DISP_7C_E6 - 7.3in spectra 6 e-Paper (E6) 800x480px  7-Color
 //   DISP_BW_V1 - 7.5in e-Paper (v1)           640x384px  Black/White
+//   DISP_7C_709 - 7.09in spectra 6 e-Paper    1600x1200px 6-Color
+//                 (Good Display GDEB0709E01, 282 ppi; has a layout of its
+//                 own, see renderer709.cpp)
 // Uncomment the macro that identifies your physical panel.
 // (Building with -e seeed_reterminal_e1002 selects the panel automatically;
 //  the reTerminal E1002's built-in 7.3in Spectra 6 panel is a GDEP073E01,
@@ -35,7 +38,11 @@
 // (The reTerminal E1001 build defines both board flags: the E1002 flag for
 //  the shared E-series mainboard quirks, plus E1001 to swap the panel for
 //  its 7.5in monochrome one -- a GDEY075T7-class panel, i.e. DISP_BW_V2.)
-#if defined(BOARD_RETERMINAL_E1001)
+// (Building with -e seeed_xiao_ee02_709 selects the GDEB0709E01 on Seeed's
+//  XIAO ePaper Display Board EE02.)
+#if defined(BOARD_XIAO_EE02)
+  #define DISP_7C_709
+#elif defined(BOARD_RETERMINAL_E1001)
   #define DISP_BW_V2
 #elif defined(BOARD_RETERMINAL_E1002)
   #define DISP_7C_E6
@@ -60,7 +67,11 @@
 // Uncomment the macro that identifies your sensor.
 // (The reTerminal E1002 has an SHT4x temperature/humidity sensor onboard,
 //  selected automatically when building with -e seeed_reterminal_e1002.)
-#ifdef BOARD_RETERMINAL_E1002
+// (The EE02 has no sensor and no free pins for one; its Indoor cell shows
+//  visibility instead. See the README for wiring a BME280 to it.)
+#if defined(BOARD_XIAO_EE02)
+  #define SENSOR_NONE
+#elif defined(BOARD_RETERMINAL_E1002)
   #define SENSOR_SHT4X
 #else
 #define SENSOR_BME280
@@ -73,7 +84,8 @@
 
 // 3 COLOR E-INK ACCENT COLOR
 // Defines the 3rd color to be used when a 3+ color display is selected.
-#if defined(DISP_3C_B) || defined(DISP_7C_F) || defined(DISP_7C_E6)
+#if defined(DISP_3C_B) || defined(DISP_7C_F) || defined(DISP_7C_E6) \
+ || defined(DISP_7C_709)
   // #define ACCENT_COLOR GxEPD_BLACK
   #define ACCENT_COLOR GxEPD_RED
   // #define ACCENT_COLOR GxEPD_GREEN
@@ -102,7 +114,7 @@
 // Note: yellow line art on white e-paper has the least contrast of the
 // palette; if COLOR_SUN is hard to read on your panel, GxEPD_ORANGE (dithered
 // red/yellow) or GxEPD_RED are the usual substitutes.
-#if defined(DISP_7C_F) || defined(DISP_7C_E6)
+#if defined(DISP_7C_F) || defined(DISP_7C_E6) || defined(DISP_7C_709)
   #define MULTICOLOR_DISPLAY
   #define COLOR_SUN     GxEPD_YELLOW
   #define COLOR_PRECIP  GxEPD_BLUE
@@ -376,6 +388,13 @@
 // NON-VOLATILE STORAGE (NVS) NAMESPACE
 #define NVS_NAMESPACE "weather_epd"
 
+// GDEB0709E01 ORIENTATION (DISP_7C_709 only)
+//   The panel counts its pixels in portrait, flex cable at the bottom; the
+//   layout is landscape. 1 = the flex cable is on the viewer's right, which
+//   is how the enclosure in enclosure/gdeb0709e01 holds it. 3 = on the left.
+//   If the picture comes up upside down, this is the number to change.
+#define EPD709_ROTATION 1
+
 // DEBUG
 //   If defined, enables increase verbosity over the serial port.
 //   level 0: basic status information, assists troubleshooting (default)
@@ -396,6 +415,9 @@ extern const uint8_t PIN_BTN_PORTAL;
 extern const uint8_t PIN_BTN_REFRESH;
 extern const uint8_t PIN_EPD_BUSY;
 extern const uint8_t PIN_EPD_CS;
+// Second chip select, for panels with two controllers (GDEB0709E01: the
+// right half of the glass). PIN_UNUSED everywhere else.
+extern const uint8_t PIN_EPD_CS2;
 extern const uint8_t PIN_EPD_RST;
 extern const uint8_t PIN_EPD_DC;
 extern const uint8_t PIN_EPD_SCK;
@@ -486,7 +508,8 @@ extern int POS_INHUMIDITY;
       ^ defined(DISP_7C_F)   \
       ^ defined(DISP_7C_E6)  \
       ^ defined(DISP_BW_V1)  \
-      ^ defined(DISP_BW_X3))
+      ^ defined(DISP_BW_X3)  \
+      ^ defined(DISP_7C_709))
   #error Invalid configuration. Exactly one display panel must be selected.
 #endif
 #if !(  defined(DRIVER_WAVESHARE) \
