@@ -60,7 +60,9 @@ Epd709 display(PIN_EPD_CS, PIN_EPD_CS2, PIN_EPD_DC, PIN_EPD_RST,
 time_t hostNow = 0; // the PC preview decides what time it is
 static time_t nowUtc() { return hostNow; }
 #else
-static time_t nowUtc() { return time(nullptr); }
+// the page's own moment: the clock, or the time of the weather when
+// the last page is drawn again during an outage (display_utils)
+static time_t nowUtc() { return pageTime(); }
 #endif
 
 static const uint16_t K = GxEPD_BLACK, W = GxEPD_WHITE, R = GxEPD_RED,
@@ -1383,8 +1385,20 @@ void drawCurrentConditions(const owm_current_t &current,
 } // end drawCurrentConditions
 
 void drawStatusBar(const String &statusStr, const String &refreshTimeStr,
-                   int rssi, uint32_t batVoltage, int batDaysLeft)
+                   int rssi, uint32_t batVoltage, int batDaysLeft,
+                   bool stale)
 {
+  if (stale)
+  { // the weather on the page is old: when it is from, in red, and why
+    const String when = String(TXT709_LAST_UPDATED " ") + refreshTimeStr;
+    String s = when + TXT709_DOT + statusStr;
+    if (statusStr.isEmpty() || textWidth(s, F_SANS_24) > LEFT1 - LEFT0)
+    {
+      s = when;
+    }
+    drawText(LEFT0, 1168, s, F_SANS_24, R, LA);
+    return;
+  }
   if (!statusStr.isEmpty())
   { // something went wrong this wake: say so, in the place of the rest
     String s = statusStr + TXT709_DOT + TXT709_UPDATED " " + refreshTimeStr;

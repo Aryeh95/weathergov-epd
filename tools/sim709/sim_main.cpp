@@ -281,7 +281,7 @@ static void gaps()
 }
 
 static void weather(const char *path, bool night, int alertCount, const char *status = "",
-                    bool withGaps = false)
+                    bool withGaps = false, bool stale = false)
 {
   sample(night);
   if (withGaps)
@@ -311,7 +311,7 @@ static void weather(const char *path, bool night, int alertCount, const char *st
     drawForecast(daily, timeInfo);
     drawLocationDate(CITY_STRING, date);
     drawAlerts(alerts, CITY_STRING, date);
-    drawStatusBar(status, refreshed, -58, 4050, historyBatteryDaysLeft());
+    drawStatusBar(status, refreshed, stale ? 0 : -58, 4050, historyBatteryDaysLeft(), stale);
   } while (display.nextPage());
   save(path);
 }
@@ -343,6 +343,7 @@ int main(int argc, char **argv)
   weather((out + "/sim_alert4.ppm").c_str(), false, 4);
   weather((out + "/sim_status.ppm").c_str(), false, 0, "weather.gov Alerts API");
   weather((out + "/sim_gaps.ppm").c_str(), false, 0, "Open-Meteo Air Quality API", true);
+  weather((out + "/sim_stale.ppm").c_str(), false, 0, "Network Not Available", false, true);
 
   initDisplay();
   drawTestCard709();
