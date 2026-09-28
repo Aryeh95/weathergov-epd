@@ -244,6 +244,15 @@ int SLEEP_DURATION = 15; // minutes
 // this interval indefinitely, so it recovers on its own once it comes into
 // range of its network -- no reset button needed.
 int WIFI_RETRY_INTERVAL = 15; // minutes
+
+// OUTAGE GRACE
+// When the weather cannot be fetched -- no WiFi, no answer from
+// weather.gov -- the last good screen is left up for this many minutes
+// before an error screen replaces it. Most outages are over by then, and
+// a forecast an hour old (it says when it was updated) is worth more
+// than a message that the router restarted. 0 shows errors at once.
+// A wake by button or reset always shows the error.
+int OUTAGE_GRACE = 180; // minutes
 // Bed Time Power Savings.
 // If BED_TIME == WAKE_TIME, then this battery saving feature will be disabled.
 // (range: [0-23])

@@ -137,6 +137,8 @@ String settingsProblem(JsonVariantConst doc)
                   sleep["sleep_duration_minutes"], 2, 1440),
     numberProblem("sleep.wifi_retry_interval_minutes",
                   sleep["wifi_retry_interval_minutes"], 1, 1440),
+    numberProblem("sleep.outage_grace_minutes",
+                  sleep["outage_grace_minutes"], 0, 1440),
     numberProblem("sleep.bed_time_hour", sleep["bed_time_hour"], 0, 23),
     numberProblem("sleep.wake_time_hour", sleep["wake_time_hour"], 0, 23),
     numberProblem("sleep.hourly_graph_max", sleep["hourly_graph_max"], 8,
@@ -258,6 +260,8 @@ bool loadSettings()
   BED_TIME            = constrain(BED_TIME, 0, 23);
   WAKE_TIME           = constrain(WAKE_TIME, 0, 23);
   HOURLY_GRAPH_MAX    = constrain(HOURLY_GRAPH_MAX, 8, OWM_NUM_HOURLY);
+  OUTAGE_GRACE = sleep["outage_grace_minutes"] | OUTAGE_GRACE;
+  OUTAGE_GRACE = constrain(OUTAGE_GRACE, 0, 1440);
 
   GRAPH_DEWPOINT = doc["graph_dewpoint"] | GRAPH_DEWPOINT;
 
