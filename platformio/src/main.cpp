@@ -36,6 +36,7 @@
 #include "build_rev.h"
 #include "history.h"
 #include "settings.h"
+#include "snapshot.h"
 #include "sun.h"
 
 #if defined(SENSOR_BME280)
@@ -116,8 +117,12 @@ static void enableButtonWake() {}
  */
 static bool holdLastScreen()
 {
+#if defined(SIMULATE_OUTAGE)
+  const bool byTimer = true;
+#else
   const bool byTimer =
     (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER);
+#endif
   Preferences store;
   store.begin(NVS_NAMESPACE, false);
   const bool good = store.getBool("goodScreen", false);
@@ -137,6 +142,94 @@ static bool holdLastScreen()
   return hold;
 } // end holdLastScreen
 
+/* The weather page. `stale` marks the time in the status bar as old. */
+static void drawWeatherPage(const tm &timeInfo, const String &dateStr,
+                            const String &refreshTimeStr,
+                            const String &statusStr, int rssi,
+                            uint32_t batteryVoltage,
+                            const pollen_info_t &pollen, float inTemp,
+                            float inHumidity, bool stale)
+{
+  initDisplay();
+  do
+  {
+    fillDisplayBackground();
+    drawCurrentConditions(current, daily[0], air_quality, pollen,
+                          inTemp, inHumidity);
+    drawOutlookGraph(hourly, daily, timeInfo);
+    drawForecast(daily, timeInfo);
+    drawLocationDate(CITY_STRING, dateStr);
+#if DISPLAY_ALERTS
+    drawAlerts(alerts, CITY_STRING, dateStr);
+#endif
+    drawStatusBar(statusStr, refreshTimeStr, rssi, batteryVoltage,
+                  historyBatteryDaysLeft(), stale);
+  } while (display.nextPage());
+  powerOffDisplay();
+} // end drawWeatherPage
+
+/* The first failed wake of an outage: the last weather is drawn once more
+ * with its time marked as old -- in red, or with a warning sign where there
+ * is no red -- so that the screen itself says the forecast is not current.
+ * The later wakes of the same outage leave the screen alone. `reason` goes
+ * in the status bar. True if the page was drawn.
+ */
+static bool markStale(const String &reason, int rssi, uint32_t batteryVoltage)
+{
+  Preferences store;
+  store.begin(NVS_NAMESPACE, false);
+  const bool marked = store.getBool("staleShown", false);
+  if (!marked)
+  { // before drawing: a wake cut short must not try again every time
+    store.putBool("staleShown", true);
+  }
+  store.end();
+  if (marked)
+  {
+    return false;
+  }
+
+  snapshot_meta_t meta;
+  if (!snapshotLoad(current, hourly, daily, alerts, air_quality, meta))
+  {
+    Serial.println("[outage] no saved weather to draw again");
+    return false;
+  }
+  // the page as it was: its own time, its own graph length
+  setenv("TZ", TIMEZONE, 1);
+  tzset();
+  const time_t when = static_cast<time_t>(meta.when);
+  tm timeInfo = {};
+  localtime_r(&when, &timeInfo);
+  setSunTimes(current.sunrise, current.sunset);
+  setPageTime(when);
+  HOURLY_GRAPH_MAX = std::min(HOURLY_GRAPH_MAX,
+                              std::max(8, static_cast<int>(meta.graphHours)));
+  // The trends and the battery estimate come from the history. Nothing
+  // new is known about the weather, so only the battery gets a sample --
+  // and nothing at all if the clock is not set, as a record dated 1970
+  // would throw the others out.
+  if (time(nullptr) > 1600000000L)
+  {
+    prefs.begin(NVS_NAMESPACE, false);
+#if BATTERY_MONITORING
+    historyUpdate(time(nullptr), NAN, NAN, batteryVoltage, prefs);
+#else
+    historyUpdate(time(nullptr), NAN, NAN, 0, prefs);
+#endif
+    prefs.end();
+  }
+
+  Serial.println("[outage] drawing the weather of " + meta.refreshTime
+                 + " again, marked as old");
+  const unsigned long drawStart = millis();
+  drawWeatherPage(timeInfo, meta.date, meta.refreshTime, reason, rssi,
+                  batteryVoltage, meta.pollen, meta.inTemp, meta.inHumidity,
+                  true);
+  wakeDiag.drawMs = millis() - drawStart;
+  return true;
+} // end markStale
+
 /* On the way to sleep: if this wake did not get the weather, the outage is
  * older by the wake and by the sleep that follows it. Counted this way
  * rather than read off the clock because one of the failures is not having
@@ -144,7 +237,8 @@ static bool holdLastScreen()
  */
 static void countOutage(unsigned long startTime, uint64_t sleepSeconds)
 {
-  if (wakeDiag.outcome != DIAG_HELD && wakeDiag.outcome != DIAG_WIFI
+  if (wakeDiag.outcome != DIAG_HELD && wakeDiag.outcome != DIAG_STALE
+   && wakeDiag.outcome != DIAG_WIFI
    && wakeDiag.outcome != DIAG_CLOCK && wakeDiag.outcome != DIAG_WEATHER)
   {
     return;
@@ -299,7 +393,12 @@ void setup()
   {
     const String place = LAT + "," + LON + "|" + CURRENT_SOURCE + "|"
                        + TIMEZONE;
-    if (prefs.getString("cfgKey", "") != place)
+    if (!prefs.isKey("cfgKey"))
+    { // the first wake of a firmware that keeps this record: what is
+      // cached was fetched under the settings in force, so it stays
+      prefs.putString("cfgKey", place);
+    }
+    else if (prefs.getString("cfgKey", "") != place)
     {
       static const char *const CACHES[] = {
         "qpfStamp", "qpfBlob", "qpfTime", "pollenStamp", "pollenTree",
@@ -313,6 +412,7 @@ void setup()
           prefs.remove(key);
         }
       }
+      snapshotForget();
       prefs.putString("cfgKey", place);
       Serial.println("[cache] location, source or time zone changed; "
                      "cached weather dropped");
@@ -452,6 +552,11 @@ void setup()
 #endif
   unsigned long phaseStart = millis();
   wl_status_t wifiStatus = startWiFi(wifiRSSI);
+#if defined(SIMULATE_OUTAGE)
+  Serial.println("[test] SIMULATE_OUTAGE: behaving as if WiFi had failed");
+  wifiStatus = WL_NO_SSID_AVAIL;
+  wifiRSSI = 0;
+#endif
   wakeDiag.wifiMs = millis() - phaseStart;
   wakeDiag.rssi = static_cast<int8_t>(constrain(wifiRSSI, -127, 0));
   if (wifiStatus != WL_CONNECTED)
@@ -486,8 +591,9 @@ void setup()
     // low-battery screen).
     if (holdLastScreen())
     {
-      diagOutcome(DIAG_HELD, 0,
-                  String(errTitle) + ": " + errLine2);
+      diagOutcome(markStale(errTitle, 0, batteryVoltage) ? DIAG_STALE
+                                                         : DIAG_HELD,
+                  0, String(errTitle) + ": " + errLine2);
       beginFixedSleep(startTime, WIFI_RETRY_INTERVAL);
     }
     diagOutcome(DIAG_WIFI, 0,
@@ -586,7 +692,9 @@ void setup()
     killWiFi();
     if (holdLastScreen())
     {
-      diagOutcome(DIAG_HELD, 0, TXT_TIME_SYNCHRONIZATION_FAILED);
+      diagOutcome(markStale(TXT_TIME_SYNCHRONIZATION_FAILED, wifiRSSI,
+                            batteryVoltage) ? DIAG_STALE : DIAG_HELD,
+                  0, TXT_TIME_SYNCHRONIZATION_FAILED);
       beginFixedSleep(startTime, WIFI_RETRY_INTERVAL);
     }
     diagOutcome(DIAG_CLOCK, 0, TXT_TIME_SYNCHRONIZATION_FAILED);
@@ -665,7 +773,10 @@ void setup()
     wakeDiag.fetchMs = millis() - phaseStart;
     if (holdLastScreen())
     {
-      diagOutcome(DIAG_HELD, rxStatus, statusStr + ": " + tmpStr);
+      // (the saved weather replaces what little was fetched)
+      const String what = statusStr + ": " + tmpStr;
+      diagOutcome(markStale(statusStr, wifiRSSI, batteryVoltage)
+                    ? DIAG_STALE : DIAG_HELD, rxStatus, what);
       beginDeepSleep(startTime, &timeInfo);
     }
     diagOutcome(DIAG_WEATHER, rxStatus, statusStr + ": " + tmpStr);
@@ -986,30 +1097,35 @@ void setup()
                  + ", battery days left " + String(historyBatteryDaysLeft()));
 
   phaseStart = millis();
-  initDisplay();
-  do
-  {
-    fillDisplayBackground();
-    drawCurrentConditions(current, daily[0], air_quality, pollen,
-                          inTemp, inHumidity);
-    drawOutlookGraph(hourly, daily, timeInfo);
-    drawForecast(daily, timeInfo);
-    drawLocationDate(CITY_STRING, dateStr);
-#if DISPLAY_ALERTS
-    drawAlerts(alerts, CITY_STRING, dateStr);
-#endif
-    drawStatusBar(statusStr, refreshTimeStr, wifiRSSI, batteryVoltage,
-                  historyBatteryDaysLeft());
-  } while (display.nextPage());
-  powerOffDisplay();
+  drawWeatherPage(timeInfo, dateStr, refreshTimeStr, statusStr, wifiRSSI,
+                  batteryVoltage, pollen, inTemp, inHumidity, false);
   wakeDiag.drawMs = millis() - phaseStart;
+
+  // Kept for the day the network is not there: see markStale().
+  {
+    snapshot_meta_t meta;
+    meta.when = static_cast<int64_t>(mktime(&timeInfo));
+    meta.graphHours = HOURLY_GRAPH_MAX;
+    meta.inTemp = inTemp;
+    meta.inHumidity = inHumidity;
+    meta.pollen = pollen;
+    meta.refreshTime = refreshTimeStr;
+    meta.date = dateStr;
+    const unsigned long saveStart = millis();
+    const bool saved = snapshotSave(current, hourly, daily, alerts,
+                                    air_quality, meta);
+    Serial.println(String("[snapshot] ") + (saved ? "saved" : "NOT saved")
+                   + " in " + String(millis() - saveStart) + " ms");
+  }
 
   // The screen now shows the weather: an outage, if there was one, is over.
   prefs.begin(NVS_NAMESPACE, false);
-  if (!prefs.getBool("goodScreen", false) || prefs.getInt("outageMin", 0) != 0)
+  if (!prefs.getBool("goodScreen", false) || prefs.getInt("outageMin", 0) != 0
+      || prefs.getBool("staleShown", false))
   {
     prefs.putBool("goodScreen", true);
     prefs.putInt("outageMin", 0);
+    prefs.putBool("staleShown", false);
   }
   prefs.end();
   // anything that was missing (a reading that could not be fetched) rides

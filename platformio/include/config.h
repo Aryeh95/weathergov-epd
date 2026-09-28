@@ -410,6 +410,13 @@
 #define FIRMWARE_TARGET_PREFIX_LEN 13
 #define FIRMWARE_TARGET "WGEPD-TARGET:" BUILD_ENV "/" PANEL_NAME ";"
 
+// TESTING THE OUTAGE BEHAVIOUR
+//   If defined, every wake behaves as a timer wake on which WiFi could not
+//   be found, without going near the network: the quickest way to see what
+//   the display does during an outage. Flash a normal build first and let
+//   it draw the weather once. Never leave it defined.
+// #define SIMULATE_OUTAGE
+
 // DEBUG
 //   If defined, enables increase verbosity over the serial port.
 //   level 0: basic status information, assists troubleshooting (default)

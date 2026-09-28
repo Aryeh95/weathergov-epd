@@ -40,6 +40,8 @@
 #define DIAG_WEATHER     4 // weather.gov did not answer; error screen
 #define DIAG_BATTERY     5 // battery low; slept without going online
 #define DIAG_OTHER       6 // the wake ended some other way
+#define DIAG_STALE       7 // fetch failed; the last weather was drawn
+                           // again, marked as old
 
 typedef struct wake_diag
 {

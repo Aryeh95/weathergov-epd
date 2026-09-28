@@ -460,6 +460,18 @@ const uint8_t *getWiFiBitmap16(int rssi)
 static int64_t sunriseTime = 0;
 static int64_t sunsetTime = 0;
 
+static time_t pageWhen = 0;
+
+void setPageTime(time_t when)
+{
+  pageWhen = when;
+}
+
+time_t pageTime()
+{
+  return (pageWhen != 0) ? pageWhen : time(nullptr);
+}
+
 void setSunTimes(int64_t sunrise, int64_t sunset)
 {
   sunriseTime = sunrise;
@@ -714,7 +726,7 @@ const uint8_t *getCurrentConditionsBitmap196(const owm_current_t &current,
                                              const owm_daily_t   &today)
 {
   const int id = current.weather.id;
-  const bool day = isDaytimeAt(time(nullptr), isDay(current.weather.icon));
+  const bool day = isDaytimeAt(pageTime(), isDay(current.weather.icon));
   const bool moon = false;
   const bool cloudy = isCloudy(current.clouds);
   const bool windy = isWindy(current.wind_speed, current.wind_gust);
@@ -778,7 +790,7 @@ uint16_t getDailyForecastColor64(const owm_daily_t &daily)
 uint16_t getCurrentConditionsColor196(const owm_current_t &current)
 {
   return getConditionsColor(current.weather.id,
-                            isDaytimeAt(time(nullptr),
+                            isDaytimeAt(pageTime(),
                                         isDay(current.weather.icon)),
                             false, isCloudy(current.clouds),
                             isWindy(current.wind_speed, current.wind_gust));
@@ -848,7 +860,7 @@ static const uint8_t *getColorConditionsIcon(int id, bool day, int size)
 const uint8_t *getColorIcon168(const owm_current_t &current)
 {
   return getColorConditionsIcon(current.weather.id,
-                                isDaytimeAt(time(nullptr),
+                                isDaytimeAt(pageTime(),
                                             isDay(current.weather.icon)),
                                 168);
 }
