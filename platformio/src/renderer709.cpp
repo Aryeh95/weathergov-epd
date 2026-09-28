@@ -2175,7 +2175,7 @@ void drawTestCard709()
     {{R, 0.50f, Y, 1}, "amber"},        {{R, 0.60f, B, 1}, "plum"},
     {{R, 0.50f, K, 1}, "maroon"},       {{K, 0.50f, B, 1}, "navy"},
     {{K, 0.50f, B, 0.82f}, "pale navy"}, {{Y, 0.55f, W, 1}, "55% yellow"},
-    {{B, 0.40f, W, 1}, "40% blue"},     {{R, 0.30f, W, 1}, "30% red"}};
+    {{B, 0.40f, W, 1}, "40% blue"},     {{R, 0.19f, Y, 1}, "sun gold"}};
   for (int i = 0; i < 8; ++i)
   {
     const int x = 60 + i * 187;
