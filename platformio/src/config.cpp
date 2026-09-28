@@ -26,7 +26,38 @@
 //       board's pinout to ensure you avoid using a pin with this shared 
 //       functionality.
 //
-#ifdef BOARD_RETERMINAL_E1002
+#if defined(BOARD_XIAO_EE02)
+// Seeed XIAO ePaper Display Board EE02 (XIAO ESP32-S3 Plus soldered on) --
+// fixed wiring, do not change. Read from Seeed's schematic and confirmed
+// against the pin table of their Seeed_GFX2 driver.
+// Battery: GPIO1 through a divider that ADC_EN (GPIO6) connects.
+// The divider is taken to be 1:2 like the E1002's -- CHECK against a meter
+// on the first board; readBatteryVoltage() doubles the reading.
+const uint8_t PIN_BAT_ADC  = 1;
+const uint8_t PIN_BAT_EN   = 6;
+// 60-pin panel connector, two controllers behind two chip selects
+const uint8_t PIN_EPD_BUSY = 4;
+const uint8_t PIN_EPD_CS   = 44; // master, left half (the UART0 RX pin)
+const uint8_t PIN_EPD_CS2  = 41; // slave, right half
+const uint8_t PIN_EPD_RST  = 38;
+const uint8_t PIN_EPD_DC   = 10;
+const uint8_t PIN_EPD_SCK  = 7;
+const uint8_t PIN_EPD_MISO = 8;  // wired to the panel's SI1, never read
+const uint8_t PIN_EPD_MOSI = 9;
+const uint8_t PIN_EPD_PWR  = 43; // panel supply load switch (the UART0 TX pin)
+const uint8_t PIN_SD_EN    = PIN_UNUSED; // no microSD slot
+const uint8_t PIN_SD_CS    = PIN_UNUSED;
+// Three buttons, active low. KEY1 wakes into the configuration portal,
+// KEY2 into an immediate refresh; KEY3 (GPIO5) is unassigned.
+const uint8_t PIN_BTN_PORTAL  = 2;
+const uint8_t PIN_BTN_REFRESH = 3;
+// No sensor on the board (SENSOR_NONE). Every XIAO pin is taken; GPIO39 and
+// GPIO42 can be freed for I2C by lifting R54 and R60.
+const uint8_t PIN_BME_SDA = 39;
+const uint8_t PIN_BME_SCL = 42;
+const uint8_t PIN_BME_PWR = PIN_UNUSED;
+const uint8_t BME_ADDRESS = 0x76;
+#elif defined(BOARD_RETERMINAL_E1002)
 // Seeed reTerminal E1002 -- fixed internal wiring, do not change.
 // (Sources: Seeed wiki "Arduino Cookbook" pages for the reTerminal E Series.)
 // ADC pin used to measure battery voltage (GPIO1 = ADC1_CH0, 1:2 divider).
@@ -36,6 +67,7 @@ const uint8_t PIN_BAT_EN   = 21;
 // Built-in 7.3in Spectra 6 panel (GDEP073E01)
 const uint8_t PIN_EPD_BUSY = 13;
 const uint8_t PIN_EPD_CS   = 10;
+const uint8_t PIN_EPD_CS2  = PIN_UNUSED;
 const uint8_t PIN_EPD_RST  = 12;
 const uint8_t PIN_EPD_DC   = 11;
 const uint8_t PIN_EPD_SCK  = 7;  // SPI bus shared with the microSD slot
@@ -66,6 +98,7 @@ const uint8_t PIN_BTN_REFRESH = PIN_UNUSED;
 // Pins for E-Paper Driver Board
 const uint8_t PIN_EPD_BUSY = 14; // 5 for micro-usb firebeetle
 const uint8_t PIN_EPD_CS   = 13;
+const uint8_t PIN_EPD_CS2  = PIN_UNUSED;
 const uint8_t PIN_EPD_RST  = 21;
 const uint8_t PIN_EPD_DC   = 22;
 const uint8_t PIN_EPD_SCK  = 18;

@@ -118,9 +118,10 @@ bool loadSettings()
   WIDGET_ROWS = doc["widget_rows"] | WIDGET_ROWS;
   WIDGET_ROWS = constrain(WIDGET_ROWS, 5, 6);
 
-#ifdef MULTICOLOR_DISPLAY
+#if defined(MULTICOLOR_DISPLAY) && !defined(DISP_7C_709)
   DARK_MODE = doc["dark_mode"] | DARK_MODE;
 #else
+  // (The GDEB0709E01's layout has no dark version yet.)
   // Dark mode is a color-panel feature: pure white-on-black didn't earn
   // its keep on the single-color panels, so the setting is ignored there.
   DARK_MODE = false;

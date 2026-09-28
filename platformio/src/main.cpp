@@ -207,10 +207,29 @@ void setup()
 {
   unsigned long startTime = millis();
   Serial.begin(115200);
+#if defined(BOARD_XIAO_EE02)
+  // Serial is the USB port here (UART0's pins drive the panel). Without a
+  // computer listening, every print would wait out its timeout; on battery
+  // that is most of the time, so do not wait at all.
+  Serial.setTxTimeoutMs(0);
+#endif
   Serial.println("[build] " GIT_REV " (" __DATE__ " " __TIME__ ")");
 
 #if DEBUG_LEVEL >= 1
   printHeapUsage();
+#endif
+
+#if defined(DISP_7C_709) && defined(EPD709_TEST_CARD)
+  // Bring-up build: no WiFi, no settings, just the test card, then sleep
+  // until the reset button is pressed.
+  initDisplay();
+  do
+  {
+    drawTestCard709();
+  } while (display.nextPage());
+  powerOffDisplay();
+  Serial.println("[epd709] test card drawn, sleeping");
+  esp_deep_sleep_start();
 #endif
 
   disableBuiltinLED();
@@ -293,7 +312,7 @@ void setup()
   // automatically when the device has no WiFi configured (fresh flash).
   // Arming happens after the low-battery check above so a battery-protection
   // wake can neither trigger nor be interrupted into the portal.
-#ifdef BOARD_RETERMINAL_E1002
+#if defined(BOARD_RETERMINAL_E1002) || defined(BOARD_XIAO_EE02)
   // This board has a dedicated portal button, so the double-reset detector
   // is unnecessary -- and skipping it means an interrupted wake (a firmware
   // flash, most commonly) no longer drops the next boot into the portal.
@@ -839,6 +858,9 @@ void setup()
                  + ", indoor trend " + String(historyIndoorTrend())
                  + ", battery days left " + String(historyBatteryDaysLeft()));
 
+#ifdef DISP_7C_709
+  layout709Begin(alerts, hourly);
+#endif
   initDisplay();
   do
   {
