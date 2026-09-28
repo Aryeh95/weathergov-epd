@@ -119,8 +119,10 @@ void drawAlerts(std::vector<owm_alerts_t> &alerts,
 void drawLocationDate(const String &city, const String &date);
 void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
                       tm timeInfo);
+// stale: the weather on the page is old (see markStale() in main.cpp)
 void drawStatusBar(const String &statusStr, const String &refreshTimeStr,
-                   int rssi, uint32_t batVoltage, int batDaysLeft = -1);
+                   int rssi, uint32_t batVoltage, int batDaysLeft = -1,
+                   bool stale = false);
 void drawError(const uint8_t *bitmap_196x196,
                const String &errMsgLn1, const String &errMsgLn2="");
 void drawConfigPortalScreen(const String &line1, const String &line2,
