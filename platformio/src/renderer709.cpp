@@ -2033,10 +2033,31 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
         anchor = RD;
       }
     }
+    const String share =
+      String(static_cast<int>(lroundf(peak / 10.0f)) * 10) + "%";
+    if (anchor == MD)
+    { // rain in the first or the last hours: stay inside the plot, clear of
+      // the numbers of the temperature axis
+      const int half = textWidth(share, F_SANS_28) / 2;
+      if (pxl - half < PLOT0 + 8)
+      {
+        pxl = PLOT0 + 8;
+        anchor = LD;
+      }
+      else if (pxl + half > PLOT1 - 8)
+      {
+        pxl = PLOT1 - 8;
+        anchor = RD;
+      }
+    }
     const int py = static_cast<int>(y1 - (y1 - y0) * peak / 100.0f) - 8;
-    drawText(pxl, std::max(py, y0 + 30),
-             String(static_cast<int>(lroundf(peak / 10.0f)) * 10) + "%",
-             F_SANS_28, B, anchor);
+    // on bare paper, like the highs and lows: with little rain the label
+    // sits low, where the curves run
+    const int wide = textWidth(share, F_SANS_28);
+    const int cx = (anchor == LD) ? pxl + wide / 2
+                 : (anchor == RD) ? pxl - wide / 2 : pxl;
+    const int tall = F_SANS_28.ascent + F_SANS_28.descent;
+    labelOnPaper(cx, std::max(py, y0 + 30) - tall / 2, share, F_SANS_28, B);
   }
 } // end drawOutlookGraph
 
