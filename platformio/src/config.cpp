@@ -51,11 +51,19 @@ const uint8_t PIN_SD_CS    = PIN_UNUSED;
 // KEY2 into an immediate refresh; KEY3 (GPIO5) is unassigned.
 const uint8_t PIN_BTN_PORTAL  = 2;
 const uint8_t PIN_BTN_REFRESH = 3;
-// No sensor on the board (SENSOR_NONE). Every XIAO pin is taken; GPIO39 and
-// GPIO42 can be freed for I2C by lifting R54 and R60.
-const uint8_t PIN_BME_SDA = 39;
-const uint8_t PIN_BME_SCL = 42;
-const uint8_t PIN_BME_PWR = PIN_UNUSED;
+// No sensor on the board, and every XIAO pin is taken. An SHT4x goes on
+// the pads of U6, a font chip that is not fitted: they carry the second
+// SPI bus of the on-board flash chip, which this firmware never uses and
+// which ignores the bus while its chip select (GPIO40, pulled up on the
+// board) is high.
+//   U6 pad 8  3V3   (switched together with the panel supply)
+//   U6 pad 6  SCL   GPIO11
+//   U6 pad 5  SDA   GPIO13
+//   U6 pad 4  GND
+// NOT TESTED ON HARDWARE YET.
+const uint8_t PIN_BME_SDA = 13;
+const uint8_t PIN_BME_SCL = 11;
+const uint8_t PIN_BME_PWR = PIN_EPD_PWR; // one load switch for both
 const uint8_t BME_ADDRESS = 0x76;
 #elif defined(BOARD_RETERMINAL_E1002)
 // Seeed reTerminal E1002 -- fixed internal wiring, do not change.
@@ -277,6 +285,15 @@ int SLEEP_DURATION = 15; // minutes
 // this interval indefinitely, so it recovers on its own once it comes into
 // range of its network -- no reset button needed.
 int WIFI_RETRY_INTERVAL = 15; // minutes
+
+// OUTAGE GRACE
+// When the weather cannot be fetched -- no WiFi, no answer from
+// weather.gov -- the last good screen is left up for this many minutes
+// before an error screen replaces it. Most outages are over by then, and
+// a forecast an hour old (it says when it was updated) is worth more
+// than a message that the router restarted. 0 shows errors at once.
+// A wake by button or reset always shows the error.
+int OUTAGE_GRACE = 180; // minutes
 // Bed Time Power Savings.
 // If BED_TIME == WAKE_TIME, then this battery saving feature will be disabled.
 // (range: [0-23])

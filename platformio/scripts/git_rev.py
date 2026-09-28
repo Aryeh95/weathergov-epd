@@ -7,9 +7,14 @@
 # with a trailing "+" when tracked files had uncommitted changes, or
 # "unknown" when git is unavailable (e.g. a zip download). The file is only
 # rewritten when its content changes, so ordinary rebuilds stay incremental.
+#
+# Also defines BUILD_ENV, the name of the build target, which the portal
+# uses to refuse an update that was built for a different board.
 Import("env")
 import os
 import subprocess
+
+env.Append(CPPDEFINES=[("BUILD_ENV", env.StringifyMacro(env["PIOENV"]))])
 
 project = env.subst("$PROJECT_DIR")   # git searches upward from here
 

@@ -18,6 +18,9 @@
 #ifndef __SETTINGS_H__
 #define __SETTINGS_H__
 
+#include <Arduino.h>
+#include <ArduinoJson.h>
+
 /* Mounts the device's LittleFS filesystem and loads /config.json, which
  * overwrites the compiled-in fallback values declared in config.h/defined in
  * config.cpp (WiFi credentials, location, time, battery thresholds, and
@@ -31,5 +34,19 @@
  * compiled-in defaults from config.cpp remain in effect).
  */
 bool loadSettings();
+
+/* Checks a configuration before it replaces the one on the device. Returns
+ * an empty string when it can be used, otherwise a sentence saying what is
+ * wrong with it. The portal's form has limits of its own, but its raw
+ * editor and anything that posts to /config directly do not pass through
+ * them -- and a refresh interval of 0 divides by zero at the first sleep.
+ *
+ * loadSettings() does not reject: a device has to boot with whatever file
+ * it holds. It brings every number into range instead.
+ */
+String settingsProblem(JsonVariantConst doc);
+
+// limits shared by the check above and the loader
+#define SETTINGS_MAX_BYTES 16384
 
 #endif

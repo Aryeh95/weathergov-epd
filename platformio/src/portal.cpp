@@ -28,9 +28,12 @@
 #include <WiFi.h>
 
 #include "client_utils.h"
+#include "diag.h"
 #include "config.h"
+#include "ota_target.h"
 #include "portal.h"
 #include "renderer.h"
+#include "settings.h"
 #include "build_rev.h"
 #include "fonts/font_names.h"
 
@@ -48,6 +51,17 @@ static unsigned long lastActivity = 0;
 static unsigned long restartAt = 0; // 0 = no restart scheduled
 
 static const char *AP_SSID = "WeatherEPD-Setup";
+
+// What this firmware was built for, as one line of text inside the image
+// (config.h). An uploaded image carries its own; the two have to agree.
+static const char OWN_TARGET[] = FIRMWARE_TARGET;
+
+static String ownTarget()
+{
+  String t = OWN_TARGET + FIRMWARE_TARGET_PREFIX_LEN;
+  t.remove(t.length() - 1); // the ';'
+  return t;
+}
 
 // Scan results cached right before the hotspot starts: scanning while the
 // soft-AP is up (AP_STA) is unreliable on some chips (observed on the
@@ -126,6 +140,12 @@ static void handlePostConfig()
 {
   lastActivity = millis();
   String body = server.arg("plain");
+  if (body.length() > SETTINGS_MAX_BYTES)
+  {
+    server.send(413, "application/json",
+                "{\"ok\":false,\"error\":\"The configuration is too large\"}");
+    return;
+  }
 
   // validate before touching flash. Comments are allowed (the firmware is
   // built with ARDUINOJSON_ENABLE_COMMENTS), trailing commas are not.
@@ -146,22 +166,55 @@ static void handlePostConfig()
     return;
   }
 
-  // keep one backup generation in case the new config turns out to be bad
+  const String problem = settingsProblem(doc);
+  if (!problem.isEmpty())
+  {
+    JsonDocument reply;
+    reply["ok"] = false;
+    reply["error"] = problem;
+    String out;
+    serializeJson(reply, out);
+    server.send(400, "application/json", out);
+    return;
+  }
+
+  // Write the new configuration beside the old one and only swap them
+  // once every byte of it is on flash. The one being replaced stays as
+  // /config.bak, which loadSettings() falls back on. Until the swap, a
+  // full filesystem or a power cut costs nothing.
+  File f = LittleFS.open("/config.tmp", "w");
+  const size_t written = f ? f.print(body) : 0;
+  if (f)
+  {
+    f.close();
+  }
+  if (written != body.length())
+  {
+    LittleFS.remove("/config.tmp");
+    server.send(500, "application/json",
+                "{\"ok\":false,\"error\":\"Could not write the configuration "
+                "(is the filesystem full?). Nothing was changed.\"}");
+    return;
+  }
   if (LittleFS.exists("/config.bak"))
   {
     LittleFS.remove("/config.bak");
   }
-  LittleFS.rename("/config.json", "/config.bak");
-  File f = LittleFS.open("/config.json", "w");
-  if (!f)
+  const bool hadConfig = LittleFS.exists("/config.json");
+  if ((hadConfig && !LittleFS.rename("/config.json", "/config.bak"))
+      || !LittleFS.rename("/config.tmp", "/config.json"))
   {
-    LittleFS.rename("/config.bak", "/config.json");
+    // put back whatever was moved; the old configuration stays in force
+    if (!LittleFS.exists("/config.json") && LittleFS.exists("/config.bak"))
+    {
+      LittleFS.rename("/config.bak", "/config.json");
+    }
+    LittleFS.remove("/config.tmp");
     server.send(500, "application/json",
-                "{\"ok\":false,\"error\":\"Failed to write config.json\"}");
+                "{\"ok\":false,\"error\":\"Could not replace the configuration. "
+                "Nothing was changed.\"}");
     return;
   }
-  f.print(body);
-  f.close();
 
   server.send(200, "application/json",
               "{\"ok\":true,\"message\":\"Saved. Restarting...\"}");
@@ -207,6 +260,8 @@ static void handleGetInfo()
   // no dark version. The page hides the settings that do not apply.
   doc["layout"] = "fixed";
 #endif
+  doc["target"] = ownTarget();
+  diagToJson(doc);
   // font families compiled into this firmware, for the Font dropdown
   JsonArray fonts = doc["fonts"].to<JsonArray>();
   for (int i = 0; i < FONT_FAMILY_NAME_COUNT; ++i)
@@ -290,6 +345,10 @@ static void handleScan()
 // running firmware untouched.
 static String otaError;
 
+// reads what an uploaded file was built for as it streams past
+static TargetScanner uploadTarget(OWN_TARGET,
+                                  FIRMWARE_TARGET_PREFIX_LEN);
+
 static void handleUpdateUpload()
 {
   lastActivity = millis();
@@ -297,6 +356,7 @@ static void handleUpdateUpload()
   if (up.status == UPLOAD_FILE_START)
   {
     otaError = "";
+    uploadTarget.reset();
     Serial.println("[portal] OTA upload started: " + up.filename);
     if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH))
     {
@@ -305,6 +365,7 @@ static void handleUpdateUpload()
   }
   else if (up.status == UPLOAD_FILE_WRITE && otaError.isEmpty())
   {
+    uploadTarget.feed(up.buf, up.currentSize);
     if (Update.write(up.buf, up.currentSize) != up.currentSize)
     {
       otaError = Update.errorString();
@@ -312,8 +373,25 @@ static void handleUpdateUpload()
   }
   else if (up.status == UPLOAD_FILE_END && otaError.isEmpty())
   {
-    if (Update.end(true))
+    // Nothing takes effect until Update.end(): an image for another board
+    // or panel is dropped here, having only touched the spare slot.
+    const bool force = server.hasArg("force");
+    if (!force && !uploadTarget.matches())
     {
+      Update.abort();
+      otaError = uploadTarget.found()
+        ? "This file was built for " + String(uploadTarget.target())
+          + "; this device is " + ownTarget()
+        : String("This file does not say what it was built for "
+                 "(an older build, or not this firmware)");
+    }
+    else if (Update.end(true))
+    {
+      if (force)
+      {
+        Serial.println("[portal] OTA target check overridden; file says '"
+                       + String(uploadTarget.target()) + "'");
+      }
       Serial.printf("[portal] OTA complete: %u bytes\n", up.totalSize);
     }
     else
@@ -334,8 +412,14 @@ static void handleUpdateFinish()
   if (otaError.length())
   {
     Serial.println("[portal] OTA failed: " + otaError);
-    server.send(500, "application/json",
-                "{\"ok\":false,\"error\":\"" + otaError + "\"}");
+    // the message may quote the uploaded file, so it is not pasted into
+    // the reply by hand
+    JsonDocument doc;
+    doc["ok"] = false;
+    doc["error"] = otaError;
+    String out;
+    serializeJson(doc, out);
+    server.send(500, "application/json", out);
     return;
   }
   server.send(200, "application/json",

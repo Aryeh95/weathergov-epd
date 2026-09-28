@@ -307,6 +307,10 @@ DeserializationError deserializeNWSForecastDaily(WiFiClient &json,
   for (JsonObject p : doc["properties"]["periods"].as<JsonArray>())
   {
     String startTime = p["startTime"].as<const char *>();
+    if (startTime.length() < 10 || p["temperature"].isNull())
+    { // a period without a date or a temperature cannot be placed
+      continue;
+    }
     String date = startTime.substring(0, 10);
     if (date != curDate)
     {
@@ -340,6 +344,20 @@ DeserializationError deserializeNWSForecastDaily(WiFiClient &json,
       daily[dayIdx].wind_gust  = daily[dayIdx].wind_speed;
       daily[dayIdx].wind_deg   = compassToDegrees(p["windDirection"].as<const char *>());
     }
+  }
+
+  // A reply that parses but holds no periods is not a forecast.
+  if (dayIdx < 0)
+  {
+    return DeserializationError::EmptyInput;
+  }
+  // Days the reply did not reach: no date, no temperatures. (They used to
+  // keep the +/-1e6 the search for min and max starts from.)
+  for (int i = dayIdx + 1; i < OWM_NUM_DAILY; ++i)
+  {
+    daily[i].dt = 0;
+    daily[i].temp.min = NAN;
+    daily[i].temp.max = NAN;
   }
 
   return error;
@@ -379,9 +397,18 @@ DeserializationError deserializeNWSForecastHourly(WiFiClient &json,
     return error;
   }
 
+  // Hours the reply does not reach stay empty, with dt == 0.
+  for (int k = 0; k < OWM_NUM_HOURLY; ++k)
+  {
+    hourly[k] = {};
+  }
   int i = 0;
   for (JsonObject p : doc["properties"]["periods"].as<JsonArray>())
   {
+    if (p["startTime"].isNull() || p["temperature"].isNull())
+    {
+      continue;
+    }
     hourly[i] = {};
     hourly[i].dt   = parseISO8601(p["startTime"].as<const char *>());
     hourly[i].temp = fahrenheit_to_kelvin(p["temperature"].as<float>());
@@ -414,6 +441,11 @@ DeserializationError deserializeNWSForecastHourly(WiFiClient &json,
       break;
     }
     ++i;
+  }
+
+  if (hourly[0].dt <= 0)
+  { // parsed, but no hours in it
+    return DeserializationError::EmptyInput;
   }
 
   return error;
@@ -490,7 +522,11 @@ DeserializationError deserializeNWSGridpointQPF(WiFiClient &json,
     q.start   = parseISO8601(interval.substring(0, slash));
     q.seconds = parseIsoDurationSeconds(interval.c_str() + slash + 1);
     JsonVariant val = b["value"];
-    q.mm = val.isNull() ? 0.f : val.as<float>();
+    if (val.isNull())
+    { // unknown is not dry: leave the interval uncovered
+      continue;
+    }
+    q.mm = val.as<float>();
     if (q.start > 0 && q.seconds > 0)
     {
       qpf.push_back(q);
@@ -837,15 +873,48 @@ DeserializationError deserializeAirQuality(WiFiClient &json,
       r.components.o3[i]    = 0.f;
       continue;
     }
-    r.components.pm10[i]  = pm10arr[srcIdx] | 0.f;
-    r.components.pm2_5[i] = pm25arr[srcIdx] | 0.f;
-    r.components.co[i]    = coarr[srcIdx]   | 0.f;
-    r.components.no2[i]   = no2arr[srcIdx]  | 0.f;
-    r.components.so2[i]   = so2arr[srcIdx]  | 0.f;
-    r.components.o3[i]    = o3arr[srcIdx]   | 0.f;
+    r.components.pm10[i]  = pm10arr[srcIdx] | NAN;
+    r.components.pm2_5[i] = pm25arr[srcIdx] | NAN;
+    r.components.co[i]    = coarr[srcIdx]   | NAN;
+    r.components.no2[i]   = no2arr[srcIdx]  | NAN;
+    r.components.so2[i]   = so2arr[srcIdx]  | NAN;
+    r.components.o3[i]    = o3arr[srcIdx]   | NAN;
   }
 
-  uvi = (n > 0) ? (uviarr[n - 1] | 0.f) : 0.f;
+  // An hour the model has no value for used to be read as 0 -- clean air --
+  // and pulled the index down. It now takes the nearest hour that has one,
+  // and the whole reading only counts when at least half of its hours of
+  // fine particles or ozone are real.
+  int real = 0;
+  for (int i = 0; i < OWM_NUM_AIR_POLLUTION; ++i)
+  {
+    if (!std::isnan(r.components.pm2_5[i]) || !std::isnan(r.components.o3[i]))
+    {
+      ++real;
+    }
+  }
+  float *series[] = {r.components.pm10, r.components.pm2_5, r.components.co,
+                     r.components.no2, r.components.so2, r.components.o3};
+  for (float *s : series)
+  {
+    float last = NAN;
+    for (int i = 0; i < OWM_NUM_AIR_POLLUTION; ++i)
+    {
+      if (std::isnan(s[i])) {s[i] = last;} else {last = s[i];}
+    }
+    last = NAN;
+    for (int i = OWM_NUM_AIR_POLLUTION - 1; i >= 0; --i)
+    {
+      if (std::isnan(s[i])) {s[i] = last;} else {last = s[i];}
+    }
+    for (int i = 0; i < OWM_NUM_AIR_POLLUTION; ++i)
+    {
+      if (std::isnan(s[i])) {s[i] = 0.f;} // a pollutant with no readings at all
+    }
+  }
+  r.valid = (real >= OWM_NUM_AIR_POLLUTION / 2);
+
+  uvi = (n > 0) ? (uviarr[n - 1] | NAN) : NAN;
 
   return error;
 } // end deserializeAirQuality

@@ -28,5 +28,15 @@ int main() {
   // Neither source -> NaN
   om_daily_precip_t empty = {}; daily_precip_pick_t p1 = pickDailyPrecip(ANCHORS[6], NOW_TS, none, empty);
   printf("no-source: %s\n", std::isnan(p1.mm) && p1.src == PRECIP_SRC_NONE ? "NaN ok" : "FAIL"); if (!(std::isnan(p1.mm) && p1.src == PRECIP_SRC_NONE)) fails++;
+  // The last hour of a day, no NWS bucket reaching it. The hour of slack the
+  // picker allows is not coverage: this used to come back as a confirmed
+  // 0.0 from NWS, with or without the other source.
+  const long long late = OM_T[0] + 23 * 3600 + 1800; // 23:30 on the first day
+  daily_precip_pick_t p2 = pickDailyPrecip(late, late, none, om);
+  bool ok2 = p2.src == PRECIP_SRC_OPEN_METEO && fabsf(p2.mm - OM_MM[0]) < 0.01f;
+  printf("23:30, no QPF: %s\n", ok2 ? "OM ok" : "FAIL"); if (!ok2) fails++;
+  daily_precip_pick_t p3 = pickDailyPrecip(late, late, none, empty);
+  bool ok3 = std::isnan(p3.mm) && p3.src == PRECIP_SRC_NONE;
+  printf("23:30, no source: %s\n", ok3 ? "NaN ok" : "FAIL"); if (!ok3) fails++;
   printf("%s\n", fails ? "FAILURES" : "ALL OK"); return fails;
 }
