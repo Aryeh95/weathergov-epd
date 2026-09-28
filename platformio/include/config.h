@@ -338,8 +338,12 @@
 //   fonts. Using a font other than FreeSans may result in undesired spacing or
 //   other artifacts. An unknown or missing "font" setting falls back to the
 //   first family switched on here.
+// A family can also be switched on from the command line, which leaves
+// this file alone: PLATFORMIO_BUILD_FLAGS="-D FONT_INCLUDE_Bitter=1" pio run
+// (on the FireBeetle's 4 MB that takes the firmware from 89% to 94% of its
+// slot).
 #define FONT_INCLUDE_FreeSans 1
-#if defined(BOARD_RETERMINAL_E1002)
+#if defined(BOARD_RETERMINAL_E1002) && !defined(FONT_INCLUDE_Bitter)
   #define FONT_INCLUDE_Bitter 1
 #endif
 
