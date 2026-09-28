@@ -39,6 +39,10 @@
   #define DISP_BW_V2
 #elif defined(BOARD_RETERMINAL_E1002)
   #define DISP_7C_E6
+#elif defined(DISP_BW_V2) || defined(DISP_3C_B) || defined(DISP_7C_F) \
+   || defined(DISP_7C_E6) || defined(DISP_BW_V1)
+  // chosen on the command line, which leaves this file alone:
+  //   PLATFORMIO_BUILD_FLAGS="-D DISP_3C_B" pio run
 #else
 #define DISP_BW_V2
 // #define DISP_3C_B
@@ -416,6 +420,10 @@
 //   the display does during an outage. Flash a normal build first and let
 //   it draw the weather once. Never leave it defined.
 // #define SIMULATE_OUTAGE
+//   FORCE_PORTAL: every boot opens the configuration portal, as if its
+//   button had been pressed. For testing the portal on a device nobody is
+//   standing next to. Never leave it defined.
+// #define FORCE_PORTAL
 
 // DEBUG
 //   If defined, enables increase verbosity over the serial port.

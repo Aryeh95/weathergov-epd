@@ -35,6 +35,7 @@
 #include "renderer.h"
 #include "settings.h"
 #include "build_rev.h"
+#include "portal_page.h"
 #include "fonts/font_names.h"
 
 // icon header files
@@ -101,21 +102,19 @@ static void cacheScanResults()
 }
 static const IPAddress AP_IP(192, 168, 4, 1);
 
-/* Serves the portal single-page UI from LittleFS.
+/* Serves the settings page. The page is part of the firmware
+ * (scripts/embed_portal.py packs data/portal.html into it), so that an
+ * update installed from the page brings the page that belongs to it. Kept
+ * on the filesystem, as it used to be, the page stayed behind at every
+ * update, and the new one needed a cable.
  */
 static void handleRoot()
 {
   lastActivity = millis();
-  File f = LittleFS.open("/portal.html", "r");
-  if (!f)
-  {
-    server.send(500, "text/plain",
-                "portal.html missing from LittleFS. Run "
-                "`pio run --target uploadfs` to upload the data/ folder.");
-    return;
-  }
-  server.streamFile(f, "text/html");
-  f.close();
+  server.sendHeader("Content-Encoding", "gzip");
+  server.sendHeader("Cache-Control", "no-cache");
+  server.send_P(200, "text/html", reinterpret_cast<const char *>(PORTAL_PAGE),
+                PORTAL_PAGE_LEN);
 } // end handleRoot
 
 /* Serves the current /config.json (raw, comments included).
