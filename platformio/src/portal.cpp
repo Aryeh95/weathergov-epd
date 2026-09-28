@@ -31,6 +31,7 @@
 #include "config.h"
 #include "portal.h"
 #include "renderer.h"
+#include "settings.h"
 #include "build_rev.h"
 #include "fonts/font_names.h"
 
@@ -126,6 +127,12 @@ static void handlePostConfig()
 {
   lastActivity = millis();
   String body = server.arg("plain");
+  if (body.length() > SETTINGS_MAX_BYTES)
+  {
+    server.send(413, "application/json",
+                "{\"ok\":false,\"error\":\"The configuration is too large\"}");
+    return;
+  }
 
   // validate before touching flash. Comments are allowed (the firmware is
   // built with ARDUINOJSON_ENABLE_COMMENTS), trailing commas are not.
@@ -146,22 +153,55 @@ static void handlePostConfig()
     return;
   }
 
-  // keep one backup generation in case the new config turns out to be bad
+  const String problem = settingsProblem(doc);
+  if (!problem.isEmpty())
+  {
+    JsonDocument reply;
+    reply["ok"] = false;
+    reply["error"] = problem;
+    String out;
+    serializeJson(reply, out);
+    server.send(400, "application/json", out);
+    return;
+  }
+
+  // Write the new configuration beside the old one and only swap them
+  // once every byte of it is on flash. The one being replaced stays as
+  // /config.bak, which loadSettings() falls back on. Until the swap, a
+  // full filesystem or a power cut costs nothing.
+  File f = LittleFS.open("/config.tmp", "w");
+  const size_t written = f ? f.print(body) : 0;
+  if (f)
+  {
+    f.close();
+  }
+  if (written != body.length())
+  {
+    LittleFS.remove("/config.tmp");
+    server.send(500, "application/json",
+                "{\"ok\":false,\"error\":\"Could not write the configuration "
+                "(is the filesystem full?). Nothing was changed.\"}");
+    return;
+  }
   if (LittleFS.exists("/config.bak"))
   {
     LittleFS.remove("/config.bak");
   }
-  LittleFS.rename("/config.json", "/config.bak");
-  File f = LittleFS.open("/config.json", "w");
-  if (!f)
+  const bool hadConfig = LittleFS.exists("/config.json");
+  if ((hadConfig && !LittleFS.rename("/config.json", "/config.bak"))
+      || !LittleFS.rename("/config.tmp", "/config.json"))
   {
-    LittleFS.rename("/config.bak", "/config.json");
+    // put back whatever was moved; the old configuration stays in force
+    if (!LittleFS.exists("/config.json") && LittleFS.exists("/config.bak"))
+    {
+      LittleFS.rename("/config.bak", "/config.json");
+    }
+    LittleFS.remove("/config.tmp");
     server.send(500, "application/json",
-                "{\"ok\":false,\"error\":\"Failed to write config.json\"}");
+                "{\"ok\":false,\"error\":\"Could not replace the configuration. "
+                "Nothing was changed.\"}");
     return;
   }
-  f.print(body);
-  f.close();
 
   server.send(200, "application/json",
               "{\"ok\":true,\"message\":\"Saved. Restarting...\"}");

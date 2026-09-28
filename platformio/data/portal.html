@@ -599,20 +599,28 @@ async function pollScan() {
     if (!j.networks || j.networks.length === 0) {
       box.innerHTML = '<div class="hint">No networks found. Try again.</div>';
     } else {
-      box.innerHTML = j.networks.map(n => {
-        const bars = n.rssi > -60 ? '&#9679;&#9679;&#9679;'
-                   : n.rssi > -75 ? '&#9679;&#9679;&#9675;' : '&#9679;&#9675;&#9675;';
-        return '<button type="button" class="scanitem" data-ssid="'
-          + n.ssid.replace(/"/g, '&quot;') + '" data-open="' + n.open
-          + '" style="display:block;width:100%;text-align:left;margin-top:0.3rem">'
-          + bars + ' ' + n.ssid.replace(/</g, '&lt;')
-          + (n.open ? ' <i>(open)</i>' : '') + '</button>';
-      }).join('');
-      box.querySelectorAll('.scanitem').forEach(b => b.addEventListener('click', () => {
-        el('w_ssid').value = b.dataset.ssid;
-        if (b.dataset.open === 'true') { el('w_pass').value = ''; }
-        else { el('w_pass').focus(); }
-        box.style.display = 'none';
+      // A network's name is whatever its owner typed, markup included, so it
+      // goes into the page as text and never as HTML.
+      box.replaceChildren(...j.networks.map(n => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'scanitem';
+        b.style.cssText = 'display:block;width:100%;text-align:left;margin-top:0.3rem';
+        const bars = n.rssi > -60 ? '\u25CF\u25CF\u25CF'
+                   : n.rssi > -75 ? '\u25CF\u25CF\u25CB' : '\u25CF\u25CB\u25CB';
+        b.append(bars + ' ' + n.ssid);
+        if (n.open) {
+          const i = document.createElement('i');
+          i.textContent = ' (open)';
+          b.append(i);
+        }
+        b.addEventListener('click', () => {
+          el('w_ssid').value = n.ssid;
+          if (n.open) { el('w_pass').value = ''; }
+          else { el('w_pass').focus(); }
+          box.style.display = 'none';
+        });
+        return b;
       }));
     }
     el('scanbtn').disabled = false;
@@ -715,18 +723,26 @@ el('rawsave').addEventListener('click', () => {
 
 function showConnInfo(i) {
   const box = el('conninfo');
+  // Built from text nodes: the network name and the password are whatever
+  // someone typed, and must not be read as markup.
+  const tag = (name, text) => {
+    const e = document.createElement(name);
+    e.textContent = text;
+    return e;
+  };
   if (i.mode === 'hotspot') {
-    box.innerHTML = '&#x1F4F6; Connected via the setup hotspot <b>' + i.ssid
-      + '</b> (password: <code>' + i.ap_password + '</code>) at <code>http://'
-      + i.ip + '/</code>. After saving a WiFi network below, the display '
-      + 'joins that network and this page becomes reachable there instead.';
+    box.replaceChildren('\u{1F4F6} Connected via the setup hotspot ',
+      tag('b', i.ssid), ' (password: ', tag('code', i.ap_password), ') at ',
+      tag('code', 'http://' + i.ip + '/'),
+      '. After saving a WiFi network below, the display joins that network '
+      + 'and this page becomes reachable there instead.');
   } else {
-    box.innerHTML = '&#x1F4F6; On WiFi network <b>' + i.ssid + '</b> &mdash; '
-      + 'reachable at <code>http://' + i.ip + '/</code> or <code>'
-      + 'http://' + (i.mdns ?? 'weatherepd.local') + '/</code>.';
+    box.replaceChildren('\u{1F4F6} On WiFi network ', tag('b', i.ssid),
+      ' \u2014 reachable at ', tag('code', 'http://' + i.ip + '/'), ' or ',
+      tag('code', 'http://' + (i.mdns ?? 'weatherepd.local') + '/'), '.');
   }
-  box.innerHTML += ' Setup mode ends after ' + (i.timeout_minutes ?? 10)
-    + ' minutes of inactivity.';
+  box.append(' Setup mode ends after ' + (i.timeout_minutes ?? 10)
+    + ' minutes of inactivity.');
   box.style.display = 'block';
   if (i.build) { el('fwbuild').textContent = i.build; }
   if (i.fonts) { setFontOptions(i.fonts); }
