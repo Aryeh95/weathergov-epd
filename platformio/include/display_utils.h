@@ -82,6 +82,11 @@ uint16_t getCurrentConditionsColor196(const owm_current_t &current);
 const char *getMoonPhaseDesc(int phase);
 const uint8_t *getMoonPhaseDithered(int phase, int size);
 void setSunTimes(int64_t sunrise, int64_t sunset);
+// The moment the page being drawn belongs to: now, unless the page is the
+// last weather drawn again during an outage, which keeps its own time --
+// its moon and its day or night icons included. 0 goes back to the clock.
+void setPageTime(time_t when);
+time_t pageTime();
 uint16_t getUVIColor(unsigned int uvi);
 uint16_t getAQIColor(int aqi, bool usScale);
 const uint8_t *getCurrentConditionsBitmap196(const owm_current_t &current,

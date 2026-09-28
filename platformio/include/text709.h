@@ -49,6 +49,7 @@ static const char *const TXT709_KIND[13] = {
 #define TXT709_LIT           "% lit"
 #define TXT709_HOURS         "h"
 #define TXT709_MINUTES       "min"
+#define TXT709_LAST_UPDATED "Last updated"
 #define TXT709_UPDATED       "Updated"
 #define TXT709_BATTERY       "Battery"
 #define TXT709_DAYS_LEFT     "d left"

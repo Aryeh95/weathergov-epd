@@ -838,7 +838,7 @@ void drawCurrentMoonPhase()
   int PosY = static_cast<int>(POS_MOON_PHASE / 2);
 
   int illum = 0;
-  int phase = calcMoonPhase(static_cast<int64_t>(time(nullptr)), &illum);
+  int phase = calcMoonPhase(static_cast<int64_t>(pageTime()), &illum);
 
   // icons
   drawDitheredIcon(162 * PosX, wgtY(PosY),
@@ -2377,7 +2377,8 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
  * the display.
  */
 void drawStatusBar(const String &statusStr, const String &refreshTimeStr,
-                   int rssi, uint32_t batVoltage, int batDaysLeft)
+                   int rssi, uint32_t batVoltage, int batDaysLeft,
+                   bool stale)
 {
   String dataStr;
   uint16_t dataColor = DM_FG;
@@ -2439,11 +2440,32 @@ void drawStatusBar(const String &statusStr, const String &refreshTimeStr,
   pos -= sp + 8;
 
   // last refresh
+  // When the weather on the page is old, the time says so: in the accent
+  // colour where the panel has one and it reads at this size, otherwise
+  // (black and white, or dark mode, where small red text is lost) with a
+  // warning sign in the place of the refresh arrows.
   dataColor = DM_FG;
+  bool staleSign = stale;
+#if defined(DISP_3C_B) || defined(DISP_7C_F) || defined(DISP_7C_E6)
+  if (stale && !DARK_MODE)
+  {
+    dataColor = ACCENT_COLOR;
+    staleSign = false;
+  }
+#endif
   drawString(pos, DISP_HEIGHT - 1 - 2, refreshTimeStr, RIGHT, dataColor);
-  pos -= getStringWidth(refreshTimeStr) + 25;
-  display.drawInvertedBitmap(pos, DISP_HEIGHT - 1 - 21, wi_refresh_32x32,
-                             32, 32, dataColor);
+  if (staleSign)
+  {
+    pos -= getStringWidth(refreshTimeStr) + 24;
+    display.drawInvertedBitmap(pos, DISP_HEIGHT - 1 - 18,
+                               warning_icon_24x24, 24, 24, dataColor);
+  }
+  else
+  {
+    pos -= getStringWidth(refreshTimeStr) + 25;
+    display.drawInvertedBitmap(pos, DISP_HEIGHT - 1 - 21, wi_refresh_32x32,
+                               32, 32, dataColor);
+  }
   pos -= sp;
 
   // status
