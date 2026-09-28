@@ -1,8 +1,9 @@
 name: PlatformIO CI
 
 on:
+  workflow_dispatch:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, ee02-gdeb0709e01 ]
   pull_request:
     branches: [ main, develop ]
 
