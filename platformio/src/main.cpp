@@ -508,6 +508,10 @@ void setup()
                 portalRequested, drdWritten);
 #endif
 #endif // BOARD_RETERMINAL_E1002
+#if defined(FORCE_PORTAL)
+  Serial.println("[test] FORCE_PORTAL: opening the portal");
+  portalRequested = true;
+#endif
   // Wake buttons (see enableButtonWake): the PORTAL button wakes via EXT0,
   // the REFRESH button via EXT1. A refresh-button wake needs no special
   // handling -- proceeding with a normal update IS the response.
