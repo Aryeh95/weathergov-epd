@@ -137,12 +137,17 @@
       <div><label>Small text font (labels, axis)</label><select id="s_font_small"></select></div>
     </div>
     <div class="hint">No updates between bed and wake hours (set both equal to disable).</div>
+    <div class="hint" id="fixednote" style="display:none">This panel has a layout of
+      its own, so fonts, theme and widget slots are not offered here. The
+      readings it shows are fixed: humidity, dew point, wind, pressure, UV
+      index, air quality, pollen, and indoor (or visibility without a
+      sensor).</div>
     <div id="fontprev" class="fontprev">
       <div class="fp-big">72&deg;</div>
       <div class="fp-mid">Partly Cloudy</div>
       <div class="fp-small">Humidity &nbsp; Dew Point &nbsp; Air Quality (EPA) &nbsp; 12am 3am 6am 9am &nbsp; 0.1in</div>
     </div>
-    <div class="hint">Only fonts compiled into this firmware are listed
+    <div class="hint" id="fonthint">Only fonts compiled into this firmware are listed
       (see FONT_INCLUDE_ in config.h). The small text font covers everything
       under 11 pt: widget labels, the graph axis, source tags. A sans like
       FreeSans stays crisper there than a serif. The preview uses the web
@@ -713,6 +718,19 @@ el('rawsave').addEventListener('click', () => {
   save(el('raw').value);
 });
 
+// The 1600x1200 layout has no widget slots, fonts or theme to choose. The
+// controls are hidden, not removed: their values still travel with the
+// rest of the configuration, so a backup restores on any board.
+function hideLayoutSettings() {
+  for (const id of ['s_wrows', 's_dark', 's_font', 's_font_small']) {
+    el(id).parentElement.style.display = 'none';
+  }
+  el('fontprev').style.display = 'none';
+  el('fonthint').style.display = 'none';
+  el('widgets').closest('fieldset').style.display = 'none';
+  el('fixednote').style.display = 'block';
+}
+
 function showConnInfo(i) {
   const box = el('conninfo');
   if (i.mode === 'hotspot') {
@@ -728,7 +746,8 @@ function showConnInfo(i) {
   box.innerHTML += ' Setup mode ends after ' + (i.timeout_minutes ?? 10)
     + ' minutes of inactivity.';
   box.style.display = 'block';
-  if (i.build) { el('fwbuild').textContent = i.build; }
+  if (i.build) { el('fwbuild').textContent = i.build + (i.board ? ' for ' + i.board : ''); }
+  if (i.layout === 'fixed') { hideLayoutSettings(); }
   if (i.fonts) { setFontOptions(i.fonts); }
 }
 
