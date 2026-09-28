@@ -15,3 +15,6 @@ platformio/.pio/
 platformio/include/build_rev.h
 
 moon_preview_out/
+
+# Local build choices (see config.h); never committed
+platformio/include/config_local.h

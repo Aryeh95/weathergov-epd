@@ -46,7 +46,7 @@
 #if defined(SENSOR_SHT4X)
   #include <Adafruit_SHT4x.h>
 #endif
-#if defined(USE_HTTPS_WITH_CERT_VERIF) || defined(USE_HTTPS_WITH_CERT_VERIF)
+#if defined(USE_HTTPS_NO_CERT_VERIF) || defined(USE_HTTPS_WITH_CERT_VERIF)
   #include <WiFiClientSecure.h>
 #endif
 #ifdef USE_HTTPS_WITH_CERT_VERIF
@@ -208,6 +208,9 @@ void setup()
   unsigned long startTime = millis();
   Serial.begin(115200);
   Serial.println("[build] " GIT_REV " (" __DATE__ " " __TIME__ ")");
+#if defined(USE_HTTPS_NO_CERT_VERIF)
+  Serial.println("[tls] certificates are NOT verified (config_local.h)");
+#endif
 
 #if DEBUG_LEVEL >= 1
   printHeapUsage();

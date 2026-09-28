@@ -11,7 +11,7 @@
 > - **Robust WiFi**: connects to the strongest access point on multi-AP (mesh) networks, the error screen explains *why* a connection failed (wrong password, network not found, no response...), and the device retries every 15 minutes (configurable) instead of requiring a manual reset.
 > - **Supported boards**: the FireBeetle 2 ESP32-E wiring from upstream, plus native support for the [Seeed reTerminal E1002](https://www.seeedstudio.com/reTerminal-E1002-p-6533.html) — an all-in-one ESP32-S3 device with a built-in 7.3" Spectra 6 panel, battery, and buttons (`pio run -e seeed_reterminal_e1002`; its middle button opens the portal, the green button forces a refresh).
 > - **Precipitation**: the hourly graph shows probability (PoP %) — NWS's hourly forecast has no amounts. The daily row shows **amounts in inches** (`UNITS_DAILY_PRECIP_INCHES`, compile-time): weather.gov's gridpoint QPF for the ~3 days it reaches, Open-Meteo's daily total for the days beyond. Dry days show nothing; a forecast trace under 0.1 in shows as `<0.1 in`. Set `UNITS_DAILY_PRECIP_POP` in `config.h` for probability there too.
-> - HTTPS is required (all APIs are HTTPS-only); `cert.h` pins the root CAs for every host, valid until 2035.
+> - HTTPS is required (all APIs are HTTPS-only), and the servers' certificates are verified against the root CAs in `cert.h` (valid until 2035). To build without verification, create `platformio/include/config_local.h` containing `#define USE_HTTPS_NO_CERT_VERIF`; git ignores that file.
 >
 > The [Setup Guide](#setup-guide) below has been rewritten for this fork; hardware, wiring, and assembly are unchanged from upstream.
 

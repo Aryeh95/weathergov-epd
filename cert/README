@@ -1,2 +1,17 @@
 cert.h is generated with the following command,
 python cert.py -s api.openweathermap.org -p 443 -n openweathermap > cert.h
+
+The bundle in platformio/include/cert.h holds ROOT certificates only, one per
+certificate authority the project's hosts use. cert.py prints the last
+certificate of the chain a server sends, and that is not always a root:
+www.airnowapi.org sends a copy of "Amazon Root CA 1" cross-signed by
+Starfield, which has the right key but is not self-signed, and a verifier
+that insists on ending at a self-signed certificate rejects it. For such a
+host take the root from the authority's own repository instead
+(https://www.amazontrust.com/repository/).
+
+To check the bundle against every host, make a verified TLS connection to
+each with only the bundle trusted, for example:
+  openssl s_client -connect www.airnowapi.org:443 -CAfile bundle.pem < /dev/null
+where bundle.pem holds the certificates copied out of cert.h. "Verify return
+code: 0 (ok)" is a pass.
