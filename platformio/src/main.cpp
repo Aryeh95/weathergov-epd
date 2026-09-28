@@ -226,6 +226,34 @@ void setup()
   // Open namespace for read/write to non-volatile storage
   prefs.begin(NVS_NAMESPACE, false);
 
+  // Everything cached between wakes was fetched for one place, from one
+  // source, in one time zone. When any of those changes -- in the portal
+  // or by uploading a new config.json -- the caches go, or the next refresh
+  // would show the new city's forecast with the old city's rain, pollen
+  // and air quality.
+  {
+    const String place = LAT + "," + LON + "|" + CURRENT_SOURCE + "|"
+                       + TIMEZONE;
+    if (prefs.getString("cfgKey", "") != place)
+    {
+      static const char *const CACHES[] = {
+        "qpfStamp", "qpfBlob", "qpfTime", "pollenStamp", "pollenTree",
+        "pollenGrass", "pollenWeed", "pollenMax", "airnowStamp", "airnowAqi",
+        "omStamp", "omHum", "omDew", "omPres", "omVis", "dayStamp", "dayHi",
+        "dayLo", "nwsLat", "nwsLon", "nwsFc", "nwsFcH", "wxhist"};
+      for (const char *key : CACHES)
+      {
+        if (prefs.isKey(key))
+        {
+          prefs.remove(key);
+        }
+      }
+      prefs.putString("cfgKey", place);
+      Serial.println("[cache] location, source or time zone changed; "
+                     "cached weather dropped");
+    }
+  }
+
 #if BATTERY_MONITORING
   uint32_t batteryVoltage = readBatteryVoltage();
   Serial.print(TXT_BATTERY_VOLTAGE);
@@ -433,11 +461,16 @@ void setup()
   if (lastNtpSync > 1600000000L && rtcNow >= lastNtpSync
       && rtcNow - lastNtpSync < NTP_RESYNC_INTERVAL_SEC)
   {
+    // TZ before anything reads the local time: the variable does not
+    // survive deep sleep, and without it localtime_r() answers in UTC --
+    // after 8 pm Eastern that is already tomorrow, which rolled the day's
+    // remembered high and low over four hours early. (Starts SNTP too; it
+    // does not wait.)
+    configTzTime(TIMEZONE, NTP_SERVER_1, NTP_SERVER_2);
     localtime_r(&rtcNow, &timeInfo);
     timeConfigured = true;
     Serial.println("[time] RTC synced " + String(rtcNow - lastNtpSync)
                    + "s ago, SNTP in the background");
-    configTzTime(TIMEZONE, NTP_SERVER_1, NTP_SERVER_2); // sets TZ, no wait
     ntpInBackground = true;
   }
   else
@@ -562,11 +595,15 @@ void setup()
   prefs.end();
 
   // UV index and air quality (weather.gov does not provide either). Also
-  // non-fatal: if this fails, the UVI/Air Quality widgets show "0".
-  float uvi = 0.f;
+  // non-fatal: if this fails, the UVI/Air Quality widgets show "--" (they
+  // used to show 0 and "Good", which is a reading, and a reassuring one).
+  float uvi = NAN;
+  air_quality.valid = false;
   rxStatus = getAirQuality(client, air_quality, uvi);
   if (rxStatus != HTTP_CODE_OK)
   {
+    uvi = NAN;
+    air_quality.valid = false;
     statusStr = "Open-Meteo Air Quality API";
     tmpStr = String(rxStatus, DEC) + ": " + getHttpResponsePhrase(rxStatus);
   }

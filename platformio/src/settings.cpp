@@ -20,6 +20,7 @@
 #include <LittleFS.h>
 #include "config.h"
 #include "settings.h"
+#include "api_response.h" // OWM_NUM_HOURLY
 #include "fonts/font_names.h"
 
 /* Copies a JSON string field into a fixed-size char buffer, truncating
@@ -38,6 +39,151 @@ static void loadStrToCharArray(char *dst, size_t dstSize, JsonVariantConst v)
   }
 } // end loadStrToCharArray
 
+/* Reads and parses one configuration file. False if it is not there, is
+ * empty, or is not JSON.
+ */
+static bool readConfig(const char *path, JsonDocument &doc)
+{
+  if (!LittleFS.exists(path))
+  {
+    return false;
+  }
+  File f = LittleFS.open(path, "r");
+  if (!f)
+  {
+    return false;
+  }
+  const size_t size = f.size();
+  DeserializationError error = deserializeJson(doc, f);
+  f.close();
+  if (error || size == 0 || !doc.is<JsonObject>())
+  {
+    Serial.println("[settings] cannot use " + String(path) + " ("
+                   + String(error ? error.c_str() : "not a settings file")
+                   + ")");
+    return false;
+  }
+  return true;
+} // end readConfig
+
+// one number of a configuration: absent is fine, anything else has to be a
+// number within [lo, hi]
+static String numberProblem(const char *name, JsonVariantConst v, long lo,
+                            long hi)
+{
+  if (v.isNull())
+  {
+    return "";
+  }
+  if (!v.is<long>() && !v.is<double>())
+  {
+    return String(name) + " must be a number";
+  }
+  const double n = v.as<double>();
+  if (n < lo || n > hi)
+  {
+    return String(name) + " must be between " + String(lo) + " and "
+           + String(hi);
+  }
+  return "";
+}
+
+// one text of a configuration: absent is fine, otherwise it has to fit
+static String textProblem(const char *name, JsonVariantConst v, size_t most)
+{
+  if (v.isNull())
+  {
+    return "";
+  }
+  const char *t = v.as<const char *>();
+  if (!t)
+  {
+    return String(name) + " must be text";
+  }
+  if (strlen(t) > most)
+  {
+    return String(name) + " is longer than " + String(most)
+           + " characters";
+  }
+  return "";
+}
+
+String settingsProblem(JsonVariantConst doc)
+{
+  if (!doc.is<JsonObjectConst>())
+  {
+    return "not a settings file";
+  }
+  JsonVariantConst wifi = doc["wifi"], loc = doc["location"],
+                   t = doc["time"], sleep = doc["sleep"],
+                   battery = doc["battery"], portal = doc["portal"];
+  const String problems[] = {
+    textProblem("wifi.ssid", wifi["ssid"], sizeof(WIFI_SSID) - 1),
+    textProblem("wifi.password", wifi["password"],
+                sizeof(WIFI_PASSWORD) - 1),
+    numberProblem("wifi.timeout_ms", wifi["timeout_ms"], 1000, 300000),
+    textProblem("time.timezone", t["timezone"], sizeof(TIMEZONE) - 1),
+    textProblem("time.time_format", t["time_format"],
+                sizeof(TIME_FORMAT) - 1),
+    textProblem("time.hour_format", t["hour_format"],
+                sizeof(HOUR_FORMAT) - 1),
+    textProblem("time.date_format", t["date_format"],
+                sizeof(DATE_FORMAT) - 1),
+    textProblem("time.refresh_time_format", t["refresh_time_format"],
+                sizeof(REFRESH_TIME_FORMAT) - 1),
+    numberProblem("time.ntp_timeout_ms", t["ntp_timeout_ms"], 1000,
+                  120000),
+    numberProblem("sleep.sleep_duration_minutes",
+                  sleep["sleep_duration_minutes"], 2, 1440),
+    numberProblem("sleep.wifi_retry_interval_minutes",
+                  sleep["wifi_retry_interval_minutes"], 1, 1440),
+    numberProblem("sleep.bed_time_hour", sleep["bed_time_hour"], 0, 23),
+    numberProblem("sleep.wake_time_hour", sleep["wake_time_hour"], 0, 23),
+    numberProblem("sleep.hourly_graph_max", sleep["hourly_graph_max"], 8,
+                  OWM_NUM_HOURLY),
+    numberProblem("forecast_days", doc["forecast_days"], 5, 7),
+    numberProblem("widget_rows", doc["widget_rows"], 5, 6),
+    numberProblem("battery.max_voltage_mv", battery["max_voltage_mv"],
+                  2500, 5500),
+    numberProblem("battery.min_voltage_mv", battery["min_voltage_mv"],
+                  2500, 5500),
+    numberProblem("portal.timeout_minutes", portal["timeout_minutes"], 1,
+                  240),
+  };
+  for (const String &p : problems)
+  {
+    if (!p.isEmpty())
+    {
+      return p;
+    }
+  }
+  // coordinates are kept as text, since that is what the APIs are sent
+  if (!loc["latitude"].isNull()
+      && fabs(loc["latitude"].as<String>().toDouble()) > 90.0)
+  {
+    return "location.latitude must be between -90 and 90";
+  }
+  if (!loc["longitude"].isNull()
+      && fabs(loc["longitude"].as<String>().toDouble()) > 180.0)
+  {
+    return "location.longitude must be between -180 and 180";
+  }
+  if (!battery["max_voltage_mv"].isNull()
+      && !battery["min_voltage_mv"].isNull()
+      && battery["max_voltage_mv"].as<long>()
+           <= battery["min_voltage_mv"].as<long>())
+  {
+    return "battery.max_voltage_mv must be above battery.min_voltage_mv";
+  }
+  // WPA2 will not start a hotspot with a shorter password
+  const char *ap = portal["ap_password"].as<const char *>();
+  if (ap && strlen(ap) > 0 && (strlen(ap) < 8 || strlen(ap) > 63))
+  {
+    return "portal.ap_password must be 8 to 63 characters, or empty";
+  }
+  return "";
+} // end settingsProblem
+
 bool loadSettings()
 {
   // `true` formats the filesystem if it cannot be mounted (ex. first boot on
@@ -50,32 +196,26 @@ bool loadSettings()
     return false;
   }
 
-  if (!LittleFS.exists("/config.json"))
-  {
-    Serial.println("[settings] /config.json not found, using compiled-in "
-                   "defaults from config.cpp. Run "
-                   "`pio run --target uploadfs` after creating "
-                   "data/config.json to apply your own settings.");
-    return false;
-  }
-
-  File f = LittleFS.open("/config.json", "r");
-  if (!f)
-  {
-    Serial.println("[settings] Failed to open /config.json, using "
-                   "compiled-in defaults from config.cpp");
-    return false;
-  }
-
+  // The portal keeps the previous configuration as /config.bak. If the
+  // current one is missing or cannot be read -- a save cut short by a flat
+  // battery, say -- the previous one is a far better fallback than the
+  // compiled-in defaults, which know no WiFi network at all.
   JsonDocument doc;
-  DeserializationError error = deserializeJson(doc, f);
-  f.close();
-  if (error)
+  if (!readConfig("/config.json", doc))
   {
-    Serial.println("[settings] Failed to parse /config.json ("
-                   + String(error.c_str())
-                   + "), using compiled-in defaults from config.cpp");
-    return false;
+    if (readConfig("/config.bak", doc))
+    {
+      Serial.println("[settings] /config.json missing or unreadable, using "
+                     "the previous configuration (/config.bak)");
+    }
+    else
+    {
+      Serial.println("[settings] no usable /config.json, using compiled-in "
+                     "defaults from config.cpp. Run "
+                     "`pio run --target uploadfs` after creating "
+                     "data/config.json to apply your own settings.");
+      return false;
+    }
   }
 
   JsonObjectConst wifi = doc["wifi"];
@@ -109,6 +249,15 @@ bool loadSettings()
   BED_TIME         = sleep["bed_time_hour"]          | BED_TIME;
   WAKE_TIME        = sleep["wake_time_hour"]         | WAKE_TIME;
   HOURLY_GRAPH_MAX = sleep["hourly_graph_max"]       | HOURLY_GRAPH_MAX;
+  // A device has to boot with whatever file it holds, so numbers that are
+  // out of range are brought into it rather than refused. Each of these
+  // crashes or reads out of bounds otherwise: the interval is a divisor,
+  // the graph length an array index.
+  SLEEP_DURATION      = constrain(SLEEP_DURATION, 2, 1440);
+  WIFI_RETRY_INTERVAL = constrain(WIFI_RETRY_INTERVAL, 1, 1440);
+  BED_TIME            = constrain(BED_TIME, 0, 23);
+  WAKE_TIME           = constrain(WAKE_TIME, 0, 23);
+  HOURLY_GRAPH_MAX    = constrain(HOURLY_GRAPH_MAX, 8, OWM_NUM_HOURLY);
 
   GRAPH_DEWPOINT = doc["graph_dewpoint"] | GRAPH_DEWPOINT;
 
@@ -157,6 +306,10 @@ bool loadSettings()
   VERY_LOW_BATTERY_SLEEP_INTERVAL = battery["very_low_sleep_interval_minutes"] | VERY_LOW_BATTERY_SLEEP_INTERVAL;
   MAX_BATTERY_VOLTAGE = battery["max_voltage_mv"] | MAX_BATTERY_VOLTAGE;
   MIN_BATTERY_VOLTAGE = battery["min_voltage_mv"] | MIN_BATTERY_VOLTAGE;
+  if (MAX_BATTERY_VOLTAGE <= MIN_BATTERY_VOLTAGE)
+  { // the battery percentage divides by their difference
+    MAX_BATTERY_VOLTAGE = MIN_BATTERY_VOLTAGE + 1000;
+  }
 
   JsonObjectConst api = doc["api"];
   NWS_USER_AGENT = api["nws_user_agent"] | NWS_USER_AGENT;
@@ -171,6 +324,7 @@ bool loadSettings()
   JsonObjectConst portal = doc["portal"];
   PORTAL_AP_PASSWORD = portal["ap_password"]     | PORTAL_AP_PASSWORD;
   PORTAL_TIMEOUT     = portal["timeout_minutes"] | PORTAL_TIMEOUT;
+  PORTAL_TIMEOUT     = constrain(PORTAL_TIMEOUT, 1, 240);
   HTTP_CLIENT_TCP_TIMEOUT = api["http_client_tcp_timeout_ms"] | HTTP_CLIENT_TCP_TIMEOUT;
 
   JsonObjectConst widgets = doc["widget_positions"];

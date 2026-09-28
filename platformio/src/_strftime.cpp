@@ -214,6 +214,11 @@ static void iso_8601_2000_year(char *buf, int year, size_t fw)
  * format specification format and places the result in the character array s of
  * size max.
  */
+#ifdef POSIX_2008
+// widest field a format may ask for; see where the width is read
+static const size_t MAX_FIELD_WIDTH = 64;
+#endif
+
 size_t _strftime(char *s, size_t maxsize, const char *format,
                  const struct tm *timeptr)
 {
@@ -276,6 +281,13 @@ size_t _strftime(char *s, size_t maxsize, const char *format,
     for (; isdigit(*format); format++)
     {
       fw = fw * 10 + (*format - '0');
+      // The width goes into a sprintf() to tbuf (100 bytes), and the format
+      // string comes from config.json: "%0100Y" asked for 100 characters
+      // and a terminator. No date needs a field wider than this.
+      if (fw > MAX_FIELD_WIDTH)
+      {
+        fw = MAX_FIELD_WIDTH;
+      }
     }
     format--;
 #endif // POSIX_2008

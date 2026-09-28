@@ -779,8 +779,10 @@ void drawCurrentUVI(const owm_current_t &current)
   int PosX = (POS_UVI % 2);
   int PosY = static_cast<int>(POS_UVI / 2);
 
-  unsigned int uvi = static_cast<unsigned int>(
-                                std::max(std::round(current.uvi), 0.0f));
+  const bool uviKnown = !std::isnan(current.uvi);
+  unsigned int uvi = uviKnown ? static_cast<unsigned int>(
+                                std::max(std::round(current.uvi), 0.0f))
+                              : 0;
 
   // icons
   drawWidgetIcon(162 * PosX, wgtY(PosY),
@@ -795,6 +797,11 @@ void drawCurrentUVI(const owm_current_t &current)
 
   // uv index
   display.setFont(&FONT_12pt8b);
+  if (!uviKnown)
+  { // not fetched: no number, and no risk badge
+    drawString(48 + (162 * PosX), wgtValueY(PosY), "--", LEFT);
+    return;
+  }
   dataStr = String(uvi);
   drawString(48 + (162 * PosX), wgtValueY(PosY), dataStr, LEFT);
   display.setFont(&FONT_7pt8b);
@@ -908,6 +915,13 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
 
   // air quality index
   display.setFont(&FONT_12pt8b);
+  if (!useAirNow && !owm_air_pollution.valid)
+  { // neither source answered: no number, and no risk badge
+    drawWidgetIcon(162 * PosX, wgtY(PosY),
+                   air_filter_48x48, air_filter_40x40, "aqi", DM_FG);
+    drawString(48 + (162 * PosX), wgtValueY(PosY), "--", LEFT);
+    return;
+  }
   int aqi;
   int aqi_max;
   if (useAirNow)
@@ -1533,6 +1547,10 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
 #endif
   for (int i = 0; i < days; ++i)
   {
+    if (daily[i].dt <= 0 || std::isnan(daily[i].temp.max))
+    { // the forecast did not reach this day
+      continue;
+    }
     // column center; the icon's vertical center matches the old layout
     int cx = xStart + static_cast<int>(i * colW + colW / 2);
     int iconX = cx - iconSize / 2;
@@ -2153,10 +2171,9 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
   // precalculate all x and y coordinates for temperature values
   float yPxPerUnit = (yPos1 - yPos0)
                      / static_cast<float>(tempBoundMax - tempBoundMin);
-  std::vector<int> x_t;
-  std::vector<int> y_t;
-  x_t.reserve(HOURLY_GRAPH_MAX);
-  y_t.reserve(HOURLY_GRAPH_MAX);
+  // sized, not merely reserved: they are written by index below
+  std::vector<int> x_t(HOURLY_GRAPH_MAX);
+  std::vector<int> y_t(HOURLY_GRAPH_MAX);
   // Dew point y per hour; INT_MIN marks an hour NWS gave no value for, and
   // the segment on either side of it is skipped rather than drawn to a zero.
   std::vector<int> y_d(HOURLY_GRAPH_MAX, INT_MIN);

@@ -103,7 +103,10 @@ daily_precip_pick_t pickDailyPrecip(int64_t dayAnchor, int64_t now,
     // One hour of slack: the first bucket can start a little after "now"
     // when the grid was issued a few minutes ago, and that must not push a
     // whole day over to the other source.
-    if (covered >= need - 3600)
+    // ...but slack is not coverage: in the day's last hour `need` is under
+    // 3600, and with no bucket at all this used to report a confirmed
+    // 0.0 from NWS instead of asking the other source.
+    if (covered > 0 && covered >= need - 3600)
     {
       out.mm  = static_cast<float>(sum);
       out.src = PRECIP_SRC_NWS;
