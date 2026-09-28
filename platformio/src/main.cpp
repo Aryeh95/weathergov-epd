@@ -28,6 +28,7 @@
 #include "api_response.h"
 #include "client_utils.h"
 #include "config.h"
+#include "diag.h"
 #include "display_utils.h"
 #include "icons/icons_196x196.h"
 #include "portal.h"
@@ -105,6 +106,60 @@ static void enableButtonWake()
 static void enableButtonWake() {}
 #endif
 
+/* A wake that could not fetch the weather. True if the screen should be
+ * left as it is: the weather is on it, and it has been there for less than
+ * OUTAGE_GRACE minutes of failed attempts.
+ *
+ * Only a wake by the timer holds the screen. Someone who pressed a button
+ * or reset the device is standing in front of it waiting for something to
+ * happen, and is owed the reason that nothing did.
+ */
+static bool holdLastScreen()
+{
+  const bool byTimer =
+    (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER);
+  Preferences store;
+  store.begin(NVS_NAMESPACE, false);
+  const bool good = store.getBool("goodScreen", false);
+  const int age = store.getInt("outageMin", 0);
+  const bool hold = good && byTimer && age < OUTAGE_GRACE;
+  if (good && !hold)
+  { // an error screen is about to replace the weather
+    store.putBool("goodScreen", false);
+  }
+  store.end();
+  if (hold)
+  {
+    Serial.println("[outage] " + String(age) + " min without an update; "
+                   "leaving the last weather on the screen (up to "
+                   + String(OUTAGE_GRACE) + " min)");
+  }
+  return hold;
+} // end holdLastScreen
+
+/* On the way to sleep: if this wake did not get the weather, the outage is
+ * older by the wake and by the sleep that follows it. Counted this way
+ * rather than read off the clock because one of the failures is not having
+ * a clock.
+ */
+static void countOutage(unsigned long startTime, uint64_t sleepSeconds)
+{
+  if (wakeDiag.outcome != DIAG_HELD && wakeDiag.outcome != DIAG_WIFI
+   && wakeDiag.outcome != DIAG_CLOCK && wakeDiag.outcome != DIAG_WEATHER)
+  {
+    return;
+  }
+  Preferences store;
+  store.begin(NVS_NAMESPACE, false);
+  const int age = store.getInt("outageMin", 0);
+  if (age < 100000)
+  {
+    const uint64_t seconds = sleepSeconds + (millis() - startTime) / 1000;
+    store.putInt("outageMin", age + static_cast<int>((seconds + 30) / 60));
+  }
+  store.end();
+} // end countOutage
+
 /* Put esp32 into ultra low-power deep sleep (<11μA).
  * Aligns wake time to the minute. Sleep times defined in config.cpp.
  */
@@ -171,6 +226,8 @@ void beginDeepSleep(unsigned long startTime, tm *timeInfo)
   printHeapUsage();
 #endif
 
+  countOutage(startTime, sleepDuration);
+  diagSave(startTime, static_cast<uint32_t>(sleepDuration));
   esp_sleep_enable_timer_wakeup(sleepDuration * 1000000ULL);
   enableButtonWake();
   Serial.print(TXT_AWAKE_FOR);
@@ -192,6 +249,8 @@ void beginDeepSleep(unsigned long startTime, tm *timeInfo)
 void beginFixedSleep(unsigned long startTime, unsigned long minutes)
 {
   disarmDoubleReset();
+  countOutage(startTime, minutes * 60ULL);
+  diagSave(startTime, static_cast<uint32_t>(minutes * 60UL));
   esp_sleep_enable_timer_wakeup(minutes * 60ULL * 1000000ULL);
   enableButtonWake();
   Serial.print(TXT_AWAKE_FOR);
@@ -215,6 +274,9 @@ void setup()
 #if DEBUG_LEVEL >= 1
   printHeapUsage();
 #endif
+
+  wakeDiag.outcome = DIAG_OTHER;
+  wakeDiag.cause = static_cast<uint8_t>(esp_sleep_get_wakeup_cause());
 
   disableBuiltinLED();
   // Before any SPI activity: an unparked microSD slot on the panel's bus
@@ -274,6 +336,7 @@ void setup()
     if (lowBat == false)
     { // battery is now low for the first time
       prefs.putBool("lowBat", true);
+      prefs.putBool("goodScreen", false);
       prefs.end();
       initDisplay();
       do
@@ -307,6 +370,13 @@ void setup()
       Serial.print(TXT_ENTERING_DEEP_SLEEP_FOR);
       Serial.println(" " + String(LOW_BATTERY_SLEEP_INTERVAL) + "min");
     }
+    wakeDiag.batteryMv = static_cast<uint16_t>(batteryVoltage);
+    diagOutcome(DIAG_BATTERY, 0, "");
+    diagSave(startTime,
+             (batteryVoltage <= CRIT_LOW_BATTERY_VOLTAGE) ? 0
+             : (batteryVoltage <= VERY_LOW_BATTERY_VOLTAGE)
+               ? VERY_LOW_BATTERY_SLEEP_INTERVAL * 60UL
+               : LOW_BATTERY_SLEEP_INTERVAL * 60UL);
     esp_deep_sleep_start();
   }
   // battery is no longer low, reset variable in non-volatile storage
@@ -351,6 +421,7 @@ void setup()
   if (portalRequested || buttonPortal || unconfigured)
   {
     prefs.putBool("drd", false);
+    prefs.putBool("goodScreen", false); // the setup screen replaces it
     prefs.end();
     if (unconfigured)
     {
@@ -376,7 +447,13 @@ void setup()
 
   // START WIFI
   int wifiRSSI = 0; // “Received Signal Strength Indicator"
+#if BATTERY_MONITORING
+  wakeDiag.batteryMv = static_cast<uint16_t>(batteryVoltage);
+#endif
+  unsigned long phaseStart = millis();
   wl_status_t wifiStatus = startWiFi(wifiRSSI);
+  wakeDiag.wifiMs = millis() - phaseStart;
+  wakeDiag.rssi = static_cast<int8_t>(constrain(wifiRSSI, -127, 0));
   if (wifiStatus != WL_CONNECTED)
   { // WiFi Connection Failed
     // Ask for the failure detail (possibly incorrect password, network not
@@ -407,6 +484,14 @@ void setup()
     // wake, so only redraw the error screen when it isn't already showing
     // this exact error (tracked in non-volatile storage, same pattern as the
     // low-battery screen).
+    if (holdLastScreen())
+    {
+      diagOutcome(DIAG_HELD, 0,
+                  String(errTitle) + ": " + errLine2);
+      beginFixedSleep(startTime, WIFI_RETRY_INTERVAL);
+    }
+    diagOutcome(DIAG_WIFI, 0,
+                String(errTitle) + ": " + errLine2);
     String errDescriptor = String(errTitle) + "|" + errLine2;
     prefs.begin(NVS_NAMESPACE, false);
     // isKey check avoids Preferences logging a spurious NOT_FOUND error on
@@ -416,6 +501,9 @@ void setup()
     if (!alreadyShown)
     {
       prefs.putString("wifiErr", errDescriptor);
+      // this screen replaces any other error screen
+      if (prefs.isKey("timeErr")) { prefs.remove("timeErr"); }
+      if (prefs.isKey("apiErr"))  { prefs.remove("apiErr"); }
     }
     prefs.end();
     if (!alreadyShown)
@@ -482,7 +570,9 @@ void setup()
                    + " lastNtpSync=" + String((long)lastNtpSync)
                    + " delta=" + String((long)(rtcNow - lastNtpSync)));
     configTzTime(TIMEZONE, NTP_SERVER_1, NTP_SERVER_2);
+    phaseStart = millis();
     timeConfigured = waitForSNTPSync(&timeInfo);
+    wakeDiag.clockMs = millis() - phaseStart;
     if (timeConfigured)
     {
       prefs.begin(NVS_NAMESPACE, false);
@@ -494,6 +584,12 @@ void setup()
   {
     Serial.println(TXT_TIME_SYNCHRONIZATION_FAILED);
     killWiFi();
+    if (holdLastScreen())
+    {
+      diagOutcome(DIAG_HELD, 0, TXT_TIME_SYNCHRONIZATION_FAILED);
+      beginFixedSleep(startTime, WIFI_RETRY_INTERVAL);
+    }
+    diagOutcome(DIAG_CLOCK, 0, TXT_TIME_SYNCHRONIZATION_FAILED);
 
     // The device retries every WIFI_RETRY_INTERVAL minutes. Avoid redrawing
     // the expensive e-paper screen if the time error is already showing.
@@ -502,6 +598,7 @@ void setup()
     if (!alreadyShown)
     {
       prefs.putBool("timeErr", true);
+      if (prefs.isKey("apiErr")) { prefs.remove("apiErr"); }
     }
     prefs.end();
 
@@ -540,6 +637,7 @@ void setup()
   client.setCACert(cert_root_ca_bundle);
 #endif
 
+  phaseStart = millis();
   int rxStatus = HTTP_CODE_OK;
 #if DISPLAY_ALERTS
   // Alerts first: the reply is small and arrives over HTTP/1.1 keep-alive,
@@ -564,6 +662,13 @@ void setup()
     statusStr = "weather.gov API (" + failedStep + ")";
     tmpStr = String(rxStatus, DEC) + ": " + getHttpResponsePhrase(rxStatus);
     Serial.println(statusStr + " - " + tmpStr);
+    wakeDiag.fetchMs = millis() - phaseStart;
+    if (holdLastScreen())
+    {
+      diagOutcome(DIAG_HELD, rxStatus, statusStr + ": " + tmpStr);
+      beginDeepSleep(startTime, &timeInfo);
+    }
+    diagOutcome(DIAG_WEATHER, rxStatus, statusStr + ": " + tmpStr);
 
     // Avoid repeatedly redrawing the e-paper screen during prolonged API outages
     String errDescriptor = statusStr + "|" + tmpStr;
@@ -753,6 +858,7 @@ void setup()
   setSunTimes(current.sunrise, current.sunset);
 
   killWiFi(); // WiFi no longer needed
+  wakeDiag.fetchMs = millis() - phaseStart;
 
   // GET INDOOR TEMPERATURE AND HUMIDITY, start indoor sensor...
   float inTemp     = NAN;
@@ -879,6 +985,7 @@ void setup()
                  + ", indoor trend " + String(historyIndoorTrend())
                  + ", battery days left " + String(historyBatteryDaysLeft()));
 
+  phaseStart = millis();
   initDisplay();
   do
   {
@@ -895,6 +1002,20 @@ void setup()
                   historyBatteryDaysLeft());
   } while (display.nextPage());
   powerOffDisplay();
+  wakeDiag.drawMs = millis() - phaseStart;
+
+  // The screen now shows the weather: an outage, if there was one, is over.
+  prefs.begin(NVS_NAMESPACE, false);
+  if (!prefs.getBool("goodScreen", false) || prefs.getInt("outageMin", 0) != 0)
+  {
+    prefs.putBool("goodScreen", true);
+    prefs.putInt("outageMin", 0);
+  }
+  prefs.end();
+  // anything that was missing (a reading that could not be fetched) rides
+  // along as the note of a wake that otherwise went well
+  diagOutcome(DIAG_OK, 0, statusStr.isEmpty() ? statusStr
+                                             : statusStr + ": " + tmpStr);
 
   // DEEP SLEEP
   beginDeepSleep(startTime, &timeInfo);

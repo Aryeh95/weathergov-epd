@@ -7,6 +7,33 @@ on:
     branches: [ main, develop ]
 
 jobs:
+  # The parts of the firmware that do not need the hardware, compiled and
+  # run on the build machine with the sanitizers on.
+  host-tests:
+    runs-on: ubuntu-latest
+    env:
+      CXXFLAGS: -std=gnu++17 -fsanitize=address,undefined -fno-sanitize-recover=all
+    steps:
+      - uses: actions/checkout@v4
+      - name: Date formatter
+        working-directory: tools/strftime_test
+        run: |
+          g++ $CXXFLAGS -I. -I../../platformio/include \
+            strftime_test.cpp ../../platformio/src/_strftime.cpp -o strftime_test
+          ./strftime_test
+      - name: Daily precipitation
+        working-directory: tools/precip_test
+        run: |
+          g++ $CXXFLAGS -I../../platformio/include -I. \
+            precip_test.cpp ../../platformio/src/precip.cpp -o precip_test
+          ./precip_test
+      - name: Firmware target scanner
+        working-directory: tools/ota_target_test
+        run: |
+          g++ $CXXFLAGS -I../../platformio/include \
+            ota_target_test.cpp -o ota_target_test
+          ./ota_target_test
+
   build:
 
     runs-on: ubuntu-latest

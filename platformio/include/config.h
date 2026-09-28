@@ -385,6 +385,31 @@
 // NON-VOLATILE STORAGE (NVS) NAMESPACE
 #define NVS_NAMESPACE "weather_epd"
 
+// WHAT THIS FIRMWARE WAS BUILT FOR
+//   The build target's name and the panel, compiled into the image as one
+//   line of text. The portal reads it out of a firmware file before
+//   installing it, and refuses one built for a different board or panel.
+#if defined(DISP_BW_V2)
+  #define PANEL_NAME "DISP_BW_V2"
+#elif defined(DISP_3C_B)
+  #define PANEL_NAME "DISP_3C_B"
+#elif defined(DISP_7C_F)
+  #define PANEL_NAME "DISP_7C_F"
+#elif defined(DISP_7C_E6)
+  #define PANEL_NAME "DISP_7C_E6"
+#elif defined(DISP_BW_V1)
+  #define PANEL_NAME "DISP_BW_V1"
+#elif defined(DISP_7C_709)
+  #define PANEL_NAME "DISP_7C_709"
+#else
+  #define PANEL_NAME "unknown"
+#endif
+#ifndef BUILD_ENV
+  #define BUILD_ENV "unknown" // set by platformio.ini
+#endif
+#define FIRMWARE_TARGET_PREFIX_LEN 13
+#define FIRMWARE_TARGET "WGEPD-TARGET:" BUILD_ENV "/" PANEL_NAME ";"
+
 // DEBUG
 //   If defined, enables increase verbosity over the serial port.
 //   level 0: basic status information, assists troubleshooting (default)
@@ -455,6 +480,7 @@ extern char   NTP_SERVER_2[64];
 extern unsigned long NTP_TIMEOUT;
 extern int    SLEEP_DURATION;
 extern int    WIFI_RETRY_INTERVAL;
+extern int    OUTAGE_GRACE;
 extern int    BED_TIME;
 extern int    WAKE_TIME;
 extern int    HOURLY_GRAPH_MAX;

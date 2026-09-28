@@ -8,7 +8,7 @@
 > - **Full-color weather icons on 7-color panels** (ACeP and Spectra 6): condition and widget icons derived from the [InkyPi](https://github.com/fatihak/InkyPi) icon set, quantized to the panels' native inks (gray dithered clouds, blue rain, yellow suns), plus a semantic color palette — red highs/blue lows, color-coded UV and AQI values. Black/white and 3-color panels keep the original line art.
 > - **More widgets, flexible layout**: a moon phase widget (computed on-device, dithered grayscale icons on every panel type), 5–7 day forecast row, and a 5- or 6-row widget grid (10 or 12 slots) — all selectable at runtime.
 > - **Sunrise/sunset are computed on-device** (NOAA solar algorithm in `platformio/src/sun.cpp`), and day/night icon selection follows those real sun times instead of NWS's fixed 6am/6pm icon boundary.
-> - **Robust WiFi**: connects to the strongest access point on multi-AP (mesh) networks, the error screen explains *why* a connection failed (wrong password, network not found, no response...), and the device retries every 15 minutes (configurable) instead of requiring a manual reset.
+> - **Robust WiFi**: connects to the strongest access point on multi-AP (mesh) networks, the error screen explains *why* a connection failed (wrong password, network not found, no response...), and the device retries every 15 minutes (configurable) instead of requiring a manual reset. A short outage does not cost you the forecast: the last weather stays on the screen for up to 3 hours (`sleep.outage_grace_minutes`) before an error screen replaces it.
 > - **Supported boards**: the FireBeetle 2 ESP32-E wiring from upstream, plus native support for the [Seeed reTerminal E1002](https://www.seeedstudio.com/reTerminal-E1002-p-6533.html) — an all-in-one ESP32-S3 device with a built-in 7.3" Spectra 6 panel, battery, and buttons (`pio run -e seeed_reterminal_e1002`; its middle button opens the portal, the green button forces a refresh).
 > - **Precipitation**: the hourly graph shows probability (PoP %) — NWS's hourly forecast has no amounts. The daily row shows **amounts in inches** (`UNITS_DAILY_PRECIP_INCHES`, compile-time): weather.gov's gridpoint QPF for the ~3 days it reaches, Open-Meteo's daily total for the days beyond. Dry days show nothing; a forecast trace under 0.1 in shows as `<0.1 in`. Set `UNITS_DAILY_PRECIP_POP` in `config.h` for probability there too.
 > - HTTPS is required (all APIs are HTTPS-only), and the servers' certificates are verified against the root CAs in `cert.h` (valid until 2035). To build without verification, create `platformio/include/config_local.h` containing `#define USE_HTTPS_NO_CERT_VERIF`; git ignores that file.
@@ -240,6 +240,7 @@ The same page used for first-time setup remains available after the device is co
 - **Enter it** by pressing the RST button **twice, a few seconds apart** (on the reTerminal E1002, just press the **middle front button** once while it sleeps). The display shows where to reach it — `http://weatherepd.local/` or the device's IP — for the next 10 minutes (configurable).
 - **Every setting** in `config.json` is editable: WiFi (with network scan), location (with phone-GPS detection), time zone and clock/date formats (dropdowns with live examples), refresh schedule and bedtime hours, forecast days (5–7), widget rows (5 = 10 slots, 6 = 12 slots — enough for every widget at once), and a per-slot widget picker that mirrors the physical layout.
 - An **advanced raw-JSON editor** exposes the settings not in the form (battery thresholds, NTP servers, portal options). Saves are validated on-device and keep a one-generation backup (`config.bak`).
+- A **Diagnostics** section shows what the display did the last time it woke and the last time something went wrong: the result, how long WiFi, the weather requests and the screen each took, the battery voltage and the WiFi signal. It answers "why did it not update?" without a USB cable. The record stays on the device.
 - The portal serves plain HTTP on your LAN while active.
 
 On the reTerminal E1002 the **green (right) front button** also wakes the device for an immediate weather refresh.
@@ -256,6 +257,7 @@ Three ways to change it, in order of convenience:
 
 Notes on specific settings:
 
+- `sleep.outage_grace_minutes` — when the weather cannot be fetched (no WiFi, no time, no answer from weather.gov), the last weather stays on the screen for this long before an error screen replaces it; the status bar's update time shows how old it is. Default 180, `0` shows errors at once. Only wakes by the timer hold the screen: after a button press or a reset the error is shown straight away, since someone is waiting for a response. Also in the portal.
 - `api.nws_user_agent` — weather.gov requests a contact email in the User-Agent so they can reach you if your device misbehaves. Please set one.
 - `api.airnow_api_key` — optional; a free [AirNow key](https://docs.airnowapi.org/) upgrades the AQI widget to the EPA's official measured US AQI. Leave empty to use Open-Meteo's modeled values.
 - `api.pollen_api_key` — optional; a [Google Maps Platform](https://developers.google.com/maps/documentation/pollen) key with the Pollen API enabled turns on the pollen widget. The same key serves the Google current-conditions source below when the Weather API is also enabled on its project.
@@ -274,9 +276,11 @@ After the first USB flash, firmware updates can be installed through the portal:
 2. Open the portal, scroll to **Firmware update** (it shows the currently installed build's commit hash and compile time — compare it after the restart to confirm the update took), choose the `.bin`, and tap **Upload & Install**.
 3. The image installs to a spare flash slot and only takes effect once it completes and verifies — a failed or interrupted upload leaves the running firmware untouched. The device restarts on the new firmware.
 
-Make sure to upload the firmware built for **that device's** panel/board. Changes to the portal page itself or to `config.json` defaults still require a USB `uploadfs` (updating the filesystem over USB erases the on-device `config.json`, so re-enter settings via the portal afterward — or copy them into `data/config.json` first).
+Every build names the build target and the panel it was compiled for (the portal shows the device's own as **This device**), and a file built for anything else is refused before it takes effect, as is a file that does not say. Two cases need the **Install even if...** checkbox: going back to a build from before this check existed, and deliberately changing the panel. Changes to the portal page itself or to `config.json` defaults still require a USB `uploadfs` (updating the filesystem over USB erases the on-device `config.json`, so re-enter settings via the portal afterward — or copy them into `data/config.json` first).
 
 ## Error Messages and Troubleshooting
+
+The WiFi, API and time server screens below appear once an outage has lasted longer than `sleep.outage_grace_minutes` (default 3 hours), or at once after a button press or reset; until then the last weather stays up. The portal's **Diagnostics** section has the detail of the last failure either way.
 
 ### Low Battery
 <img src="showcase/demo-error-low-battery.jpg" align="left" width="25%" />
