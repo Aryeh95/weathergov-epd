@@ -29,6 +29,7 @@ is one. Otherwise point the `ZIG` environment variable at a Zig executable:
 | `sim_night.png` | The same day at 11:40 pm |
 | `sim_alert1.png`, `sim_alert2.png`, `sim_alert4.png` | One, two and four alerts |
 | `sim_status.png` | A failed request reported in the status line |
+| `sim_gaps.png` | Readings that were not fetched, and a forecast two days short |
 | `sim_error.png`, `sim_portal.png` | The error and setup screens |
 | `sim_testcard.png` | The test card of the `_testcard` build |
 

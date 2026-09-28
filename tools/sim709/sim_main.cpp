@@ -197,6 +197,7 @@ static void sample(bool night)
 
   memset(&air.components, 0, sizeof(air.components));
   air.us_aqi = night ? 42 : 39;
+  air.valid = true;
   pollen.tree = 1;
   pollen.grass = 2;
   pollen.weed = 4;
@@ -262,9 +263,31 @@ static void save(const char *path)
   printf("wrote %s\n", path);
 }
 
-static void weather(const char *path, bool night, int alertCount, const char *status = "")
+// What a wake looks like when the smaller requests failed and the forecast
+// came back short: no UV index, no air quality, no pollen, five days of seven.
+static void gaps()
+{
+  current.uvi = NAN;
+  air.us_aqi = -1;
+  air.valid = false;
+  pollen.max_upi = -1;
+  for (int i = 5; i < OWM_NUM_DAILY; ++i)
+  {
+    daily[i] = owm_daily_t();
+    daily[i].dt = 0;
+    daily[i].temp.max = NAN;
+    daily[i].temp.min = NAN;
+  }
+}
+
+static void weather(const char *path, bool night, int alertCount, const char *status = "",
+                    bool withGaps = false)
 {
   sample(night);
+  if (withGaps)
+  {
+    gaps();
+  }
   std::vector<owm_alerts_t> alerts = alertsOf(alertCount);
   tm timeInfo;
   localtime_r(&hostNow, &timeInfo);
@@ -319,6 +342,7 @@ int main(int argc, char **argv)
   weather((out + "/sim_alert2.ppm").c_str(), false, 2);
   weather((out + "/sim_alert4.ppm").c_str(), false, 4);
   weather((out + "/sim_status.ppm").c_str(), false, 0, "weather.gov Alerts API");
+  weather((out + "/sim_gaps.ppm").c_str(), false, 0, "Open-Meteo Air Quality API", true);
 
   initDisplay();
   drawTestCard709();

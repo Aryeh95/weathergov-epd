@@ -108,6 +108,13 @@
     // wifi timeout_ms.
     "wifi_retry_interval_minutes": 15,
 
+    // When the weather cannot be fetched (no WiFi, no answer from
+    // weather.gov), the last weather stays on the screen for this many
+    // minutes before an error screen replaces it. 0 shows errors at
+    // once. A wake by button or reset always shows the error.
+    // Range [0-1440].
+    "outage_grace_minutes": 180,
+
     // Number of hours plotted on the hourly outlook graph. Range [8-48].
     "hourly_graph_max": 24
   },

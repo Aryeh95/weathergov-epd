@@ -128,6 +128,7 @@
     </div>
     <div class="row">
       <div><label>WiFi retry (min)</label><input id="s_retry" type="number" min="1" max="1440"></div>
+      <div><label>Keep last weather when offline (min)</label><input id="s_grace" type="number" min="0" max="1440"></div>
       <div><label>Graph hours</label><input id="s_graph" type="number" min="8" max="48"></div>
       <div><label>Forecast days</label><select id="s_fdays"><option value="5">5</option><option value="6">6</option><option value="7">7</option></select></div>
       <div><label>Widget rows</label><select id="s_wrows"><option value="5">5 (10 slots)</option><option value="6">6 (12 slots)</option></select></div>
@@ -136,7 +137,10 @@
       <div><label>Font</label><select id="s_font"></select></div>
       <div><label>Small text font (labels, axis)</label><select id="s_font_small"></select></div>
     </div>
-    <div class="hint">No updates between bed and wake hours (set both equal to disable).</div>
+    <div class="hint">No updates between bed and wake hours (set both equal to disable).
+      When the weather cannot be fetched, the last weather stays on the
+      screen for the time set above before an error replaces it; 0 shows
+      errors at once. Pressing a button always shows the error.</div>
     <div class="hint" id="fixednote" style="display:none">This panel has a layout of
       its own, so fonts, theme and widget slots are not offered here. The
       readings it shows are fixed: humidity, dew point, wind, pressure, UV
@@ -201,14 +205,27 @@
 <fieldset><legend>Firmware update</legend>
   <div class="hint">Install a new <code>firmware.bin</code> over WiFi (built with
     <code>pio run</code>; find it in <code>.pio/build/&lt;board&gt;/firmware.bin</code>).
-    Upload the file built for <b>this</b> board model. The update installs to a
-    spare slot and only takes effect when it completes and verifies, then the
-    display restarts. Current firmware build: <span id="fwbuild">?</span></div>
+    Upload the file built for <b>this</b> board and panel; one built for
+    another is refused. The update installs to a spare slot and only takes
+    effect when it completes and verifies, then the display restarts.
+    Current firmware build: <span id="fwbuild">?</span><br>
+    This device: <code id="fwtarget">?</code></div>
   <div style="display:flex;gap:0.4rem;margin-top:0.4rem">
     <input type="file" id="fwfile" accept=".bin" style="flex:1">
     <button type="button" id="fwbtn" style="white-space:nowrap">Upload &amp; Install</button>
   </div>
+  <label style="display:block;margin-top:0.4rem;font-weight:normal">
+    <input type="checkbox" id="fwforce" style="width:auto">
+    Install even if the file was built for something else (after changing
+    the panel, or to go back to a build from before this check)</label>
   <div id="fwprog" style="display:none;margin-top:0.4rem"></div>
+</fieldset>
+
+<fieldset><legend>Diagnostics</legend>
+  <div class="hint">What the display did the last time it woke, and the
+    last time something went wrong. Recorded on the device; nothing is
+    sent anywhere.</div>
+  <div id="diag"><div class="hint">Nothing recorded yet.</div></div>
 </fieldset>
 
 <button class="toggle" id="advtoggle" type="button">Advanced: edit raw JSON</button>
@@ -439,6 +456,7 @@ function populate() {
   el('s_bed').value = cfg.sleep?.bed_time_hour ?? 0;
   el('s_wake').value = cfg.sleep?.wake_time_hour ?? 5;
   el('s_retry').value = cfg.sleep?.wifi_retry_interval_minutes ?? 15;
+  el('s_grace').value = cfg.sleep?.outage_grace_minutes ?? 180;
   el('s_graph').value = cfg.sleep?.hourly_graph_max ?? 24;
   el('s_fdays').value = String(cfg.forecast_days ?? 5);
   el('s_wrows').value = String(cfg.widget_rows ?? 5);
@@ -483,6 +501,7 @@ function collect() {
   cfg.sleep.bed_time_hour = +el('s_bed').value;
   cfg.sleep.wake_time_hour = +el('s_wake').value;
   cfg.sleep.wifi_retry_interval_minutes = +el('s_retry').value;
+  cfg.sleep.outage_grace_minutes = +el('s_grace').value;
   cfg.sleep.hourly_graph_max = +el('s_graph').value;
   cfg.forecast_days = +el('s_fdays').value;
   cfg.widget_rows = +el('s_wrows').value;
@@ -604,20 +623,28 @@ async function pollScan() {
     if (!j.networks || j.networks.length === 0) {
       box.innerHTML = '<div class="hint">No networks found. Try again.</div>';
     } else {
-      box.innerHTML = j.networks.map(n => {
-        const bars = n.rssi > -60 ? '&#9679;&#9679;&#9679;'
-                   : n.rssi > -75 ? '&#9679;&#9679;&#9675;' : '&#9679;&#9675;&#9675;';
-        return '<button type="button" class="scanitem" data-ssid="'
-          + n.ssid.replace(/"/g, '&quot;') + '" data-open="' + n.open
-          + '" style="display:block;width:100%;text-align:left;margin-top:0.3rem">'
-          + bars + ' ' + n.ssid.replace(/</g, '&lt;')
-          + (n.open ? ' <i>(open)</i>' : '') + '</button>';
-      }).join('');
-      box.querySelectorAll('.scanitem').forEach(b => b.addEventListener('click', () => {
-        el('w_ssid').value = b.dataset.ssid;
-        if (b.dataset.open === 'true') { el('w_pass').value = ''; }
-        else { el('w_pass').focus(); }
-        box.style.display = 'none';
+      // A network's name is whatever its owner typed, markup included, so it
+      // goes into the page as text and never as HTML.
+      box.replaceChildren(...j.networks.map(n => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'scanitem';
+        b.style.cssText = 'display:block;width:100%;text-align:left;margin-top:0.3rem';
+        const bars = n.rssi > -60 ? '\u25CF\u25CF\u25CF'
+                   : n.rssi > -75 ? '\u25CF\u25CF\u25CB' : '\u25CF\u25CB\u25CB';
+        b.append(bars + ' ' + n.ssid);
+        if (n.open) {
+          const i = document.createElement('i');
+          i.textContent = ' (open)';
+          b.append(i);
+        }
+        b.addEventListener('click', () => {
+          el('w_ssid').value = n.ssid;
+          if (n.open) { el('w_pass').value = ''; }
+          else { el('w_pass').focus(); }
+          box.style.display = 'none';
+        });
+        return b;
       }));
     }
     el('scanbtn').disabled = false;
@@ -641,7 +668,7 @@ el('fwbtn').addEventListener('click', () => {
   if (!f) { setStatus('err', 'Choose a firmware.bin file first.'); return; }
   if (!f.name.endsWith('.bin')) { setStatus('err', 'That is not a .bin file.'); return; }
   if (!confirm('Install "' + f.name + '" (' + Math.round(f.size / 1024)
-      + ' kB)? Make sure it was built for this board model.')) { return; }
+      + ' kB)?')) { return; }
   const fd = new FormData();
   fd.append('firmware', f);
   const xhr = new XMLHttpRequest();
@@ -671,7 +698,7 @@ el('fwbtn').addEventListener('click', () => {
     setStatus('err', 'Upload failed (connection lost). The previous firmware '
       + 'is still installed.');
   };
-  xhr.open('POST', '/update');
+  xhr.open('POST', el('fwforce').checked ? '/update?force=1' : '/update');
   xhr.send(fd);
 });
 
@@ -731,23 +758,82 @@ function hideLayoutSettings() {
   el('fixednote').style.display = 'block';
 }
 
+// One record of the diagnostics, as rows of label and value.
+function diagRows(title, d) {
+  const secs = ms => (ms / 1000).toFixed(1) + ' s';
+  const CAUSES = {0: 'power on or reset', 2: 'portal button', 3: 'refresh button', 4: 'timer'};
+  // only the parts of the wake that happened
+  const parts = [['WiFi', d.wifi_ms], ['clock', d.clock_ms],
+    ['weather', d.fetch_ms], ['screen', d.draw_ms]].filter(p => p[1] > 0);
+  const phases = parts.length
+    ? ': ' + parts.map(p => p[0] + ' ' + secs(p[1])).join(', ') : '';
+  const rows = [
+    ['When', d.when ? new Date(d.when * 1000).toLocaleString() : 'clock not set'],
+    ['Result', d.summary + (d.code ? ' (' + d.code + ')' : '')],
+  ];
+  if (d.note) rows.push(['Detail', d.note]);
+  rows.push(
+    ['Woken by', CAUSES[d.cause] ?? 'cause ' + d.cause],
+    ['Awake for', secs(d.awake_ms) + phases],
+    ['Then slept for', d.sleep_s ? Math.round(d.sleep_s / 60) + ' min' : 'until reset'],
+    ['Battery', d.battery_mv ? (d.battery_mv / 1000).toFixed(2) + ' V' : 'not measured'],
+    ['WiFi signal', d.rssi ? d.rssi + ' dBm' : 'not connected']);
+  const box = document.createElement('div');
+  box.style.marginTop = '0.6rem';
+  const h = document.createElement('b');
+  h.textContent = title;
+  box.append(h);
+  for (const [k, v] of rows) {
+    const r = document.createElement('div');
+    r.style.cssText = 'display:flex;gap:0.6rem;margin-top:0.15rem';
+    const a = document.createElement('span');
+    a.style.cssText = 'flex:0 0 7.5rem;opacity:0.7';
+    a.textContent = k;
+    const b = document.createElement('span');
+    b.textContent = v;
+    r.append(a, b);
+    box.append(r);
+  }
+  return box;
+}
+
+function showDiagnostics(i) {
+  const parts = [];
+  if (i.last_wake) parts.push(diagRows('Last wake', i.last_wake));
+  if (i.last_problem && (!i.last_wake || i.last_problem.when !== i.last_wake.when
+      || i.last_problem.outcome !== i.last_wake.outcome)) {
+    parts.push(diagRows('Last problem', i.last_problem));
+  }
+  if (parts.length) el('diag').replaceChildren(...parts);
+}
+
 function showConnInfo(i) {
   const box = el('conninfo');
+  // Built from text nodes: the network name and the password are whatever
+  // someone typed, and must not be read as markup.
+  const tag = (name, text) => {
+    const e = document.createElement(name);
+    e.textContent = text;
+    return e;
+  };
   if (i.mode === 'hotspot') {
-    box.innerHTML = '&#x1F4F6; Connected via the setup hotspot <b>' + i.ssid
-      + '</b> (password: <code>' + i.ap_password + '</code>) at <code>http://'
-      + i.ip + '/</code>. After saving a WiFi network below, the display '
-      + 'joins that network and this page becomes reachable there instead.';
+    box.replaceChildren('\u{1F4F6} Connected via the setup hotspot ',
+      tag('b', i.ssid), ' (password: ', tag('code', i.ap_password), ') at ',
+      tag('code', 'http://' + i.ip + '/'),
+      '. After saving a WiFi network below, the display joins that network '
+      + 'and this page becomes reachable there instead.');
   } else {
-    box.innerHTML = '&#x1F4F6; On WiFi network <b>' + i.ssid + '</b> &mdash; '
-      + 'reachable at <code>http://' + i.ip + '/</code> or <code>'
-      + 'http://' + (i.mdns ?? 'weatherepd.local') + '/</code>.';
+    box.replaceChildren('\u{1F4F6} On WiFi network ', tag('b', i.ssid),
+      ' \u2014 reachable at ', tag('code', 'http://' + i.ip + '/'), ' or ',
+      tag('code', 'http://' + (i.mdns ?? 'weatherepd.local') + '/'), '.');
   }
-  box.innerHTML += ' Setup mode ends after ' + (i.timeout_minutes ?? 10)
-    + ' minutes of inactivity.';
+  box.append(' Setup mode ends after ' + (i.timeout_minutes ?? 10)
+    + ' minutes of inactivity.');
   box.style.display = 'block';
   if (i.build) { el('fwbuild').textContent = i.build + (i.board ? ' for ' + i.board : ''); }
   if (i.layout === 'fixed') { hideLayoutSettings(); }
+  if (i.target) { el('fwtarget').textContent = i.target; }
+  showDiagnostics(i);
   if (i.fonts) { setFontOptions(i.fonts); }
 }
 

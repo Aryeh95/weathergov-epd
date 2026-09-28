@@ -79,7 +79,7 @@ typedef struct owm_current
   int     humidity;         // Humidity, %
   float   dew_point;        // Atmospheric temperature (varying according to pressure and humidity) below which water droplets begin to condense and dew can form. Units – default: kelvin, metric: Celsius, imperial: Fahrenheit.
   int     clouds;           // Cloudiness, % (approximated from NWS sky cover category)
-  float   uvi;              // Current UV index (from Open-Meteo)
+  float   uvi;              // Current UV index (from Open-Meteo). NAN = not available
   int     visibility;       // Average visibility, metres. -1 = not available
   float   wind_speed;       // Wind speed. Units – default: metre/sec, metric: metre/sec, imperial: miles/hour.
   float   wind_gust;        // (where available) Wind gust. Units – default: metre/sec, metric: metre/sec, imperial: miles/hour.
@@ -180,6 +180,7 @@ typedef struct owm_resp_air_pollution
   owm_components_t components;
   int64_t          dt[OWM_NUM_AIR_POLLUTION];       // unused, reserved
   int              us_aqi;  // official US EPA AQI from AirNow, -1 if unavailable
+  bool             valid;   // the concentrations above were fetched and enough of them are real readings
 } owm_resp_air_pollution_t;
 
 DeserializationError deserializeNWSPoints(WiFiClient &json, String &forecastUrl,

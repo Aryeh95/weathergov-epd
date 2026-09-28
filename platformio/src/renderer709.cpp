@@ -1251,27 +1251,35 @@ void drawCurrentConditions(const owm_current_t &current,
   c[3].value = pressureText(current);
   c[3].trend = historyPressureTrend();
 
-  const unsigned uvi = static_cast<unsigned>(
-                         std::max(lroundf(current.uvi), 0L));
   c[4].label = label(TXT_UV_INDEX);
-  c[4].value = String(uvi);
-  c[4].word = getUVIdesc(uvi);
-  c[4].level = (uvi <= 2)  ? RISK_GREEN
-             : (uvi <= 5)  ? RISK_YELLOW
-             : (uvi <= 7)  ? RISK_AMBER
-             : (uvi <= 10) ? RISK_RED
-                           : RISK_PURPLE;
+  if (std::isnan(current.uvi))
+  { // not fetched: no number, and no chip to call it low
+    c[4].value = "--";
+  }
+  else
+  {
+    const unsigned uvi = static_cast<unsigned>(
+                           std::max(lroundf(current.uvi), 0L));
+    c[4].value = String(uvi);
+    c[4].word = getUVIdesc(uvi);
+    c[4].level = (uvi <= 2)  ? RISK_GREEN
+               : (uvi <= 5)  ? RISK_YELLOW
+               : (uvi <= 7)  ? RISK_AMBER
+               : (uvi <= 10) ? RISK_RED
+                             : RISK_PURPLE;
+  }
 
   // air quality: AirNow's official figure when there is one, otherwise
   // worked out from Open-Meteo's modelled pollutants
   const bool epa = (air.us_aqi >= 0);
-  int aqi, aqiMax;
+  const bool airKnown = epa || air.valid;
+  int aqi = 0, aqiMax = 0;
   if (epa)
   {
     aqi = air.us_aqi;
     aqiMax = UNITED_STATES_AQI_MAX;
   }
-  else
+  else if (airKnown)
   {
     const owm_components_t &p = air.components;
     aqi = calc_aqi(AQI_SCALE, p.co, p.nh3, p.no, p.no2, p.o3, NULL, p.so2,
@@ -1281,10 +1289,18 @@ void drawCurrentConditions(const owm_current_t &current,
   const bool usScale = epa || (AQI_SCALE == UNITED_STATES_AQI);
   c[5].label = label((epa || aqi_desc_type(AQI_SCALE) == AIR_QUALITY_DESC)
                      ? TXT_AIR_QUALITY : TXT_AIR_POLLUTION);
-  c[5].tag = epa ? TXT709_TAG_EPA : TXT709_TAG_MODEL;
-  c[5].value = (aqi > aqiMax) ? "> " + String(aqiMax) : String(aqi);
-  c[5].word = epa ? united_states_aqi_desc(aqi) : aqi_desc(AQI_SCALE, aqi);
-  if (usScale)
+  if (!airKnown)
+  { // neither source answered
+    c[5].value = "--";
+  }
+  else
+  {
+    c[5].tag = epa ? TXT709_TAG_EPA : TXT709_TAG_MODEL;
+    c[5].value = (aqi > aqiMax) ? "> " + String(aqiMax) : String(aqi);
+    c[5].word = epa ? united_states_aqi_desc(aqi)
+                    : aqi_desc(AQI_SCALE, aqi);
+  }
+  if (airKnown && usScale)
   {
     static const int BAND[6] = {RISK_GREEN, RISK_YELLOW, RISK_AMBER,
                                 RISK_RED, RISK_PURPLE, RISK_MAROON};
@@ -1492,6 +1508,11 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
     const char *name = (i == 0) ? TXT709_TODAY
                                 : LC_ABDAY[(timeInfo.tm_wday + i) % 7];
     drawText(cx, y0 + 6, name, F_BITTER_40, K, MA);
+    if (daily[i].dt <= 0 || std::isnan(daily[i].temp.max))
+    { // the forecast did not reach this day
+      drawText(cx, y0 + 196, "--", F_BITTER_42D, K, MA, true);
+      continue;
+    }
     drawIcon(conditionIcon(tellingId(daily[i]), true, 104), 104, cx - 52,
              y0 + 70);
     drawText(cx + 6, y0 + 196, tempText(daily[i].temp.max), F_BITTER_62D, K,
