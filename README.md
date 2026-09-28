@@ -237,7 +237,7 @@ If setup isn't completed within 10 minutes, the device shows a "Setup paused" sc
 
 The same page used for first-time setup remains available after the device is configured:
 
-- **Enter it** by pressing the RST button **twice, a few seconds apart** (on the reTerminal E1002, just press the **middle front button** once while it sleeps). The display shows where to reach it — `http://weatherepd.local/` or the device's IP — for the next 10 minutes (configurable).
+- **Enter it** by pressing the RST button **twice, one to three seconds apart**, once the display has finished refreshing (on the reTerminal E1002, just press the **middle front button** once while it sleeps). The display shows where to reach it — `http://weatherepd.local/` or the device's IP — for the next 10 minutes (configurable).
 - **Every setting** in `config.json` is editable: WiFi (with network scan), location (with phone-GPS detection), time zone and clock/date formats (dropdowns with live examples), refresh schedule and bedtime hours, forecast days (5–7), widget rows (5 = 10 slots, 6 = 12 slots — enough for every widget at once), and a per-slot widget picker that mirrors the physical layout.
 - An **advanced raw-JSON editor** exposes the settings not in the form (battery thresholds, NTP servers, portal options). Saves are validated on-device and keep a one-generation backup (`config.bak`).
 - A **Diagnostics** section shows what the display did the last time it woke and the last time something went wrong: the result, how long WiFi, the weather requests and the screen each took, the battery voltage and the WiFi signal. It answers "why did it not update?" without a USB cable. The record stays on the device.
