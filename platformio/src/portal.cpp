@@ -193,6 +193,20 @@ static void handleGetInfo()
   // commit the firmware was built from (scripts/git_rev.py), plus the
   // compile time, so an update can be confirmed from a phone
   doc["build"] = String(GIT_REV) + " (" __DATE__ " " __TIME__ ")";
+#if defined(BOARD_XIAO_EE02)
+  doc["board"] = "Seeed XIAO EE02, GDEB0709E01 1600x1200";
+#elif defined(BOARD_RETERMINAL_E1001)
+  doc["board"] = "Seeed reTerminal E1001";
+#elif defined(BOARD_RETERMINAL_E1002)
+  doc["board"] = "Seeed reTerminal E1002";
+#else
+  doc["board"] = "FireBeetle ESP32";
+#endif
+#ifdef DISP_7C_709
+  // The 1600x1200 layout is fixed: no widget slots, one pairing of fonts,
+  // no dark version. The page hides the settings that do not apply.
+  doc["layout"] = "fixed";
+#endif
   // font families compiled into this firmware, for the Font dropdown
   JsonArray fonts = doc["fonts"].to<JsonArray>();
   for (int i = 0; i < FONT_FAMILY_NAME_COUNT; ++i)

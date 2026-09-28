@@ -605,7 +605,14 @@ void setup()
   pollen_info_t pollen;
   pollen.tree = pollen.grass = pollen.weed = 0;
   pollen.max_upi = -1;
-  if (!POLLEN_APIKEY.isEmpty() && POS_POLLEN >= 0)
+#ifdef DISP_7C_709
+  // This layout always has a pollen cell; it has no widget slots to give
+  // or withhold one.
+  const bool wantPollen = true;
+#else
+  const bool wantPollen = (POS_POLLEN >= 0);
+#endif
+  if (!POLLEN_APIKEY.isEmpty() && wantPollen)
   {
     // Pollen is a daily forecast, so the result is cached in NVS and the
     // API is only called once per 3-hour bucket -- ~8 calls/day instead of
