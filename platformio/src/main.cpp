@@ -542,6 +542,19 @@ void setup()
     runConfigPortal(unconfigured); // never returns
   }
 
+#if !defined(BOARD_RETERMINAL_E1002)
+  // A press of RST may be the first of two. Starting WiFi at once meant the
+  // second press cut a connection short as it was being made, and some
+  // routers then refuse the display for a minute or two (seen: 123 s of
+  // attempts without an answer). So after a reset, not after a timer wake,
+  // nothing touches the radio for the time a second press takes.
+  if (wakeCause == ESP_SLEEP_WAKEUP_UNDEFINED)
+  {
+    Serial.println("[drd] reset: waiting 3 s for a second press");
+    delay(3000);
+  }
+#endif
+
   // All data should have been loaded from NVS. Close filesystem.
   prefs.end();
 

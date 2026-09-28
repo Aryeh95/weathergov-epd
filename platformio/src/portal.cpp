@@ -467,7 +467,10 @@ void runConfigPortal(bool forceAp)
   if (!forceAp)
   {
     int wifiRSSI = 0;
-    staConnected = (startWiFi(wifiRSSI) == WL_CONNECTED);
+    // Someone is standing in front of the display, waiting: no attempt
+    // waits longer than 15 s for a router that does not answer. After
+    // that the hotspot opens, which works without the router.
+    staConnected = (startWiFi(wifiRSSI, 15000) == WL_CONNECTED);
   }
 
   String urlStr;
@@ -527,6 +530,7 @@ void runConfigPortal(bool forceAp)
     {
       Serial.println("[portal] configuration saved, restarting");
       clearWifiErrMarker();
+      killWiFi(); // leave the network before the restart: see killWiFi()
       esp_restart();
     }
     if (millis() - lastActivity >= timeoutMs)
@@ -557,6 +561,7 @@ void runConfigPortal(bool forceAp)
       Serial.println("[portal] inactive for " + String(PORTAL_TIMEOUT)
                      + "min, restarting into normal cycle");
       clearWifiErrMarker();
+      killWiFi();
       esp_restart();
     }
     delay(2);

@@ -28,7 +28,9 @@
   #include <WiFiClientSecure.h>
 #endif
 
-wl_status_t startWiFi(int &wifiRSSI);
+// patienceMs: how long one attempt waits for a router that does not
+// answer; 0 = WIFI_TIMEOUT
+wl_status_t startWiFi(int &wifiRSSI, unsigned long patienceMs = 0);
 String getWifiFailureDetail(wl_status_t status);
 void killWiFi();
 bool waitForSNTPSync(tm *timeInfo);
