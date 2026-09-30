@@ -15,7 +15,12 @@
 
 #ifndef EPD709_HOST
 #include <SPI.h>
-static const SPISettings EPD709_SPI(10000000, MSBFIRST, SPI_MODE0);
+// 8 MHz: the clock bb_epaper (the OpenDisplay firmware's driver) uses for
+// this controller pair, and the fastest any driver has been seen to run it.
+// An ESPHome driver for the EE02 found only 2 MHz reliable, so if the test
+// card shows noise or a blank half, lower this before touching the init
+// bytes. A 960 KB frame takes ~1 s at 8 MHz, ~4 s at 2 MHz.
+static const SPISettings EPD709_SPI(8000000, MSBFIRST, SPI_MODE0);
 #endif
 
 // A full refresh takes about 27 s at 25 C and longer in the cold.
