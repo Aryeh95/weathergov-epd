@@ -2016,32 +2016,43 @@ static void drawAlertIcon(int16_t x, int16_t y, const owm_alerts_t &alert,
   Serial.println("]\n[debug] num_valid_alerts : " + String(num_valid_alerts));
 #endif
 
+  // The block spans x = 196 .. 196 + 4 + max_w. Left to right the icon
+  // stands at its left edge and the text runs rightwards from it; in a
+  // right-to-left locale the block is mirrored -- icon at the right edge,
+  // beside the city and date, and the text right-aligned against it,
+  // running leftwards -- so a Hebrew reader meets the icon first. The icon
+  // then also separates the alert from the right-aligned city and date.
+  const int blockRight = 196 + 4 + max_w;
+  const alignment_t textAlign = LC_RTL ? RIGHT : LEFT;
+
   if (num_valid_alerts == 1)
   { // 1 alert
     // adjust max width to for 48x48 icons
     max_w -= 48;
 
     owm_alerts_t &cur_alert = alerts[alert_indices[0]];
-    drawAlertIcon(196, 8, cur_alert, 48);
+    const int iconX = LC_RTL ? (blockRight - 48) : 196;
+    const int textX = LC_RTL ? (iconX - 4) : (196 + 48 + 4);
+    drawAlertIcon(iconX, 8, cur_alert, 48);
     // must be called after getAlertBitmap
     toTitleCase(cur_alert.event);
 
     display.setFont(&FONT_14pt8b);
     if (getStringWidth(cur_alert.event) <= max_w)
     { // Fits on a single line, draw along bottom
-      drawString(196 + 48 + 4, 24 + 8 - 12 + 20 + 1, cur_alert.event, LEFT);
+      drawString(textX, 24 + 8 - 12 + 20 + 1, cur_alert.event, textAlign);
     }
     else
     { // use smaller font
       display.setFont(&FONT_12pt8b);
       if (getStringWidth(cur_alert.event) <= max_w)
       { // Fits on a single line with smaller font, draw along bottom
-        drawString(196 + 48 + 4, 24 + 8 - 12 + 17 + 1, cur_alert.event, LEFT);
+        drawString(textX, 24 + 8 - 12 + 17 + 1, cur_alert.event, textAlign);
       }
       else
       { // Does not fit on a single line, draw higher to allow room for 2nd line
-        drawMultiLnString(196 + 48 + 4, 24 + 8 - 12 + 17 - 11,
-                          cur_alert.event, LEFT, max_w, 2, 23);
+        drawMultiLnString(textX, 24 + 8 - 12 + 17 - 11,
+                          cur_alert.event, textAlign, max_w, 2, 23);
       }
     }
   } // end 1 alert
@@ -2054,13 +2065,15 @@ static void drawAlertIcon(int16_t x, int16_t y, const owm_alerts_t &alert,
     for (int i = 0; i < 2; ++i)
     {
       owm_alerts_t &cur_alert = alerts[alert_indices[i]];
+      const int iconX = LC_RTL ? (blockRight - 32) : 196;
+      const int textX = LC_RTL ? (iconX - 3) : (196 + 32 + 3);
 
-      drawAlertIcon(196, (i * 32), cur_alert, 32);
+      drawAlertIcon(iconX, (i * 32), cur_alert, 32);
       // must be called after getAlertBitmap
       toTitleCase(cur_alert.event);
 
-      drawMultiLnString(196 + 32 + 3, 5 + 17 + (i * 32),
-                        cur_alert.event, LEFT, max_w, 1, 0);
+      drawMultiLnString(textX, 5 + 17 + (i * 32),
+                        cur_alert.event, textAlign, max_w, 1, 0);
     } // end for-loop
   } // end 2 alerts
 

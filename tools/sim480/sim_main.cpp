@@ -262,6 +262,12 @@ int main(int argc, char **argv)
   alerts.push_back(a);
   drawPage((outDir + "/sim_netanya_alert.ppm").c_str(),
            "Open-Meteo Air Quality API", false);
+  // 3b. two warnings at once
+  owm_alerts_t b = a;
+  b.event = "גלי חום";
+  b.tags = "חום";
+  alerts.push_back(b);
+  drawPage((outDir + "/sim_netanya_alerts2.ppm").c_str(), "", false);
   alerts.clear();
 
   // 4. Friday afternoon: candle lighting in the sunset widget; the date
