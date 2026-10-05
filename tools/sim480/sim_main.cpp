@@ -113,8 +113,22 @@ static void loadWeather(time_t now, bool imsCurrent)
     // CURRENT_SOURCE "nws" with a stale now_analysis: the forecast's hour
     fillCurrentFromFallback(hourly[0], current);
     current.uvi = daily[0].uvi;
-    current.pressure = 0;      // IMS has neither, the widgets show "--"
+    current.pressure = 0;      // IMS has neither...
     current.visibility = -1;
+  }
+  // ...so, as finishWeather does on the device, Open-Meteo's current
+  // pressure and visibility fill the two gaps (openmeteo_gaps.json is the
+  // reply to the same request, "&current=pressure_msl,visibility")
+  {
+    om_daily_precip_t omDaily;
+    om_gaps_t gaps = {0, -1};
+    if (parse("openmeteo_gaps.json", [&](WiFiClient &c) {
+          return deserializeOpenMeteoCurrent(c, hourly[0], current, omDaily, false, &gaps); }))
+    {
+      if (current.pressure <= 0)  current.pressure   = gaps.pressure;
+      if (current.visibility < 0) current.visibility = gaps.visibility;
+      printf("  gap fill: %d hPa, %d m\n", gaps.pressure, gaps.visibility);
+    }
   }
   tm lt;
   localtime_r(&now, &lt);
@@ -235,7 +249,12 @@ int main(int argc, char **argv)
   //    format with the holiday name (%Q, empty on an ordinary day)
   strcpy(DATE_FORMAT, "%A, %e ב%B, %K, %Q");
   loadWeather(local(2026, 10, 9, 16, 30), false);
+  // the visibility widget in the pressure's slot, to see its unit
+  POS_VISIBILITY = POS_PRESSURE;
+  POS_PRESSURE = -1;
   drawPage((outDir + "/sim_netanya_friday.ppm").c_str(), "", false);
+  POS_PRESSURE = POS_VISIBILITY;
+  POS_VISIBILITY = -1;
 
   // 5. Shabbat noon: when it ends
   loadWeather(local(2026, 10, 10, 12, 0), false);

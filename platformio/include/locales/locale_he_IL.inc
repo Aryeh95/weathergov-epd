@@ -102,6 +102,7 @@ const char *TXT_PRESSURE           = "לחץ אוויר";
 const char *TXT_AIR_QUALITY        = "איכות אוויר";
 const char *TXT_AIR_POLLUTION      = "זיהום אוויר";
 const char *TXT_VISIBILITY         = "ראות";
+const char *TXT_MORE_THAN          = "מעל ";
 const char *TXT_POLLEN             = "אבקנים";
 // Pollen type driving the index, shown as a small tag beside the
 // "Pollen" label. Keep these short -- they must fit the widget cell.
@@ -150,7 +151,7 @@ const char *TXT_UNITS_TEMP_FAHRENHEIT = "°F";
 // UNIT SYMBOLS - WIND SPEED
 const char *TXT_UNITS_SPEED_METERSPERSECOND   = "m/s";
 const char *TXT_UNITS_SPEED_FEETPERSECOND     = "ft/s";
-const char *TXT_UNITS_SPEED_KILOMETERSPERHOUR = "km/h";
+const char *TXT_UNITS_SPEED_KILOMETERSPERHOUR = "קמ\"ש";
 const char *TXT_UNITS_SPEED_MILESPERHOUR      = "mph";
 const char *TXT_UNITS_SPEED_KNOTS             = "kt";
 const char *TXT_UNITS_SPEED_BEAUFORT          = "";
@@ -164,10 +165,10 @@ const char *TXT_UNITS_PRES_ATMOSPHERES              = "atm";
 const char *TXT_UNITS_PRES_GRAMSPERSQUARECENTIMETER = "g/cm²";
 const char *TXT_UNITS_PRES_POUNDSPERSQUAREINCH      = "lb/in²";
 // UNITS SYMBOLS - VISIBILITY DISTANCE
-const char *TXT_UNITS_DIST_KILOMETERS = "km";
+const char *TXT_UNITS_DIST_KILOMETERS = "ק\"מ";
 const char *TXT_UNITS_DIST_MILES      = "mi";
 // UNITS SYMBOLS - PRECIPITATION
-const char *TXT_UNITS_PRECIP_MILLIMETERS = "mm";
+const char *TXT_UNITS_PRECIP_MILLIMETERS = "מ\"מ";
 const char *TXT_UNITS_PRECIP_CENTIMETERS = "cm";
 const char *TXT_UNITS_PRECIP_INCHES      = "in";
 

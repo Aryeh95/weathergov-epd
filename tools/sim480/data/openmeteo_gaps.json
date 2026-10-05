@@ -1,0 +1,5 @@
+{"latitude":32.3125,"longitude":34.875,"generationtime_ms":0.1,"utc_offset_seconds":10800,"timezone":"Asia/Jerusalem","timezone_abbreviation":"GMT+3","elevation":28.0,
+ "current_units":{"time":"unixtime","interval":"seconds","pressure_msl":"hPa","visibility":"m"},
+ "current":{"time":1759633200,"interval":900,"pressure_msl":1012.4,"visibility":24140.0},
+ "daily_units":{"time":"unixtime","precipitation_sum":"mm"},
+ "daily":{"time":[1759611600,1759698000,1759784400,1759870800,1759957200,1760043600,1760130000],"precipitation_sum":[0.0,0.0,0.0,0.0,0.0,0.2,0.0]}}

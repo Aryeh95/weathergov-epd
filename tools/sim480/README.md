@@ -44,7 +44,10 @@ the panel from across a desk.
 saved on 2026-10-05: `forecast_data` and `now_analysis` from ims.gov.il in
 Hebrew, the `warnings` feed, Open-Meteo's air quality, the Ministry of Environmental Protection's
 latest-index list (`sviva_index_region4.json`) and Google's pollen
-forecast -- the same requests the firmware makes. Replace them with your
+forecast -- the same requests the firmware makes. `openmeteo_gaps.json`
+is the Open-Meteo request that fills in pressure and visibility when IMS
+supplies the current conditions; its values are a typical sample written
+by hand in the API's shape, not a saved reply. Replace them with your
 own location's to preview it (`sim_main.cpp` names the location id, region
 and coordinates).
 

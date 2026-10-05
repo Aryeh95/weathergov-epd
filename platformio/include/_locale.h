@@ -98,6 +98,7 @@ extern const char *TXT_PRESSURE;
 extern const char *TXT_AIR_QUALITY;
 extern const char *TXT_AIR_POLLUTION;
 extern const char *TXT_VISIBILITY;
+extern const char *TXT_MORE_THAN;   // prefix of a value above the scale ("> 10 km")
 extern const char *TXT_POLLEN;
 extern const char *TXT_POLLEN_TREE;
 extern const char *TXT_POLLEN_GRASS;
