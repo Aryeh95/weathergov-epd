@@ -229,5 +229,16 @@ int main(int argc, char **argv)
   alerts.push_back(a);
   drawPage((outDir + "/sim_netanya_alert.ppm").c_str(),
            "Open-Meteo Air Quality API", false);
+  alerts.clear();
+
+  // 4. Friday afternoon: candle lighting in the sunset widget; the date
+  //    format with the holiday name (%Q, empty on an ordinary day)
+  strcpy(DATE_FORMAT, "%A, %e ב%B, %K, %Q");
+  loadWeather(local(2026, 10, 9, 16, 30), false);
+  drawPage((outDir + "/sim_netanya_friday.ppm").c_str(), "", false);
+
+  // 5. Shabbat noon: when it ends
+  loadWeather(local(2026, 10, 10, 12, 0), false);
+  drawPage((outDir + "/sim_netanya_shabbat.ppm").c_str(), "", false);
   return 0;
 }

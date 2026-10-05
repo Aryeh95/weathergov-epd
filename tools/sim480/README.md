@@ -31,6 +31,8 @@ Needs a C++17 compiler (clang++ or g++ on the path).
 | `sim_netanya_afternoon.png` | The same day at 13:30, current conditions from the forecast hour, the heat stress widget in the dew point's slot (the Hebrew build's default) and the Hebrew calendar date in the header |
 | `sim_netanya_pollen.png` | The pollen widget (Google Pollen API) in place of the indoor humidity |
 | `sim_netanya_alert.png` | With a warning worded as IMS words them, and a failed request in the status bar |
+| `sim_netanya_friday.png` | Friday 16:30: candle lighting in the sunset widget, and the date format with the holiday name (`%Q`, empty on an ordinary day) |
+| `sim_netanya_shabbat.png` | Shabbat noon: when it ends |
 
 Each comes twice: the plain file has the dots exactly as the panel is told
 to set them; `_blended` averages them 2x2, closer to what the eye makes of
