@@ -226,6 +226,11 @@ int main(int argc, char **argv)
   loadWeather(local(2026, 10, 5, 13, 30), false);
   drawPage((outDir + "/sim_netanya_afternoon.ppm").c_str(), "", false);
 
+  // 2a. the same with a 5-day forecast row (wider columns)
+  FORECAST_DAYS = 5;
+  drawPage((outDir + "/sim_netanya_5day.ppm").c_str(), "", false);
+  FORECAST_DAYS = 7;
+
   // 2b. the pollen widget in the indoor-humidity slot (no sensor in the sample)
   POS_POLLEN = POS_INHUMIDITY;
   POS_INHUMIDITY = -1;
