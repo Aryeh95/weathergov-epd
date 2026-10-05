@@ -914,7 +914,17 @@ void setup()
   }
 
   air_quality.us_aqi = -1;
-  if (!AIRNOW_APIKEY.isEmpty())
+  air_quality.il_valid = false;
+  air_quality.il_index = 0;
+  // Which measured index, if any (config.json api.aqi_source): AirNow with
+  // a key, the Israel Ministry of Environmental Protection with the IMS
+  // forecast source, else Open-Meteo's model.
+  const bool useAirNow = (AQI_SOURCE == "airnow")
+                      || (AQI_SOURCE == "auto" && !AIRNOW_APIKEY.isEmpty());
+  const bool useIsraelAQI = (AQI_SOURCE == "israel")
+                         || (AQI_SOURCE == "auto" && !useAirNow
+                             && FORECAST_SOURCE == "ims");
+  if (useAirNow && !AIRNOW_APIKEY.isEmpty())
   {
     // AirNow's gateway is routinely the slowest call of the wake (8-25s),
     // and its stations only report hourly -- so the result is cached in
@@ -948,6 +958,50 @@ void setup()
       {
         prefs.putInt("airnowStamp", airnowStamp);
         prefs.putInt("airnowAqi", air_quality.us_aqi);
+      }
+    }
+    prefs.end();
+  }
+  if (useIsraelAQI)
+  {
+    // The Ministry's stations report hourly and its index list is ~170 KB,
+    // so like AirNow the result is cached in NVS per clock hour. A station
+    // with no current index is cached too (as "none"), so a quiet station
+    // does not cost a fetch every wake.
+    time_t aNow = time(nullptr);
+    tm aTm;
+    localtime_r(&aNow, &aTm);
+    const int32_t ilStamp = ((aTm.tm_year + 1900) * 10000
+                             + (aTm.tm_mon + 1) * 100 + aTm.tm_mday) * 100
+                            + aTm.tm_hour;
+    prefs.begin(NVS_NAMESPACE, false);
+    if (prefs.getInt("ilaqStamp", 0) == ilStamp)
+    {
+      air_quality.il_valid = prefs.getBool("ilaqValid", false);
+      air_quality.il_index = prefs.getInt("ilaqIdx", 0);
+      Serial.println(String("[sviva] cached index for this hour (")
+                     + (air_quality.il_valid ? String(air_quality.il_index)
+                                             : String("none")) + ")");
+    }
+    else
+    {
+      bool found = false;
+      int index = 0;
+      rxStatus = getIsraelAQI(client, found, index);
+      if (rxStatus != HTTP_CODE_OK)
+      {
+        const String note = "Israel MoEP air quality API " + String(rxStatus, DEC)
+                            + ": " + getHttpResponsePhrase(rxStatus);
+        Serial.println(note + " - using Open-Meteo AQI instead");
+        quietNote = quietNote.isEmpty() ? note : quietNote + "; " + note;
+      }
+      else
+      {
+        air_quality.il_valid = found;
+        air_quality.il_index = index;
+        prefs.putInt("ilaqStamp", ilStamp);
+        prefs.putBool("ilaqValid", found);
+        prefs.putInt("ilaqIdx", index);
       }
     }
     prefs.end();

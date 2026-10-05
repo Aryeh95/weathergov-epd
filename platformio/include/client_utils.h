@@ -71,6 +71,15 @@ int getAirQuality(WiFiClient &client, owm_resp_air_pollution_t &air,
  * Returns the HTTP Status Code.
  */
 int getAirNowAQI(WiFiClient &client, int &aqi);
+
+/* Fetches the Israel Ministry of Environmental Protection's air quality
+ * index (air.sviva.gov.il, the national monitoring network) for the station
+ * nearest LAT/LON or IL_AQ_STATION_ID. No key: the site's own guest token.
+ * found is false when that station has no current index.
+ *
+ * Returns the HTTP Status Code.
+ */
+int getIsraelAQI(WiFiClient &client, bool &found, int &index);
 /* Israel Meteorological Service (ims.gov.il), the "ims" FORECAST_SOURCE:
  * the location for LAT/LON (cached in NVS), its 7-day hourly forecast plus
  * current conditions, and its regional warnings. Same contracts as the

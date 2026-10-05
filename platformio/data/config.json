@@ -204,6 +204,22 @@
     // location nearest the coordinates above.
     "ims_location_id": 0,
 
+    // Where the Air Quality widget's index comes from.
+    //   "auto"   - AirNow when an AirNow key is set above; the Israel
+    //              Ministry of Environmental Protection when the forecast
+    //              source is "ims"; otherwise Open-Meteo's model. (default)
+    //   "airnow" - AirNow, the US EPA's measured AQI (needs the key).
+    //   "israel" - the Israel Ministry of Environmental Protection's national
+    //              monitoring network (air.sviva.gov.il): the measured
+    //              Israeli index (100 best, negative worst) of the nearest
+    //              station, with the Ministry's bands and colours (good, medium, low, very low).
+    //              No key. Israel only.
+    //   "model"  - Open-Meteo's CAMS model, computed on the device.
+    "aqi_source": "auto",
+    // Ministry station id (the number in a station's URL on air.sviva.gov.il);
+    // 0 picks the active station nearest the coordinates, once.
+    "il_aq_station_id": 0,
+
     // TCP timeout for API requests, in milliseconds. These errors in the
     // serial log usually mean this value is too low:
     //   -1   Connection Refused

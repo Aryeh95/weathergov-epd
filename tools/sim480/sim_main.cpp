@@ -132,6 +132,14 @@ static void loadWeather(time_t now, bool imsCurrent)
   parse("openmeteo_air.json", [&](WiFiClient &c) { return deserializeAirQuality(c, air, uvi); });
   if (!std::isnan(uvi) && std::isnan(current.uvi)) current.uvi = uvi;
 
+  // the Ministry of Environmental Protection's index for Derech Raziel,
+  // Netanya (station 584), as the "israel" aqi_source would show it
+  air.il_valid = false;
+  air.il_index = 0;
+  parse("sviva_index_region4.json", [](WiFiClient &c) {
+    return deserializeSvivaIndex(c, 584, air.il_valid, air.il_index); });
+  printf("  Israeli index %s%d\n", air.il_valid ? "" : "(none) ", air.il_index);
+
   pollen.tree = pollen.grass = pollen.weed = 0;
   pollen.max_upi = -1;
   parse("google_pollen.json", [](WiFiClient &c) { return deserializePollen(c, pollen); });

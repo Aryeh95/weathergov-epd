@@ -362,6 +362,12 @@ bool loadSettings()
     FORECAST_SOURCE = "nws";
   }
   IMS_LOCATION_ID = api["ims_location_id"] | IMS_LOCATION_ID;
+  AQI_SOURCE = api["aqi_source"] | AQI_SOURCE;
+  if (AQI_SOURCE != "airnow" && AQI_SOURCE != "israel" && AQI_SOURCE != "model")
+  {
+    AQI_SOURCE = "auto";
+  }
+  IL_AQ_STATION_ID = api["il_aq_station_id"] | IL_AQ_STATION_ID;
 
   JsonObjectConst portal = doc["portal"];
   PORTAL_AP_PASSWORD = portal["ap_password"]     | PORTAL_AP_PASSWORD;

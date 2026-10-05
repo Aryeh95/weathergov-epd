@@ -76,6 +76,8 @@ const char *LC_HEB_MON[14] = {"תשרי", "חשוון", "כסלו", "טבת", "�
 const bool  LC_HEBCAL_LETTERS = true;
 const char *LC_HEBCAL_MONTH_PREFIX = "ב";
 const bool  LC_PREFER_HEAT_STRESS = true;
+const char *TXT_IL_AQI[4] = {"טובה", "בינונית", "נמוכה", "נמוכה מאד"}; // the Ministry's own wording
+const char *TXT_IL_AQI_TAG = "(הגנ\"ס)";
 
 // CURRENT CONDITIONS
 const char *TXT_FEELS_LIKE         = "מרגיש כמו";

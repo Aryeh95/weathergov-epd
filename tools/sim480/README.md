@@ -40,7 +40,8 @@ the panel from across a desk.
 
 `data/` holds the replies for Netanya (IMS location 7, warning region 101)
 saved on 2026-10-05: `forecast_data` and `now_analysis` from ims.gov.il in
-Hebrew, the `warnings` feed, Open-Meteo's air quality and Google's pollen
+Hebrew, the `warnings` feed, Open-Meteo's air quality, the Ministry of Environmental Protection's
+latest-index list (`sviva_index_region4.json`) and Google's pollen
 forecast -- the same requests the firmware makes. Replace them with your
 own location's to preview it (`sim_main.cpp` names the location id, region
 and coordinates).

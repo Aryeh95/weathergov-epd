@@ -1368,6 +1368,106 @@ DeserializationError deserializeIMSAlerts(WiFiClient &json, int rid,
   return error;
 } // end deserializeIMSAlerts
 
+
+/* ---- Israel Ministry of Environmental Protection ----------------------- */
+
+/* /v1/envista/regions: 16 regions, each with its stations, each station
+ * with its coordinates, monitors and a page of metadata. Only the id,
+ * coordinates and active flag survive the filter (~250 stations), and the
+ * active one nearest (lat, lon) is picked. Stations without coordinates
+ * (some mobile units) are skipped.
+ */
+DeserializationError deserializeSvivaStations(WiFiClient &json, double lat,
+                                              double lon, int &stationId)
+{
+  JsonDocument filter;
+  JsonObject st = filter[0]["stations"][0].to<JsonObject>();
+  st["stationId"]             = true;
+  st["active"]                = true;
+  st["location"]["latitude"]  = true;
+  st["location"]["longitude"] = true;
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, json,
+                                         DeserializationOption::Filter(filter));
+#if DEBUG_LEVEL >= 1
+  Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
+#endif
+  if (error)
+  {
+    return error;
+  }
+  stationId = 0;
+  double best = 1e18;
+  const double cosLat = cos(lat * M_PI / 180.0);
+  for (JsonObject region : doc.as<JsonArray>())
+  {
+    for (JsonObject o : region["stations"].as<JsonArray>())
+    {
+      if (!(o["active"] | true))
+      {
+        continue;
+      }
+      JsonVariant la = o["location"]["latitude"], lo = o["location"]["longitude"];
+      if (la.isNull() || lo.isNull())
+      {
+        continue;
+      }
+      const double dLat = la.as<double>() - lat;
+      const double dLon = (lo.as<double>() - lon) * cosLat;
+      const double d = dLat * dLat + dLon * dLon;
+      if (d < best)
+      {
+        best = d;
+        stationId = o["stationId"] | 0;
+      }
+    }
+  }
+  if (stationId <= 0)
+  {
+    return DeserializationError::EmptyInput;
+  }
+  return error;
+} // end deserializeSvivaStations
+
+/* /v1/envista/stations/index/latest: one row per station in `data` (the
+ * regionsIds parameter is ignored for a guest, so the whole country comes
+ * back), each with the station's current index and the pollutant that set
+ * it. Keeps only the id and index of each row and reads off the one
+ * station's.
+ */
+DeserializationError deserializeSvivaIndex(WiFiClient &json, int stationId,
+                                           bool &found, int &index)
+{
+  // the reply is an object (the first station's row with a `data` array of
+  // every station's) -- only the array matters
+  JsonDocument filter;
+  filter["data"][0]["stationId"] = true;
+  filter["data"][0]["index"]     = true;
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, json,
+                                         DeserializationOption::Filter(filter));
+#if DEBUG_LEVEL >= 1
+  Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
+#endif
+  found = false;
+  if (error)
+  {
+    return error;
+  }
+  for (JsonObject row : doc["data"].as<JsonArray>())
+  {
+    if ((row["stationId"] | 0) == stationId && !row["index"].isNull())
+    {
+      index = static_cast<int>(std::round(row["index"].as<float>()));
+      found = true;
+      break;
+    }
+  }
+  return error;
+} // end deserializeSvivaIndex
+
 /* Parses Open-Meteo's Air Quality API response, used for UV index and air
  * pollutant concentrations (weather.gov does not provide either). The most
  * recent OWM_NUM_AIR_POLLUTION hourly values are kept, oldest first, matching
