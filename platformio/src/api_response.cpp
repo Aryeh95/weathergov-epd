@@ -23,6 +23,7 @@
 #include <ArduinoJson.h>
 #include "api_response.h"
 #include "config.h"
+#include "_locale.h"
 #include "conversions.h"
 
 /* Converts a proleptic Gregorian civil date to the number of days since the
@@ -545,15 +546,24 @@ DeserializationError deserializeNWSGridpointQPF(WiFiClient &json,
  *
  * With wantCurrent == false only the daily block is parsed and `current`
  * is left untouched (used when CURRENT_SOURCE is another provider but the
- * forecast row still needs Open-Meteo's daily precipitation).
+ * forecast row still needs Open-Meteo's daily precipitation). With `gaps`
+ * set, pressure_msl and visibility are also read into it, whatever
+ * wantCurrent is -- the gap fill for providers whose own current-conditions
+ * feed lacks them (IMS).
  */
 DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
                                                  const owm_hourly_t &fallback,
                                                  owm_current_t &current,
                                                  om_daily_precip_t &omDaily,
-                                                 bool wantCurrent)
+                                                 bool wantCurrent,
+                                                 om_gaps_t *gaps)
 {
   omDaily.n = 0;
+  if (gaps)
+  {
+    gaps->pressure   = 0;
+    gaps->visibility = -1;
+  }
   // Filter like every NWS parser does: the response also carries the
   // request echo (latitude/longitude/elevation/timezone), generation time
   // and a `current_units` block that is never read. Only the `current`
@@ -606,10 +616,21 @@ DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
     ++omDaily.n;
   }
 
+  if (gaps)
+  {
+    JsonVariant gp = doc["current"]["pressure_msl"];
+    JsonVariant gv = doc["current"]["visibility"];
+    if (!gp.isNull())
+      gaps->pressure = static_cast<int>(std::round(gp.as<float>()));
+    if (!gv.isNull())
+      gaps->visibility = static_cast<int>(gv.as<float>());
+  }
+
   if (!wantCurrent)
   {
     // Another source supplies the current conditions; this request only
-    // carried the daily precipitation totals (see getNWSWeather).
+    // carried the daily precipitation totals and/or the gap fill
+    // (see finishWeather).
     return error;
   }
 
@@ -882,46 +903,50 @@ static float dewPointC(float tempC, float rh)
  * snow in three, and a set of "feel" codes (hot, cold, muggy...) that
  * describe a clear-ish day.
  */
-struct ImsCodeMapEntry { int code; int id; int clouds; };
+struct ImsCodeMapEntry { int code; int id; int clouds; const char *en; const char *he; };
 static const ImsCodeMapEntry IMS_CODE_MAP[] = {
-  {1250, 800,  0},  // Clear
-  {1220, 802, 40},  // Partly cloudy
-  {1230, 804, 90},  // Cloudy
-  {1570, 731, 30},  // Dust
-  {1010, 761, 40},  // Sandstorms
-  {1160, 741, 85},  // Fog
-  {1310, 800,  5},  // Hot
-  {1580, 800,  5},  // Extremely hot
-  {1270, 801, 20},  // Muggy
-  {1320, 800,  5},  // Cold
-  {1590, 800,  5},  // Extremely cold
-  {1300, 800,  5},  // Frost
-  {1530, 500, 50},  // Partly cloudy, possible rain
-  {1540, 500, 80},  // Cloudy, possible rain
-  {1560, 500, 90},  // Cloudy, light rain
-  {1140, 501, 90},  // Rainy
-  {1020, 211, 90},  // Thunderstorms
-  {1510, 212, 95},  // Stormy
-  {1260, 800, 10},  // Windy (the renderer adds the wind to the icon)
-  {1080, 611, 90},  // Sleet
-  {1070, 600, 90},  // Light snow
-  {1060, 601, 90},  // Snow
-  {1520, 602, 95},  // Heavy snow
+  {1250, 800, 0, "Clear", "בהיר"},  // Clear
+  {1220, 802, 40, "Partly cloudy", "מעונן חלקית"},  // Partly cloudy
+  {1230, 804, 90, "Cloudy", "מעונן"},  // Cloudy
+  {1570, 731, 30, "Dust", "אובך"},  // Dust
+  {1010, 761, 40, "Sandstorms", "סופות חול"},  // Sandstorms
+  {1160, 741, 85, "Fog", "ערפל"},  // Fog
+  {1310, 800, 5, "Hot", "חם"},  // Hot
+  {1580, 800, 5, "Extremely hot", "חם מאוד"},  // Extremely hot
+  {1270, 801, 20, "Muggy", "הביל"},  // Muggy
+  {1320, 800, 5, "Cold", "קר"},  // Cold
+  {1590, 800, 5, "Extremely cold", "קר מאוד"},  // Extremely cold
+  {1300, 800, 5, "Frost", "קרה"},  // Frost
+  {1530, 500, 50, "Partly cloudy, possible rain", "מעונן חלקית, ייתכן גשם"},  // Partly cloudy, possible rain
+  {1540, 500, 80, "Cloudy, possible rain", "מעונן, ייתכן גשם"},  // Cloudy, possible rain
+  {1560, 500, 90, "Cloudy, light rain", "מעונן, גשם קל"},  // Cloudy, light rain
+  {1140, 501, 90, "Rainy", "גשום"},  // Rainy
+  {1020, 211, 90, "Thunderstorms", "סופות רעמים"},  // Thunderstorms
+  {1510, 212, 95, "Stormy", "סוער"},  // Stormy
+  {1260, 800, 10, "Windy", "רוחות"},  // Windy (the renderer adds the wind to the icon)
+  {1080, 611, 90, "Sleet", "שלג מעורב בגשם"},  // Sleet
+  {1070, 600, 90, "Light snow", "שלג קל"},  // Light snow
+  {1060, 601, 90, "Snow", "שלג"},  // Snow
+  {1520, 602, 95, "Heavy snow", "שלג כבד"},  // Heavy snow
 };
 
 static void applyImsCode(int code, owm_weather_t &weather, int &clouds)
 {
   int id = 804, cl = 50;
+  const char *en = "", *he = "";
   for (const ImsCodeMapEntry &e : IMS_CODE_MAP)
   {
     if (e.code == code)
     {
       id = e.id;
       cl = e.clouds;
+      en = e.en;
+      he = e.he;
       break;
     }
   }
   weather.id = id;
+  weather.description = (OWM_LANG == "he") ? he : en;
   // day/night is decided by the renderer from the computed sun times
   weather.icon = "d";
   clouds = cl;
