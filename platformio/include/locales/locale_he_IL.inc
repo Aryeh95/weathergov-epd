@@ -114,6 +114,10 @@ const char *TXT_UV_HIGH      = "גבוה";
 const char *TXT_UV_VERY_HIGH = "גבוה מאוד";
 const char *TXT_UV_EXTREME   = "קיצוני";
 
+// HEAT STRESS (the IMS's own words for its six levels)
+const char *TXT_HEAT_STRESS = "עומס חום";
+const char *TXT_HEAT_STRESS_LEVEL[6] = {"ללא", "קל", "מתון", "בינוני", "כבד", "קיצוני"};
+
 // WIFI
 const char *TXT_WIFI_EXCELLENT     = "מצוין";
 const char *TXT_WIFI_GOOD          = "טוב";

@@ -88,6 +88,11 @@ extern const char *TXT_UV_HIGH;
 extern const char *TXT_UV_VERY_HIGH;
 extern const char *TXT_UV_EXTREME;
 
+// HEAT STRESS (Israel Meteorological Service's discomfort index bands:
+// none < 22, light 22-24, mild 24-26, moderate 26-28, heavy 28-30, extreme)
+extern const char *TXT_HEAT_STRESS;
+extern const char *TXT_HEAT_STRESS_LEVEL[6];
+
 // WIFI
 extern const char *TXT_WIFI_EXCELLENT;
 extern const char *TXT_WIFI_GOOD;

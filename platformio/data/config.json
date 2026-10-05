@@ -285,6 +285,11 @@
     "sunset": 1,
     "humidity": 2,
     "dewpoint": 3,
+    // Heat stress: the Israel Meteorological Service's discomfort index and
+    // its level (none/light/mild/moderate/heavy/extreme), from the current
+    // temperature and humidity. Israel's usual muggy-weather measure, in
+    // place of the dew point. Any forecast source.
+    "heat_stress": -1,
     "wind": 4,
     "uvi": 5,
     "pressure": 6,

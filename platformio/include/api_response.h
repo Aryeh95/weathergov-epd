@@ -84,6 +84,8 @@ typedef struct owm_current
   float   wind_speed;       // Wind speed. Units – default: metre/sec, metric: metre/sec, imperial: miles/hour.
   float   wind_gust;        // (where available) Wind gust. Units – default: metre/sec, metric: metre/sec, imperial: miles/hour.
   int     wind_deg;         // Wind direction, degrees (meteorological)
+  float   heat_stress;      // IMS discomfort index, when the source reports one (IMS); else 0 and computed on the device
+  int     heat_stress_level;// IMS level 0-5 that goes with it; 0 when not reported
   owm_weather_t         weather;
 } owm_current_t;
 
@@ -105,6 +107,8 @@ typedef struct owm_hourly
   float   wind_gust;        // Wind gust. Units – default: metre/sec, metric: metre/sec, imperial: miles/hour.
   int     wind_deg;         // Wind direction, degrees (meteorological)
   float   pop;              // Probability of precipitation. The values of the parameter vary between 0 and 1, where 0 is equal to 0%, 1 is equal to 100%
+  float   heat_stress;      // IMS discomfort index for the hour (IMS source only, else 0)
+  int     heat_stress_level;// IMS level 0-5 (IMS source only, else 0)
   owm_weather_t         weather;
 } owm_hourly_t;
 

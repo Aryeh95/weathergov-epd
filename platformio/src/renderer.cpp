@@ -1363,6 +1363,64 @@ void drawCurrentInHumidity(float inHumidity)
 }
 // end drawCurrentInHumidity
 
+
+/* Heat stress: the Israel Meteorological Service's discomfort index for the
+ * current temperature and humidity, with its level on a chip in the IMS
+ * colours (none green ... extreme maroon). IMS's own figure when IMS is the
+ * source, computed on the device otherwise; it is what Israeli forecasts
+ * report where American ones give the dew point.
+ */
+void drawCurrentHeatStress(const owm_current_t &current)
+{
+  if (POS_HEAT_STRESS < 0 || POS_HEAT_STRESS / 2 >= WIDGET_ROWS)
+  {
+    return;
+  }
+  int PosX = (POS_HEAT_STRESS % 2);
+  int PosY = static_cast<int>(POS_HEAT_STRESS / 2);
+
+  // icons (no colour set entry yet: line art on every panel)
+  drawWidgetIcon(162 * PosX, wgtY(PosY),
+                 wi_hot_48x48, wi_thermometer_40x40, "heat_stress", DM_FG);
+
+  // labels
+  display.setFont(&FONT_7pt8b);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_HEAT_STRESS, LEFT);
+
+  // IMS reports the index and its level itself; any other source (and a
+  // page held through an outage) gets them computed from temperature and
+  // humidity.
+  float index;
+  int level;
+  if (current.heat_stress > 0.f && current.heat_stress_level >= 0)
+  {
+    index = current.heat_stress;
+    level = std::min(current.heat_stress_level, 5);
+  }
+  else
+  {
+    index = heatStressIndex(kelvin_to_celsius(current.temp), current.humidity);
+    level = heatStressLevel(index);
+  }
+
+  display.setFont(&FONT_12pt8b);
+  if (level < 0)
+  {
+    drawString(48 + (162 * PosX), wgtValueY(PosY), "--", LEFT);
+    return;
+  }
+  String dataStr = String(static_cast<int>(std::floor(index + 0.4999f)));
+  drawString(48 + (162 * PosX), wgtValueY(PosY), dataStr, LEFT);
+  display.setFont(&FONT_7pt8b);
+  static const int HEAT_RISK[6] = { RISK_GREEN, RISK_YELLOW, RISK_AMBER,
+                                    RISK_RED,   RISK_PURPLE, RISK_MAROON };
+  const int sp = 8;
+  const int16_t chipX = display.getCursorX() + sp;
+  const int max_w = (162 + (PosX * 162) - sp) - chipX;
+  drawFittedRiskChip(chipX, wgtValueY(PosY), String(TXT_HEAT_STRESS_LEVEL[level]),
+                     nullptr, HEAT_RISK[level], max_w);
+} // end drawCurrentHeatStress
+
 // drawCurrentDewpoint
 void drawCurrentDewpoint(const owm_current_t &current)
 {
@@ -1505,6 +1563,7 @@ void drawCurrentConditions(const owm_current_t &current,
   drawCurrentInTemp(inTemp, historyIndoorTrend());
   drawCurrentInHumidity(inHumidity);
   drawCurrentDewpoint(current);
+  drawCurrentHeatStress(current);
   drawCurrentMoonPhase();
 
   // end drawing left panel

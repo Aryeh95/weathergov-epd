@@ -194,7 +194,11 @@ int main(int argc, char **argv)
   loadWeather(local(2026, 10, 5, 4, 49), true);
   drawPage((outDir + "/sim_netanya_dawn.ppm").c_str(), "", false);
 
-  // 2. the same day at 13:30, current conditions from the forecast hour
+  // 2. the same day at 13:30, current conditions from the forecast hour;
+  //    the heat stress widget in the dew point's slot, as an Israeli layout
+  //    would have it
+  POS_HEAT_STRESS = POS_DEWPOINT;
+  POS_DEWPOINT = -1;
   loadWeather(local(2026, 10, 5, 13, 30), false);
   drawPage((outDir + "/sim_netanya_afternoon.ppm").c_str(), "", false);
 

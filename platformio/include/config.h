@@ -560,6 +560,7 @@ extern int POS_SUNSET;
 extern int POS_WIND;
 extern int POS_HUMIDITY;
 extern int POS_DEWPOINT;
+extern int POS_HEAT_STRESS;
 extern int POS_UVI;
 extern int POS_PRESSURE;
 extern int POS_AIR_QUALITY;

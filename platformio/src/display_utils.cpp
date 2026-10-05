@@ -373,6 +373,39 @@ void filterAlerts(std::vector<owm_alerts_t> &resp, int *ignore_list)
 
 /* Returns the descriptor text for the given UV index.
  */
+/* Prof. Ezra Zohar's discomfort index, the one the IMS (and the IDF) use:
+ * the mean of the dry-bulb and wet-bulb temperatures. The wet bulb comes
+ * from Stull's (2011) fit to temperature and relative humidity. Checked
+ * against 163 hours of IMS's own "heat_stress": mean error 0.05, worst
+ * 0.16 (the Thom formula often quoted for Israel was off by up to 0.9).
+ * The level is read off the index rounded to a whole number with halves
+ * rounding down, as the IMS does: 22.5 is still "none", 22.6 is "light".
+ */
+float heatStressIndex(float tempC, int humidity)
+{
+  if (std::isnan(tempC) || humidity <= 0)
+  {
+    return NAN;
+  }
+  const float t = tempC, rh = static_cast<float>(humidity);
+  const float tw = t * atanf(0.151977f * sqrtf(rh + 8.313659f))
+                 + atanf(t + rh) - atanf(rh - 1.676331f)
+                 + 0.00391838f * powf(rh, 1.5f) * atanf(0.023101f * rh)
+                 - 4.686035f;
+  return 0.5f * (t + tw);
+}
+
+int heatStressLevel(float index)
+{
+  if (std::isnan(index))
+  {
+    return -1;
+  }
+  const int r = static_cast<int>(std::floor(index + 0.4999f));
+  return (r <= 22) ? 0 : (r <= 24) ? 1 : (r <= 26) ? 2 : (r <= 28) ? 3
+       : (r <= 30) ? 4 : 5;
+}
+
 const char *getUVIdesc(unsigned int uvi)
 {
   if (uvi <= 2)

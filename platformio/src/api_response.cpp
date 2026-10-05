@@ -1033,6 +1033,8 @@ DeserializationError deserializeIMSForecast(WiFiClient &json,
   h["rain"]              = true;
   h["wind_direction_id"] = true;
   h["wind_speed"]        = true;
+  h["heat_stress"]       = true;
+  h["heat_stress_level"] = true;
 
   JsonDocument doc;
   DeserializationError error = deserializeJson(doc, json,
@@ -1155,6 +1157,8 @@ DeserializationError deserializeIMSForecast(WiFiClient &json,
       hh.wind_gust  = std::isnan(hh.wind_gust) ? hh.wind_speed
                                                : hh.wind_gust * KMH_TO_MS;
       hh.wind_deg   = imsWindDegrees(static_cast<int>(jnum(ho["wind_direction_id"], 0)));
+      hh.heat_stress       = jnum(ho["heat_stress"], 0.f);
+      hh.heat_stress_level = static_cast<int>(jnum(ho["heat_stress_level"], 0.f));
       applyImsCode(code, hh.weather, hh.clouds);
       ++hi;
     }
@@ -1205,6 +1209,8 @@ DeserializationError deserializeIMSCurrent(WiFiClient &json, int lid,
   c["wind_direction_id"] = true;
   c["weather_code"]      = true;
   c["u_v_index"]         = true;
+  c["heat_stress"]       = true;
+  c["heat_stress_level"] = true;
 
   JsonDocument doc;
   DeserializationError error = deserializeJson(doc, json,
@@ -1269,6 +1275,8 @@ DeserializationError deserializeIMSCurrent(WiFiClient &json, int lid,
   current.wind_deg = std::isnan(dir) ? fallback.wind_deg
                                      : imsWindDegrees(static_cast<int>(dir));
   current.uvi = jnum(o["u_v_index"], NAN);
+  current.heat_stress       = jnum(o["heat_stress"], 0.f);
+  current.heat_stress_level = static_cast<int>(jnum(o["heat_stress_level"], 0.f));
   return error;
 } // end deserializeIMSCurrent
 

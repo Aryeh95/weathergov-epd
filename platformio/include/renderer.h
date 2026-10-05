@@ -140,5 +140,6 @@ void drawCurrentVisibility(const owm_current_t &current);
 void drawCurrentPollen(const pollen_info_t &pollen);
 void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution);
 void drawCurrentDewpoint(const owm_current_t &current);
+void drawCurrentHeatStress(const owm_current_t &current);
 
 #endif
