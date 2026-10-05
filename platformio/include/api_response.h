@@ -185,6 +185,8 @@ typedef struct owm_resp_air_pollution
   int64_t          dt[OWM_NUM_AIR_POLLUTION];       // unused, reserved
   int              us_aqi;  // official US EPA AQI from AirNow, -1 if unavailable
   bool             valid;   // the concentrations above were fetched and enough of them are real readings
+  bool             il_valid; // il_index holds the Israel Ministry of Environmental Protection's index for the nearest station
+  int              il_index; // Israel's air quality index: 100 best; 51-100 good (green), 0-50 medium (yellow), -1..-200 low (red), below -200 very low (brown)
 } owm_resp_air_pollution_t;
 
 DeserializationError deserializeNWSPoints(WiFiClient &json, String &forecastUrl,
@@ -226,6 +228,18 @@ DeserializationError deserializeAirQuality(WiFiClient &json,
                                            owm_resp_air_pollution_t &r,
                                            float &uvi);
 DeserializationError deserializeAirNow(WiFiClient &json, int &aqi);
+
+/* Israel Ministry of Environmental Protection (air.sviva.gov.il), the
+ * national monitoring network. The regions list (~900 KB, every station
+ * with its coordinates) picks the active station nearest (lat, lon); the
+ * latest-index list (~170 KB, one row per station) gives that station's
+ * current Israeli index. Both are filtered down to a few fields while
+ * streaming.
+ */
+DeserializationError deserializeSvivaStations(WiFiClient &json, double lat,
+                                              double lon, int &stationId);
+DeserializationError deserializeSvivaIndex(WiFiClient &json, int stationId,
+                                           bool &found, int &index);
 
 /* Pollen forecast (Google Pollen API). Universal Pollen Index per type,
  * 0-5 (0 also covers out-of-season/no-data); max_upi is the highest of

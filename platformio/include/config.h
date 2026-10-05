@@ -519,6 +519,8 @@ extern String POLLEN_APIKEY;
 extern String CURRENT_SOURCE;
 extern String FORECAST_SOURCE;
 extern int    IMS_LOCATION_ID;
+extern String AQI_SOURCE;
+extern int    IL_AQ_STATION_ID;
 extern String PORTAL_AP_PASSWORD;
 extern int    PORTAL_TIMEOUT;
 extern String LAT;

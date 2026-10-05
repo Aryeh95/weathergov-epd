@@ -891,9 +891,13 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   // the locale's configured AQI_SCALE. Otherwise compute an AQI on the
   // locale's scale from Open-Meteo's pollutant concentrations.
   const bool useAirNow = (owm_air_pollution.us_aqi >= 0);
+  // The Israel Ministry of Environmental Protection's index, when the
+  // nearest of its stations reported: its own scale (100 best, negative
+  // worst) and its own four bands, so it is drawn on its own path below.
+  const bool useIL = !useAirNow && owm_air_pollution.il_valid;
 
   const char *air_quality_index_label;
-  if (useAirNow || aqi_desc_type(AQI_SCALE) == AIR_QUALITY_DESC)
+  if (useAirNow || useIL || aqi_desc_type(AQI_SCALE) == AIR_QUALITY_DESC)
   {
     air_quality_index_label = TXT_AIR_QUALITY;
   }
@@ -911,7 +915,7 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   display.setFont(&FONT_5pt8b);
   {
     const int16_t tagX = display.getCursorX() + 3;
-    const char *tag = useAirNow ? "(EPA)" : "(model)";
+    const char *tag = useAirNow ? "(EPA)" : useIL ? TXT_IL_AQI_TAG : "(model)";
     if (tagX + getStringWidth(tag) <= wgtTagRight(PosX))
     {
       drawString(tagX, wgtLabelY(PosY), tag, LEFT);
@@ -924,6 +928,24 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
 
   // air quality index
   display.setFont(&FONT_12pt8b);
+  if (useIL)
+  {
+    const int il = owm_air_pollution.il_index;
+    const int band = (il > 50) ? 0 : (il >= 0) ? 1 : (il >= -200) ? 2 : 3;
+    // the Ministry's legend: good green, medium yellow, low red, very low
+    // brown (the red/black dither is the nearest ink mix to its brown)
+    static const int IL_BAND_RISK[4] = { RISK_GREEN, RISK_YELLOW, RISK_RED,
+                                         RISK_MAROON };
+    drawWidgetIcon(162 * PosX, wgtY(PosY),
+                   air_filter_48x48, air_filter_40x40, "aqi", DM_FG);
+    drawString(48 + (162 * PosX), wgtValueY(PosY), String(il), LEFT);
+    display.setFont(&FONT_7pt8b);
+    const int16_t chipX = display.getCursorX() + sp;
+    const int max_w = (162 + (PosX * 162) - sp) - chipX;
+    drawFittedRiskChip(chipX, wgtValueY(PosY), String(TXT_IL_AQI[band]),
+                       nullptr, IL_BAND_RISK[band], max_w);
+    return;
+  }
   if (!useAirNow && !owm_air_pollution.valid)
   { // neither source answered: no number, and no risk badge
     drawWidgetIcon(162 * PosX, wgtY(PosY),

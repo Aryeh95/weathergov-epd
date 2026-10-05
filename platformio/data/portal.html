@@ -178,6 +178,18 @@
       LOCALE he_IL). Location ids are listed at
       <a href="https://ims.gov.il/en/locations_info" target="_blank"
       rel="noopener">ims.gov.il/en/locations_info</a>.</div>
+    <label>Air quality index source</label>
+    <select id="a_aqisrc">
+      <option value="auto">Automatic (AirNow with a key, Israel with IMS, else model)</option>
+      <option value="airnow">AirNow, US EPA (needs the AirNow key)</option>
+      <option value="israel">Israel Ministry of Environmental Protection (no key)</option>
+      <option value="model">Open-Meteo model</option>
+    </select>
+    <label>Ministry station id (0 = nearest to the coordinates)</label><input id="a_ilsid" type="number" min="0" step="1">
+    <div class="hint">The Israeli option reads the measured index of the
+      nearest station of the national monitoring network
+      (<a href="https://air.sviva.gov.il/" target="_blank" rel="noopener">air.sviva.gov.il</a>),
+      on Israel's scale: 100 is best, below zero is poor.</div>
     <label>Current conditions source</label>
     <select id="a_cursrc">
       <option value="open-meteo">Open-Meteo model (default, no key)</option>
@@ -498,6 +510,8 @@ function populate() {
   el('a_cursrc').value = cfg.api?.current_source ?? 'open-meteo';
   el('a_fcsrc').value = cfg.api?.forecast_source ?? 'nws';
   el('a_imslid').value = String(cfg.api?.ims_location_id ?? 0);
+  el('a_aqisrc').value = cfg.api?.aqi_source ?? 'auto';
+  el('a_ilsid').value = String(cfg.api?.il_aq_station_id ?? 0);
   for (let slot = 0; slot < 12; slot++) el('slot_' + slot).value = '';
   for (const [key] of WIDGETS) {
     const v = +(cfg.widget_positions?.[key] ?? -1);
@@ -546,6 +560,8 @@ function collect() {
   cfg.api.current_source = el('a_cursrc').value;
   cfg.api.forecast_source = el('a_fcsrc').value;
   cfg.api.ims_location_id = Math.max(0, parseInt(el('a_imslid').value, 10) || 0);
+  cfg.api.aqi_source = el('a_aqisrc').value;
+  cfg.api.il_aq_station_id = Math.max(0, parseInt(el('a_ilsid').value, 10) || 0);
   const rows = +el('s_wrows').value;
   for (const [key] of WIDGETS) cfg.widget_positions[key] = -1;
   for (let slot = 0; slot < rows * 2; slot++) {

@@ -198,6 +198,21 @@ String FORECAST_SOURCE = "nws";
 // 0 picks the one nearest LAT/LON automatically.
 int IMS_LOCATION_ID = 0;
 
+// AIR QUALITY INDEX SOURCE
+//   "auto" (default) - AirNow when an AirNow key is set; the Israel
+//                      Ministry of Environmental Protection when the
+//                      forecast source is IMS; otherwise Open-Meteo's model.
+//   "airnow"         - AirNow (US EPA), needs AIRNOW_APIKEY.
+//   "israel"         - the Israel Ministry of Environmental Protection's
+//                      national monitoring network (air.sviva.gov.il): the
+//                      measured Israeli index of the nearest station, no
+//                      key (the site's own guest token). Israel only.
+//   "model"          - Open-Meteo's CAMS model, computed on the device.
+String AQI_SOURCE = "auto";
+// Ministry station id (air.sviva.gov.il); 0 picks the active station
+// nearest LAT/LON from the Ministry's station list, once, and remembers it.
+int IL_AQ_STATION_ID = 0;
+
 // CONFIGURATION WEB PORTAL
 // A browser UI for editing config.json without reflashing. Entered by
 // pressing RST twice a few seconds apart (config mode on your WiFi), or

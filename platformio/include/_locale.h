@@ -57,6 +57,13 @@ extern const char *LC_HEB_MON[14];
 extern const bool  LC_HEBCAL_LETTERS;
 extern const char *LC_HEBCAL_MONTH_PREFIX;
 
+// ISRAELI AIR QUALITY INDEX (Ministry of Environmental Protection)
+// Its four bands, best first, as the Ministry's legend names and colours
+// them: good (51-100, green), medium (0-50, yellow), low (-1..-200, red),
+// very low (below -200, brown); and the widget's source tag.
+extern const char *TXT_IL_AQI[4];
+extern const char *TXT_IL_AQI_TAG;
+
 // WIDGET DEFAULTS
 // true where heat stress, not the dew point, is the everyday humidity
 // measure (Israel): a config.json that does not place the heat stress

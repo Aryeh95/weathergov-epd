@@ -81,6 +81,8 @@ const char *LC_HEB_MON[14] = {"Tishrei", "Cheshvan", "Kislev", "Tevet", "Shevat"
 const bool  LC_HEBCAL_LETTERS = false;
 const char *LC_HEBCAL_MONTH_PREFIX = "";
 const bool  LC_PREFER_HEAT_STRESS = false;
+const char *TXT_IL_AQI[4] = {"Good", "Medium", "Low", "Very Low"};
+const char *TXT_IL_AQI_TAG = "(MoEP)";
 
 // CURRENT CONDITIONS
 const char *TXT_FEELS_LIKE         = "Sensa\347\343o t\351rmica";
