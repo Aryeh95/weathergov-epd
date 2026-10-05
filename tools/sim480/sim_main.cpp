@@ -198,6 +198,14 @@ int main(int argc, char **argv)
   loadWeather(local(2026, 10, 5, 13, 30), false);
   drawPage((outDir + "/sim_netanya_afternoon.ppm").c_str(), "", false);
 
+  // 2b. the pollen widget in the indoor-humidity slot (no sensor in the sample)
+  POS_POLLEN = POS_INHUMIDITY;
+  POS_INHUMIDITY = -1;
+  drawPage((outDir + "/sim_netanya_pollen.ppm").c_str(), "", false);
+  printf("  pollen tree %d grass %d weed %d max %d\n", pollen.tree, pollen.grass, pollen.weed, pollen.max_upi);
+  POS_INHUMIDITY = POS_POLLEN;
+  POS_POLLEN = -1;
+
   // 3. with a warning, as IMS words them, and a failed request in the status bar
   owm_alerts_t a = {};
   a.event = "רוחות חזקות, אזהרה צהובה";
