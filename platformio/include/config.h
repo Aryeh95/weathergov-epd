@@ -142,7 +142,11 @@
 //   Spanish (Spain)                 es_ES
 //   Hebrew (Israel)                 he_IL  (right-to-left; needs a Hebrew
 //                                          font family, see FONTS below)
-#define LOCALE en_US
+#ifndef LOCALE
+  // (or on the command line, which leaves this file alone:
+  //  PLATFORMIO_BUILD_FLAGS="-D LOCALE=he_IL" pio run)
+  #define LOCALE en_US
+#endif
 
 // UNITS
 // Define exactly one macro for each measurement type below.
@@ -152,7 +156,11 @@
 //   Imperial : Fahrenheit
 // #define UNITS_TEMP_KELVIN
 // #define UNITS_TEMP_CELSIUS
-#define UNITS_TEMP_FAHRENHEIT
+#if !(defined(UNITS_TEMP_KELVIN) || defined(UNITS_TEMP_CELSIUS) || defined(UNITS_TEMP_FAHRENHEIT))
+  // chosen on the command line, which leaves this file alone:
+  //   PLATFORMIO_BUILD_FLAGS="-D UNITS_TEMP_CELSIUS" pio run
+  #define UNITS_TEMP_FAHRENHEIT
+#endif
 
 // UNITS - WIND SPEED
 //   Metric   : Kilometers per Hour
@@ -160,7 +168,11 @@
 // #define UNITS_SPEED_METERSPERSECOND
 // #define UNITS_SPEED_FEETPERSECOND
 // #define UNITS_SPEED_KILOMETERSPERHOUR
-#define UNITS_SPEED_MILESPERHOUR
+#if !(defined(UNITS_SPEED_METERSPERSECOND) || defined(UNITS_SPEED_KILOMETERSPERHOUR) || defined(UNITS_SPEED_FEETPERSECOND) || defined(UNITS_SPEED_MILESPERHOUR) || defined(UNITS_SPEED_KNOTS) || defined(UNITS_SPEED_BEAUFORT))
+  // chosen on the command line, which leaves this file alone:
+  //   PLATFORMIO_BUILD_FLAGS="-D UNITS_SPEED_KILOMETERSPERHOUR" pio run
+  #define UNITS_SPEED_MILESPERHOUR
+#endif
 // #define UNITS_SPEED_KNOTS
 // #define UNITS_SPEED_BEAUFORT
 
@@ -171,7 +183,11 @@
 // #define UNITS_PRES_PASCALS
 // #define UNITS_PRES_MILLIMETERSOFMERCURY
 // #define UNITS_PRES_INCHESOFMERCURY
-#define UNITS_PRES_MILLIBARS
+#if !(defined(UNITS_PRES_HECTOPASCALS) || defined(UNITS_PRES_MILLIBARS) || defined(UNITS_PRES_PASCALS) || defined(UNITS_PRES_MILLIMETERSOFMERCURY) || defined(UNITS_PRES_INCHESOFMERCURY) || defined(UNITS_PRES_ATMOSPHERES) || defined(UNITS_PRES_GRAMSPERSQUARECENTIMETER) || defined(UNITS_PRES_POUNDSPERSQUAREINCH))
+  // chosen on the command line, which leaves this file alone:
+  //   PLATFORMIO_BUILD_FLAGS="-D UNITS_PRES_MILLIBARS" pio run
+  #define UNITS_PRES_MILLIBARS
+#endif
 // #define UNITS_PRES_ATMOSPHERES
 // #define UNITS_PRES_GRAMSPERSQUARECENTIMETER
 // #define UNITS_PRES_POUNDSPERSQUAREINCH
@@ -180,7 +196,11 @@
 //   Metric   : Kilometers
 //   Imperial : Miles
 // #define UNITS_DIST_KILOMETERS
-#define UNITS_DIST_MILES
+#if !(defined(UNITS_DIST_MILES) || defined(UNITS_DIST_KILOMETERS))
+  // chosen on the command line, which leaves this file alone:
+  //   PLATFORMIO_BUILD_FLAGS="-D UNITS_DIST_KILOMETERS" pio run
+  #define UNITS_DIST_MILES
+#endif
 
 // UNITS - PRECIPITATION (HOURLY)
 // The hourly outlook graph's bars. weather.gov's hourly forecast carries only
@@ -201,7 +221,11 @@
 // #define UNITS_DAILY_PRECIP_POP
 // #define UNITS_DAILY_PRECIP_MILLIMETERS
 // #define UNITS_DAILY_PRECIP_CENTIMETERS
-#define UNITS_DAILY_PRECIP_INCHES
+#if !(defined(UNITS_DAILY_PRECIP_POP) || defined(UNITS_DAILY_PRECIP_MILLIMETERS) || defined(UNITS_DAILY_PRECIP_CENTIMETERS) || defined(UNITS_DAILY_PRECIP_INCHES))
+  // chosen on the command line, which leaves this file alone:
+  //   PLATFORMIO_BUILD_FLAGS="-D UNITS_DAILY_PRECIP_MILLIMETERS" pio run
+  #define UNITS_DAILY_PRECIP_INCHES
+#endif
 
 // Derived: the daily row shows amounts, so fetch them.
 #if !defined(UNITS_DAILY_PRECIP_POP)

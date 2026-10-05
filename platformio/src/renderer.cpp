@@ -459,13 +459,18 @@ void drawString(int16_t x, int16_t y, const String &text, alignment_t alignment,
   display.setTextColor(color);
   const String shaped = shapeText(text);
   display.getTextBounds(shaped, x, y, &x1, &y1, &w, &h);
+  // x1 is where the ink starts, which for a glyph with a side bearing is a
+  // pixel or two right of the cursor; align the ink, not the cursor, so a
+  // RIGHT-aligned string ends where it was asked to (Hebrew faces bear
+  // more than FreeSans, and at the panel's edge a pixel is the margin).
+  const int16_t bearing = x1 - x;
   if (alignment == RIGHT)
   {
-    x = x - w;
+    x = x - w - bearing;
   }
   if (alignment == CENTER)
   {
-    x = x - w / 2;
+    x = x - w / 2 - bearing;
   }
   display.setCursor(x, y);
   display.print(shaped);
