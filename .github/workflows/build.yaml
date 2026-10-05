@@ -28,6 +28,12 @@ jobs:
           g++ $CXXFLAGS -I../../platformio/include -I. \
             precip_test.cpp ../../platformio/src/precip.cpp -o precip_test
           ./precip_test
+      - name: Right-to-left text shaper
+        working-directory: tools/rtl_test
+        run: |
+          g++ $CXXFLAGS -I. -I../../platformio/include \
+            rtl_test.cpp ../../platformio/src/rtl.cpp -o rtl_test
+          ./rtl_test
       - name: Firmware target scanner
         working-directory: tools/ota_target_test
         run: |

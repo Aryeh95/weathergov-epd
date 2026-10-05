@@ -25,6 +25,7 @@
 #include "conversions.h"
 #include "display_utils.h"
 #include "roundrect.h"
+#include "rtl.h"
 #include "sun.h"
 
 // fonts: every compiled-in family, and the FONT_*pt8b names resolved at
@@ -426,13 +427,15 @@ static void drawFittedRiskChip(int16_t x, int16_t y, const String &full,
   display.setFont(&FONT_7pt8b);
 } // end drawFittedRiskChip
 
+
+
 /* Returns the string width in pixels
  */
 uint16_t getStringWidth(const String &text)
 {
   int16_t x1, y1;
   uint16_t w, h;
-  display.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
+  display.getTextBounds(shapeText(text), 0, 0, &x1, &y1, &w, &h);
   return w;
 }
 
@@ -442,7 +445,7 @@ uint16_t getStringHeight(const String &text)
 {
   int16_t x1, y1;
   uint16_t w, h;
-  display.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
+  display.getTextBounds(shapeText(text), 0, 0, &x1, &y1, &w, &h);
   return h;
 }
 
@@ -454,7 +457,8 @@ void drawString(int16_t x, int16_t y, const String &text, alignment_t alignment,
   int16_t x1, y1;
   uint16_t w, h;
   display.setTextColor(color);
-  display.getTextBounds(text, x, y, &x1, &y1, &w, &h);
+  const String shaped = shapeText(text);
+  display.getTextBounds(shaped, x, y, &x1, &y1, &w, &h);
   if (alignment == RIGHT)
   {
     x = x - w;
@@ -464,7 +468,7 @@ void drawString(int16_t x, int16_t y, const String &text, alignment_t alignment,
     x = x - w / 2;
   }
   display.setCursor(x, y);
-  display.print(text);
+  display.print(shaped);
   return;
 } // end drawString
 
@@ -490,7 +494,7 @@ void drawMultiLnString(int16_t x, int16_t y, const String &text,
     int16_t  x1, y1;
     uint16_t w, h;
 
-    display.getTextBounds(textRemaining, 0, 0, &x1, &y1, &w, &h);
+    display.getTextBounds(shapeText(textRemaining), 0, 0, &x1, &y1, &w, &h);
 
     int endIndex = textRemaining.length();
     // check if remaining text is to wide, if it is then print what we can
@@ -543,13 +547,13 @@ void drawMultiLnString(int16_t x, int16_t y, const String &text,
         if (current_line < max_lines - 1)
         {
           // this is not the last line
-          display.getTextBounds(subStr, 0, 0, &x1, &y1, &w, &h);
+          display.getTextBounds(shapeText(subStr), 0, 0, &x1, &y1, &w, &h);
         }
         else
         {
           // this is the last line, we need to make sure there is space for
           // ellipsis
-          display.getTextBounds(subStr + "...", 0, 0, &x1, &y1, &w, &h);
+          display.getTextBounds(shapeText(subStr + "..."), 0, 0, &x1, &y1, &w, &h);
           if (w <= max_width)
           {
             // ellipsis fit, add them to subStr

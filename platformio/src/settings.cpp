@@ -22,6 +22,7 @@
 #include "settings.h"
 #include "api_response.h" // OWM_NUM_HOURLY
 #include "fonts/font_names.h"
+#include "_locale.h" // LC_RTL
 
 /* Copies a JSON string field into a fixed-size char buffer, truncating
  * safely. Leaves dst untouched if the field is absent/null.
@@ -297,6 +298,37 @@ bool loadSettings()
   FONT_FAMILY_INDEX       = fontIndex(doc["font"] | "", 0);
   FONT_SMALL_FAMILY_INDEX = fontIndex(doc["font_small"] | "",
                                       FONT_FAMILY_INDEX);
+  // A right-to-left locale's text is transcoded to ISO-8859-8 (renderer.cpp,
+  // shapeText), so both families must carry the Hebrew alphabet in their
+  // high slots; a Latin-1 family there would draw accented letters for
+  // every Hebrew word. Fall back to the first Hebrew family compiled in.
+  if (LC_RTL)
+  {
+    int hebrew = -1;
+    for (int i = 0; i < FONT_FAMILY_NAME_COUNT; ++i)
+    {
+      if (FONT_FAMILY_HEBREW[i]) { hebrew = i; break; }
+    }
+    if (hebrew < 0)
+    {
+      Serial.println("[font] WARNING: right-to-left locale but no Hebrew "
+                     "font family is compiled in (FONT_INCLUDE_Heebo)");
+    }
+    else
+    {
+      if (!FONT_FAMILY_HEBREW[FONT_FAMILY_INDEX])
+      {
+        Serial.println("[font] " + String(FONT_FAMILY_NAMES[FONT_FAMILY_INDEX])
+                       + " has no Hebrew, using "
+                       + FONT_FAMILY_NAMES[hebrew]);
+        FONT_FAMILY_INDEX = hebrew;
+      }
+      if (!FONT_FAMILY_HEBREW[FONT_SMALL_FAMILY_INDEX])
+      {
+        FONT_SMALL_FAMILY_INDEX = hebrew;
+      }
+    }
+  }
   Serial.println("[font] " + String(FONT_FAMILY_NAMES[FONT_FAMILY_INDEX])
                  + ", small text "
                  + String(FONT_FAMILY_NAMES[FONT_SMALL_FAMILY_INDEX]));
@@ -324,6 +356,12 @@ bool loadSettings()
   {
     CURRENT_SOURCE = "open-meteo";
   }
+  FORECAST_SOURCE = api["forecast_source"] | FORECAST_SOURCE;
+  if (FORECAST_SOURCE != "ims")
+  {
+    FORECAST_SOURCE = "nws";
+  }
+  IMS_LOCATION_ID = api["ims_location_id"] | IMS_LOCATION_ID;
 
   JsonObjectConst portal = doc["portal"];
   PORTAL_AP_PASSWORD = portal["ap_password"]     | PORTAL_AP_PASSWORD;
