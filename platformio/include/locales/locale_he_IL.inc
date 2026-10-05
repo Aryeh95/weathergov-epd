@@ -126,11 +126,11 @@ const char *TXT_UNITS_TEMP_KELVIN     = "K";
 const char *TXT_UNITS_TEMP_CELSIUS    = "°C";
 const char *TXT_UNITS_TEMP_FAHRENHEIT = "°F";
 // UNIT SYMBOLS - WIND SPEED
-const char *TXT_UNITS_SPEED_METERSPERSECOND   = "מ'/שנ'";
+const char *TXT_UNITS_SPEED_METERSPERSECOND   = "m/s";
 const char *TXT_UNITS_SPEED_FEETPERSECOND     = "ft/s";
-const char *TXT_UNITS_SPEED_KILOMETERSPERHOUR = "קמ\"ש";
+const char *TXT_UNITS_SPEED_KILOMETERSPERHOUR = "km/h";
 const char *TXT_UNITS_SPEED_MILESPERHOUR      = "mph";
-const char *TXT_UNITS_SPEED_KNOTS             = "קשר";
+const char *TXT_UNITS_SPEED_KNOTS             = "kt";
 const char *TXT_UNITS_SPEED_BEAUFORT          = "";
 // UNIT SYMBOLS - PRESSURE
 const char *TXT_UNITS_PRES_HECTOPASCALS             = "hPa";
@@ -142,11 +142,11 @@ const char *TXT_UNITS_PRES_ATMOSPHERES              = "atm";
 const char *TXT_UNITS_PRES_GRAMSPERSQUARECENTIMETER = "g/cm²";
 const char *TXT_UNITS_PRES_POUNDSPERSQUAREINCH      = "lb/in²";
 // UNITS SYMBOLS - VISIBILITY DISTANCE
-const char *TXT_UNITS_DIST_KILOMETERS = "ק\"מ";
+const char *TXT_UNITS_DIST_KILOMETERS = "km";
 const char *TXT_UNITS_DIST_MILES      = "mi";
 // UNITS SYMBOLS - PRECIPITATION
-const char *TXT_UNITS_PRECIP_MILLIMETERS = "מ\"מ";
-const char *TXT_UNITS_PRECIP_CENTIMETERS = "ס\"מ";
+const char *TXT_UNITS_PRECIP_MILLIMETERS = "mm";
+const char *TXT_UNITS_PRECIP_CENTIMETERS = "cm";
 const char *TXT_UNITS_PRECIP_INCHES      = "in";
 
 // MISCELLANEOUS MESSAGES
