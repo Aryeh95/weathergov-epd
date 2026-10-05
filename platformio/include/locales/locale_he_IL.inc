@@ -46,7 +46,8 @@ const char *LC_AM_STR      = "לפנה\"צ";
 // PM_STR                  Post Meridian affix
 const char *LC_PM_STR      = "אחה\"צ";
 // DAY_{1-7}               name of the n-th day of the week
-const char *LC_DAY[7]      = {"ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"};
+const char *LC_DAY[7]      = {"יום ראשון", "יום שני", "יום שלישי", "יום רביעי",
+                              "יום חמישי", "יום שישי", "שבת"};
 // ABDAY_{1-7}             abbreviated name of the n-th day of the week
 const char *LC_ABDAY[7]    = {"א'", "ב'", "ג'", "ד'", "ה'", "ו'", "ש'"};
 // MON_{1-12}              name of the n-th month of the year
