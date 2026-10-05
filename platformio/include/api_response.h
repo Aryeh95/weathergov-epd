@@ -200,6 +200,22 @@ DeserializationError deserializeGoogleCurrent(WiFiClient &json,
 DeserializationError deserializeNWSGridpointQPF(WiFiClient &json,
                                                 std::vector<qpf_bucket_t> &qpf);
 void fillCurrentFromFallback(const owm_hourly_t &fallback, owm_current_t &current);
+
+/* Israel Meteorological Service (ims.gov.il): the public JSON feeds behind
+ * its site and app. Locations are picked by id (lid); each belongs to a
+ * warning region (rid). All times in the replies are Israel local time.
+ */
+DeserializationError deserializeIMSLocations(WiFiClient &json, double lat,
+                                             double lon, int wantLid,
+                                             int &lid, int &rid, String &name);
+DeserializationError deserializeIMSForecast(WiFiClient &json,
+                                            owm_hourly_t *hourly,
+                                            owm_daily_t *daily);
+DeserializationError deserializeIMSCurrent(WiFiClient &json, int lid,
+                                           const owm_hourly_t &fallback,
+                                           owm_current_t &current);
+DeserializationError deserializeIMSAlerts(WiFiClient &json, int rid,
+                                          std::vector<owm_alerts_t> &alerts);
 DeserializationError deserializeNWSAlerts(WiFiClient &json,
                                           std::vector<owm_alerts_t> &alerts);
 DeserializationError deserializeAirQuality(WiFiClient &json,

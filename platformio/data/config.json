@@ -186,6 +186,19 @@
     //                  visibility widgets have no data with this source.
     "current_source": "open-meteo",
 
+    // Where the forecasts, condition icons and weather alerts come from.
+    //   "nws" - weather.gov, the US National Weather Service. US only. (default)
+    //   "ims" - the Israel Meteorological Service (ims.gov.il). Israel only.
+    //           7-day hourly forecast and regional warnings, no key. Replies
+    //           follow the firmware's locale (LOCALE he_IL in config.h gives
+    //           Hebrew). "current_source": "nws" then means IMS's own current
+    //           conditions. IMS times are Israel local time: set "timezone"
+    //           to Israel's.
+    "forecast_source": "nws",
+    // IMS location id (https://ims.gov.il/en/locations_info); 0 picks the
+    // location nearest the coordinates above.
+    "ims_location_id": 0,
+
     // TCP timeout for API requests, in milliseconds. These errors in the
     // serial log usually mean this value is too low:
     //   -1   Connection Refused

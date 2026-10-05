@@ -774,22 +774,30 @@ void setup()
   // so the forecast requests that follow reuse its TLS session instead of
   // paying their own ~1.2 s handshake. Non-fatal: if this fails, the display
   // simply shows no alerts.
-  rxStatus = getNWSAlerts(client, alerts);
+  const bool useIMS = (FORECAST_SOURCE == "ims");
+  rxStatus = useIMS ? getIMSAlerts(client, alerts)
+                    : getNWSAlerts(client, alerts);
   if (rxStatus != HTTP_CODE_OK)
   {
-    statusStr = "weather.gov Alerts API";
+    statusStr = useIMS ? "ims.gov.il Warnings API" : "weather.gov Alerts API";
     tmpStr = String(rxStatus, DEC) + ": " + getHttpResponsePhrase(rxStatus);
   }
 #endif
 
-  // weather.gov forecast + current conditions. This is the primary data
-  // source; if it fails there is nothing worth displaying.
+  // Forecast + current conditions from FORECAST_SOURCE (weather.gov, or
+  // the Israel Meteorological Service). This is the primary data source;
+  // if it fails there is nothing worth displaying.
   String failedStep;
-  rxStatus = getNWSWeather(client, current, hourly, daily, failedStep);
+#if !DISPLAY_ALERTS
+  const bool useIMS = (FORECAST_SOURCE == "ims");
+#endif
+  rxStatus = useIMS ? getIMSWeather(client, current, hourly, daily, failedStep)
+                    : getNWSWeather(client, current, hourly, daily, failedStep);
   if (rxStatus != HTTP_CODE_OK)
   {
     killWiFi();
-    statusStr = "weather.gov API (" + failedStep + ")";
+    statusStr = String(useIMS ? "ims.gov.il API (" : "weather.gov API (")
+              + failedStep + ")";
     tmpStr = String(rxStatus, DEC) + ": " + getHttpResponsePhrase(rxStatus);
     Serial.println(statusStr + " - " + tmpStr);
     wakeDiag.fetchMs = millis() - phaseStart;

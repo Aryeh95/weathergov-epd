@@ -166,16 +166,28 @@
       Leave empty to use Open-Meteo instead. The Google key is a Maps
       Platform key with the Pollen API (and, for the source below, the
       Weather API) enabled.</div>
+    <label>Forecast source</label>
+    <select id="a_fcsrc">
+      <option value="nws">weather.gov (United States)</option>
+      <option value="ims">Israel Meteorological Service (Israel)</option>
+    </select>
+    <label>IMS location id (0 = nearest to the coordinates)</label><input id="a_imslid" type="number" min="0" step="1">
+    <div class="hint">Forecasts, condition icons and weather alerts.
+      weather.gov covers US locations; the Israel Meteorological Service
+      (ims.gov.il) covers Israel, in the firmware's language (Hebrew with
+      LOCALE he_IL). Location ids are listed at
+      <a href="https://ims.gov.il/en/locations_info" target="_blank"
+      rel="noopener">ims.gov.il/en/locations_info</a>.</div>
     <label>Current conditions source</label>
     <select id="a_cursrc">
       <option value="open-meteo">Open-Meteo model (default, no key)</option>
       <option value="google">Google Weather API (needs Google key)</option>
-      <option value="nws">weather.gov hourly forecast (no key)</option>
+      <option value="nws">the forecast source's own (no key)</option>
     </select>
     <div class="hint">Where the big temperature and the humidity, dew point,
-      pressure, wind and visibility widgets come from. Forecasts and alerts
-      always use weather.gov. The weather.gov option has no pressure or
-      visibility.</div>
+      pressure, wind and visibility widgets come from. The last option is
+      weather.gov's hourly forecast for the current hour, or IMS's own
+      current conditions; neither has pressure or visibility.</div>
   </fieldset>
 
   <fieldset><legend>Widgets</legend>
@@ -464,6 +476,8 @@ function populate() {
   el('a_airnow').value = cfg.api?.airnow_api_key ?? '';
   el('a_pollen').value = cfg.api?.pollen_api_key ?? '';
   el('a_cursrc').value = cfg.api?.current_source ?? 'open-meteo';
+  el('a_fcsrc').value = cfg.api?.forecast_source ?? 'nws';
+  el('a_imslid').value = String(cfg.api?.ims_location_id ?? 0);
   for (let slot = 0; slot < 12; slot++) el('slot_' + slot).value = '';
   for (const [key] of WIDGETS) {
     const v = +(cfg.widget_positions?.[key] ?? -1);
@@ -510,6 +524,8 @@ function collect() {
   cfg.api.airnow_api_key = el('a_airnow').value.trim();
   cfg.api.pollen_api_key = el('a_pollen').value.trim();
   cfg.api.current_source = el('a_cursrc').value;
+  cfg.api.forecast_source = el('a_fcsrc').value;
+  cfg.api.ims_location_id = Math.max(0, parseInt(el('a_imslid').value, 10) || 0);
   const rows = +el('s_wrows').value;
   for (const [key] of WIDGETS) cfg.widget_positions[key] = -1;
   for (let slot = 0; slot < rows * 2; slot++) {
