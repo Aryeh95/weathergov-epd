@@ -43,6 +43,9 @@ inline void yield() {}
 #define degrees(rad) ((rad) * 180.0 / M_PI)
 #define sq(x) ((x) * (x))
 #define LED_BUILTIN 2
+// FireBeetle analog pin names used by the default board config
+#define A0 36
+#define A2 34
 #define constrain(v, lo, hi) ((v) < (lo) ? (lo) : ((v) > (hi) ? (hi) : (v)))
 #define DEC 10
 typedef bool boolean;

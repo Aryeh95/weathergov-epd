@@ -76,10 +76,20 @@ static time_t local(int y, int mo, int d, int h, int mi)
   return mktime(&t);
 }
 
-// the panel's inks as measured on a Spectra 6 (tools/generate_native_icons.py)
-static const uint8_t INK_RGB[8][3] = {
+// the panel's inks: index 0/2 paper, 1 black, 3 red, 4 yellow, 5 green,
+// 6 blue, 7 orange. The Spectra 6 values are measured
+// (tools/generate_native_icons.py); the monochrome and three-colour 7.5in
+// panels have a lighter paper and only use the first inks.
+static const uint8_t INK_RGB_E6[8][3] = {
   {185, 199, 201}, {31, 34, 38}, {185, 199, 201}, {98, 32, 30},
   {193, 187, 30},  {53, 86, 58}, {35, 63, 142},   {168, 112, 46}};
+static const uint8_t INK_RGB_BW[8][3] = {
+  {214, 216, 212}, {30, 32, 34}, {214, 216, 212}, {30, 32, 34},
+  {30, 32, 34},    {30, 32, 34}, {30, 32, 34},    {30, 32, 34}};
+static const uint8_t INK_RGB_3C[8][3] = {
+  {214, 216, 212}, {30, 32, 34}, {214, 216, 212}, {150, 34, 32},
+  {30, 32, 34},    {30, 32, 34}, {30, 32, 34},    {30, 32, 34}};
+static const uint8_t (*INK_RGB)[3] = INK_RGB_E6;
 
 static void savePpm(const char *path)
 {
@@ -191,6 +201,10 @@ int main(int argc, char **argv)
 {
   const std::string outDir = argc > 1 ? argv[1] : ".";
   dataDir = argc > 2 ? argv[2] : "data";
+  const std::string panel = argc > 3 ? argv[3] : "e6";
+  if (panel == "bwv2") INK_RGB = INK_RGB_BW;
+  else if (panel == "3c") INK_RGB = INK_RGB_3C;
+  printf("panel %s, %dx%d\n", panel.c_str(), display.width(), display.height());
 
   // Israel, as the device would be configured
   setenv("TZ", "IST-2IDT,M3.4.4/26,M10.5.0", 1);
