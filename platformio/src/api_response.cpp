@@ -1373,12 +1373,17 @@ DeserializationError deserializeIMSAlerts(WiFiClient &json, int rid,
 
 /* /v1/envista/regions: 16 regions, each with its stations, each station
  * with its coordinates, monitors and a page of metadata. Only the id,
- * coordinates and active flag survive the filter (~250 stations), and the
- * active one nearest (lat, lon) is picked. Stations without coordinates
- * (some mobile units) are skipped.
+ * coordinates and active flag survive the filter (~250 stations). Returns
+ * the active stations within SVIVA_RADIUS_KM of (lat, lon), nearest first,
+ * at most SVIVA_MAX_STATIONS of them -- and always the nearest one, however
+ * far. Stations without coordinates (some mobile units) are skipped.
  */
+static const double SVIVA_RADIUS_KM = 15.0;
+static const size_t SVIVA_MAX_STATIONS = 4;
+
 DeserializationError deserializeSvivaStations(WiFiClient &json, double lat,
-                                              double lon, int &stationId)
+                                              double lon,
+                                              std::vector<int> &stationIds)
 {
   JsonDocument filter;
   JsonObject st = filter[0]["stations"][0].to<JsonObject>();
@@ -1393,12 +1398,13 @@ DeserializationError deserializeSvivaStations(WiFiClient &json, double lat,
 #if DEBUG_LEVEL >= 1
   Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
 #endif
+  stationIds.clear();
   if (error)
   {
     return error;
   }
-  stationId = 0;
-  double best = 1e18;
+  struct Near { double km; int id; };
+  std::vector<Near> near;
   const double cosLat = cos(lat * M_PI / 180.0);
   for (JsonObject region : doc.as<JsonArray>())
   {
@@ -1409,21 +1415,27 @@ DeserializationError deserializeSvivaStations(WiFiClient &json, double lat,
         continue;
       }
       JsonVariant la = o["location"]["latitude"], lo = o["location"]["longitude"];
-      if (la.isNull() || lo.isNull())
+      const int id = o["stationId"] | 0;
+      if (la.isNull() || lo.isNull() || id <= 0)
       {
         continue;
       }
-      const double dLat = la.as<double>() - lat;
-      const double dLon = (lo.as<double>() - lon) * cosLat;
-      const double d = dLat * dLat + dLon * dLon;
-      if (d < best)
-      {
-        best = d;
-        stationId = o["stationId"] | 0;
-      }
+      const double dLat = (la.as<double>() - lat) * 111.2;
+      const double dLon = (lo.as<double>() - lon) * 111.2 * cosLat;
+      near.push_back({sqrt(dLat * dLat + dLon * dLon), id});
     }
   }
-  if (stationId <= 0)
+  std::sort(near.begin(), near.end(),
+            [](const Near &a, const Near &b) { return a.km < b.km; });
+  for (size_t i = 0; i < near.size() && stationIds.size() < SVIVA_MAX_STATIONS; ++i)
+  {
+    if (i > 0 && near[i].km > SVIVA_RADIUS_KM)
+    {
+      break;
+    }
+    stationIds.push_back(near[i].id);
+  }
+  if (stationIds.empty())
   {
     return DeserializationError::EmptyInput;
   }
@@ -1433,10 +1445,11 @@ DeserializationError deserializeSvivaStations(WiFiClient &json, double lat,
 /* /v1/envista/stations/index/latest: one row per station in `data` (the
  * regionsIds parameter is ignored for a guest, so the whole country comes
  * back), each with the station's current index and the pollutant that set
- * it. Keeps only the id and index of each row and reads off the one
- * station's.
+ * it. Keeps only the id and index of each row and takes the lowest (worst)
+ * index among the given stations.
  */
-DeserializationError deserializeSvivaIndex(WiFiClient &json, int stationId,
+DeserializationError deserializeSvivaIndex(WiFiClient &json,
+                                           const std::vector<int> &stationIds,
                                            bool &found, int &index)
 {
   // the reply is an object (the first station's row with a `data` array of
@@ -1458,11 +1471,23 @@ DeserializationError deserializeSvivaIndex(WiFiClient &json, int stationId,
   }
   for (JsonObject row : doc["data"].as<JsonArray>())
   {
-    if ((row["stationId"] | 0) == stationId && !row["index"].isNull())
+    const int id = row["stationId"] | 0;
+    if (row["index"].isNull())
     {
-      index = static_cast<int>(std::round(row["index"].as<float>()));
-      found = true;
-      break;
+      continue;
+    }
+    for (int want : stationIds)
+    {
+      if (id == want)
+      {
+        const int v = static_cast<int>(std::round(row["index"].as<float>()));
+        if (!found || v < index)
+        {
+          index = v;
+        }
+        found = true;
+        break;
+      }
     }
   }
   return error;

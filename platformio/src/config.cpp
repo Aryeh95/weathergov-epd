@@ -209,8 +209,8 @@ int IMS_LOCATION_ID = 0;
 //                      key (the site's own guest token). Israel only.
 //   "model"          - Open-Meteo's CAMS model, computed on the device.
 String AQI_SOURCE = "auto";
-// Ministry station id (air.sviva.gov.il); 0 picks the active station
-// nearest LAT/LON from the Ministry's station list, once, and remembers it.
+// Ministry station id (air.sviva.gov.il) to pin one station; 0 uses the
+// active stations within 15 km of LAT/LON (worst index), found once.
 int IL_AQ_STATION_ID = 0;
 
 // CONFIGURATION WEB PORTAL
