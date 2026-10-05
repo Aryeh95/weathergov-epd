@@ -37,6 +37,9 @@
 #include "build_rev.h"
 #include "portal_page.h"
 #include "fonts/font_names.h"
+#include "_locale.h"
+#define PORTAL_XSTR(x) #x
+#define PORTAL_STR(x) PORTAL_XSTR(x)
 
 // icon header files
 #include "icons/icons_196x196.h"
@@ -247,6 +250,11 @@ static void handleGetInfo()
   doc["build"] = String(GIT_REV) + " (" __DATE__ " " __TIME__ ")";
   doc["target"] = ownTarget();
   diagToJson(doc);
+  // the locale compiled in, so the page can show its defaults (a Hebrew
+  // build places the heat stress widget where the dew point was)
+  doc["locale"] = PORTAL_STR(LOCALE);
+  doc["rtl"] = LC_RTL;
+  doc["heat_stress_default"] = LC_PREFER_HEAT_STRESS;
   // font families compiled into this firmware, for the Font dropdown
   JsonArray fonts = doc["fonts"].to<JsonArray>();
   for (int i = 0; i < FONT_FAMILY_NAME_COUNT; ++i)

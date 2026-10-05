@@ -177,7 +177,7 @@ int main(int argc, char **argv)
   LON = "34.857964";
   strcpy(TIME_FORMAT, "%H:%M");
   strcpy(HOUR_FORMAT, "%H");
-  strcpy(DATE_FORMAT, "%A, %e ב%B");
+  strcpy(DATE_FORMAT, "%A, %e ב%B, %K");
   FORECAST_DAYS = 7;
   FORECAST_SOURCE = "ims";
   CURRENT_SOURCE = "nws";
@@ -188,6 +188,8 @@ int main(int argc, char **argv)
     if (FONT_FAMILY_HEBREW[i]) { FONT_FAMILY_INDEX = FONT_SMALL_FAMILY_INDEX = i; break; }
   }
   printf("font %s\n", FONT_FAMILY_NAMES[FONT_FAMILY_INDEX]);
+  // as settings.cpp does for a Hebrew build: heat stress in the dew point's slot
+  if (LC_PREFER_HEAT_STRESS) { POS_HEAT_STRESS = POS_DEWPOINT; POS_DEWPOINT = -1; }
 
   // 1. the moment the replies were saved (2026-10-05 04:49 IDT), IMS's own
   //    current conditions
@@ -197,8 +199,6 @@ int main(int argc, char **argv)
   // 2. the same day at 13:30, current conditions from the forecast hour;
   //    the heat stress widget in the dew point's slot, as an Israeli layout
   //    would have it
-  POS_HEAT_STRESS = POS_DEWPOINT;
-  POS_DEWPOINT = -1;
   loadWeather(local(2026, 10, 5, 13, 30), false);
   drawPage((outDir + "/sim_netanya_afternoon.ppm").c_str(), "", false);
 

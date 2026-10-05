@@ -27,7 +27,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
 PIO = os.path.join(ROOT, "platformio")
 SOURCES = [os.path.join(PIO, "src", n) for n in
-           ("renderer.cpp", "display_utils.cpp", "api_response.cpp", "rtl.cpp",
+           ("renderer.cpp", "display_utils.cpp", "api_response.cpp", "rtl.cpp", "hebcal.cpp",
             "_strftime.cpp", "locale.cpp", "conversions.cpp", "sun.cpp",
             "config.cpp", "precip.cpp")] + [os.path.join(HERE, "sim_main.cpp")]
 C_SOURCES = [os.path.join(PIO, "lib", "pollutant-concentration-to-aqi", "aqi.c")]

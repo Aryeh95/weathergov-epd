@@ -44,6 +44,7 @@
 
 #include "_locale.h"
 #include "_strftime.h"
+#include "hebcal.h"
 
 #define TZ_EXT     // Olson's timezone package
 #define VMS_EXT    // includes %v for VMS date format
@@ -329,6 +330,14 @@ size_t _strftime(char *s, size_t maxsize, const char *format,
         strcpy(tbuf, "?");
       else
         strcpy(tbuf, LC_MON[timeptr->tm_mon]);
+      break;
+
+    case 'J': // Hebrew calendar date with the year (not in C's strftime)
+      hebcalFormat(tbuf, sizeof(tbuf), timeptr, true);
+      break;
+
+    case 'K': // Hebrew calendar date, day and month only
+      hebcalFormat(tbuf, sizeof(tbuf), timeptr, false);
       break;
 
     case 'c':

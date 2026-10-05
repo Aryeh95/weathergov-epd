@@ -30,6 +30,7 @@
 #include "config.h"
 #include "display_utils.h"
 #include "sun.h" // MOON_PHASE_STEPS
+#include "hebcal.h"
 
 // icon header files
 #include "icons/icons.h"
@@ -507,6 +508,7 @@ time_t pageTime()
 
 void setSunTimes(int64_t sunrise, int64_t sunset)
 {
+  hebcalSetSunset(sunset);  // the Hebrew date turns over at sunset
   sunriseTime = sunrise;
   sunsetTime = sunset;
 }

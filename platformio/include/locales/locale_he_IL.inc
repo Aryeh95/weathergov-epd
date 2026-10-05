@@ -70,6 +70,11 @@ const char *LC_ERA_T_FMT   = "";
 // Note: "[only] The contents of the 'description' field will be translated."
 const String OWM_LANG = "he";
 const bool LC_RTL = true;
+const char *LC_HEB_MON[14] = {"תשרי", "חשוון", "כסלו", "טבת", "שבט", "אדר", "אדר א'",
+                              "אדר ב'", "ניסן", "אייר", "סיוון", "תמוז", "אב", "אלול"};
+const bool  LC_HEBCAL_LETTERS = true;
+const char *LC_HEBCAL_MONTH_PREFIX = "ב";
+const bool  LC_PREFER_HEAT_STRESS = true;
 
 // CURRENT CONDITIONS
 const char *TXT_FEELS_LIKE         = "מרגיש כמו";
