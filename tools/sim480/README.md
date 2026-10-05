@@ -28,7 +28,7 @@ Needs a C++17 compiler (clang++ or g++ on the path).
 | File | What it shows |
 |---|---|
 | `sim_netanya_dawn.png` | The moment the replies were saved (04:49), IMS's own current conditions |
-| `sim_netanya_afternoon.png` | The same day at 13:30, current conditions from the forecast hour |
+| `sim_netanya_afternoon.png` | The same day at 13:30, current conditions from the forecast hour, the heat stress widget in the dew point's slot |
 | `sim_netanya_pollen.png` | The pollen widget (Google Pollen API) in place of the indoor humidity |
 | `sim_netanya_alert.png` | With a warning worded as IMS words them, and a failed request in the status bar |
 

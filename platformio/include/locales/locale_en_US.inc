@@ -113,6 +113,10 @@ const char *TXT_UV_HIGH      = "High";
 const char *TXT_UV_VERY_HIGH = "Very High";
 const char *TXT_UV_EXTREME   = "Extreme";
 
+// HEAT STRESS (Israel Meteorological Service discomfort-index levels)
+const char *TXT_HEAT_STRESS = "Heat Stress";
+const char *TXT_HEAT_STRESS_LEVEL[6] = {"None", "Light", "Mild", "Moderate", "Heavy", "Extreme"};
+
 // WIFI
 const char *TXT_WIFI_EXCELLENT     = "Excellent";
 const char *TXT_WIFI_GOOD          = "Good";

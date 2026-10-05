@@ -59,6 +59,14 @@ void toTitleCase(String &text);
 void truncateExtraAlertInfo(String &text);
 void filterAlerts(std::vector<owm_alerts_t> &resp, int *ignore_list);
 const char *getUVIdesc(unsigned int uvi);
+/* Heat stress as the Israel Meteorological Service reports it: Zohar's
+ * discomfort index (the mean of the dry- and wet-bulb temperatures) from the
+ * temperature (C) and relative humidity (%), and its level 0-5 (none,
+ * light, mild, moderate, heavy, extreme) on the IMS bands. NaN / -1 when the
+ * inputs are unknown. Used when the source did not report its own.
+ */
+float heatStressIndex(float tempC, int humidity);
+int heatStressLevel(float index);
 float getAvgConc(const float pollutant[], int hours);
 int getAQI(const owm_resp_air_pollution_t &p);
 const char *getAQIdesc(int aqi);

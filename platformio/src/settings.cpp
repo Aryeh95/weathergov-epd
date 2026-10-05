@@ -375,6 +375,7 @@ bool loadSettings()
   POS_WIND       = widgets["wind"]        | POS_WIND;
   POS_HUMIDITY   = widgets["humidity"]    | POS_HUMIDITY;
   POS_DEWPOINT   = widgets["dewpoint"]    | POS_DEWPOINT;
+  POS_HEAT_STRESS = widgets["heat_stress"] | POS_HEAT_STRESS;
   POS_UVI        = widgets["uvi"]         | POS_UVI;
   POS_PRESSURE   = widgets["pressure"]    | POS_PRESSURE;
   POS_AIR_QUALITY = widgets["air_quality"] | POS_AIR_QUALITY;

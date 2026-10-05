@@ -319,6 +319,7 @@ int POS_SUNRISE     = 0;
 int POS_SUNSET      = 1;
 int POS_HUMIDITY    = 2;
 int POS_DEWPOINT    = 3;
+int POS_HEAT_STRESS = -1; // heat stress (IMS discomfort index); the Israeli counterpart of the dew point
 int POS_WIND        = 4;
 int POS_UVI         = 5;
 int POS_PRESSURE    = 6;
