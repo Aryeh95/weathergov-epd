@@ -213,6 +213,16 @@ String AQI_SOURCE = "auto";
 // active stations within 15 km of LAT/LON (worst index), found once.
 int IL_AQ_STATION_ID = 0;
 
+// SHABBAT AND HOLIDAY TIMES
+// On the eve of Shabbat or a holiday the sunset widget shows candle
+// lighting instead (sunset less CANDLE_LIGHTING_MINUTES: 18 is the common
+// custom, Jerusalem's is 40), and on the day itself their end (sunset plus
+// HAVDALAH_MINUTES: 42 is common, some wait for 50 or 72). SHABBAT_TIMES
+// -1 follows the locale (on for Hebrew), 0 and 1 force it.
+int SHABBAT_TIMES = -1;
+int CANDLE_LIGHTING_MINUTES = 18;
+int HAVDALAH_MINUTES = 42;
+
 // CONFIGURATION WEB PORTAL
 // A browser UI for editing config.json without reflashing. Entered by
 // pressing RST twice a few seconds apart (config mode on your WiFi), or

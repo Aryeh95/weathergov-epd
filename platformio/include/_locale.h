@@ -64,6 +64,21 @@ extern const char *LC_HEBCAL_MONTH_PREFIX;
 extern const char *TXT_IL_AQI[4];
 extern const char *TXT_IL_AQI_TAG;
 
+// JEWISH HOLIDAYS (hebcal.cpp, _strftime's %Q, the sunset widget)
+// 25 names in the order hebcal.cpp lists them: Rosh Hashanah, Tzom
+// Gedaliah, Yom Kippur, Sukkot, Chol HaMoed Sukkot, Hoshana Rabbah, Simchat
+// Torah, Hanukkah, Asara BeTevet, Tu BiShvat, Taanit Esther, Purim, Shushan
+// Purim, Pesach, Chol HaMoed Pesach, Shvii shel Pesach, Yom HaShoah, Yom
+// HaZikaron, Yom HaAtzmaut, Lag BaOmer, Yom Yerushalayim, Shavuot, Shiva
+// Asar BeTammuz, Tisha BeAv, Tu BeAv.
+extern const char *LC_HEB_HOLIDAYS[25];
+// The sunset widget's labels on the eve and the close of Shabbat and holidays.
+extern const char *TXT_CANDLE_LIGHTING;
+extern const char *TXT_SHABBAT_ENDS;
+extern const char *TXT_HOLIDAY_ENDS;
+// Whether the sunset widget shows them by default (config.json "shabbat").
+extern const bool LC_SHABBAT_TIMES;
+
 // WIDGET DEFAULTS
 // true where heat stress, not the dew point, is the everyday humidity
 // measure (Israel): a config.json that does not place the heat stress

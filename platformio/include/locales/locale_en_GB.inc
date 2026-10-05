@@ -74,6 +74,16 @@ const char *LC_HEB_MON[14] = {"Tishrei", "Cheshvan", "Kislev", "Tevet", "Shevat"
 const bool  LC_HEBCAL_LETTERS = false;
 const char *LC_HEBCAL_MONTH_PREFIX = "";
 const bool  LC_PREFER_HEAT_STRESS = false;
+const char *LC_HEB_HOLIDAYS[25] = {
+  "Rosh Hashanah", "Tzom Gedaliah", "Yom Kippur", "Sukkot", "Chol HaMoed Sukkot",
+  "Hoshana Rabbah", "Simchat Torah", "Hanukkah", "Asara BeTevet", "Tu BiShvat",
+  "Taanit Esther", "Purim", "Shushan Purim", "Pesach", "Chol HaMoed Pesach",
+  "Shvii shel Pesach", "Yom HaShoah", "Yom HaZikaron", "Yom HaAtzmaut", "Lag BaOmer",
+  "Yom Yerushalayim", "Shavuot", "Shiva Asar BeTammuz", "Tisha BeAv", "Tu BeAv"};
+const char *TXT_CANDLE_LIGHTING = "Candle lighting";
+const char *TXT_SHABBAT_ENDS    = "Shabbat ends";
+const char *TXT_HOLIDAY_ENDS    = "Holiday ends";
+const bool  LC_SHABBAT_TIMES = false;
 const char *TXT_IL_AQI[4] = {"Good", "Medium", "Low", "Very Low"};
 const char *TXT_IL_AQI_TAG = "(MoEP)";
 

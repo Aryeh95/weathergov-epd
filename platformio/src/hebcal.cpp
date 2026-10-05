@@ -242,6 +242,189 @@ void hebcalSetSunset(int64_t sunsetUnix)
   s_sunset = sunsetUnix;
 }
 
+// ---- holidays ---------------------------------------------------------
+
+int hebcalWeekday(int hYear, int hMonth, int hDay)
+{
+  // R.D. day 1 was a Monday, so day 0 is a Sunday
+  long f = hebrewToFixed(hYear, hMonth, hDay);
+  return static_cast<int>(((f % 7) + 7) % 7);
+}
+
+// LC_HEB_HOLIDAYS indices
+enum {
+  H_ROSH_HASHANAH = 0, H_TZOM_GEDALIAH, H_YOM_KIPPUR, H_SUKKOT, H_CHOL_SUKKOT,
+  H_HOSHANA_RABBAH, H_SIMCHAT_TORAH, H_HANUKKAH, H_ASARA_BTEVET, H_TU_BISHVAT,
+  H_TAANIT_ESTHER, H_PURIM, H_SHUSHAN_PURIM, H_PESACH, H_CHOL_PESACH,
+  H_SHVII_PESACH, H_YOM_HASHOAH, H_YOM_HAZIKARON, H_YOM_HAATZMAUT,
+  H_LAG_BAOMER, H_YOM_YERUSHALAYIM, H_SHAVUOT, H_SHIVA_ASAR_BTAMMUZ,
+  H_TISHA_BAV, H_TU_BAV, H_COUNT };
+
+int hebcalHoliday(int hy, int hm, int hd, bool &yomTov)
+{
+  yomTov = false;
+  const bool leap = hebcalIsLeapYear(hy);
+  const int wd = hebcalWeekday(hy, hm, hd);
+  switch (hm)
+  {
+    case 7: // Tishrei
+      if (hd == 1 || hd == 2) { yomTov = true; return H_ROSH_HASHANAH; }
+      // Tzom Gedaliah, 3 Tishrei, Sunday the 4th when the 3rd is Shabbat
+      if (hd == 3 && wd != 6) return H_TZOM_GEDALIAH;
+      if (hd == 4 && wd == 0 && hebcalWeekday(hy, 7, 3) == 6) return H_TZOM_GEDALIAH;
+      if (hd == 10) { yomTov = true; return H_YOM_KIPPUR; }
+      if (hd == 15) { yomTov = true; return H_SUKKOT; }
+      if (hd >= 16 && hd <= 20) return H_CHOL_SUKKOT;
+      if (hd == 21) return H_HOSHANA_RABBAH;
+      if (hd == 22) { yomTov = true; return H_SIMCHAT_TORAH; }
+      break;
+    case 9: // Kislev: Hanukkah from the 25th
+      if (hd >= 25) return H_HANUKKAH;
+      break;
+    case 10: // Tevet: Hanukkah's last days, then the fast of the 10th
+    {
+      const long day = hebrewToFixed(hy, 10, hd) - hebrewToFixed(hy, 9, 25);
+      if (day >= 0 && day < 8) return H_HANUKKAH;
+      if (hd == 10) return H_ASARA_BTEVET;
+      break;
+    }
+    case 11: // Shevat
+      if (hd == 15) return H_TU_BISHVAT;
+      break;
+    case 12: // Adar (or Adar I in a leap year)
+      if (leap) break;
+      // fallthrough: Purim is in the last Adar
+    case 13:
+      if (hm == 13 || !leap)
+      {
+        // Taanit Esther, 13 Adar; Thursday the 11th when the 13th is Shabbat
+        if (hd == 13 && wd != 6) return H_TAANIT_ESTHER;
+        if (hd == 11 && wd == 4 && hebcalWeekday(hy, hm, 13) == 6) return H_TAANIT_ESTHER;
+        if (hd == 14) return H_PURIM;
+        if (hd == 15) return H_SHUSHAN_PURIM;
+      }
+      break;
+    case 1: // Nisan
+      if (hd == 15) { yomTov = true; return H_PESACH; }
+      if (hd >= 16 && hd <= 20) return H_CHOL_PESACH;
+      if (hd == 21) { yomTov = true; return H_SHVII_PESACH; }
+      {
+        // Yom HaShoah, 27 Nisan: Thursday the 26th when the 27th is a
+        // Friday, Monday the 28th when it is a Sunday
+        const int wd27 = hebcalWeekday(hy, 1, 27);
+        const int shoah = (wd27 == 5) ? 26 : (wd27 == 0) ? 28 : 27;
+        if (hd == shoah) return H_YOM_HASHOAH;
+      }
+      break;
+    case 2: // Iyar
+    {
+      // Yom HaAtzmaut, 5 Iyar: on a Friday or Shabbat it moves back to the
+      // Thursday, on a Monday forward to the Tuesday; Yom HaZikaron is the
+      // day before it
+      const int wd5 = hebcalWeekday(hy, 2, 5);
+      const int atzmaut = (wd5 == 5) ? 4 : (wd5 == 6) ? 3 : (wd5 == 1) ? 6 : 5;
+      if (hd == atzmaut) return H_YOM_HAATZMAUT;
+      if (hd == atzmaut - 1) return H_YOM_HAZIKARON;
+      if (hd == 18) return H_LAG_BAOMER;
+      if (hd == 28) return H_YOM_YERUSHALAYIM;
+      break;
+    }
+    case 3: // Sivan
+      if (hd == 6) { yomTov = true; return H_SHAVUOT; }
+      break;
+    case 4: // Tammuz: the fast of the 17th, Sunday the 18th after Shabbat
+      if (hd == 17 && wd != 6) return H_SHIVA_ASAR_BTAMMUZ;
+      if (hd == 18 && wd == 0 && hebcalWeekday(hy, 4, 17) == 6) return H_SHIVA_ASAR_BTAMMUZ;
+      break;
+    case 5: // Av: the fast of the 9th, Sunday the 10th after Shabbat
+      if (hd == 9 && wd != 6) return H_TISHA_BAV;
+      if (hd == 10 && wd == 0 && hebcalWeekday(hy, 5, 9) == 6) return H_TISHA_BAV;
+      if (hd == 15) return H_TU_BAV;
+      break;
+    default:
+      break;
+  }
+  return -1;
+}
+
+// the civil date of `t`, moved to the next day after sunset
+static void civilHebrewDate(const tm *t, int &y, int &m, int &d)
+{
+  y = t->tm_year + 1900; m = t->tm_mon + 1; d = t->tm_mday;
+  if (s_sunset > 0)
+  {
+    tm copy = *t;
+    copy.tm_isdst = -1;
+    const time_t when = mktime(&copy);
+    if (when != static_cast<time_t>(-1)
+        && static_cast<int64_t>(when) >= s_sunset
+        && static_cast<int64_t>(when) < s_sunset + 12 * 3600)
+    {
+      copy = *t;
+      copy.tm_mday += 1;
+      copy.tm_hour = 12;
+      copy.tm_isdst = -1;
+      if (mktime(&copy) != static_cast<time_t>(-1))
+      {
+        y = copy.tm_year + 1900; m = copy.tm_mon + 1; d = copy.tm_mday;
+      }
+    }
+  }
+}
+
+const char *hebcalHolidayName(const tm *t)
+{
+  if (!t)
+  {
+    return "";
+  }
+  int y, m, d;
+  civilHebrewDate(t, y, m, d);
+  int hy, hm, hd;
+  hebcalFromGregorian(y, m, d, hy, hm, hd);
+  bool yt;
+  const int h = hebcalHoliday(hy, hm, hd, yt);
+  return (h >= 0 && h < H_COUNT) ? LC_HEB_HOLIDAYS[h] : "";
+}
+
+int hebcalEvening(const tm *civilDay, bool &isYomTov)
+{
+  isYomTov = false;
+  if (!civilDay)
+  {
+    return HEBCAL_EVE_NONE;
+  }
+  // the Hebrew dates of this civil day and of the next (the one its sunset
+  // begins)
+  const int y = civilDay->tm_year + 1900, m = civilDay->tm_mon + 1;
+  int hy, hm, hd, hy2, hm2, hd2;
+  hebcalFromGregorian(y, m, civilDay->tm_mday, hy, hm, hd);
+  tm next = *civilDay;
+  next.tm_mday += 1;
+  next.tm_hour = 12;
+  next.tm_isdst = -1;
+  mktime(&next);
+  hebcalFromGregorian(next.tm_year + 1900, next.tm_mon + 1, next.tm_mday,
+                      hy2, hm2, hd2);
+  bool todayYT = false, tomorrowYT = false;
+  hebcalHoliday(hy, hm, hd, todayYT);
+  hebcalHoliday(hy2, hm2, hd2, tomorrowYT);
+  const int wd = civilDay->tm_wday;      // 0 = Sunday
+  const bool todayHoly = todayYT || wd == 6;
+  const bool tomorrowHoly = tomorrowYT || wd == 5;   // Friday's sunset starts Shabbat
+  if (tomorrowHoly)
+  {
+    isYomTov = tomorrowYT;
+    return todayHoly ? HEBCAL_EVE_CANDLES_LATE : HEBCAL_EVE_CANDLES;
+  }
+  if (todayHoly)
+  {
+    isYomTov = todayYT;
+    return HEBCAL_EVE_HAVDALAH;
+  }
+  return HEBCAL_EVE_NONE;
+}
+
 void hebcalFormat(char *out, size_t n, const tm *t, bool withYear,
                   bool withPrefix)
 {

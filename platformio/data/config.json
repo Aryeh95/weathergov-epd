@@ -301,6 +301,18 @@
   // "moon_phase" is computed on-device from the date (illuminated % and
   // phase name) and is hidden by default -- there are more widgets than
   // slots, so give it another widget's slot to show it.
+  // Shabbat and holiday times in the sunset widget: candle lighting on the
+  // eve (sunset less the minutes below; 18 is the common custom, Jerusalem
+  // uses 40) and the close on the day (sunset plus the minutes; 42 is
+  // common, some wait 50 or 72). "show" left out follows the firmware's
+  // language (on in Hebrew); true or false forces it. The date format's %Q
+  // adds the holiday's name on the day.
+  "shabbat": {
+    // "show": true,
+    "candle_lighting_minutes": 18,
+    "havdalah_minutes": 42
+  },
+
   "widget_positions": {
     "sunrise": 0,
     "sunset": 1,

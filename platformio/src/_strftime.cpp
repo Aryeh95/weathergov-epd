@@ -345,6 +345,10 @@ size_t _strftime(char *s, size_t maxsize, const char *format,
     case 'N': // with the preposition and the year: כ"ד בתשרי תשפ"ז
       hebcalFormat(tbuf, sizeof(tbuf), timeptr, true, true);
       break;
+    case 'Q': // the Jewish holiday or observance, if the day is one, else nothing
+      strncpy(tbuf, hebcalHolidayName(timeptr), sizeof(tbuf) - 1);
+      tbuf[sizeof(tbuf) - 1] = 0;
+      break;
 
     case 'c':
       _strftime(tbuf, sizeof(tbuf), LC_D_T_FMT, timeptr);

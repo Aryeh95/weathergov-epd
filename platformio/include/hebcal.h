@@ -51,6 +51,30 @@ void hebcalSetSunset(int64_t sunsetUnix);
 void hebcalFormat(char *out, size_t n, const tm *t, bool withYear,
                   bool withPrefix = false);
 
+/* Israel's holidays and observances for a Hebrew date: an index into
+ * LC_HEB_HOLIDAYS (see _locale.h), or -1. yomTov is set for the days work
+ * stops and candles are lit the evening before (Rosh Hashanah, Yom Kippur,
+ * the first and last days of Sukkot and Pesach, Shavuot) -- Israeli
+ * observance, one day. Observances fixed to weekdays (Yom HaShoah, Yom
+ * HaZikaron, Yom HaAtzmaut, and the fasts that cannot fall on Shabbat) are
+ * moved as the law moves them.
+ */
+int  hebcalHoliday(int hYear, int hMonth, int hDay, bool &yomTov);
+/* The weekday (0 = Sunday) of a Hebrew date. */
+int  hebcalWeekday(int hYear, int hMonth, int hDay);
+/* The holiday name for the moment `t` (after sunset, the next day's), or "". */
+const char *hebcalHolidayName(const tm *t);
+
+/* What this civil day's sunset means: HEBCAL_EVE_NONE; HEBCAL_EVE_CANDLES,
+ * Shabbat or a yom tov begins (candle lighting before sunset);
+ * HEBCAL_EVE_HAVDALAH, Shabbat or a yom tov ends (after sunset);
+ * HEBCAL_EVE_CANDLES_LATE, one holy day runs into another (candles after
+ * nightfall). isYomTov tells a holiday from Shabbat for the label.
+ */
+enum { HEBCAL_EVE_NONE = 0, HEBCAL_EVE_CANDLES, HEBCAL_EVE_HAVDALAH,
+       HEBCAL_EVE_CANDLES_LATE };
+int  hebcalEvening(const tm *civilDay, bool &isYomTov);
+
 /* A number 1-9999 in Hebrew letters (gematria): 15 and 16 as ט"ו / ט"ז, a
  * gershayim (ASCII ") before the last letter, a geresh (ASCII ') after a
  * single one; thousands are dropped as the year usually is. UTF-8.
