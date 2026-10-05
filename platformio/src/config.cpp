@@ -199,9 +199,9 @@ String FORECAST_SOURCE = "nws";
 int IMS_LOCATION_ID = 0;
 
 // AIR QUALITY INDEX SOURCE
-//   "auto" (default) - AirNow when an AirNow key is set; the Israel
-//                      Ministry of Environmental Protection when the
-//                      forecast source is IMS; otherwise Open-Meteo's model.
+//   "auto" (default) - the Israel Ministry of Environmental Protection when
+//                      the forecast source is IMS; otherwise AirNow when an
+//                      AirNow key is set; otherwise Open-Meteo's model.
 //   "airnow"         - AirNow (US EPA), needs AIRNOW_APIKEY.
 //   "israel"         - the Israel Ministry of Environmental Protection's
 //                      national monitoring network (air.sviva.gov.il): the

@@ -492,9 +492,9 @@ void runConfigPortal(bool forceAp)
     }
     Serial.println("[portal] on WiFi '" + String(WIFI_SSID) + "' at " + urlStr
                    + " (or http://weatherepd.local/)");
-    drawPortalScreen("Connected to WiFi: " + String(WIFI_SSID),
-                     "Open " + urlStr,
-                     "or http://weatherepd.local/");
+    drawPortalScreen(String(TXT_PORTAL_ON_WIFI) + WIFI_SSID,
+                     String(TXT_PORTAL_OPEN) + urlStr,
+                     String(TXT_PORTAL_OR) + "http://weatherepd.local/");
   }
   else
   {
@@ -511,9 +511,9 @@ void runConfigPortal(bool forceAp)
     urlStr = "http://" + AP_IP.toString() + "/";
     Serial.println("[portal] hotspot '" + String(AP_SSID) + "' (password: "
                    + PORTAL_AP_PASSWORD + ") at " + urlStr);
-    drawPortalScreen("Join WiFi network: " + String(AP_SSID),
-                     "Password: " + PORTAL_AP_PASSWORD,
-                     "Then open " + urlStr);
+    drawPortalScreen(String(TXT_PORTAL_JOIN) + AP_SSID,
+                     String(TXT_PORTAL_PASSWORD) + PORTAL_AP_PASSWORD,
+                     String(TXT_PORTAL_THEN_OPEN) + urlStr);
   }
 
   server.on("/", HTTP_GET, handleRoot);
@@ -552,9 +552,8 @@ void runConfigPortal(bool forceAp)
         // boards that have one, the portal button) wakes it.
         Serial.println("[portal] setup inactive for " + String(PORTAL_TIMEOUT)
                        + "min, hibernating until reset");
-        drawPortalScreen("Setup paused to save power.",
-                         "Press the reset (RST) button",
-                         "to start the setup hotspot again.");
+        drawPortalScreen(TXT_PORTAL_PAUSED[0], TXT_PORTAL_PAUSED[1],
+                         TXT_PORTAL_PAUSED[2]);
         WiFi.mode(WIFI_OFF);
 #if SOC_PM_SUPPORT_EXT_WAKEUP
         if (PIN_BTN_PORTAL != PIN_UNUSED)

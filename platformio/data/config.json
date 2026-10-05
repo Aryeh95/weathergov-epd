@@ -206,9 +206,9 @@
     "ims_location_id": 0,
 
     // Where the Air Quality widget's index comes from.
-    //   "auto"   - AirNow when an AirNow key is set above; the Israel
-    //              Ministry of Environmental Protection when the forecast
-    //              source is "ims"; otherwise Open-Meteo's model. (default)
+    //   "auto"   - the Israel Ministry of Environmental Protection when the
+    //              forecast source is "ims"; otherwise AirNow when an AirNow
+    //              key is set above; otherwise Open-Meteo's model. (default)
     //   "airnow" - AirNow, the US EPA's measured AQI (needs the key).
     //   "israel" - the Israel Ministry of Environmental Protection's national
     //              monitoring network (air.sviva.gov.il): the measured

@@ -94,6 +94,15 @@ const char *TXT_HOLIDAY_ENDS    = "Holiday ends";
 const bool  LC_SHABBAT_TIMES = false;
 const char *TXT_IL_AQI[4] = {"Good", "Medium", "Low", "Very Low"};
 const char *TXT_IL_AQI_TAG = "(MoEP)";
+const char *TXT_AQI_TAG_EPA = "(EPA)";
+const char *TXT_AQI_TAG_MODEL = "(model)";
+const char *TXT_PORTAL_ON_WIFI = "Connected to WiFi: ";
+const char *TXT_PORTAL_OPEN = "Open ";
+const char *TXT_PORTAL_OR = "or ";
+const char *TXT_PORTAL_JOIN = "Join WiFi network: ";
+const char *TXT_PORTAL_PASSWORD = "Password: ";
+const char *TXT_PORTAL_THEN_OPEN = "Then open ";
+const char *TXT_PORTAL_PAUSED[3] = {"Setup paused to save power.", "Press the reset (RST) button", "to start the setup hotspot again."};
 
 // CURRENT CONDITIONS
 const char *TXT_FEELS_LIKE         = "Gef\374hlt";

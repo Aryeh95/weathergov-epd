@@ -88,6 +88,15 @@ const char *TXT_HOLIDAY_ENDS    = "צאת החג";
 const bool  LC_SHABBAT_TIMES = true;
 const char *TXT_IL_AQI[4] = {"טובה", "בינונית", "נמוכה", "נמוכה מאד"}; // the Ministry's own wording
 const char *TXT_IL_AQI_TAG = "(הגנ\"ס)";
+const char *TXT_AQI_TAG_EPA = "(EPA)";
+const char *TXT_AQI_TAG_MODEL = "(מודל)";
+const char *TXT_PORTAL_ON_WIFI = "מחובר לרשת WiFi: ";
+const char *TXT_PORTAL_OPEN = "פתחו ";
+const char *TXT_PORTAL_OR = "או ";
+const char *TXT_PORTAL_JOIN = "התחברו לרשת WiFi: ";
+const char *TXT_PORTAL_PASSWORD = "סיסמה: ";
+const char *TXT_PORTAL_THEN_OPEN = "ואז פתחו ";
+const char *TXT_PORTAL_PAUSED[3] = {"ההתקנה הושהתה לחיסכון בסוללה.", "לחצו על כפתור האיפוס (RST)", "כדי להפעיל שוב את נקודת ההתקנה."};
 
 // CURRENT CONDITIONS
 const char *TXT_FEELS_LIKE         = "מרגיש כמו";

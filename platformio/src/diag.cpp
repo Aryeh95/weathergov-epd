@@ -58,7 +58,7 @@ static const char *outcomeText(uint8_t outcome)
   case DIAG_HELD:    return "Could not update; the last weather was left on the screen";
   case DIAG_WIFI:    return "No WiFi connection";
   case DIAG_CLOCK:   return "Could not get the time";
-  case DIAG_WEATHER: return "weather.gov did not answer";
+  case DIAG_WEATHER: return "The weather service did not answer";
   case DIAG_BATTERY: return "Battery low; did not update";
   case DIAG_STALE:   return "Could not update; the last weather was drawn again, marked as old";
   default:           return "Unknown";

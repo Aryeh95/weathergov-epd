@@ -975,7 +975,8 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   display.setFont(&FONT_5pt8b);
   {
     const int16_t tagX = display.getCursorX() + 3;
-    const char *tag = useAirNow ? "(EPA)" : useIL ? TXT_IL_AQI_TAG : "(model)";
+    const char *tag = useAirNow ? TXT_AQI_TAG_EPA
+                    : useIL ? TXT_IL_AQI_TAG : TXT_AQI_TAG_MODEL;
     if (tagX + getStringWidth(tag) <= wgtTagRight(PosX))
     {
       drawString(tagX, wgtLabelY(PosY), tag, LEFT);
@@ -1714,8 +1715,11 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
     { // the forecast did not reach this day
       continue;
     }
-    // column center; the icon's vertical center matches the old layout
-    int cx = xStart + static_cast<int>(i * colW + colW / 2);
+    // column center; the icon's vertical center matches the old layout.
+    // Right to left, today takes the rightmost column and the days run
+    // leftwards, as a Hebrew calendar row reads.
+    const int col = LC_RTL ? (days - 1 - i) : i;
+    int cx = xStart + static_cast<int>(col * colW + colW / 2);
     int iconX = cx - iconSize / 2;
     int iconY = 98 + 69 / 2 - 6 - iconSize / 2;
     // icons

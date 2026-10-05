@@ -916,14 +916,16 @@ void setup()
   air_quality.us_aqi = -1;
   air_quality.il_valid = false;
   air_quality.il_index = 0;
-  // Which measured index, if any (config.json api.aqi_source): AirNow with
-  // a key, the Israel Ministry of Environmental Protection with the IMS
-  // forecast source, else Open-Meteo's model.
-  const bool useAirNow = (AQI_SOURCE == "airnow")
-                      || (AQI_SOURCE == "auto" && !AIRNOW_APIKEY.isEmpty());
+  // Which measured index, if any (config.json api.aqi_source). In "auto"
+  // the forecast source decides first: with IMS the Israel Ministry of
+  // Environmental Protection (AirNow has no stations there, and a device
+  // moved from the US may still carry its AirNow key); otherwise AirNow
+  // when its key is set; else Open-Meteo's model.
   const bool useIsraelAQI = (AQI_SOURCE == "israel")
-                         || (AQI_SOURCE == "auto" && !useAirNow
-                             && FORECAST_SOURCE == "ims");
+                         || (AQI_SOURCE == "auto" && FORECAST_SOURCE == "ims");
+  const bool useAirNow = (AQI_SOURCE == "airnow")
+                      || (AQI_SOURCE == "auto" && !useIsraelAQI
+                          && !AIRNOW_APIKEY.isEmpty());
   if (useAirNow && !AIRNOW_APIKEY.isEmpty())
   {
     // AirNow's gateway is routinely the slowest call of the wake (8-25s),
@@ -999,6 +1001,13 @@ void setup()
       {
         air_quality.il_valid = found;
         air_quality.il_index = index;
+        if (found)
+        {
+          const int band = (index > 50) ? 0 : (index >= 0) ? 1
+                         : (index >= -200) ? 2 : 3;
+          Serial.println("[sviva] index " + String(index) + " ("
+                         + String(TXT_IL_AQI[band]) + ")");
+        }
         prefs.putInt("ilaqStamp", ilStamp);
         prefs.putBool("ilaqValid", found);
         prefs.putInt("ilaqIdx", index);
