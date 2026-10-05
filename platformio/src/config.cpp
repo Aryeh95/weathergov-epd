@@ -245,7 +245,7 @@ String CITY_STRING = "New York";
 // TIME
 // For list of time zones see
 // https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
-char TIMEZONE[64] = "EST5EDT,M3.2.0,M11.1.0";
+char TIMEZONE[64] = DEFAULT_TIMEZONE; // the locale's (config.h)
 // Time format used when displaying sunrise/set times. (Max 11 characters)
 // For more information about formatting see
 // https://man7.org/linux/man-pages/man3/strftime.3.html

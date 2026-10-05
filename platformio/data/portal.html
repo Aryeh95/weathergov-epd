@@ -621,9 +621,14 @@ function strftimeDemo(fmt) {
     + (fmt.includes('%Q') ? ' ' + t('(+ holiday name)') : '');
 }
 
+const US_TZ = 'EST5EDT,M3.2.0,M11.1.0';
+const ISRAEL_TZ = 'IST-2IDT,M3.4.4/26,M10.5.0';
 function buildTimeSelects() {
   const tz = el('t_tz');
-  for (const [posix, iana, label] of TIMEZONES) {
+  // the firmware's own default zone (Israel for a Hebrew build) leads the list
+  const zones = [...TIMEZONES].sort((a, b) =>
+    (b[0] === info.default_timezone) - (a[0] === info.default_timezone));
+  for (const [posix, iana, label] of zones) {
     let now = '';
     try {
       now = ' — ' + t('now') + ' ' + new Date().toLocaleTimeString(
@@ -694,7 +699,7 @@ function populate() {
   el('l_lat').value = cfg.location?.lat ?? '';
   el('l_lon').value = cfg.location?.lon ?? '';
   el('l_city').value = cfg.location?.city ?? '';
-  selectOrAppend(el('t_tz'), cfg.time?.timezone ?? 'EST5EDT,M3.2.0,M11.1.0');
+  selectOrAppend(el('t_tz'), cfg.time?.timezone ?? info.default_timezone ?? US_TZ);
   el('t_clock').value = (cfg.time?.time_format ?? '').includes('%H') ? '24' : '12';
   selectOrAppend(el('t_date'), cfg.time?.date_format ?? '%a, %B %e');
   el('s_dur').value = cfg.sleep?.sleep_duration_minutes ?? 15;
@@ -960,6 +965,14 @@ el('fwbtn').addEventListener('click', () => {
 });
 
 el('s_wrows').addEventListener('change', updateSlotVisibility);
+
+// Israel has one time zone: choosing its weather service while the zone is
+// still the shipped US default moves the zone along (and back, the other way)
+el('a_fcsrc').addEventListener('change', () => {
+  const tz = el('t_tz');
+  if (el('a_fcsrc').value === 'ims' && tz.value === US_TZ) tz.value = ISRAEL_TZ;
+  else if (el('a_fcsrc').value === 'nws' && tz.value === ISRAEL_TZ) tz.value = US_TZ;
+});
 
 el('statictoggle').addEventListener('click', () => {
   const box = el('staticbox');

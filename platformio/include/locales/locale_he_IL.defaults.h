@@ -23,3 +23,8 @@
 #ifndef FONT_INCLUDE_Heebo
   #define FONT_INCLUDE_Heebo 1
 #endif
+// Israel has a single time zone (IST, with IDT from the Friday before the
+// last Sunday of March to the last Sunday of October).
+#ifndef DEFAULT_TIMEZONE
+  #define DEFAULT_TIMEZONE "IST-2IDT,M3.4.4/26,M10.5.0"
+#endif

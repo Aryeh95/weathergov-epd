@@ -51,6 +51,7 @@
   "time": {
     // POSIX timezone string, including daylight-saving rules. For a list see
     // https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
+    // Israel (the Hebrew build's default): "IST-2IDT,M3.4.4/26,M10.5.0"
     "timezone": "EST5EDT,M3.2.0,M11.1.0",
 
     // All four format strings below use strftime formatting, see

@@ -157,6 +157,11 @@
 #define LOCALE_DEFAULTS_INC_(code) LOCALE_STR(locales/locale_ ## code.defaults.h)
 #define LOCALE_DEFAULTS_INC(code) LOCALE_DEFAULTS_INC_(code)
 #include LOCALE_DEFAULTS_INC(LOCALE)
+// The time zone a device starts with until config.json or the portal sets
+// one (POSIX string; see https://github.com/nayarsystems/posix_tz_db).
+#ifndef DEFAULT_TIMEZONE
+  #define DEFAULT_TIMEZONE "EST5EDT,M3.2.0,M11.1.0"
+#endif
 
 // UNITS
 // Define exactly one macro for each measurement type below.
