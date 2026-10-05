@@ -112,16 +112,18 @@ int main()
     LC_HEBCAL_MONTH_PREFIX = "ב";
     LC_HEB_MON[0] = "תשרי";   // as the Hebrew locale names it
     hebcalFormat(out, sizeof(out), &t, true);
+    check(strcmp(out, "כ\"ד תשרי תשפ\"ז") == 0, out);
+    hebcalFormat(out, sizeof(out), &t, true, true);
     check(strcmp(out, "כ\"ד בתשרי תשפ\"ז") == 0, out);
     // sunset 18:21 that day: at 19:00 it is already the 25th
     tm s = t; s.tm_hour = 18; s.tm_min = 21;
     hebcalSetSunset(static_cast<int64_t>(mktime(&s)));
     tm e = t; e.tm_hour = 19; e.tm_min = 0; e.tm_isdst = -1;
     hebcalFormat(out, sizeof(out), &e, false);
-    check(strcmp(out, "כ\"ה בתשרי") == 0, out);
+    check(strcmp(out, "כ\"ה תשרי") == 0, out);
     tm b = t; b.tm_hour = 18; b.tm_min = 0; b.tm_isdst = -1;
     hebcalFormat(out, sizeof(out), &b, false);
-    check(strcmp(out, "כ\"ד בתשרי") == 0, out);
+    check(strcmp(out, "כ\"ד תשרי") == 0, out);
   }
   printf("%d failure(s)\n", failures);
   return failures ? 1 : 0;

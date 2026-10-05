@@ -47,10 +47,12 @@ extern const String OWM_LANG;
 // visually (renderer.cpp, shapeText); layout positions do not change.
 extern const bool LC_RTL;
 
-// HEBREW CALENDAR (_strftime's %J and %K, hebcal.cpp)
+// HEBREW CALENDAR (_strftime's %K %J %L %N, hebcal.cpp)
 // Month names, Tishrei first, with Adar, Adar I and Adar II separately;
 // whether to write the day and year in Hebrew letters (gematria) rather
-// than digits; and what to put before the month ("ב" in Hebrew: כ"ד בתשרי).
+// than digits; and the preposition %L and %N put before the month ("ב" in
+// Hebrew: כ"ד בתשרי, the form of running text; %K and %J leave it off, as
+// calendars and datelines do: כ"ד תשרי).
 extern const char *LC_HEB_MON[14];
 extern const bool  LC_HEBCAL_LETTERS;
 extern const char *LC_HEBCAL_MONTH_PREFIX;

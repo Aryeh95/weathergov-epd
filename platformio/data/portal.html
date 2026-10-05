@@ -370,8 +370,9 @@ const TIMEZONES = [
 const DATE_FORMATS = ['%a, %B %e', '%a, %b %e', '%A, %B %e', '%B %e',
                       '%e %B', '%m/%d/%Y',
                       // with the Hebrew calendar date (%K: day and month,
-                      // %J: with the year; it turns over at sunset)
-                      '%A, %e %B, %K', '%e %B, %K', '%K', '%J'];
+                      // %J: with the year, %L / %N: the same with the
+                      // month's preposition; it turns over at sunset)
+                      '%A, %e %B, %K', '%e %B, %K', '%K', '%J', '%L'];
 
 // the Hebrew calendar date as the browser renders it (the device uses its
 // own calendar code and the firmware's locale, so the look may differ)
@@ -402,7 +403,9 @@ function strftimeDemo(fmt) {
     .replace(/%Y/g, String(d.getFullYear()))
     .replace(/%y/g, String(d.getFullYear()).slice(-2))
     .replace(/%J/g, hebrewDateDemo(true))
-    .replace(/%K/g, hebrewDateDemo(false));
+    .replace(/%N/g, hebrewDateDemo(true))
+    .replace(/%K/g, hebrewDateDemo(false))
+    .replace(/%L/g, hebrewDateDemo(false));
 }
 
 function buildTimeSelects() {

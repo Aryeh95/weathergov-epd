@@ -66,8 +66,10 @@
     "hour_format": "%l%P",
     // Date in the top-right corner, ex: "Sat, January 1". Besides strftime's
     // usual codes, %K is the Hebrew calendar date (day and month, turning
-    // over at sunset) and %J the same with the year -- in Hebrew letters
-    // in a Hebrew build, "24 Tishrei 5787" otherwise. Ex: "%A, %e ב%B, %K"
+    // over at sunset) and %J the same with the year -- in Hebrew letters in
+    // a Hebrew build (כ"ד תשרי תשפ"ז), "24 Tishrei 5787" otherwise. %L and
+    // %N are the same with the month's preposition (כ"ד בתשרי), the form of
+    // running text. Ex: "%A, %e ב%B, %K"
     "date_format": "%a, %B %e",
     // Last-refresh timestamp along the bottom status bar.
     "refresh_time_format": "%x %H:%M",

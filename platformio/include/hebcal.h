@@ -40,12 +40,16 @@ bool hebcalIsLeapYear(int hYear);
 void hebcalSetSunset(int64_t sunsetUnix);
 
 /* Writes the Hebrew date for the moment `t` (local time, as the clock has
- * it) in the locale's style: letters with geresh / gershayim and the month
- * prefix in Hebrew ("כ\"ד בתשרי תשפ\"ז"), digits and transliterated names
- * otherwise ("24 Tishrei 5787"); withYear = false stops after the month.
- * UTF-8, at most n-1 bytes. Used by _strftime's %J and %K.
+ * it) in the locale's style: letters with geresh / gershayim in Hebrew
+ * ("כ\"ד תשרי תשפ\"ז"), digits and transliterated names otherwise
+ * ("24 Tishrei 5787"). withYear = false stops after the month; withPrefix
+ * puts the locale's preposition before the month ("כ\"ד בתשרי", the form
+ * of running text and holiday names, where the bare form is the one on
+ * calendars and datelines). UTF-8, at most n-1 bytes. Behind _strftime's
+ * %K / %J (bare) and %L / %N (with the prefix).
  */
-void hebcalFormat(char *out, size_t n, const tm *t, bool withYear);
+void hebcalFormat(char *out, size_t n, const tm *t, bool withYear,
+                  bool withPrefix = false);
 
 /* A number 1-9999 in Hebrew letters (gematria): 15 and 16 as ט"ו / ט"ז, a
  * gershayim (ASCII ") before the last letter, a geresh (ASCII ') after a
