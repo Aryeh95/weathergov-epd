@@ -255,6 +255,7 @@ static void handleGetInfo()
   doc["locale"] = PORTAL_STR(LOCALE);
   doc["rtl"] = LC_RTL;
   doc["heat_stress_default"] = LC_PREFER_HEAT_STRESS;
+  doc["default_timezone"] = DEFAULT_TIMEZONE;
   // font families compiled into this firmware, for the Font dropdown
   JsonArray fonts = doc["fonts"].to<JsonArray>();
   for (int i = 0; i < FONT_FAMILY_NAME_COUNT; ++i)
