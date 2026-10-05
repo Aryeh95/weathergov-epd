@@ -140,6 +140,8 @@
 //   Dutch (Belgium)                 nl_BE
 //   Portuguese (Brazil)             pt_BR
 //   Spanish (Spain)                 es_ES
+//   Hebrew (Israel)                 he_IL  (right-to-left; needs a Hebrew
+//                                          font family, see FONTS below)
 #define LOCALE en_US
 
 // UNITS
@@ -328,6 +330,9 @@
 //   Roboto Slab    RobotoSlab_Regular       Roboto Slab     Apache v2.0
 //   Ubuntu         Ubuntu_R                 Ubuntu font     UFL v1.0
 //   Ubuntu Mono    UbuntuMono_R             Ubuntu font     UFL v1.0
+//   Heebo          Heebo                    Heebo           OFL 1.1
+//                  (Hebrew + Latin, ISO-8859-8 slots: the family for the
+//                  he_IL locale. Oded Ezer's screen face, Roboto's Latin.)
 //
 // Adding a font: python tools/fontconvert.py <Name> <font.ttf>, then
 // python tools/gen_font_table.py, then switch it on below.
@@ -343,6 +348,10 @@
 // (on the FireBeetle's 4 MB that takes the firmware from 89% to 94% of its
 // slot).
 #define FONT_INCLUDE_FreeSans 1
+// A right-to-left locale (he_IL) needs a family whose high slots carry the
+// Hebrew alphabet; settings.cpp switches to the first such family when the
+// configured one has none. Switch Heebo on for a Hebrew build:
+// #define FONT_INCLUDE_Heebo 1
 #if defined(BOARD_RETERMINAL_E1002) && !defined(FONT_INCLUDE_Bitter)
   #define FONT_INCLUDE_Bitter 1
 #endif
@@ -484,6 +493,8 @@ extern String NWS_USER_AGENT;
 extern String AIRNOW_APIKEY;
 extern String POLLEN_APIKEY;
 extern String CURRENT_SOURCE;
+extern String FORECAST_SOURCE;
+extern int    IMS_LOCATION_ID;
 extern String PORTAL_AP_PASSWORD;
 extern int    PORTAL_TIMEOUT;
 extern String LAT;

@@ -23,6 +23,7 @@
 #include <time.h>
 #include "api_response.h"
 #include "config.h"
+#include "rtl.h" // shapeText
 
 #ifdef DISP_BW_V2
   #define DISP_WIDTH  800

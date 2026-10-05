@@ -38,8 +38,14 @@ extern const char *LC_ERA_D_FMT;
 extern const char *LC_ERA_D_T_FMT;
 extern const char *LC_ERA_T_FMT;
 
-// OWM LANGUAGE
+// OWM LANGUAGE (also the language code sent to IMS: "en" or "he")
 extern const String OWM_LANG;
+
+// SCRIPT DIRECTION
+// true for a right-to-left language (Hebrew). The renderer then transcodes
+// UTF-8 text to the Hebrew font family's code page and reorders each line
+// visually (renderer.cpp, shapeText); layout positions do not change.
+extern const bool LC_RTL;
 
 // CURRENT CONDITIONS
 extern const char *TXT_FEELS_LIKE;

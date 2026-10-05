@@ -1,4 +1,7 @@
-/* British English locale data for esp32-weather-epd.
+/* Hebrew (Israel) locale data for esp32-weather-epd.
+ * UTF-8. Right-to-left: the renderer transcodes these strings to the Hebrew
+ * font family's ISO-8859-8 page and lays each line out right to left
+ * (renderer.cpp, shapeText). Needs FONT_INCLUDE_Heebo (config.h).
  * Copyright (C) 2022-2026  Luke Marzen
  *
  * This program is free software: you can redistribute it and/or modify
@@ -31,29 +34,27 @@
 //   LC_TIME category.
 //   https://www.gnu.org/software/libc/sources.html
 // D_T_FMT                 string for formatting date and time
-const char *LC_D_T_FMT     = "%a %d %b %Y %T %Z";
+const char *LC_D_T_FMT     = "%a %d %b %Y %H:%M:%S %Z";
 // LC_D_FMT                date format string
 const char *LC_D_FMT       = "%d/%m/%y";
 // T_FMT                   time format string
-const char *LC_T_FMT       = "%T";
+const char *LC_T_FMT       = "%H:%M:%S";
 // T_FMT_AMPM              a.m. or p.m. time format string
-const char *LC_T_FMT_AMPM  = "%l:%M:%S %P %Z";
+const char *LC_T_FMT_AMPM  = "%I:%M:%S %p";
 // AM_STR                  Ante Meridian affix
-const char *LC_AM_STR      = "am";
+const char *LC_AM_STR      = "לפנה\"צ";
 // PM_STR                  Post Meridian affix
-const char *LC_PM_STR      = "pm";
+const char *LC_PM_STR      = "אחה\"צ";
 // DAY_{1-7}               name of the n-th day of the week
-const char *LC_DAY[7]      = {"Sunday", "Monday", "Tuesday", "Wednesday",
-                              "Thursday", "Friday", "Saturday"};
+const char *LC_DAY[7]      = {"ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"};
 // ABDAY_{1-7}             abbreviated name of the n-th day of the week
-const char *LC_ABDAY[7]    = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+const char *LC_ABDAY[7]    = {"א'", "ב'", "ג'", "ד'", "ה'", "ו'", "ש'"};
 // MON_{1-12}              name of the n-th month of the year
-const char *LC_MON[12]     = {"January",    "February", "March",    "April",
-                               "May",       "June",     "July",     "August",
-                               "September", "October",  "November", "December"};
+const char *LC_MON[12]     = {"ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני",
+                              "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"};
 // ABMON_{1-12}            abbreviated name of the n-th month of the year
-const char *LC_ABMON[12]   = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                              "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+const char *LC_ABMON[12]   = {"ינו'", "פבר'", "מרץ", "אפר'", "מאי", "יוני",
+                              "יולי", "אוג'", "ספט'", "אוק'", "נוב'", "דצמ'"};
 // ERA                     era description segments
 const char *LC_ERA         = "";
 // ERA_D_FMT               era date format string
@@ -67,69 +68,69 @@ const char *LC_ERA_T_FMT   = "";
 // For full list of languages, see
 // https://openweathermap.org/api/one-call-api#multi
 // Note: "[only] The contents of the 'description' field will be translated."
-const String OWM_LANG = "en";
-const bool LC_RTL = false;
+const String OWM_LANG = "he";
+const bool LC_RTL = true;
 
 // CURRENT CONDITIONS
-const char *TXT_FEELS_LIKE         = "Feels Like";
-const char *TXT_SUNRISE            = "Sunrise";
-const char *TXT_SUNSET             = "Sunset";
-const char *TXT_MOONRISE           = "Moonrise";
-const char *TXT_MOONSET            = "Moonset";
-const char *TXT_WIND               = "Wind";
-const char *TXT_HUMIDITY           = "Humidity";
-const char *TXT_UV_INDEX           = "UV Index";
-const char *TXT_PRESSURE           = "Pressure";
-const char *TXT_AIR_QUALITY        = "Air Quality";
-const char *TXT_AIR_POLLUTION      = "Air Pollution";
-const char *TXT_VISIBILITY         = "Visibility";
-const char *TXT_POLLEN             = "Pollen";
+const char *TXT_FEELS_LIKE         = "מרגיש כמו";
+const char *TXT_SUNRISE            = "זריחה";
+const char *TXT_SUNSET             = "שקיעה";
+const char *TXT_MOONRISE           = "זריחת ירח";
+const char *TXT_MOONSET            = "שקיעת ירח";
+const char *TXT_WIND               = "רוח";
+const char *TXT_HUMIDITY           = "לחות";
+const char *TXT_UV_INDEX           = "מדד UV";
+const char *TXT_PRESSURE           = "לחץ אוויר";
+const char *TXT_AIR_QUALITY        = "איכות אוויר";
+const char *TXT_AIR_POLLUTION      = "זיהום אוויר";
+const char *TXT_VISIBILITY         = "ראות";
+const char *TXT_POLLEN             = "אבקנים";
 // Pollen type driving the index, shown as a small tag beside the
 // "Pollen" label. Keep these short -- they must fit the widget cell.
-const char *TXT_POLLEN_TREE        = "tree";
-const char *TXT_POLLEN_GRASS       = "grass";
-const char *TXT_POLLEN_WEED        = "weed";
-const char *TXT_POLLEN_ALL         = "all";
-const char *TXT_INDOOR_TEMPERATURE = "Temperature";
-const char *TXT_INDOOR_HUMIDITY    = "Humidity";
-const char *TXT_DEWPOINT           = "Dew Point";
-const char *TXT_TEMPERATURE        = "Temperature";
+const char *TXT_POLLEN_TREE        = "עצים";
+const char *TXT_POLLEN_GRASS       = "עשב";
+const char *TXT_POLLEN_WEED        = "עשבייה";
+const char *TXT_POLLEN_ALL         = "הכל";
+const char *TXT_INDOOR_TEMPERATURE = "טמפרטורה";
+const char *TXT_INDOOR_HUMIDITY    = "לחות";
+const char *TXT_DEWPOINT           = "נקודת טל";
+const char *TXT_TEMPERATURE        = "טמפרטורה";
 
 // MOON PHASE
-const char *TXT_MOONPHASE       = "Moon Phase";
-const char *TXT_NEW_MOON        = "New Moon";
-const char *TXT_WAXING_CRESCENT = "Waxing Crescent";
-const char *TXT_FIRST_QUARTER   = "First Quarter";
-const char *TXT_WAXING_GIBBOUS  = "Waxing Gibbous";
-const char *TXT_FULL_MOON       = "Full Moon";
-const char *TXT_WANING_GIBBOUS  = "Waning Gibbous";
-const char *TXT_THIRD_QUARTER   = "Last Quarter";
-const char *TXT_WANING_CRESCENT = "Waning Crescent";
+const char *TXT_MOONPHASE       = "מופע הירח";
+const char *TXT_NEW_MOON        = "מולד";
+const char *TXT_WAXING_CRESCENT = "סהר מתמלא";
+const char *TXT_FIRST_QUARTER   = "רבע ראשון";
+const char *TXT_WAXING_GIBBOUS  = "גיבן מתמלא";
+const char *TXT_FULL_MOON       = "ירח מלא";
+const char *TXT_WANING_GIBBOUS  = "גיבן מתמעט";
+const char *TXT_THIRD_QUARTER   = "רבע אחרון";
+const char *TXT_WANING_CRESCENT = "סהר מתמעט";
 
 // UV INDEX
-const char *TXT_UV_LOW       = "Low";
-const char *TXT_UV_MODERATE  = "Moderate";
-const char *TXT_UV_HIGH      = "High";
-const char *TXT_UV_VERY_HIGH = "Very High";
-const char *TXT_UV_EXTREME   = "Extreme";
+const char *TXT_UV_LOW       = "נמוך";
+const char *TXT_UV_MODERATE  = "בינוני";
+const char *TXT_UV_HIGH      = "גבוה";
+const char *TXT_UV_VERY_HIGH = "גבוה מאוד";
+const char *TXT_UV_EXTREME   = "קיצוני";
 
 // WIFI
-const char *TXT_WIFI_EXCELLENT     = "Excellent";
-const char *TXT_WIFI_GOOD          = "Good";
-const char *TXT_WIFI_FAIR          = "Fair";
-const char *TXT_WIFI_WEAK          = "Weak";
-const char *TXT_WIFI_NO_CONNECTION = "No Connection";
+const char *TXT_WIFI_EXCELLENT     = "מצוין";
+const char *TXT_WIFI_GOOD          = "טוב";
+const char *TXT_WIFI_FAIR          = "סביר";
+const char *TXT_WIFI_WEAK          = "חלש";
+const char *TXT_WIFI_NO_CONNECTION = "אין חיבור";
 
 // UNIT SYMBOLS - TEMPERATURE
 const char *TXT_UNITS_TEMP_KELVIN     = "K";
-const char *TXT_UNITS_TEMP_CELSIUS    = "\260C";
-const char *TXT_UNITS_TEMP_FAHRENHEIT = "\260F";
+const char *TXT_UNITS_TEMP_CELSIUS    = "°C";
+const char *TXT_UNITS_TEMP_FAHRENHEIT = "°F";
 // UNIT SYMBOLS - WIND SPEED
-const char *TXT_UNITS_SPEED_METERSPERSECOND   = "m/s";
+const char *TXT_UNITS_SPEED_METERSPERSECOND   = "מ'/שנ'";
 const char *TXT_UNITS_SPEED_FEETPERSECOND     = "ft/s";
-const char *TXT_UNITS_SPEED_KILOMETERSPERHOUR = "km/h";
+const char *TXT_UNITS_SPEED_KILOMETERSPERHOUR = "קמ\"ש";
 const char *TXT_UNITS_SPEED_MILESPERHOUR      = "mph";
-const char *TXT_UNITS_SPEED_KNOTS             = "kt";
+const char *TXT_UNITS_SPEED_KNOTS             = "קשר";
 const char *TXT_UNITS_SPEED_BEAUFORT          = "";
 // UNIT SYMBOLS - PRESSURE
 const char *TXT_UNITS_PRES_HECTOPASCALS             = "hPa";
@@ -138,22 +139,22 @@ const char *TXT_UNITS_PRES_MILLIMETERSOFMERCURY     = "mmHg";
 const char *TXT_UNITS_PRES_INCHESOFMERCURY          = "inHg";
 const char *TXT_UNITS_PRES_MILLIBARS                = "mbar";
 const char *TXT_UNITS_PRES_ATMOSPHERES              = "atm";
-const char *TXT_UNITS_PRES_GRAMSPERSQUARECENTIMETER = "g/cm\xB2";
-const char *TXT_UNITS_PRES_POUNDSPERSQUAREINCH      = "lb/in\xB2";
+const char *TXT_UNITS_PRES_GRAMSPERSQUARECENTIMETER = "g/cm²";
+const char *TXT_UNITS_PRES_POUNDSPERSQUAREINCH      = "lb/in²";
 // UNITS SYMBOLS - VISIBILITY DISTANCE
-const char *TXT_UNITS_DIST_KILOMETERS = "km";
+const char *TXT_UNITS_DIST_KILOMETERS = "ק\"מ";
 const char *TXT_UNITS_DIST_MILES      = "mi";
 // UNITS SYMBOLS - PRECIPITATION
-const char *TXT_UNITS_PRECIP_MILLIMETERS = "mm";
-const char *TXT_UNITS_PRECIP_CENTIMETERS = "cm";
+const char *TXT_UNITS_PRECIP_MILLIMETERS = "מ\"מ";
+const char *TXT_UNITS_PRECIP_CENTIMETERS = "ס\"מ";
 const char *TXT_UNITS_PRECIP_INCHES      = "in";
 
 // MISCELLANEOUS MESSAGES
 // Title Case
-const char *TXT_LOW_BATTERY = "Low Battery";
-const char *TXT_NETWORK_NOT_AVAILABLE = "Network Not Available";
-const char *TXT_TIME_SYNCHRONIZATION_FAILED = "Time Synchronization Failed";
-const char *TXT_WIFI_CONNECTION_FAILED = "WiFi Connection Failed";
+const char *TXT_LOW_BATTERY = "סוללה חלשה";
+const char *TXT_NETWORK_NOT_AVAILABLE = "הרשת אינה זמינה";
+const char *TXT_TIME_SYNCHRONIZATION_FAILED = "סנכרון השעון נכשל";
+const char *TXT_WIFI_CONNECTION_FAILED = "החיבור ל-WiFi נכשל";
 // First Word Capitalized
 const char *TXT_ATTEMPTING_HTTP_REQ = "Attempting HTTP request";
 const char *TXT_AWAKE_FOR = "Awake for";
@@ -162,20 +163,20 @@ const char *TXT_CONNECTING_TO = "Connecting to";
 const char *TXT_COULD_NOT_CONNECT_TO = "Could not connect to";
 const char *TXT_ENTERING_DEEP_SLEEP_FOR = "Entering deep sleep for";
 const char *TXT_READING_FROM = "Reading from";
-const char *TXT_FAILED  = "Failed";
-const char *TXT_SUCCESS = "Success";
-const char *TXT_UNKNOWN = "Unknown";
+const char *TXT_FAILED  = "נכשל";
+const char *TXT_SUCCESS = "הצליח";
+const char *TXT_UNKNOWN = "לא ידוע";
 // All Lowercase
-const char *TXT_NOT_FOUND = "not found";
-const char *TXT_READ_FAILED = "read failed";
+const char *TXT_NOT_FOUND = "לא נמצא";
+const char *TXT_READ_FAILED = "הקריאה נכשלה";
 // Complete Sentences
-const char *TXT_FAILED_TO_GET_TIME = "Failed to get the time!";
-const char *TXT_HIBERNATING_INDEFINITELY_NOTICE = "Hibernating without wake time!";
-const char *TXT_REFERENCING_OLDER_TIME_NOTICE = "Failed to synchronize time before deep-sleep, referencing older time.";
-const char *TXT_WAITING_FOR_SNTP = "Waiting for SNTP synchronization.";
-const char *TXT_LOW_BATTERY_VOLTAGE = "Low battery voltage!";
-const char *TXT_VERY_LOW_BATTERY_VOLTAGE = "Very low battery voltage!";
-const char *TXT_CRIT_LOW_BATTERY_VOLTAGE = "Critically low battery voltage!";
+const char *TXT_FAILED_TO_GET_TIME = "קבלת השעה נכשלה!";
+const char *TXT_HIBERNATING_INDEFINITELY_NOTICE = "נכנס לשינה ללא זמן יקיצה!";
+const char *TXT_REFERENCING_OLDER_TIME_NOTICE = "סנכרון השעון לפני השינה נכשל, משתמש בשעה ישנה יותר.";
+const char *TXT_WAITING_FOR_SNTP = "ממתין לסנכרון SNTP.";
+const char *TXT_LOW_BATTERY_VOLTAGE = "מתח סוללה נמוך!";
+const char *TXT_VERY_LOW_BATTERY_VOLTAGE = "מתח סוללה נמוך מאוד!";
+const char *TXT_CRIT_LOW_BATTERY_VOLTAGE = "מתח סוללה נמוך באופן קריטי!";
 
 // ALERTS
 // The display can show up to 2 alerts, but alerts can be unpredictable in
@@ -197,64 +198,61 @@ const char *TXT_CRIT_LOW_BATTERY_VOLTAGE = "Critically low battery voltage!";
 //
 // Here are a few examples, uncomment the array for your region (or create your
 // own).
-// const std::vector<String> ALERT_URGENCY = {"outlook", "statement", "watch", "advisory", "warning", "emergency"}; // US National Weather Service
-const std::vector<String> ALERT_URGENCY = {"yellow", "amber", "red"};                 // United Kingdom's national weather service (MET Office)
+const std::vector<String> ALERT_URGENCY = {"ירוקה", "מוקדמת", "צהובה", "כתומה", "אדומה"}; // Israel Meteorological Service: early warning < yellow < orange < red
+// const std::vector<String> ALERT_URGENCY = {"yellow", "amber", "red"};                 // United Kingdom's national weather service (MET Office)
 // const std::vector<String> ALERT_URGENCY = {"minor", "moderate", "severe", "extreme"}; // METEO
 // const std::vector<String> ALERT_URGENCY = {}; // Disable urgency interpretation (algorithm will fallback to only prefer the most recently issued alerts)
 
 // ALERT TERMINOLOGY
 // Weather terminology associated with each alert icon
 const std::vector<String> TERM_SMOG =
-    {"smog"};
+    {"ערפיח"};
 const std::vector<String> TERM_SMOKE =
-    {"smoke"};
+    {"עשן"};
 const std::vector<String> TERM_FOG =
-    {"fog", "haar"};
+    {"ערפל", "ערפילי", "ראות", "ענן נמוך"};
 const std::vector<String> TERM_METEOR =
-    {"meteor", "asteroid"};
+    {"מטאור"};
 const std::vector<String> TERM_NUCLEAR =
-    {"nuclear", "ionizing radiation", "radiological"};
+    {"רדיואקטיבי", "קרינה"};
 const std::vector<String> TERM_BIOHAZARD =
-    {"biohazard", "biological hazard", "hazardous materials"};
+    {"כימי", "ביולוגי"};
 const std::vector<String> TERM_EARTHQUAKE =
-    {"earthquake"};
+    {"רעידת אדמה"};
 const std::vector<String> TERM_FIRE =
-    {"fire", "red flag"};
+    {"שריפות", "שריפה"};
 const std::vector<String> TERM_HEAT =
-    {"heat"};
+    {"חום", "טמפרטורות קיצוניות"};
 const std::vector<String> TERM_WINTER =
-    {"blizzard", "winter", "ice", "icy", "snow", "sleet", "cold",
-     "freezing", "wind chill", "freeze", "frost", "hail", "avalanche"};
+    {"שלג", "קרה", "קרח", "התקרחות", "קור", "ברד"};
 const std::vector<String> TERM_TSUNAMI =
-    {"tsunami", "surf", "rip current", "beach", "seas"};
+    {"צונאמי", "ים גבוה", "רחצה", "גלים"};
 const std::vector<String> TERM_LIGHTNING =
-    {"thunderstorm", "storm cell", "pulse storm", "squall line", "supercell",
-     "lightning"};
+    {"רעמים", "ברקים", "סופות"};
 const std::vector<String> TERM_SANDSTORM =
-    {"sandstorm", "blowing dust", "dust storm"};
+    {"אובך", "אבק", "חול"};
 const std::vector<String> TERM_FLOOD =
-    {"flood", "storm surge", "seiche", "swell", "high seas", "high tides",
-     "tidal surge", "hydrologic"};
+    {"שטפונות", "הצפות", "גשם", "נחלים"};
 const std::vector<String> TERM_VOLCANO =
-    {"volcanic", "ash", "volcano", "eruption"};
+    {"וולקני", "אפר"};
 const std::vector<String> TERM_AIR_QUALITY =
-    {"air", "stagnation", "pollution"};
+    {"זיהום", "איכות אוויר"};
 const std::vector<String> TERM_TORNADO =
-    {"tornado"};
+    {"טורנדו"};
 const std::vector<String> TERM_SMALL_CRAFT_ADVISORY =
-    {"small craft", "wind advisory"};
+    {"כלי שיט"};
 const std::vector<String> TERM_GALE_WARNING =
-    {"gale"};
+    {"סערה בים"};
 const std::vector<String> TERM_STORM_WARNING =
-    {"storm warning", "storm watch", "marine"};
+    {"סערה"};
 const std::vector<String> TERM_HURRICANE_WARNING =
-    {"hurricane force wind", "extreme wind", "high wind"};
+    {"רוחות קיצוניות"};
 const std::vector<String> TERM_HURRICANE =
-    {"hurricane", "tropical storm", "typhoon", "cyclone"};
+    {"הוריקן", "ציקלון"};
 const std::vector<String> TERM_DUST =
-    {"dust", "sand"};
+    {"אבק", "חול"};
 const std::vector<String> TERM_STRONG_WIND =
-    {"wind", "monsoon"};
+    {"רוח", "רוחות", "גזירת רוח"};
 
 // AIR QUALITY INDEX
 extern "C" {
@@ -267,7 +265,7 @@ extern "C" {
 //   HONG_KONG_AQHI       INDIA_AQI            CHINA_AQI
 //   SINGAPORE_PSI        SOUTH_KOREA_CAI      UNITED_KINGDOM_DAQI
 //   UNITED_STATES_AQI
-const aqi_scale_t AQI_SCALE = UNITED_KINGDOM_DAQI;
+const aqi_scale_t AQI_SCALE = UNITED_STATES_AQI;
 
 const char *AUSTRALIA_AQI_TXT[6] =
 {
@@ -343,12 +341,12 @@ const char *UNITED_KINGDOM_DAQI_TXT[4] =
 };
 const char *UNITED_STATES_AQI_TXT[6] =
 {
-  "Good",
-  "Moderate",
-  "Unhealthy for Sensitive Groups",
-  "Unhealthy",
-  "Very Unhealthy",
-  "Hazardous",
+  "טוב",
+  "בינוני",
+  "לא בריא לרגישים",
+  "לא בריא",
+  "לא בריא מאוד",
+  "מסוכן",
 };
 } // end extern "C"
 /* Short forms of the above, for the AQI widget's badge when the column is
@@ -356,25 +354,21 @@ const char *UNITED_STATES_AQI_TXT[6] =
  */
 const char *UNITED_STATES_AQI_SHORT_TXT[6] =
 {
-  "Good",
-  "Moderate",
-  "USG",
-  "Unhealthy",
-  "V. Unhealthy",
-  "Hazard",
+  "טוב",
+  "בינוני",
+  "לרגישים",
+  "לא בריא",
+  "לא בריא+",
+  "מסוכן",
 };
 
 
 // COMPASS POINT
 const char *COMPASS_POINT_NOTATION[32] = {
-//   0°   11.25°   22.5°   33.75°   45°   56.25°   67.5°   78.75°
-   "N",  "NbE",  "NNE",   "NEbN",  "NE", "NEbE",  "ENE",  "EbN",
-//  90°  101.25°  112.5°  123.75°  135°  146.25°  157.5°  168.75°
-   "E",  "EbS",   "ESE",  "SEbE",  "SE", "SEbS",  "SSE",  "SbE",
-// 180°  191.25°  202.5°  213.75°  225°  236.25°  247.5°  258.75°
-   "S",  "SbW",   "SSW",  "SWbS",  "SW", "SWbW",  "WSW",  "WbS",
-// 270°  281.25°  292.5°  303.75°  315°  326.25°  337.5°  348.75°
-   "W",  "WbN",   "WNW",  "NWbW",  "NW", "NWbN",  "NNW",  "NbW",
+   "צ",   "צ/צמ",  "צצמ",  "צמ/צ",  "צמ",  "צמ/מ",  "מצמ",  "מ/צ",
+   "מ",   "מ/ד",   "מדמ",  "דמ/מ",  "דמ",  "דמ/ד",  "דדמ",  "ד/מ",
+   "ד",   "ד/מע",  "דדמע", "דמע/ד", "דמע", "דמע/מע","מעדמע","מע/ד",
+   "מע",  "מע/צ",  "מעצמע","צמע/מע","צמע", "צמע/צ", "צצמע", "צ/מע",
 };
 
 // HTTP CLIENT ERRORS
@@ -468,20 +462,20 @@ const char *TXT_DESERIALIZATION_ERROR_NO_MEMORY        = "Deserialization No Mem
 const char *TXT_DESERIALIZATION_ERROR_TOO_DEEP         = "Deserialization Too Deep";
 
 // WIFI STATUS
-const char *TXT_WL_NO_SHIELD       = "No Shield";
-const char *TXT_WL_IDLE_STATUS     = "Idle";
-const char *TXT_WL_NO_SSID_AVAIL   = "No SSID Available";
-const char *TXT_WL_SCAN_COMPLETED  = "Scan Complete";
-const char *TXT_WL_CONNECTED       = "Connected";
-const char *TXT_WL_CONNECT_FAILED  = "Connection Failed";
-const char *TXT_WL_CONNECTION_LOST = "Connection Lost";
-const char *TXT_WL_DISCONNECTED    = "Disconnected";
+const char *TXT_WL_NO_SHIELD       = "ללא מודול";
+const char *TXT_WL_IDLE_STATUS     = "המתנה";
+const char *TXT_WL_NO_SSID_AVAIL   = "אין רשת זמינה";
+const char *TXT_WL_SCAN_COMPLETED  = "הסריקה הושלמה";
+const char *TXT_WL_CONNECTED       = "מחובר";
+const char *TXT_WL_CONNECT_FAILED  = "החיבור נכשל";
+const char *TXT_WL_CONNECTION_LOST = "החיבור אבד";
+const char *TXT_WL_DISCONNECTED    = "מנותק";
 
 // WIFI FAILURE DETAILS
 // Shown on the 2nd line of the connection error screen.
-const char *TXT_WIFI_REASON_NO_AP_FOUND    = "Network Not Found";
-const char *TXT_WIFI_REASON_AUTH_FAIL      = "Possibly Incorrect Password";
-const char *TXT_WIFI_REASON_ASSOC_FAIL     = "Router Refused Connection";
-const char *TXT_WIFI_REASON_BEACON_TIMEOUT = "Weak Signal";
-const char *TXT_WIFI_REASON_TIMEOUT        = "No Response From Router";
+const char *TXT_WIFI_REASON_NO_AP_FOUND    = "הרשת לא נמצאה";
+const char *TXT_WIFI_REASON_AUTH_FAIL      = "ייתכן שהסיסמה שגויה";
+const char *TXT_WIFI_REASON_ASSOC_FAIL     = "הנתב דחה את החיבור";
+const char *TXT_WIFI_REASON_BEACON_TIMEOUT = "אות חלש";
+const char *TXT_WIFI_REASON_TIMEOUT        = "אין תגובה מהנתב";
 const char *TXT_WIFI_REASON_UNKNOWN        = "Unknown Reason";

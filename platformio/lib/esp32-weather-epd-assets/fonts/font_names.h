@@ -20,6 +20,9 @@ static const char *const FONT_FAMILY_NAMES[] = {
 #if defined(FONT_INCLUDE_FreeSerif) && FONT_INCLUDE_FreeSerif
   "FreeSerif",
 #endif
+#if defined(FONT_INCLUDE_Heebo) && FONT_INCLUDE_Heebo
+  "Heebo",
+#endif
 #if defined(FONT_INCLUDE_Lato_Regular) && FONT_INCLUDE_Lato_Regular
   "Lato_Regular",
 #endif
@@ -56,4 +59,57 @@ static const char *const FONT_FAMILY_NAMES[] = {
 };
 static const int FONT_FAMILY_NAME_COUNT =
     sizeof(FONT_FAMILY_NAMES) / sizeof(FONT_FAMILY_NAMES[0]);
+
+// Same order: true for a family whose 0xA0-0xFF slots hold ISO-8859-8
+// (Hebrew). A right-to-left locale needs one (settings.cpp).
+static const bool FONT_FAMILY_HEBREW[] = {
+#if defined(FONT_INCLUDE_FreeSans) && FONT_INCLUDE_FreeSans
+  false,
+#endif
+#if defined(FONT_INCLUDE_Bitter) && FONT_INCLUDE_Bitter
+  false,
+#endif
+#if defined(FONT_INCLUDE_FreeMono) && FONT_INCLUDE_FreeMono
+  false,
+#endif
+#if defined(FONT_INCLUDE_FreeSerif) && FONT_INCLUDE_FreeSerif
+  false,
+#endif
+#if defined(FONT_INCLUDE_Heebo) && FONT_INCLUDE_Heebo
+  true,
+#endif
+#if defined(FONT_INCLUDE_Lato_Regular) && FONT_INCLUDE_Lato_Regular
+  false,
+#endif
+#if defined(FONT_INCLUDE_Montserrat_Regular) && FONT_INCLUDE_Montserrat_Regular
+  false,
+#endif
+#if defined(FONT_INCLUDE_OpenSans_Regular) && FONT_INCLUDE_OpenSans_Regular
+  false,
+#endif
+#if defined(FONT_INCLUDE_Poppins_Regular) && FONT_INCLUDE_Poppins_Regular
+  false,
+#endif
+#if defined(FONT_INCLUDE_Quicksand_Regular) && FONT_INCLUDE_Quicksand_Regular
+  false,
+#endif
+#if defined(FONT_INCLUDE_Raleway_Regular) && FONT_INCLUDE_Raleway_Regular
+  false,
+#endif
+#if defined(FONT_INCLUDE_RobotoMono_Regular) && FONT_INCLUDE_RobotoMono_Regular
+  false,
+#endif
+#if defined(FONT_INCLUDE_RobotoSlab_Regular) && FONT_INCLUDE_RobotoSlab_Regular
+  false,
+#endif
+#if defined(FONT_INCLUDE_Roboto_Regular) && FONT_INCLUDE_Roboto_Regular
+  false,
+#endif
+#if defined(FONT_INCLUDE_UbuntuMono_R) && FONT_INCLUDE_UbuntuMono_R
+  false,
+#endif
+#if defined(FONT_INCLUDE_Ubuntu_R) && FONT_INCLUDE_Ubuntu_R
+  false,
+#endif
+};
 

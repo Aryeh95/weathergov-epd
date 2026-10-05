@@ -75,6 +75,7 @@ const char *LC_ERA_T_FMT   = "";
 // https://openweathermap.org/api/one-call-api#multi
 // Note: "[only] The contents of the 'description' field will be translated."
 const String OWM_LANG = "pt_br";
+const bool LC_RTL = false;
 
 // CURRENT CONDITIONS
 const char *TXT_FEELS_LIKE         = "Sensa\347\343o t\351rmica";
