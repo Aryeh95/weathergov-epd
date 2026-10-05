@@ -107,6 +107,7 @@ const char *TXT_PRESSURE           = "Press\343o";
 const char *TXT_AIR_QUALITY        = "Qualidade do Ar";
 const char *TXT_AIR_POLLUTION      = "Polui\347\343o do Ar";
 const char *TXT_VISIBILITY         = "Visibilidade";
+const char *TXT_MORE_THAN          = "> ";
 const char *TXT_POLLEN             = "Pólen";
 // Pollen type driving the index, shown as a small tag beside the
 // "Pollen" label. Keep these short -- they must fit the widget cell.

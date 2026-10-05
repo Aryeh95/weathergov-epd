@@ -633,6 +633,35 @@ void powerOffDisplay()
  */
 
 // drawCurrentSunrise
+/* A widget's value with its unit in the smaller font beside it. Left to
+ * right the unit follows the number ("19 km/h"); in a right-to-left locale
+ * the unit stands to the number's left ("קמ"ש 19"), the way Hebrew lays out
+ * "19 קמ"ש". Leaves the cursor after whichever came last, for a further
+ * item (the compass point) to follow.
+ */
+static void drawValueUnit(int16_t x, int16_t y, const String &value,
+                          const String &unit, const GFXfont *valueFont,
+                          const GFXfont *unitFont)
+{
+  if (LC_RTL)
+  {
+    String u = unit;
+    u.trim();
+    display.setFont(unitFont);
+    drawString(x, y, u, LEFT);
+    // drawString places by ink, so a trailing space would not advance the
+    // cursor: the gap is the unit font's space itself
+    const int16_t gap = unitFont->glyph[' ' - unitFont->first].xAdvance;
+    display.setFont(valueFont);
+    drawString(display.getCursorX() + gap, y, value, LEFT);
+    return;
+  }
+  display.setFont(valueFont);
+  drawString(x, y, value, LEFT);
+  display.setFont(unitFont);
+  drawString(display.getCursorX(), y, unit, LEFT);
+}
+
 void drawCurrentSunrise(const owm_current_t &current)
 {
   if (POS_SUNRISE < 0 || POS_SUNRISE / 2 >= WIDGET_ROWS)
@@ -781,13 +810,12 @@ void drawCurrentWind(const owm_current_t &current)
 #endif
 
 #ifdef WIND_INDICATOR_ARROW
-  drawString( (48 + 24)+ (162 * PosX), wgtValueY(PosY), dataStr, LEFT);
+  drawValueUnit((48 + 24) + (162 * PosX), wgtValueY(PosY), dataStr, unitStr,
+                &FONT_12pt8b, &FONT_8pt8b);
 #else
-  drawString(48    + (162 * PosX) , wgtValueY(PosY), dataStr, LEFT);
+  drawValueUnit(48 + (162 * PosX), wgtValueY(PosY), dataStr, unitStr,
+                &FONT_12pt8b, &FONT_8pt8b);
 #endif
-  display.setFont(&FONT_8pt8b);
-  drawString(display.getCursorX(), wgtValueY(PosY),
-             unitStr, LEFT);
 
 #if defined(WIND_INDICATOR_NUMBER)
   dataStr = String(current.wind_deg) + "\260";
@@ -1008,7 +1036,7 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
                  air_filter_48x48, air_filter_40x40, "aqi", DM_FG);
   if (aqi > aqi_max)
   {
-    dataStr = "> " + String(aqi_max);
+    dataStr = String(TXT_MORE_THAN) + String(aqi_max);
   }
   else
   {
@@ -1268,12 +1296,10 @@ void drawCurrentVisibility(const owm_current_t &current)
   if (vis >= 6)
   {
 #endif
-    dataStr = "> " + dataStr;
+    dataStr = String(TXT_MORE_THAN) + dataStr;
   }
-  drawString(48 + (162 * PosX), wgtValueY(PosY), dataStr, LEFT);
-  display.setFont(&FONT_8pt8b);
-  drawString(display.getCursorX(), wgtValueY(PosY),
-             unitStr, LEFT);
+  drawValueUnit(48 + (162 * PosX), wgtValueY(PosY), dataStr, unitStr,
+                &FONT_12pt8b, &FONT_8pt8b);
 
   return;
 }

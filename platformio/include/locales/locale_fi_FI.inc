@@ -108,6 +108,7 @@ const char *TXT_PRESSURE           = "Ilmanpaine";
 const char *TXT_AIR_QUALITY        = "Ilman Laatu";
 const char *TXT_AIR_POLLUTION      = "Ilmansaaste";
 const char *TXT_VISIBILITY         = "N\xE4kyvyys";
+const char *TXT_MORE_THAN          = "> ";
 const char *TXT_POLLEN             = "Siitepöly";
 // Pollen type driving the index, shown as a small tag beside the
 // "Pollen" label. Keep these short -- they must fit the widget cell.
