@@ -811,6 +811,555 @@ DeserializationError deserializeNWSAlerts(WiFiClient &json,
   return error;
 } // end deserializeNWSAlerts
 
+
+/* ---- Israel Meteorological Service ------------------------------------ */
+
+/* IMS sends every number as a string ("16", "0.00") and the odd one as a
+ * number (wind_speed in now_analysis). as<float>() on a string is 0 in
+ * ArduinoJson, so read both forms.
+ */
+static float jnum(JsonVariantConst v, float fallback = NAN)
+{
+  if (v.isNull())
+  {
+    return fallback;
+  }
+  if (v.is<const char *>())
+  {
+    const char *str = v.as<const char *>();
+    if (!str || !*str)
+    {
+      return fallback;
+    }
+    char *end = nullptr;
+    float f = strtof(str, &end);
+    return (end == str) ? fallback : f;
+  }
+  return v.as<float>();
+}
+
+/* "YYYY-MM-DD HH:MM:SS" (or just "YYYY-MM-DD") in the device's TZ, which for
+ * an Israeli location is Israel's -- IMS times are local time without a
+ * zone. Returns 0 when the string does not parse.
+ */
+static int64_t parseIMSLocalTime(const char *str)
+{
+  if (!str || strlen(str) < 10)
+  {
+    return 0;
+  }
+  tm t = {};
+  t.tm_year = atoi(str) - 1900;
+  t.tm_mon  = atoi(str + 5) - 1;
+  t.tm_mday = atoi(str + 8);
+  if (strlen(str) >= 16)
+  {
+    t.tm_hour = atoi(str + 11);
+    t.tm_min  = atoi(str + 14);
+  }
+  t.tm_isdst = -1;                 // let mktime work out summer time
+  time_t result = mktime(&t);
+  return (result == static_cast<time_t>(-1)) ? 0 : static_cast<int64_t>(result);
+}
+
+/* Dew point from temperature (C) and relative humidity (%), Magnus formula.
+ * IMS gives humidity but no dew point per hour.
+ */
+static float dewPointC(float tempC, float rh)
+{
+  if (std::isnan(tempC) || std::isnan(rh) || rh <= 0.f)
+  {
+    return NAN;
+  }
+  const float a = 17.62f, b = 243.12f;
+  const float gamma = logf(rh / 100.f) + a * tempC / (b + tempC);
+  return b * gamma / (a - gamma);
+}
+
+/* IMS weather codes (https://ims.gov.il/en/weather_codes) to the
+ * OpenWeatherMap-style condition id the icon selection runs on, and an
+ * estimated cloud cover. IMS has 23 codes: sky, rain in three strengths,
+ * snow in three, and a set of "feel" codes (hot, cold, muggy...) that
+ * describe a clear-ish day.
+ */
+struct ImsCodeMapEntry { int code; int id; int clouds; };
+static const ImsCodeMapEntry IMS_CODE_MAP[] = {
+  {1250, 800,  0},  // Clear
+  {1220, 802, 40},  // Partly cloudy
+  {1230, 804, 90},  // Cloudy
+  {1570, 731, 30},  // Dust
+  {1010, 761, 40},  // Sandstorms
+  {1160, 741, 85},  // Fog
+  {1310, 800,  5},  // Hot
+  {1580, 800,  5},  // Extremely hot
+  {1270, 801, 20},  // Muggy
+  {1320, 800,  5},  // Cold
+  {1590, 800,  5},  // Extremely cold
+  {1300, 800,  5},  // Frost
+  {1530, 500, 50},  // Partly cloudy, possible rain
+  {1540, 500, 80},  // Cloudy, possible rain
+  {1560, 500, 90},  // Cloudy, light rain
+  {1140, 501, 90},  // Rainy
+  {1020, 211, 90},  // Thunderstorms
+  {1510, 212, 95},  // Stormy
+  {1260, 800, 10},  // Windy (the renderer adds the wind to the icon)
+  {1080, 611, 90},  // Sleet
+  {1070, 600, 90},  // Light snow
+  {1060, 601, 90},  // Snow
+  {1520, 602, 95},  // Heavy snow
+};
+
+static void applyImsCode(int code, owm_weather_t &weather, int &clouds)
+{
+  int id = 804, cl = 50;
+  for (const ImsCodeMapEntry &e : IMS_CODE_MAP)
+  {
+    if (e.code == code)
+    {
+      id = e.id;
+      cl = e.clouds;
+      break;
+    }
+  }
+  weather.id = id;
+  // day/night is decided by the renderer from the computed sun times
+  weather.icon = "d";
+  clouds = cl;
+}
+
+/* IMS wind_direction_id (https://ims.gov.il/en/wind_directions): 1 = N
+ * (360), 2 = NNE ... 16 = NNW, 17 = N (0).
+ */
+static int imsWindDegrees(int id)
+{
+  if (id >= 1 && id <= 16)
+  {
+    return static_cast<int>((id - 1) * 22.5f + 0.5f) % 360;
+  }
+  return 0;
+}
+
+static const float KMH_TO_MS = 1.f / 3.6f;
+
+/* /{lang}/locations_info: every IMS location with its coordinates. Picks
+ * the one with id wantLid, or when that is 0 the one nearest (lat, lon),
+ * and returns its id, warning region and name.
+ */
+DeserializationError deserializeIMSLocations(WiFiClient &json, double lat,
+                                             double lon, int wantLid,
+                                             int &lid, int &rid, String &name)
+{
+  JsonDocument filter;
+  JsonObject loc = filter["data"]["*"].to<JsonObject>();
+  loc["lid"]  = true;
+  loc["lat"]  = true;
+  loc["lon"]  = true;
+  loc["rid"]  = true;
+  loc["name"] = true;
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, json,
+                                         DeserializationOption::Filter(filter));
+#if DEBUG_LEVEL >= 1
+  Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
+#endif
+  if (error)
+  {
+    return error;
+  }
+
+  lid = 0;
+  rid = 0;
+  double best = 1e18;
+  const double cosLat = cos(lat * M_PI / 180.0);
+  for (JsonPair kv : doc["data"].as<JsonObject>())
+  {
+    JsonObject o = kv.value().as<JsonObject>();
+    const float la = jnum(o["lat"]);
+    const float lo = jnum(o["lon"]);
+    if (std::isnan(la) || std::isnan(lo))
+    {
+      continue;
+    }
+    const int thisLid = static_cast<int>(jnum(o["lid"], 0));
+    // equirectangular distance is plenty over 500 km
+    const double dLat = la - lat;
+    const double dLon = (lo - lon) * cosLat;
+    double d = dLat * dLat + dLon * dLon;
+    if (wantLid > 0)
+    {
+      d = (thisLid == wantLid) ? -1.0 : 1e18;
+    }
+    if (d < best)
+    {
+      best = d;
+      lid  = static_cast<int>(jnum(o["lid"], 0));
+      rid  = static_cast<int>(jnum(o["rid"], 0));
+      name = o["name"].as<const char *>();
+    }
+  }
+  if (lid <= 0)
+  {
+    return DeserializationError::EmptyInput;
+  }
+  return error;
+} // end deserializeIMSLocations
+
+/* /{lang}/forecast_data/{lid}: seven days, each a `daily` block and 24
+ * `hourly` blocks (today's from the current hour). The hours run on into
+ * hourly[] from the current hour; daily[] takes the daily blocks' extremes
+ * and condition, and sums the hours' rain.
+ */
+DeserializationError deserializeIMSForecast(WiFiClient &json,
+                                            owm_hourly_t *hourly,
+                                            owm_daily_t *daily)
+{
+  JsonDocument filter;
+  JsonObject day = filter["data"]["*"].to<JsonObject>();
+  JsonObject d = day["daily"].to<JsonObject>();
+  d["forecast_date"]       = true;
+  d["weather_code"]        = true;
+  d["minimum_temperature"] = true;
+  d["maximum_temperature"] = true;
+  d["maximum_uvi"]         = true;
+  JsonObject h = day["hourly"]["*"].to<JsonObject>();
+  h["forecast_time"]     = true;
+  h["weather_code"]      = true;
+  h["rain_chance"]       = true;
+  h["temperature"]       = true;
+  h["precise_temperature"] = true;
+  h["relative_humidity"] = true;
+  h["gust_speed"]        = true;
+  h["rain"]              = true;
+  h["wind_direction_id"] = true;
+  h["wind_speed"]        = true;
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, json,
+                                         DeserializationOption::Filter(filter));
+#if DEBUG_LEVEL >= 1
+  Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
+#endif
+#if DEBUG_LEVEL >= 2
+  serializeJsonPretty(doc, Serial);
+#endif
+  if (error)
+  {
+    return error;
+  }
+
+  for (int i = 0; i < OWM_NUM_HOURLY; ++i)
+  {
+    hourly[i] = {};
+  }
+  for (int i = 0; i < OWM_NUM_DAILY; ++i)
+  {
+    daily[i] = {};
+    daily[i].temp.min = NAN;
+    daily[i].temp.max = NAN;
+    daily[i].rain = NAN;
+    daily[i].dew_point = NAN;
+  }
+
+  const int64_t now = static_cast<int64_t>(time(nullptr));
+  int hi = 0;      // next hourly slot
+  int di = 0;      // next daily slot
+  for (JsonPair dayKv : doc["data"].as<JsonObject>())
+  {
+    JsonObject dayObj = dayKv.value().as<JsonObject>();
+    JsonObject dBlock = dayObj["daily"];
+    JsonObject hours  = dayObj["hourly"];
+
+    // the day
+    int64_t dayStart = parseIMSLocalTime(dayKv.key().c_str());
+    bool haveDaily = false;
+    if (di < OWM_NUM_DAILY && dayStart > 0)
+    {
+      owm_daily_t &dd = daily[di];
+      dd.dt = dayStart;
+      float tmin = NAN, tmax = NAN;
+      if (!dBlock.isNull())
+      {
+        tmin = jnum(dBlock["minimum_temperature"]);
+        tmax = jnum(dBlock["maximum_temperature"]);
+        dd.uvi = jnum(dBlock["maximum_uvi"], 0.f);
+        applyImsCode(static_cast<int>(jnum(dBlock["weather_code"], 1230)),
+                     dd.weather, dd.clouds);
+      }
+      dd.temp.min = std::isnan(tmin) ? NAN : celsius_to_kelvin(tmin);
+      dd.temp.max = std::isnan(tmax) ? NAN : celsius_to_kelvin(tmax);
+      dd.pop  = 0.f;
+      dd.rain = 0.f;
+      dd.snow = 0.f;
+      dd.precip_src = PRECIP_SRC_NWS;   // the forecast provider's own total
+      haveDaily = true;
+    }
+
+    // its hours
+    float hmin = NAN, hmax = NAN;
+    int   dayCode = -1;
+    for (JsonPair hKv : hours)
+    {
+      JsonObject ho = hKv.value().as<JsonObject>();
+      const int64_t t = parseIMSLocalTime(ho["forecast_time"].as<const char *>());
+      if (t <= 0)
+      {
+        continue;
+      }
+      float tempC = jnum(ho["precise_temperature"]);
+      if (std::isnan(tempC))
+      {
+        tempC = jnum(ho["temperature"]);
+      }
+      const float rh    = jnum(ho["relative_humidity"]);
+      const float rain  = jnum(ho["rain"], 0.f);
+      const float pop   = jnum(ho["rain_chance"], 0.f) / 100.f;
+      const int   code  = static_cast<int>(jnum(ho["weather_code"], 1230));
+
+      if (haveDaily)
+      {
+        owm_daily_t &dd = daily[di];
+        dd.pop  = std::max(dd.pop, pop);
+        dd.rain += std::isnan(rain) ? 0.f : rain;
+        if (!std::isnan(tempC))
+        {
+          hmin = std::isnan(hmin) ? tempC : std::min(hmin, tempC);
+          hmax = std::isnan(hmax) ? tempC : std::max(hmax, tempC);
+        }
+        // a daytime hour's code stands in for a missing daily block
+        tm lt;
+        time_t tt = static_cast<time_t>(t);
+        localtime_r(&tt, &lt);
+        if (dayCode < 0 && lt.tm_hour >= 12)
+        {
+          dayCode = code;
+        }
+      }
+
+      // the hourly series starts at the current hour
+      if (hi >= OWM_NUM_HOURLY || t < now - 3600)
+      {
+        continue;
+      }
+      owm_hourly_t &hh = hourly[hi];
+      hh = {};
+      hh.dt   = t;
+      hh.temp = std::isnan(tempC) ? NAN : celsius_to_kelvin(tempC);
+      hh.feels_like = hh.temp;
+      hh.humidity   = std::isnan(rh) ? 0 : static_cast<int>(std::round(rh));
+      const float dp = dewPointC(tempC, rh);
+      hh.dew_point  = std::isnan(dp) ? NAN : celsius_to_kelvin(dp);
+      hh.pop        = pop;
+      hh.wind_speed = jnum(ho["wind_speed"], 0.f) * KMH_TO_MS;
+      hh.wind_gust  = jnum(ho["gust_speed"], NAN);
+      hh.wind_gust  = std::isnan(hh.wind_gust) ? hh.wind_speed
+                                               : hh.wind_gust * KMH_TO_MS;
+      hh.wind_deg   = imsWindDegrees(static_cast<int>(jnum(ho["wind_direction_id"], 0)));
+      applyImsCode(code, hh.weather, hh.clouds);
+      ++hi;
+    }
+
+    if (haveDaily)
+    {
+      owm_daily_t &dd = daily[di];
+      if (std::isnan(dd.temp.min) && !std::isnan(hmin))
+      {
+        dd.temp.min = celsius_to_kelvin(hmin);
+      }
+      if (std::isnan(dd.temp.max) && !std::isnan(hmax))
+      {
+        dd.temp.max = celsius_to_kelvin(hmax);
+      }
+      if (dBlock.isNull())
+      {
+        applyImsCode(dayCode < 0 ? 1230 : dayCode, dd.weather, dd.clouds);
+      }
+      // the wind shown for the day: the strongest hour's
+      ++di;
+    }
+  }
+
+  if (hi == 0 || di == 0)
+  {
+    return DeserializationError::EmptyInput;
+  }
+  return error;
+} // end deserializeIMSForecast
+
+/* /{lang}/now_analysis?lid={lid}: IMS's current conditions for the
+ * location, refreshed through the hour. No pressure or visibility (the
+ * widgets show "--"), the rest maps straight across.
+ */
+DeserializationError deserializeIMSCurrent(WiFiClient &json, int lid,
+                                           const owm_hourly_t &fallback,
+                                           owm_current_t &current)
+{
+  JsonDocument filter;
+  JsonObject c = filter["data"]["*"].to<JsonObject>();
+  c["temperature"]       = true;
+  c["feels_like"]        = true;
+  c["due_point_Temp"]    = true;
+  c["relative_humidity"] = true;
+  c["wind_speed"]        = true;
+  c["gust_speed"]        = true;
+  c["wind_direction_id"] = true;
+  c["weather_code"]      = true;
+  c["u_v_index"]         = true;
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, json,
+                                         DeserializationOption::Filter(filter));
+#if DEBUG_LEVEL >= 1
+  Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
+#endif
+#if DEBUG_LEVEL >= 2
+  serializeJsonPretty(doc, Serial);
+#endif
+  if (error)
+  {
+    fillCurrentFromFallback(fallback, current);
+    return error;
+  }
+  JsonObject o = doc["data"][String(lid)];
+  if (o.isNull())
+  {
+    // whatever single location came back
+    for (JsonPair kv : doc["data"].as<JsonObject>())
+    {
+      o = kv.value().as<JsonObject>();
+      break;
+    }
+  }
+  if (o.isNull())
+  {
+    fillCurrentFromFallback(fallback, current);
+    return DeserializationError::EmptyInput;
+  }
+
+  current = {};
+  current.dt      = time(nullptr);
+  current.weather = fallback.weather;
+  current.clouds  = fallback.clouds;
+  const int code = static_cast<int>(jnum(o["weather_code"], -1));
+  if (code > 0)
+  {
+    applyImsCode(code, current.weather, current.clouds);
+  }
+
+  const float tempC = jnum(o["temperature"]);
+  current.temp = std::isnan(tempC) ? fallback.temp : celsius_to_kelvin(tempC);
+  const float feel = jnum(o["feels_like"]);
+  current.feels_like = std::isnan(feel) ? current.temp : celsius_to_kelvin(feel);
+  const float rh = jnum(o["relative_humidity"]);
+  current.humidity = std::isnan(rh) ? fallback.humidity
+                                    : static_cast<int>(std::round(rh));
+  float dew = jnum(o["due_point_Temp"]);
+  if (std::isnan(dew))
+  {
+    dew = dewPointC(tempC, rh);
+  }
+  current.dew_point = std::isnan(dew) ? fallback.dew_point : celsius_to_kelvin(dew);
+  current.pressure   = 0;      // "--"
+  current.visibility = -1;     // "--"
+  const float spd = jnum(o["wind_speed"]);
+  current.wind_speed = std::isnan(spd) ? fallback.wind_speed : spd * KMH_TO_MS;
+  const float gust = jnum(o["gust_speed"]);
+  current.wind_gust = std::isnan(gust) ? current.wind_speed : gust * KMH_TO_MS;
+  const float dir = jnum(o["wind_direction_id"]);
+  current.wind_deg = std::isnan(dir) ? fallback.wind_deg
+                                     : imsWindDegrees(static_cast<int>(dir));
+  current.uvi = jnum(o["u_v_index"], NAN);
+  return error;
+} // end deserializeIMSCurrent
+
+/* /{lang}/warnings: every current warning, by day, then by region
+ * ("r-<rid>"), then by warning id. Only the device's region is kept. The
+ * event text is "<warning type>, <severity>" so the urgency words
+ * (ALERT_URGENCY) are seen while the display, which truncates at the comma,
+ * shows the type.
+ */
+DeserializationError deserializeIMSAlerts(WiFiClient &json, int rid,
+                                          std::vector<owm_alerts_t> &alerts)
+{
+  JsonDocument filter;
+  JsonObject w = filter["data"]["full_warnings_data"]["*"]["*"]["*"].to<JsonObject>();
+  w["wid"]             = true;
+  w["warning_type_id"] = true;
+  w["severity_id"]     = true;
+  w["valid_from_unix"] = true;
+  w["valid_to"]        = true;
+  filter["data"]["warnings_metadata"]["ims_warning_type"]["*"]["name"] = true;
+  filter["data"]["warnings_metadata"]["warning_severity"]["*"]["severity_name"] = true;
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, json,
+                                         DeserializationOption::Filter(filter));
+#if DEBUG_LEVEL >= 1
+  Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
+#endif
+#if DEBUG_LEVEL >= 2
+  serializeJsonPretty(doc, Serial);
+#endif
+  if (error)
+  {
+    return error;
+  }
+
+  JsonObject types = doc["data"]["warnings_metadata"]["ims_warning_type"];
+  JsonObject sevs  = doc["data"]["warnings_metadata"]["warning_severity"];
+  const String regionKey = "r-" + String(rid);
+  const int64_t now = static_cast<int64_t>(time(nullptr));
+  std::vector<String> seen;
+  for (JsonPair dayKv : doc["data"]["full_warnings_data"].as<JsonObject>())
+  {
+    JsonObject region = dayKv.value()[regionKey];
+    if (region.isNull())
+    {
+      continue;
+    }
+    for (JsonPair wKv : region)
+    {
+      JsonObject a = wKv.value().as<JsonObject>();
+      String wid = a["wid"].as<const char *>();
+      bool dup = false;
+      for (const String &s : seen)
+      {
+        if (s == wid) { dup = true; break; }
+      }
+      if (dup)
+      {
+        continue;
+      }
+      seen.push_back(wid);
+
+      owm_alerts_t alert = {};
+      alert.start = static_cast<int64_t>(jnum(a["valid_from_unix"], 0.f));
+      alert.end   = parseIMSLocalTime(a["valid_to"].as<const char *>());
+      if (alert.end > 0 && alert.end < now)
+      {
+        continue;                    // already over
+      }
+      const String typeId = String(static_cast<int>(jnum(a["warning_type_id"], 0)));
+      const String sevId  = String(static_cast<int>(jnum(a["severity_id"], 0)));
+      const char *typeName = types[typeId]["name"].as<const char *>();
+      const char *sevName  = sevs[sevId]["severity_name"].as<const char *>();
+      alert.event = typeName ? String(typeName) : String("Weather warning");
+      if (sevName && *sevName)
+      {
+        alert.event += ", ";
+        alert.event += sevName;
+      }
+      alert.tags = typeName ? String(typeName) : typeId;
+      alerts.push_back(alert);
+      if (alerts.size() >= OWM_NUM_ALERTS)
+      {
+        return error;
+      }
+    }
+  }
+  return error;
+} // end deserializeIMSAlerts
+
 /* Parses Open-Meteo's Air Quality API response, used for UV index and air
  * pollutant concentrations (weather.gov does not provide either). The most
  * recent OWM_NUM_AIR_POLLUTION hourly values are kept, oldest first, matching

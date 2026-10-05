@@ -180,6 +180,24 @@ String POLLEN_APIKEY = "";
 // forecast (plus the last cached humidity/dew point/pressure/visibility).
 String CURRENT_SOURCE = "open-meteo";
 
+// FORECAST SOURCE
+// Where the hourly and daily forecasts, the condition icons and the weather
+// alerts come from.
+//   "nws" (default) - weather.gov (US National Weather Service). United
+//                     States only. Free, no key.
+//   "ims"           - the Israel Meteorological Service (ims.gov.il), the
+//                     public JSON feeds behind its site and app. Israel only.
+//                     Free, no key. Hourly forecast for 7 days, with humidity,
+//                     rain, wind and UV per hour; regional warnings. Replies
+//                     come in the locale's language (LOCALE he_IL -> Hebrew).
+//                     The CURRENT_SOURCE option "nws" then means IMS's own
+//                     current conditions. IMS times are Israel local time, so
+//                     TIMEZONE should be Israel's.
+String FORECAST_SOURCE = "nws";
+// IMS forecast location (lid from https://ims.gov.il/en/locations_info):
+// 0 picks the one nearest LAT/LON automatically.
+int IMS_LOCATION_ID = 0;
+
 // CONFIGURATION WEB PORTAL
 // A browser UI for editing config.json without reflashing. Entered by
 // pressing RST twice a few seconds apart (config mode on your WiFi), or
