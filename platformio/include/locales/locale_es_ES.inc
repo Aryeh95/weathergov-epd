@@ -69,6 +69,11 @@ const char *LC_ERA_T_FMT   = "";
 // Note: "[only] The contents of the 'description' field will be translated."
 const String OWM_LANG = "es";
 const bool LC_RTL = false;
+const char *LC_HEB_MON[14] = {"Tishrei", "Cheshvan", "Kislev", "Tevet", "Shevat", "Adar", "Adar I",
+                              "Adar II", "Nisan", "Iyar", "Sivan", "Tammuz", "Av", "Elul"};
+const bool  LC_HEBCAL_LETTERS = false;
+const char *LC_HEBCAL_MONTH_PREFIX = "";
+const bool  LC_PREFER_HEAT_STRESS = false;
 
 // CURRENT CONDITIONS
 const char *TXT_FEELS_LIKE         = "Sensaci\363n t\351rmica";

@@ -376,6 +376,13 @@ bool loadSettings()
   POS_HUMIDITY   = widgets["humidity"]    | POS_HUMIDITY;
   POS_DEWPOINT   = widgets["dewpoint"]    | POS_DEWPOINT;
   POS_HEAT_STRESS = widgets["heat_stress"] | POS_HEAT_STRESS;
+  // Where heat stress is the everyday measure (the Hebrew locale), a config
+  // that does not place the widget gets it in the dew point's slot.
+  if (LC_PREFER_HEAT_STRESS && widgets["heat_stress"].isNull())
+  {
+    POS_HEAT_STRESS = POS_DEWPOINT;
+    POS_DEWPOINT = -1;
+  }
   POS_UVI        = widgets["uvi"]         | POS_UVI;
   POS_PRESSURE   = widgets["pressure"]    | POS_PRESSURE;
   POS_AIR_QUALITY = widgets["air_quality"] | POS_AIR_QUALITY;

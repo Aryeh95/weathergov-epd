@@ -47,6 +47,20 @@ extern const String OWM_LANG;
 // visually (renderer.cpp, shapeText); layout positions do not change.
 extern const bool LC_RTL;
 
+// HEBREW CALENDAR (_strftime's %J and %K, hebcal.cpp)
+// Month names, Tishrei first, with Adar, Adar I and Adar II separately;
+// whether to write the day and year in Hebrew letters (gematria) rather
+// than digits; and what to put before the month ("ב" in Hebrew: כ"ד בתשרי).
+extern const char *LC_HEB_MON[14];
+extern const bool  LC_HEBCAL_LETTERS;
+extern const char *LC_HEBCAL_MONTH_PREFIX;
+
+// WIDGET DEFAULTS
+// true where heat stress, not the dew point, is the everyday humidity
+// measure (Israel): a config.json that does not place the heat stress
+// widget gets it in the dew point's slot (settings.cpp).
+extern const bool LC_PREFER_HEAT_STRESS;
+
 // CURRENT CONDITIONS
 extern const char *TXT_FEELS_LIKE;
 extern const char *TXT_SUNRISE;

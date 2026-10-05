@@ -64,7 +64,10 @@
     //   "%l%P" -> 12-hour, ex:  1am  11pm
     //   "%H"   -> 24-hour, ex:  01   23
     "hour_format": "%l%P",
-    // Date in the top-right corner, ex: "Sat, January 1"
+    // Date in the top-right corner, ex: "Sat, January 1". Besides strftime's
+    // usual codes, %K is the Hebrew calendar date (day and month, turning
+    // over at sunset) and %J the same with the year -- in Hebrew letters
+    // in a Hebrew build, "24 Tishrei 5787" otherwise. Ex: "%A, %e ב%B, %K"
     "date_format": "%a, %B %e",
     // Last-refresh timestamp along the bottom status bar.
     "refresh_time_format": "%x %H:%M",
@@ -288,8 +291,10 @@
     // Heat stress: the Israel Meteorological Service's discomfort index and
     // its level (none/light/mild/moderate/heavy/extreme), from the current
     // temperature and humidity. Israel's usual muggy-weather measure, in
-    // place of the dew point. Any forecast source.
-    "heat_stress": -1,
+    // place of the dew point. Any forecast source. Left out (as here) it is
+    // hidden, except in a Hebrew build, where it takes the dew point's slot;
+    // give it a slot to place it yourself, -1 to hide it.
+    // "heat_stress": -1,
     "wind": 4,
     "uvi": 5,
     "pressure": 6,

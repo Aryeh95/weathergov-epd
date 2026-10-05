@@ -368,7 +368,22 @@ const TIMEZONES = [
   ['AST4',                       'America/Puerto_Rico', 'Atlantic (PR/USVI)']];
 
 const DATE_FORMATS = ['%a, %B %e', '%a, %b %e', '%A, %B %e', '%B %e',
-                      '%e %B', '%m/%d/%Y'];
+                      '%e %B', '%m/%d/%Y',
+                      // with the Hebrew calendar date (%K: day and month,
+                      // %J: with the year; it turns over at sunset)
+                      '%A, %e %B, %K', '%e %B, %K', '%K', '%J'];
+
+// the Hebrew calendar date as the browser renders it (the device uses its
+// own calendar code and the firmware's locale, so the look may differ)
+function hebrewDateDemo(withYear) {
+  const d = new Date();
+  const opts = withYear ? { day: 'numeric', month: 'long', year: 'numeric' }
+                        : { day: 'numeric', month: 'long' };
+  for (const loc of ['he-u-ca-hebrew', 'en-u-ca-hebrew']) {
+    try { return new Intl.DateTimeFormat(loc, opts).format(d); } catch (e) {}
+  }
+  return withYear ? '24 Tishrei 5787' : '24 Tishrei';
+}
 
 // tiny strftime, just the specifiers the date-format options use
 function strftimeDemo(fmt) {
@@ -385,7 +400,9 @@ function strftimeDemo(fmt) {
     .replace(/%d/g, String(d.getDate()).padStart(2, '0'))
     .replace(/%m/g, String(d.getMonth() + 1).padStart(2, '0'))
     .replace(/%Y/g, String(d.getFullYear()))
-    .replace(/%y/g, String(d.getFullYear()).slice(-2));
+    .replace(/%y/g, String(d.getFullYear()).slice(-2))
+    .replace(/%J/g, hebrewDateDemo(true))
+    .replace(/%K/g, hebrewDateDemo(false));
 }
 
 function buildTimeSelects() {
@@ -840,12 +857,22 @@ buildWidgetSelects();
 buildTimeSelects();
 el('s_font').addEventListener('change', previewFont);
 el('s_font_small').addEventListener('change', previewFont);
-fetch('/info').then(r => r.json()).then(showConnInfo).catch(() => {});
-fetch('/config').then(r => r.text()).then(t => {
+let info = {};
+const infoLoaded = fetch('/info').then(r => r.json()).then(i => { info = i; showConnInfo(i); }).catch(() => {});
+fetch('/config').then(r => r.text()).then(t => infoLoaded.then(() => {
   el('raw').value = t;
   cfg = JSON.parse(stripComments(t));
+  // A Hebrew build shows heat stress where the dew point was unless the
+  // config places the widget itself (settings.cpp does the same on the
+  // device); show the picker the way the panel will come up, so that a
+  // save keeps it.
+  if (info.heat_stress_default && cfg.widget_positions
+      && cfg.widget_positions.heat_stress === undefined) {
+    cfg.widget_positions.heat_stress = cfg.widget_positions.dewpoint ?? -1;
+    cfg.widget_positions.dewpoint = -1;
+  }
   populate();
-}).catch(e => setStatus('err', 'Failed to load current config: ' + e.message));
+})).catch(e => setStatus('err', 'Failed to load current config: ' + e.message));
 </script>
 </body>
 </html>
