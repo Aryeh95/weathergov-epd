@@ -169,7 +169,8 @@ const uint8_t *getBatBitmap24(uint32_t batPercent)
  */
 void getDateStr(String &s, tm *timeInfo)
 {
-  char buf[48] = {};
+  // 96: a Hebrew date is two bytes a letter, and "%A, %e ב%B, %K" runs past 48
+  char buf[96] = {};
   _strftime(buf, sizeof(buf), DATE_FORMAT, timeInfo);
   s = buf;
 
