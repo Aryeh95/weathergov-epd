@@ -176,6 +176,16 @@ void getDateStr(String &s, tm *timeInfo)
 
   // remove double spaces. %e will add an extra space, ie. " 1" instead of "1"
   s.replace("  ", " ");
+  // %Q (the holiday) is empty on most days: drop the separator that led
+  // up to it ("..., כ"ד תשרי, " -> "..., כ"ד תשרי"), and a doubled one
+  s.replace(", ,", ",");
+  s.replace(" · ·", " ·");
+  s.trim();
+  while (s.length() > 0 && (s.endsWith(",") || s.endsWith("·") || s.endsWith("-") || s.endsWith("|")))
+  {
+    s.remove(s.length() - 1);
+    s.trim();
+  }
   return;
 } // end getDateStr
 

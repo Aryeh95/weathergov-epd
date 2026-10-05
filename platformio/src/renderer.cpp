@@ -26,6 +26,7 @@
 #include "display_utils.h"
 #include "roundrect.h"
 #include "rtl.h"
+#include "hebcal.h"
 #include "sun.h"
 
 // fonts: every compiled-in family, and the FONT_*pt8b names resolved at
@@ -677,14 +678,45 @@ void drawCurrentSunset(const owm_current_t &current)
   drawWidgetIcon(162 * PosX, wgtY(PosY),
                  wi_sunset_48x48, wi_sunset_40x40, "sunset", COLOR_SUN);
 
+  // On the eve of Shabbat or a holiday the widget turns into candle
+  // lighting (sunset less the custom's minutes), on the day itself into
+  // its close (sunset plus the custom's minutes); any other day it is the
+  // sunset. config.json "shabbat".
+  const char *label = TXT_SUNSET;
+  time_t ts = current.sunset;
+  const bool shabbat = (SHABBAT_TIMES < 0) ? LC_SHABBAT_TIMES : (SHABBAT_TIMES > 0);
+  if (shabbat && current.sunset > 0)
+  {
+    time_t page = pageTime();
+    tm today;
+    localtime_r(&page, &today);
+    bool yomTov = false;
+    switch (hebcalEvening(&today, yomTov))
+    {
+      case HEBCAL_EVE_CANDLES:
+        label = TXT_CANDLE_LIGHTING;
+        ts = current.sunset - CANDLE_LIGHTING_MINUTES * 60;
+        break;
+      case HEBCAL_EVE_CANDLES_LATE:   // lit after the first holy day ends
+        label = TXT_CANDLE_LIGHTING;
+        ts = current.sunset + HAVDALAH_MINUTES * 60;
+        break;
+      case HEBCAL_EVE_HAVDALAH:
+        label = yomTov ? TXT_HOLIDAY_ENDS : TXT_SHABBAT_ENDS;
+        ts = current.sunset + HAVDALAH_MINUTES * 60;
+        break;
+      default:
+        break;
+    }
+  }
+
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_SUNSET, LEFT);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), label, LEFT);
 
-  // sunset
+  // sunset (or the candle lighting / close that stands in for it)
   display.setFont(&FONT_12pt8b);
   char timeBuffer[12] = {}; // big enough to accommodate "hh:mm:ss am"
-  time_t ts = current.sunset;
   tm *timeInfo = localtime(&ts);
   _strftime(timeBuffer, sizeof(timeBuffer), TIME_FORMAT, timeInfo);
   drawString(48 + (162 * PosX), wgtValueY(PosY), timeBuffer, LEFT);
@@ -1566,6 +1598,21 @@ void drawCurrentConditions(const owm_current_t &current,
 #elif defined(DISP_BW_V1)
   drawString(156 + 164 / 2, 98 + 69 / 2 + 12 + 17, dataStr, CENTER);
 #endif
+
+  // condition description, when the provider supplies one (IMS gives a
+  // short phrase per weather code, localized to OWM_LANG). The NWS path
+  // leaves it empty: its "short forecast" is too long for this slot.
+  if (!current.weather.description.isEmpty())
+  {
+    display.setFont(&FONT_7pt8b);
+#ifndef DISP_BW_V1
+    drawString(196 + 164 / 2, 98 + 69 / 2 + 12 + 17 + 17,
+               current.weather.description, CENTER);
+#elif defined(DISP_BW_V1)
+    drawString(156 + 164 / 2, 98 + 69 / 2 + 12 + 17 + 17,
+               current.weather.description, CENTER);
+#endif
+  }
   // line dividing top and bottom display areas
   // display.drawLine(0, 196, DISP_WIDTH - 1, 196, DM_FG);
 

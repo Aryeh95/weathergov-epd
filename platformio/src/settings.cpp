@@ -369,6 +369,16 @@ bool loadSettings()
   }
   IL_AQ_STATION_ID = api["il_aq_station_id"] | IL_AQ_STATION_ID;
 
+  JsonObjectConst shabbat = doc["shabbat"];
+  if (!shabbat["show"].isNull())
+  {
+    SHABBAT_TIMES = shabbat["show"].as<bool>() ? 1 : 0;
+  }
+  CANDLE_LIGHTING_MINUTES = shabbat["candle_lighting_minutes"] | CANDLE_LIGHTING_MINUTES;
+  HAVDALAH_MINUTES        = shabbat["havdalah_minutes"]        | HAVDALAH_MINUTES;
+  CANDLE_LIGHTING_MINUTES = constrain(CANDLE_LIGHTING_MINUTES, 0, 90);
+  HAVDALAH_MINUTES        = constrain(HAVDALAH_MINUTES, 0, 120);
+
   JsonObjectConst portal = doc["portal"];
   PORTAL_AP_PASSWORD = portal["ap_password"]     | PORTAL_AP_PASSWORD;
   PORTAL_TIMEOUT     = portal["timeout_minutes"] | PORTAL_TIMEOUT;

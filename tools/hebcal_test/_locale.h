@@ -3,3 +3,4 @@
 extern const char *LC_HEB_MON[14];
 extern bool LC_HEBCAL_LETTERS;
 extern const char *LC_HEBCAL_MONTH_PREFIX;
+extern const char *LC_HEB_HOLIDAYS[25];

@@ -22,4 +22,5 @@ extern const char *LC_ERA;
 extern const char *LC_ERA_D_FMT;
 extern const char *LC_ERA_D_T_FMT;
 extern const char *LC_ERA_T_FMT;
+extern const char *LC_HEB_HOLIDAYS[25];
 #endif
