@@ -530,6 +530,10 @@ void setup()
                 portalRequested, drdWritten);
 #endif
 #endif // BOARD_RETERMINAL_E1002
+#if defined(FORCE_PORTAL)
+  Serial.println("[test] FORCE_PORTAL: opening the portal");
+  portalRequested = true;
+#endif
   // Wake buttons (see enableButtonWake): the PORTAL button wakes via EXT0,
   // the REFRESH button via EXT1. A refresh-button wake needs no special
   // handling -- proceeding with a normal update IS the response.
@@ -560,11 +564,29 @@ void setup()
     runConfigPortal(unconfigured); // never returns
   }
 
+#if !defined(BOARD_RETERMINAL_E1002)
+  // A press of RST may be the first of two. Starting WiFi at once meant the
+  // second press cut a connection short as it was being made, and some
+  // routers then refuse the display for a minute or two (seen: 123 s of
+  // attempts without an answer). So after a reset, not after a timer wake,
+  // nothing touches the radio for the time a second press takes.
+  if (wakeCause == ESP_SLEEP_WAKEUP_UNDEFINED)
+  {
+    Serial.println("[drd] reset: waiting 3 s for a second press");
+    delay(3000);
+  }
+#endif
+
   // All data should have been loaded from NVS. Close filesystem.
   prefs.end();
 
   String statusStr = {};
   String tmpStr = {};
+  // A request that failed without costing the page anything worth a warning
+  // on it (pollen, AirNow): not shown on the display, but kept for the
+  // portal's diagnostics, which is where someone wondering about an empty
+  // pollen reading will look.
+  String quietNote = {};
   tm timeInfo = {};
 
   // START WIFI
@@ -896,8 +918,9 @@ void setup()
       if (rxStatus != HTTP_CODE_OK)
       {
         pollen.max_upi = -1;
-        Serial.println("Google Pollen API " + String(rxStatus, DEC) + ": "
-                       + getHttpResponsePhrase(rxStatus));
+        quietNote = "Google Pollen API " + String(rxStatus, DEC) + ": "
+                    + getHttpResponsePhrase(rxStatus);
+        Serial.println(quietNote);
       }
       else
       {
@@ -936,9 +959,11 @@ void setup()
       rxStatus = getAirNowAQI(client, air_quality.us_aqi);
       if (rxStatus != HTTP_CODE_OK)
       {
-        Serial.println("AirNow API " + String(rxStatus, DEC) + ": "
-                       + getHttpResponsePhrase(rxStatus)
-                       + " - using Open-Meteo AQI instead");
+        const String airnowNote = "AirNow API " + String(rxStatus, DEC) + ": "
+                                  + getHttpResponsePhrase(rxStatus);
+        Serial.println(airnowNote + " - using Open-Meteo AQI instead");
+        quietNote = quietNote.isEmpty() ? airnowNote
+                                        : quietNote + "; " + airnowNote;
       }
       else
       {
@@ -1170,7 +1195,7 @@ void setup()
   prefs.end();
   // anything that was missing (a reading that could not be fetched) rides
   // along as the note of a wake that otherwise went well
-  diagOutcome(DIAG_OK, 0, statusStr.isEmpty() ? statusStr
+  diagOutcome(DIAG_OK, 0, statusStr.isEmpty() ? quietNote
                                              : statusStr + ": " + tmpStr);
 
   // DEEP SLEEP
