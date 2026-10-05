@@ -242,7 +242,8 @@ void hebcalSetSunset(int64_t sunsetUnix)
   s_sunset = sunsetUnix;
 }
 
-void hebcalFormat(char *out, size_t n, const tm *t, bool withYear)
+void hebcalFormat(char *out, size_t n, const tm *t, bool withYear,
+                  bool withPrefix)
 {
   if (n == 0)
   {
@@ -277,6 +278,7 @@ void hebcalFormat(char *out, size_t n, const tm *t, bool withYear)
   int hy, hm, hd;
   hebcalFromGregorian(y, m, d, hy, hm, hd);
   const char *month = LC_HEB_MON[hebcalMonthName(hy, hm)];
+  const char *prefix = withPrefix ? LC_HEBCAL_MONTH_PREFIX : "";
   if (LC_HEBCAL_LETTERS)
   {
     char dayS[16], yearS[24];
@@ -284,19 +286,19 @@ void hebcalFormat(char *out, size_t n, const tm *t, bool withYear)
     hebcalNumeral(hy, yearS, sizeof(yearS));
     if (withYear)
     {
-      snprintf(out, n, "%s %s%s %s", dayS, LC_HEBCAL_MONTH_PREFIX, month, yearS);
+      snprintf(out, n, "%s %s%s %s", dayS, prefix, month, yearS);
     }
     else
     {
-      snprintf(out, n, "%s %s%s", dayS, LC_HEBCAL_MONTH_PREFIX, month);
+      snprintf(out, n, "%s %s%s", dayS, prefix, month);
     }
   }
   else if (withYear)
   {
-    snprintf(out, n, "%d %s%s %d", hd, LC_HEBCAL_MONTH_PREFIX, month, hy);
+    snprintf(out, n, "%d %s%s %d", hd, prefix, month, hy);
   }
   else
   {
-    snprintf(out, n, "%d %s%s", hd, LC_HEBCAL_MONTH_PREFIX, month);
+    snprintf(out, n, "%d %s%s", hd, prefix, month);
   }
 }

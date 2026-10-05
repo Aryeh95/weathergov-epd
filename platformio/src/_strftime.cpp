@@ -332,12 +332,18 @@ size_t _strftime(char *s, size_t maxsize, const char *format,
         strcpy(tbuf, LC_MON[timeptr->tm_mon]);
       break;
 
-    case 'J': // Hebrew calendar date with the year (not in C's strftime)
+    // Hebrew calendar date (not in C's strftime; hebcal.cpp)
+    case 'K': // day and month: כ"ד תשרי
+      hebcalFormat(tbuf, sizeof(tbuf), timeptr, false);
+      break;
+    case 'J': // with the year: כ"ד תשרי תשפ"ז
       hebcalFormat(tbuf, sizeof(tbuf), timeptr, true);
       break;
-
-    case 'K': // Hebrew calendar date, day and month only
-      hebcalFormat(tbuf, sizeof(tbuf), timeptr, false);
+    case 'L': // day and month, the month with its preposition: כ"ד בתשרי
+      hebcalFormat(tbuf, sizeof(tbuf), timeptr, false, true);
+      break;
+    case 'N': // with the preposition and the year: כ"ד בתשרי תשפ"ז
+      hebcalFormat(tbuf, sizeof(tbuf), timeptr, true, true);
       break;
 
     case 'c':
