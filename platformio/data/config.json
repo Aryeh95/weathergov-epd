@@ -211,13 +211,13 @@
     //   "airnow" - AirNow, the US EPA's measured AQI (needs the key).
     //   "israel" - the Israel Ministry of Environmental Protection's national
     //              monitoring network (air.sviva.gov.il): the measured
-    //              Israeli index (100 best, negative worst) of the nearest
-    //              station, with the Ministry's bands and colours (good, medium, low, very low).
+    //              Israeli index (100 best, negative worst): the worst among
+    //              the stations within 15 km, with the Ministry's bands and colours (good, medium, low, very low).
     //              No key. Israel only.
     //   "model"  - Open-Meteo's CAMS model, computed on the device.
     "aqi_source": "auto",
     // Ministry station id (the number in a station's URL on air.sviva.gov.il);
-    // 0 picks the active station nearest the coordinates, once.
+    // 0 uses the active stations within 15 km of the coordinates (found once).
     "il_aq_station_id": 0,
 
     // TCP timeout for API requests, in milliseconds. These errors in the

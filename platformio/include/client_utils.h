@@ -73,9 +73,10 @@ int getAirQuality(WiFiClient &client, owm_resp_air_pollution_t &air,
 int getAirNowAQI(WiFiClient &client, int &aqi);
 
 /* Fetches the Israel Ministry of Environmental Protection's air quality
- * index (air.sviva.gov.il, the national monitoring network) for the station
- * nearest LAT/LON or IL_AQ_STATION_ID. No key: the site's own guest token.
- * found is false when that station has no current index.
+ * index (air.sviva.gov.il, the national monitoring network): the worst
+ * current index among the stations within 15 km of LAT/LON, or the one
+ * IL_AQ_STATION_ID names. No key: the site's own guest token. found is
+ * false when no station has a current index.
  *
  * Returns the HTTP Status Code.
  */

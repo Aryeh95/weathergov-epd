@@ -231,14 +231,19 @@ DeserializationError deserializeAirNow(WiFiClient &json, int &aqi);
 
 /* Israel Ministry of Environmental Protection (air.sviva.gov.il), the
  * national monitoring network. The regions list (~900 KB, every station
- * with its coordinates) picks the active station nearest (lat, lon); the
- * latest-index list (~170 KB, one row per station) gives that station's
- * current Israeli index. Both are filtered down to a few fields while
- * streaming.
+ * with its coordinates) picks the active stations around (lat, lon); the
+ * latest-index list (~170 KB, one row per station) gives their current
+ * Israeli index, of which the worst is shown -- one station rarely
+ * measures everything (Netanya's nearest has no ozone monitor, and ozone
+ * is what spoils a summer afternoon), so the area's reading is the lowest
+ * index among its stations, as the Ministry's own regional forecast
+ * speaks. Both are filtered down to a few fields while streaming.
  */
 DeserializationError deserializeSvivaStations(WiFiClient &json, double lat,
-                                              double lon, int &stationId);
-DeserializationError deserializeSvivaIndex(WiFiClient &json, int stationId,
+                                              double lon,
+                                              std::vector<int> &stationIds);
+DeserializationError deserializeSvivaIndex(WiFiClient &json,
+                                           const std::vector<int> &stationIds,
                                            bool &found, int &index);
 
 /* Pollen forecast (Google Pollen API). Universal Pollen Index per type,
