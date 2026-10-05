@@ -147,6 +147,16 @@
   //  PLATFORMIO_BUILD_FLAGS="-D LOCALE=he_IL" pio run)
   #define LOCALE en_US
 #endif
+// Each locale may carry build defaults of its own -- the units its country
+// uses, the font family its script needs -- in locales/locale_<code>.defaults.h,
+// applied here unless the command line or this file chose otherwise (so
+// "-D LOCALE=he_IL" alone builds a metric, Hebrew-font device).
+#define LOCALE_XSTR(x) #x
+#define LOCALE_STR(x) LOCALE_XSTR(x)
+// two levels so that LOCALE is expanded before the token paste
+#define LOCALE_DEFAULTS_INC_(code) LOCALE_STR(locales/locale_ ## code.defaults.h)
+#define LOCALE_DEFAULTS_INC(code) LOCALE_DEFAULTS_INC_(code)
+#include LOCALE_DEFAULTS_INC(LOCALE)
 
 // UNITS
 // Define exactly one macro for each measurement type below.
@@ -374,7 +384,8 @@
 #define FONT_INCLUDE_FreeSans 1
 // A right-to-left locale (he_IL) needs a family whose high slots carry the
 // Hebrew alphabet; settings.cpp switches to the first such family when the
-// configured one has none. Switch Heebo on for a Hebrew build:
+// configured one has none. The he_IL locale's defaults file switches Heebo
+// on; for another build:
 // #define FONT_INCLUDE_Heebo 1
 #if defined(BOARD_RETERMINAL_E1002) && !defined(FONT_INCLUDE_Bitter)
   #define FONT_INCLUDE_Bitter 1
@@ -521,6 +532,9 @@ extern String FORECAST_SOURCE;
 extern int    IMS_LOCATION_ID;
 extern String AQI_SOURCE;
 extern int    IL_AQ_STATION_ID;
+extern int    SHABBAT_TIMES;        // -1 locale default, 0 off, 1 on
+extern int    CANDLE_LIGHTING_MINUTES;
+extern int    HAVDALAH_MINUTES;
 extern String PORTAL_AP_PASSWORD;
 extern int    PORTAL_TIMEOUT;
 extern String LAT;
