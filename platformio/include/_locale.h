@@ -63,6 +63,19 @@ extern const char *LC_HEBCAL_MONTH_PREFIX;
 // very low (below -200, brown); and the widget's source tag.
 extern const char *TXT_IL_AQI[4];
 extern const char *TXT_IL_AQI_TAG;
+// the Air Quality widget's other source tags: AirNow (EPA stations) and
+// Open-Meteo's model
+extern const char *TXT_AQI_TAG_EPA;
+extern const char *TXT_AQI_TAG_MODEL;
+
+// PORTAL SCREEN (how to reach the setup page, drawn on the panel)
+extern const char *TXT_PORTAL_ON_WIFI;      // "Connected to WiFi: " + ssid
+extern const char *TXT_PORTAL_OPEN;         // "Open " + url
+extern const char *TXT_PORTAL_OR;           // "or " + url
+extern const char *TXT_PORTAL_JOIN;         // "Join WiFi network: " + ssid
+extern const char *TXT_PORTAL_PASSWORD;     // "Password: " + password
+extern const char *TXT_PORTAL_THEN_OPEN;    // "Then open " + url
+extern const char *TXT_PORTAL_PAUSED[3];    // setup paused, how to resume
 
 // JEWISH HOLIDAYS (hebcal.cpp, _strftime's %Q, the sunset widget)
 // 25 names in the order hebcal.cpp lists them: Rosh Hashanah, Tzom

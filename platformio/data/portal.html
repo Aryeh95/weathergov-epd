@@ -55,6 +55,7 @@
   [dir=rtl] input, [dir=rtl] textarea, [dir=rtl] code { direction: ltr;
     unicode-bidi: plaintext; text-align: start; }
   [dir=rtl] input[type=number] { text-align: end; }
+  [dir=rtl] #l_city { direction: rtl; }
   [dir=rtl] .scanitem { text-align: right !important; }
 </style>
 </head>
@@ -205,7 +206,7 @@
       rel="noopener">ims.gov.il/en/locations_info</a>.</div>
     <label>Air quality index source</label>
     <select id="a_aqisrc">
-      <option value="auto">Automatic (AirNow with a key, Israel with IMS, else model)</option>
+      <option value="auto">Automatic (Israel with IMS, else AirNow with a key, else model)</option>
       <option value="airnow">AirNow, US EPA (needs the AirNow key)</option>
       <option value="israel">Israel Ministry of Environmental Protection (no key)</option>
       <option value="model">Open-Meteo model</option>
@@ -361,7 +362,7 @@ const I18N_HE = {
   'Forecasts, condition icons and weather alerts. weather.gov covers US locations; the Israel Meteorological Service (ims.gov.il) covers Israel, in the firmware\'s language (Hebrew with LOCALE he_IL). Location ids are listed at':
     'תחזיות, סמלי מזג אוויר והתרעות. weather.gov מכסה את ארה"ב; השירות המטאורולוגי (ims.gov.il) מכסה את ישראל, בעברית. רשימת מזהי המיקומים:',
   'Air quality index source': 'מקור מדד איכות האוויר',
-  'Automatic (AirNow with a key, Israel with IMS, else model)': 'אוטומטי (AirNow עם מפתח, המשרד להגנת הסביבה עם השירות המטאורולוגי, אחרת מודל)',
+  'Automatic (Israel with IMS, else AirNow with a key, else model)': 'אוטומטי (המשרד להגנת הסביבה עם השירות המטאורולוגי, אחרת AirNow עם מפתח, אחרת מודל)',
   'AirNow, US EPA (needs the AirNow key)': 'AirNow, ה-EPA האמריקני (דורש מפתח)',
   'Israel Ministry of Environmental Protection (no key)': 'המשרד להגנת הסביבה (ללא מפתח)',
   'Open-Meteo model': 'מודל Open-Meteo',
@@ -447,6 +448,14 @@ const I18N_HE = {
   'On WiFi network': 'ברשת WiFi', 'reachable at': 'נגיש בכתובת', 'or': 'או',
   'Setup mode ends after %1 minutes of inactivity.': 'מצב ההתקנה מסתיים לאחר %1 דקות ללא פעילות.',
   'Current:': 'נוכחי:',
+  // diagnostics outcomes
+  'Weather updated': 'מזג האוויר עודכן',
+  'Could not update; the last weather was left on the screen': 'העדכון נכשל; מזג האוויר האחרון נשאר על המסך',
+  'No WiFi connection': 'אין חיבור WiFi',
+  'Could not get the time': 'לא ניתן לקבל את השעה',
+  'The weather service did not answer': 'שירות מזג האוויר לא ענה',
+  'Battery low; did not update': 'סוללה חלשה; לא עודכן',
+  'Could not update; the last weather was drawn again, marked as old': 'העדכון נכשל; מזג האוויר האחרון צויר שוב ומסומן כישן',
 };
 
 const WIDGETS = [
@@ -1015,6 +1024,11 @@ el('rawsave').addEventListener('click', () => {
   save(el('raw').value);
 });
 
+// the outcome texts diag.cpp reports, by code, so they can be translated
+const OUTCOMES = {0: 'Weather updated', 1: 'Could not update; the last weather was left on the screen',
+  2: 'No WiFi connection', 3: 'Could not get the time', 4: 'The weather service did not answer',
+  5: 'Battery low; did not update', 7: 'Could not update; the last weather was drawn again, marked as old'};
+
 // One record of the diagnostics, as rows of label and value.
 function diagRows(title, d) {
   const secs = ms => (ms / 1000).toFixed(1) + ' ' + t('s');
@@ -1026,7 +1040,7 @@ function diagRows(title, d) {
     ? ': ' + parts.map(p => p[0] + ' ' + secs(p[1])).join(', ') : '';
   const rows = [
     [t('When'), d.when ? new Date(d.when * 1000).toLocaleString(LANG === 'he' ? 'he-IL' : undefined) : t('clock not set')],
-    [t('Result'), d.summary + (d.code ? ' (' + d.code + ')' : '')],
+    [t('Result'), (OUTCOMES[d.outcome] ? t(OUTCOMES[d.outcome]) : d.summary) + (d.code ? ' (' + d.code + ')' : '')],
   ];
   if (d.note) rows.push([t('Detail'), d.note]);
   rows.push(
