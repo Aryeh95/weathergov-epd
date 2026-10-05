@@ -42,6 +42,7 @@ Spectra 6's.
 | `sim_netanya_5day.png` | The same with a 5-day forecast row: wider columns, full day names |
 | `sim_netanya_pollen.png` | The pollen widget (Google Pollen API) in place of the indoor humidity |
 | `sim_netanya_alert.png` | With a warning worded as IMS words them, and a failed request in the status bar |
+| `sim_netanya_alerts2.png` | Two warnings at once (the stacked 32px layout) |
 | `sim_netanya_friday.png` | Friday 16:30: candle lighting in the sunset widget, and the date format with the holiday name (`%Q`, empty on an ordinary day) |
 | `sim_netanya_shabbat.png` | Shabbat noon: when it ends |
 
