@@ -31,7 +31,16 @@ SOURCES = [os.path.join(PIO, "src", n) for n in
             "_strftime.cpp", "locale.cpp", "conversions.cpp", "sun.cpp",
             "config.cpp", "precip.cpp")] + [os.path.join(HERE, "sim_main.cpp")]
 C_SOURCES = [os.path.join(PIO, "lib", "pollutant-concentration-to-aqi", "aqi.c")]
-DEFINES = ["ARDUINO=10000", "BOARD_RETERMINAL_E1002", "LOCALE=he_IL", "FONT_INCLUDE_Heebo=1",
+# --panel: which e-paper panel the page is drawn for. The defines mirror
+# the firmware's own environments: e6 is the reTerminal E1002 (Spectra 6),
+# bwv2 the reTerminal E1001 (7.5in black and white, DISP_BW_V2), 3c the
+# DESPI-C02 build with the red/black/white 7.5in (B) panel.
+PANELS = {
+    "e6":   ["BOARD_RETERMINAL_E1002"],
+    "bwv2": ["BOARD_RETERMINAL_E1002", "BOARD_RETERMINAL_E1001"],
+    "3c":   ["DISP_3C_B"],
+}
+DEFINES = ["ARDUINO=10000", "LOCALE=he_IL", "FONT_INCLUDE_Heebo=1",
            "UNITS_TEMP_CELSIUS", "UNITS_SPEED_KILOMETERSPERHOUR",
            "UNITS_PRES_HECTOPASCALS", "UNITS_DIST_KILOMETERS",
            "UNITS_DAILY_PRECIP_MILLIMETERS",
@@ -55,8 +64,18 @@ def compiler():
 
 
 def main():
-    out = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "out"))
-    data = os.path.abspath(sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, "data"))
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    panel = "e6"
+    for a in sys.argv[1:]:
+        if a.startswith("--panel="):
+            panel = a.split("=", 1)[1]
+    if panel not in PANELS:
+        sys.exit("--panel must be one of: " + ", ".join(PANELS))
+    out = os.path.abspath(args[0] if len(args) > 0 else os.path.join(HERE, "out"))
+    data = os.path.abspath(args[1] if len(args) > 1 else os.path.join(HERE, "data"))
+    # each panel builds and draws in its own folder: the defines differ
+    if panel != "e6":
+        out = os.path.join(out, panel)
     os.makedirs(out, exist_ok=True)
     gfx = libdep("Adafruit GFX Library")
     includes = [os.path.join(HERE, "shim"), os.path.join(PIO, "include"),
@@ -64,7 +83,7 @@ def main():
                 os.path.join(PIO, "lib", "pollutant-concentration-to-aqi"),
                 os.path.join(libdep("ArduinoJson"), "src"), gfx]
     cxx, cc = compiler()
-    flags = ["-O1", "-w"] + ["-I" + i for i in includes] + ["-D" + d for d in DEFINES]
+    flags = ["-O1", "-w"] + ["-I" + i for i in includes] + ["-D" + d for d in DEFINES + PANELS[panel]]
     objects = []
     for src in C_SOURCES:
         obj = os.path.join(out, os.path.basename(src) + ".o")
@@ -73,7 +92,7 @@ def main():
     exe = os.path.join(out, "sim480")
     subprocess.check_call(cxx + ["-std=gnu++17"] + flags + SOURCES
                           + [os.path.join(gfx, "Adafruit_GFX.cpp")] + objects + ["-o", exe])
-    subprocess.check_call([exe, out, data])
+    subprocess.check_call([exe, out, data, panel])
     for name in sorted(os.listdir(out)):
         if not name.endswith(".ppm"):
             continue

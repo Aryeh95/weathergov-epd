@@ -3,7 +3,8 @@
 Builds the firmware's own drawing code (`renderer.cpp`, `display_utils.cpp`)
 and its own parsers (`api_response.cpp`) for a PC, feeds the parsers saved
 API replies, and writes what the renderer drew as pictures in the Spectra 6
-panel's measured ink colours. Made for the Hebrew / Israel Meteorological
+panel's measured ink colours (or the black-and-white and three-colour
+7.5in panels, see `--panel`). Made for the Hebrew / Israel Meteorological
 Service configuration, where the right-to-left text and the IMS feeds had
 no panel to be tried on.
 
@@ -18,10 +19,19 @@ replies in `data/`.
 ```
 pip install pillow
 pio run -e seeed_reterminal_e1002      # once, for .pio/libdeps (GFX, ArduinoJson)
-python tools/sim480/build.py [output folder] [data folder]
+python tools/sim480/build.py [output folder] [data folder] [--panel=e6|bwv2|3c]
 ```
 
 Needs a C++17 compiler (clang++ or g++ on the path).
+
+`--panel` picks the panel the page is drawn for, with the same defines as
+the firmware's own environments: `e6` (default) is the reTerminal E1002's
+Spectra 6, `bwv2` the 7.5in black-and-white panel of the reTerminal E1001
+and the DESPI-C02 default build (`DISP_BW_V2`: line-art icons, dotted
+dividers in the forecast row), `3c` the red/black/white 7.5in (B) panel
+(`DISP_3C_B`). The other panels' pictures go into a subfolder named after
+the panel. Their paper and ink colours are nominal, not measured like the
+Spectra 6's.
 
 ## What it writes
 
