@@ -1709,8 +1709,42 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
     }
   }
 #endif
+  // Day of week labels. Left to right the row shows the abbreviation (%a).
+  // Hebrew abbreviates its days to a single letter (א', ב'), terse for a
+  // column this wide, so a right-to-left locale uses the longest form in
+  // which all seven names fit the column, decided once for the whole row:
+  // at 11 pt the full name (יום ראשון), else the name without its "יום"
+  // word (ראשון); then the same two at 8 pt (the sizes every panel's font
+  // table has); else the letters. Size comes before length: a row of
+  // "ראשון" at 11 pt reads better than one of "יום ראשון" at 8 pt.
   int rtlDayForm = 2;                  // 0 full name, 1 without "יום", 2 letters
   const GFXfont *rtlDayFont = &FONT_11pt8b;
+  if (LC_RTL)
+  {
+    const int maxW = static_cast<int>(colW) - 6;
+    const GFXfont *const fonts[2] = {&FONT_11pt8b, &FONT_8pt8b};
+    for (const GFXfont *f : fonts)
+    {
+      display.setFont(f);
+      for (int form = 0; form < 2 && rtlDayForm == 2; ++form)
+      {
+        int widest = 0;
+        for (int d = 0; d < 7; ++d)
+        {
+          String name = LC_DAY[d];
+          int sp = name.indexOf(' ');
+          if (form == 1 && sp > 0) name = name.substring(sp + 1);
+          widest = std::max<int>(widest, getStringWidth(name));
+        }
+        if (widest <= maxW)
+        {
+          rtlDayForm = form;
+          rtlDayFont = f;
+        }
+      }
+      if (rtlDayForm < 2) break;
+    }
+  }
   for (int i = 0; i < days; ++i)
   {
     if (daily[i].dt <= 0 || std::isnan(daily[i].temp.max))
@@ -1739,47 +1773,13 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
                                    : getDailyForecastBitmap48(daily[i]),
                                iconSize, iconSize,
                                getDailyForecastColor64(daily[i]));
-    // day of week label: the abbreviation (%a). Hebrew abbreviates its days
-    // to a single letter (א', ב'), terse for a column this wide, so a
-    // right-to-left locale uses the longest form, at 11 pt or else 8 pt
-    // (the sizes every panel's font table has), in which all seven names
-    // fit the column: the full
-    // name (יום ראשון), then the name without its "יום" word (ראשון), then
-    // the letters. One form and size for the whole row.
+    // day of week label (see above)
     display.setFont(&FONT_11pt8b);
     char dayBuffer[32] = {};
     _strftime(dayBuffer, sizeof(dayBuffer), "%a", &timeInfo); // abbrv'd day
     String dayStr = dayBuffer;
     if (LC_RTL)
     {
-      if (i == 0) // decide once per row
-      {
-        rtlDayForm = 2;
-        rtlDayFont = &FONT_11pt8b;
-        const int maxW = static_cast<int>(colW) - 6;
-        const GFXfont *const fonts[2] = {&FONT_11pt8b, &FONT_8pt8b};
-        for (int form = 0; form < 2 && rtlDayForm == 2; ++form)
-        {
-          for (const GFXfont *f : fonts)
-          {
-            display.setFont(f);
-            int widest = 0;
-            for (int d = 0; d < 7; ++d)
-            {
-              String name = LC_DAY[d];
-              int sp = name.indexOf(' ');
-              if (form == 1 && sp > 0) name = name.substring(sp + 1);
-              widest = std::max<int>(widest, getStringWidth(name));
-            }
-            if (widest <= maxW)
-            {
-              rtlDayForm = form;
-              rtlDayFont = f;
-              break;
-            }
-          }
-        }
-      }
       if (rtlDayForm < 2)
       {
         dayStr = LC_DAY[timeInfo.tm_wday];
