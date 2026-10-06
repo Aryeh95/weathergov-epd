@@ -127,7 +127,9 @@
     </div>
   </fieldset>
 
-  <fieldset><legend>Shabbat &amp; holidays</legend>
+  <!-- shown only by a Hebrew firmware (/info locale he_IL); the settings
+       are still honoured by any build that finds them in config.json -->
+  <fieldset id="shabbatbox" style="display:none"><legend>Shabbat &amp; holidays</legend>
     <div class="row3">
       <div><label>Show in sunset widget</label>
         <select id="h_show">
@@ -650,7 +652,11 @@ function buildTimeSelects() {
     tz.appendChild(o);
   }
   const df = el('t_date');
+  // the Hebrew calendar formats belong to the Hebrew firmware, like the
+  // Shabbat settings; a configured one still shows as the current value
+  const hebrewFw = (info.locale ?? '').startsWith('he');
   for (const fmt of DATE_FORMATS) {
+    if (!hebrewFw && /%[KJLNQ]/.test(fmt)) continue;
     const o = document.createElement('option');
     o.value = fmt;
     o.textContent = strftimeDemo(fmt);
@@ -1154,7 +1160,10 @@ let info = {};
 // Hebrew; without an answer the page comes up in English
 const infoLoaded = fetch('/info').then(r => r.json()).then(i => {
   info = i;
-  if ((i.locale ?? '').startsWith('he')) { LANG = 'he'; translatePage(); }
+  if ((i.locale ?? '').startsWith('he')) {
+    LANG = 'he'; translatePage();
+    el('shabbatbox').style.display = '';
+  }
 }).catch(() => {}).then(() => {
   buildWidgetSelects();
   buildTimeSelects();
