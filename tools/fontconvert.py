@@ -12,7 +12,19 @@ in the shipped families, which keeps its bitmap table under the 64 KB that
 GFXglyph's 16-bit offsets can address.
 
 Usage:
-    python tools/fontconvert.py [--autohint] <Family> <font.ttf> [size ...]
+    python tools/fontconvert.py [--autohint] [--encoding=<codec>]
+                                [--weight=<n>] <Family> <font.ttf> [size ...]
+
+--encoding names the single-byte code page the slots 0xA0-0xFF stand for.
+The default, latin-1, is what every family upstream ships and what the
+locale files' octal escapes ("\260C") assume. iso-8859-8 puts the Hebrew
+alphabet at 0xE0-0xFA (and keeps the degree sign at 0xB0), which is how the
+Hebrew locale's UTF-8 strings reach the panel: the renderer transcodes them
+to this page (renderer.cpp, shapeText) when the family's ENCODING file says
+so. The family directory gets an ENCODING file for gen_font_table.py.
+
+--weight picks a named weight from a variable font (Heebo, Noto ...) instead
+of its default instance.
 
 --autohint runs FreeType's auto-hinter (FT_LOAD_FORCE_AUTOHINT) instead of
 the font's own hints. For TrueType fonts, and instanced variable fonts in
@@ -44,14 +56,27 @@ FONT_DIR = os.path.join(HERE, "..", "platformio", "lib",
                         "esp32-weather-epd-assets", "fonts")
 
 
-def render(ttf, size, first=FIRST, last=LAST, only=None, autohint=False):
+def open_face(ttf, weight=None):
+    face = freetype.Face(ttf)
+    if weight is not None and face.has_multiple_masters:
+        info = face.get_variation_info()
+        coords = [a.default for a in info.axes]
+        for i, a in enumerate(info.axes):
+            if a.tag == b"wght" or a.name.lower() == "weight":
+                coords[i] = float(weight)
+        face.set_var_design_coords(coords)
+    return face
+
+
+def render(ttf, size, first=FIRST, last=LAST, only=None, autohint=False,
+           encoding="latin-1", weight=None):
     """Returns (bitmaps: bytes, glyphs: [(off, w, h, xAdv, xOff, yOff)], yAdvance).
 
     With `only` (a string), characters outside it become empty 1x1 glyphs
     carrying the face's .notdef advance -- the same shape the shipped subset
     faces have.
     """
-    face = freetype.Face(ttf)
+    face = open_face(ttf, weight)
     face.set_char_size(size << 6, 0, DPI, 0)
     flags = freetype.FT_LOAD_TARGET_MONO
     if autohint:
@@ -61,11 +86,17 @@ def render(ttf, size, first=FIRST, last=LAST, only=None, autohint=False):
     face.load_glyph(0, flags)
     notdef_advance = face.glyph.advance.x >> 6
     for code in range(first, last + 1):
-        if only is not None and chr(code) not in only:
+        # the slot's character under the chosen code page; slots the page
+        # leaves undefined (0xFF in iso-8859-8, say) render as .notdef
+        try:
+            char = bytes([code]).decode(encoding)
+        except UnicodeDecodeError:
+            char = "\ufffd"
+        if only is not None and char not in only:
             glyphs.append((len(bitmaps), 1, 1, notdef_advance, 0, 0))
             bitmaps.append(0)
             continue
-        face.load_char(code, flags)
+        face.load_char(char, flags)
         face.glyph.render(freetype.FT_RENDER_MODE_MONO)
         g = face.glyph
         bm = g.bitmap
@@ -90,6 +121,8 @@ def render(ttf, size, first=FIRST, last=LAST, only=None, autohint=False):
 
 
 def emit(name, bitmaps, glyphs, y_advance, first=FIRST, last=LAST):
+    # (labels are the Latin-1 reading of each slot; for another code page
+    # they are only a position aid)
     out = []
     out.append("const uint8_t %sBitmaps[] PROGMEM = {" % name)
     for i in range(0, len(bitmaps), 12):
@@ -113,20 +146,29 @@ def emit(name, bitmaps, glyphs, y_advance, first=FIRST, last=LAST):
     return "\n".join(out) + "\n"
 
 
-def write_family(family, ttf, sizes, autohint=False):
+def write_family(family, ttf, sizes, autohint=False, encoding="latin-1",
+                 weight=None):
     fam_dir = os.path.join(FONT_DIR, family)
     os.makedirs(fam_dir, exist_ok=True)
+    enc_path = os.path.join(fam_dir, "ENCODING")
+    if encoding.lower().replace("_", "-") != "latin-1":
+        with open(enc_path, "w", newline="\n") as f:
+            f.write(encoding.lower().replace("_", "-") + "\n")
+    elif os.path.exists(enc_path):
+        os.remove(enc_path)
     written = []
     for size in sizes:
         name = "%s_%dpt8b" % (family, size)
-        bitmaps, glyphs, ya = render(ttf, size, autohint=autohint)
+        bitmaps, glyphs, ya = render(ttf, size, autohint=autohint,
+                                     encoding=encoding, weight=weight)
         path = os.path.join(fam_dir, name + ".h")
         with open(path, "w", encoding="utf-8", newline="\n") as f:
             f.write(emit(name, bitmaps, glyphs, ya))
         written.append((name, len(bitmaps) + len(glyphs) * 7))
     # the 48 pt face used for the current temperature: digits and friends only
     name = "%s_48pt8b_temperature" % family
-    bitmaps, glyphs, ya = render(ttf, 48, only=TEMP_CHARS, autohint=autohint)
+    bitmaps, glyphs, ya = render(ttf, 48, only=TEMP_CHARS, autohint=autohint,
+                                 encoding=encoding, weight=weight)
     with open(os.path.join(fam_dir, name + ".h"), "w", encoding="utf-8",
               newline="\n") as f:
         f.write(emit(name, bitmaps, glyphs, ya))
@@ -147,13 +189,21 @@ def write_family(family, ttf, sizes, autohint=False):
 if __name__ == "__main__":
     args = sys.argv[1:]
     autohint = "--autohint" in args
-    args = [a for a in args if a != "--autohint"]
+    encoding = "latin-1"
+    weight = None
+    for a in list(args):
+        if a.startswith("--encoding="):
+            encoding = a.split("=", 1)[1]
+        elif a.startswith("--weight="):
+            weight = float(a.split("=", 1)[1])
+    args = [a for a in args if not a.startswith("--")]
     if len(args) < 2:
         sys.exit(__doc__)
     family, ttf = args[0], args[1]
     sizes = [int(s) for s in args[2:]] or DEFAULT_SIZES
     total = 0
-    for name, size in write_family(family, ttf, sizes, autohint):
+    for name, size in write_family(family, ttf, sizes, autohint, encoding,
+                                   weight):
         print("%-36s %7d bytes" % (name, size))
         total += size
     print("%-36s %7d bytes (%.0f KB of flash)" % ("total", total, total / 1024))

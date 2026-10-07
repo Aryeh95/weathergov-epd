@@ -50,6 +50,13 @@
               margin: 0 0 1rem; font-size: 0.85rem;
               background: #2563eb18; border: 1px solid #2563eb66; }
   #conninfo code { user-select: all; }
+  /* Hebrew firmware: the page flips to right-to-left; technical values
+     (coordinates, keys, JSON, URLs) stay left-to-right inside their boxes */
+  [dir=rtl] input, [dir=rtl] textarea, [dir=rtl] code { direction: ltr;
+    unicode-bidi: plaintext; text-align: start; }
+  [dir=rtl] input[type=number] { text-align: end; }
+  [dir=rtl] #l_city { direction: rtl; }
+  [dir=rtl] .scanitem { text-align: right !important; }
 </style>
 </head>
 <body>
@@ -69,7 +76,7 @@
     <div style="display:flex;gap:0.4rem">
       <input id="w_pass" type="password" autocomplete="off" style="flex:1">
       <button type="button" id="passbtn" style="white-space:nowrap"
-              onclick="var p=el('w_pass'),s=p.type==='password';p.type=s?'text':'password';this.textContent=s?'&#x1F648; Hide':'&#x1F441; Show'">&#x1F441; Show</button>
+              onclick="var p=el('w_pass'),s=p.type==='password';p.type=s?'text':'password';this.textContent=s?'\u{1F648} '+t('Hide'):'\u{1F441} '+t('Show')">&#x1F441; Show</button>
     </div>
     <div class="hint">2.4&nbsp;GHz networks only &mdash; the ESP32 cannot see 5&nbsp;GHz.</div>
     <button class="toggle" id="statictoggle" type="button" style="margin-top:0.5rem">Advanced: Static IP (optional &mdash; skips DHCP)</button>
@@ -118,6 +125,27 @@
         <div class="hint">Shown in the top-right corner. Each option previews
           today's date.</div></div>
     </div>
+  </fieldset>
+
+  <!-- shown only by a Hebrew firmware (/info locale he_IL); the settings
+       are still honoured by any build that finds them in config.json -->
+  <fieldset id="shabbatbox" style="display:none"><legend>Shabbat &amp; holidays</legend>
+    <div class="row3">
+      <div><label>Show in sunset widget</label>
+        <select id="h_show">
+          <option value="-1">Firmware language decides (on in Hebrew)</option>
+          <option value="1">On</option>
+          <option value="0">Off</option>
+        </select></div>
+      <div><label>Candle lighting (min before sunset)</label><input id="h_candle" type="number" min="0" max="90"></div>
+      <div><label>Shabbat ends (min after sunset)</label><input id="h_havdalah" type="number" min="0" max="120"></div>
+    </div>
+    <div class="hint">On Friday and holiday eves the sunset widget shows the
+      candle lighting time; on Shabbat and holidays, when they end. 18
+      minutes is the common custom for candle lighting (Jerusalem uses 40);
+      42 for the close (some wait 50 or 72). Holidays follow the Israeli
+      calendar (one day of Yom Tov). Pick a date format with the holiday name
+      to see it in the corner.</div>
   </fieldset>
 
   <fieldset><legend>Schedule</legend>
@@ -171,16 +199,40 @@
       Leave empty to use Open-Meteo instead. The Google key is a Maps
       Platform key with the Pollen API (and, for the source below, the
       Weather API) enabled.</div>
+    <label>Forecast source</label>
+    <select id="a_fcsrc">
+      <option value="nws">weather.gov (United States)</option>
+      <option value="ims">Israel Meteorological Service (Israel)</option>
+    </select>
+    <label>IMS location id (0 = nearest to the coordinates)</label><input id="a_imslid" type="number" min="0" step="1">
+    <div class="hint">Forecasts, condition icons and weather alerts.
+      weather.gov covers US locations; the Israel Meteorological Service
+      (ims.gov.il) covers Israel, in the firmware's language (Hebrew with
+      LOCALE he_IL). Location ids are listed at
+      <a href="https://ims.gov.il/en/locations_info" target="_blank"
+      rel="noopener">ims.gov.il/en/locations_info</a>.</div>
+    <label>Air quality index source</label>
+    <select id="a_aqisrc">
+      <option value="auto">Automatic (Israel with IMS, else AirNow with a key, else model)</option>
+      <option value="airnow">AirNow, US EPA (needs the AirNow key)</option>
+      <option value="israel">Israel Ministry of Environmental Protection (no key)</option>
+      <option value="model">Open-Meteo model</option>
+    </select>
+    <label>Ministry station id (0 = the stations within 15 km)</label><input id="a_ilsid" type="number" min="0" step="1">
+    <div class="hint">The Israeli option reads the measured index of the
+      national monitoring network's stations within 15 km (the worst of them)
+      (<a href="https://air.sviva.gov.il/" target="_blank" rel="noopener">air.sviva.gov.il</a>),
+      on Israel's scale: 100 is best, below zero is poor.</div>
     <label>Current conditions source</label>
     <select id="a_cursrc">
       <option value="open-meteo">Open-Meteo model (default, no key)</option>
       <option value="google">Google Weather API (needs Google key)</option>
-      <option value="nws">weather.gov hourly forecast (no key)</option>
+      <option value="nws">the forecast source's own (no key)</option>
     </select>
     <div class="hint">Where the big temperature and the humidity, dew point,
-      pressure, wind and visibility widgets come from. Forecasts and alerts
-      always use weather.gov. The weather.gov option has no pressure or
-      visibility.</div>
+      pressure, wind and visibility widgets come from. The last option is
+      weather.gov's hourly forecast for the current hour, or IMS's own
+      current conditions; neither has pressure or visibility.</div>
   </fieldset>
 
   <fieldset><legend>Widgets</legend>
@@ -242,12 +294,183 @@
 
 <script>
 'use strict';
+// Hebrew translations, keyed by the page's English text (whitespace
+// collapsed). Edit the English and the key must follow.
+const I18N_HE = {
+  'Weather Display Setup': 'הגדרת תצוגת מזג האוויר',
+  '⛅ Weather Display Setup': '⛅ הגדרת תצוגת מזג האוויר',
+  // WiFi
+  'WiFi': 'WiFi',
+  'Network name (SSID)': 'שם הרשת (SSID)',
+  'Scan': 'סריקה', 'Scanning...': 'סורק...',
+  'Password': 'סיסמה', 'Show': 'הצג', 'Hide': 'הסתר',
+  '2.4 GHz networks only — the ESP32 cannot see 5 GHz.': 'רשתות 2.4 GHz בלבד — ה-ESP32 אינו רואה רשתות 5 GHz.',
+  'Advanced: Static IP (optional — skips DHCP)': 'מתקדם: כתובת IP קבועה (אופציונלי — מדלג על DHCP)',
+  'Setting a static IP skips the DHCP exchange and saves 2–4s of battery on every wake. All 4 fields must be set.':
+    'כתובת IP קבועה מדלגת על חילופי ה-DHCP וחוסכת 2–4 שניות סוללה בכל התעוררות. יש למלא את כל 4 השדות.',
+  'Static IP': 'כתובת IP קבועה', 'Gateway': 'שער (Gateway)', 'Subnet Mask': 'מסכת רשת', 'DNS Server': 'שרת DNS',
+  // Location
+  'Location': 'מיקום', 'Latitude': 'קו רוחב', 'Longitude': 'קו אורך',
+  'Detect my location': 'זהה את המיקום שלי', 'Detecting...': 'מזהה...',
+  'City name (display only)': 'שם היישוב (לתצוגה בלבד)',
+  'weather.gov covers US locations only. Manual coordinates: long-press your spot in a maps app and copy them from the popup.':
+    'weather.gov מכסה מיקומים בארה"ב בלבד; בישראל בוחרים את השירות המטאורולוגי בהגדרות ה-API. קואורדינטות ידניות: לחיצה ארוכה על המקום באפליקציית מפות והעתקה מהחלונית.',
+  // Time
+  'Time': 'זמן', 'Time zone': 'אזור זמן', 'now': 'עכשיו',
+  'US time zones (weather.gov is US-only). Each option shows that zone\'s current time. For anything unusual, use the raw JSON editor below with a': 'אזורי הזמן של ארה"ב וישראל. כל אפשרות מציגה את השעה הנוכחית באותו אזור. לאזור אחר, השתמשו בעורך ה-JSON למטה עם',
+  'POSIX timezone string': 'מחרוזת אזור זמן בתבנית POSIX',
+  'Eastern': 'מזרח ארה"ב', 'Central': 'מרכז ארה"ב', 'Mountain': 'הרי ארה"ב', 'Arizona (no DST)': 'אריזונה (ללא שעון קיץ)',
+  'Pacific': 'פסיפי', 'Alaska': 'אלסקה', 'Hawaii': 'הוואי', 'Atlantic (PR/USVI)': 'אטלנטי (פוארטו ריקו)', 'Israel': 'ישראל',
+  'Clock style': 'תצוגת שעה', '12-hour (1:23pm)': '12 שעות (1:23pm)', '24-hour (13:23)': '24 שעות (13:23)',
+  'Applies to sunrise/sunset, graph labels, and the status-bar refresh time.': 'חל על זריחה/שקיעה, תוויות הגרף ושעת העדכון בשורת המצב.',
+  'Date format': 'תבנית תאריך',
+  'Shown in the top-right corner. Each option previews today\'s date.': 'מוצג בפינה העליונה. כל אפשרות מציגה את התאריך של היום.',
+  '(+ holiday name)': '(+ שם החג)',
+  // Shabbat
+  'Shabbat & holidays': 'שבת וחגים',
+  'Show in sunset widget': 'הצגה בווידג\'ט השקיעה',
+  'Firmware language decides (on in Hebrew)': 'לפי שפת הקושחה (פעיל בעברית)', 'On': 'פעיל', 'Off': 'כבוי',
+  'Candle lighting (min before sunset)': 'הדלקת נרות (דקות לפני השקיעה)',
+  'Shabbat ends (min after sunset)': 'צאת השבת (דקות אחרי השקיעה)',
+  'On Friday and holiday eves the sunset widget shows the candle lighting time; on Shabbat and holidays, when they end. 18 minutes is the common custom for candle lighting (Jerusalem uses 40); 42 for the close (some wait 50 or 72). Holidays follow the Israeli calendar (one day of Yom Tov). Pick a date format with the holiday name to see it in the corner.':
+    'בערבי שבת וחג ווידג\'ט השקיעה מציג את זמן הדלקת הנרות; בשבת ובחג — את זמן הצאת. 18 דקות הוא המנהג הנפוץ להדלקת נרות (בירושלים 40); 42 לצאת השבת (יש הנוהגים 50 או 72). החגים לפי לוח ארץ ישראל (יום טוב אחד). בחרו תבנית תאריך עם שם החג כדי לראותו בפינה.',
+  // Schedule
+  'Schedule': 'לוח זמנים',
+  'Refresh every (min)': 'עדכון כל (דקות)', 'Bed time (hour)': 'שעת שינה', 'Wake time (hour)': 'שעת השכמה',
+  'WiFi retry (min)': 'ניסיון WiFi חוזר (דקות)', 'Keep last weather when offline (min)': 'שמירת המזג האחרון כשאין קשר (דקות)',
+  'Graph hours': 'שעות בגרף', 'Forecast days': 'ימי תחזית', 'Widget rows': 'שורות ווידג\'טים',
+  '5 (10 slots)': '5 (10 משבצות)', '6 (12 slots)': '6 (12 משבצות)',
+  'Theme (full-color panels only)': 'ערכת נושא (מסכי צבע מלא בלבד)',
+  'Light (white background)': 'בהיר (רקע לבן)', 'Dark (black background)': 'כהה (רקע שחור)',
+  'Dew point on graph': 'נקודת טל בגרף', 'On (blue curve under temperature)': 'פעיל (עקומה כחולה מתחת לטמפרטורה)',
+  'Font': 'גופן', 'Small text font (labels, axis)': 'גופן לטקסט קטן (תוויות, צירים)', 'Same as font': 'כמו הגופן הראשי',
+  '(not in this firmware)': '(לא בקושחה זו)',
+  'No updates between bed and wake hours (set both equal to disable). When the weather cannot be fetched, the last weather stays on the screen for the time set above before an error replaces it, with its time marked as old (in red, or with a warning sign on black and white panels); 0 shows errors at once. Pressing a button always shows the error.':
+    'אין עדכונים בין שעת השינה לשעת ההשכמה (ערכים שווים מבטלים). כשלא ניתן להביא את מזג האוויר, המזג האחרון נשאר על המסך למשך הזמן שהוגדר למעלה לפני שהודעת שגיאה מחליפה אותו, ושעתו מסומנת כישנה (באדום, או בסימן אזהרה במסכי שחור-לבן); 0 מציג שגיאות מיד. לחיצה על כפתור תמיד מציגה את השגיאה.',
+  'Partly Cloudy': 'מעונן חלקית',
+  'Humidity Dew Point Air Quality (EPA) 12am 3am 6am 9am 0.1in': 'לחות נקודת טל איכות אוויר 00:00 03:00 06:00 09:00 1 מ"מ',
+  'Only fonts compiled into this firmware are listed (see FONT_INCLUDE_ in config.h). The small text font covers everything under 11 pt: widget labels, the graph axis, source tags. A sans like FreeSans stays crisper there than a serif. The preview uses the web version of the fonts and needs internet access; the display draws its own bitmap copies.':
+    'מוצגים רק גופנים שהודרו לקושחה זו (ראו FONT_INCLUDE_ ב-config.h). גופן הטקסט הקטן משמש לכל מה שמתחת ל-11 נקודות: תוויות ווידג\'טים, צירי הגרף, תגי מקור. בעברית Heebo הוא הגופן היחיד. התצוגה המקדימה משתמשת בגרסת הרשת של הגופנים ודורשת חיבור לאינטרנט; המסך מצייר עותקי סיביות משלו.',
+  // API
+  'API': 'מקורות נתונים (API)',
+  'NWS contact (User-Agent)': 'איש קשר ל-weather.gov (User-Agent)',
+  'weather.gov asks for a contact email in case your device misbehaves.': 'weather.gov מבקש דוא"ל ליצירת קשר למקרה שהמכשיר מתנהג שלא כשורה (בישראל אינו נדרש).',
+  'AirNow API key (optional)': 'מפתח AirNow (אופציונלי, ארה"ב)',
+  'Google API key (optional: pollen, Google current conditions)': 'מפתח Google (אופציונלי: אבקנים, מצב נוכחי מ-Google)',
+  'Free key from docs.airnowapi.org for the EPA\'s official AQI. Leave empty to use Open-Meteo instead. The Google key is a Maps Platform key with the Pollen API (and, for the source below, the Weather API) enabled.':
+    'מפתח AirNow חינמי מ-docs.airnowapi.org למדד איכות האוויר של ה-EPA האמריקני. מפתח Google הוא מפתח Maps Platform עם Pollen API (ולמקור שלמטה גם Weather API) מופעלים.',
+  'Free key from': 'מפתח חינמי מ-',
+  'for the EPA\'s official AQI. Leave empty to use Open-Meteo instead. The Google key is a Maps Platform key with the Pollen API (and, for the source below, the Weather API) enabled.':
+    'למדד איכות האוויר של ה-EPA האמריקני. מפתח Google הוא מפתח Maps Platform עם Pollen API (ולמקור שלמטה גם Weather API) מופעלים.',
+  'Forecast source': 'מקור התחזית',
+  'weather.gov (United States)': 'weather.gov (ארצות הברית)',
+  'Israel Meteorological Service (Israel)': 'השירות המטאורולוגי הישראלי',
+  'IMS location id (0 = nearest to the coordinates)': 'מזהה מיקום של השירות המטאורולוגי (0 = הקרוב לקואורדינטות)',
+  'Forecasts, condition icons and weather alerts. weather.gov covers US locations; the Israel Meteorological Service (ims.gov.il) covers Israel, in the firmware\'s language (Hebrew with LOCALE he_IL). Location ids are listed at':
+    'תחזיות, סמלי מזג אוויר והתרעות. weather.gov מכסה את ארה"ב; השירות המטאורולוגי (ims.gov.il) מכסה את ישראל, בעברית. רשימת מזהי המיקומים:',
+  'Air quality index source': 'מקור מדד איכות האוויר',
+  'Automatic (Israel with IMS, else AirNow with a key, else model)': 'אוטומטי (המשרד להגנת הסביבה עם השירות המטאורולוגי, אחרת AirNow עם מפתח, אחרת מודל)',
+  'AirNow, US EPA (needs the AirNow key)': 'AirNow, ה-EPA האמריקני (דורש מפתח)',
+  'Israel Ministry of Environmental Protection (no key)': 'המשרד להגנת הסביבה (ללא מפתח)',
+  'Open-Meteo model': 'מודל Open-Meteo',
+  'Ministry station id (0 = the stations within 15 km)': 'מזהה תחנת ניטור (0 = התחנות ברדיוס 15 ק"מ)',
+  'The Israeli option reads the measured index of the national monitoring network\'s stations within 15 km (the worst of them) (air.sviva.gov.il), on Israel\'s scale: 100 is best, below zero is poor.':
+    'האפשרות הישראלית קוראת את המדד המדוד בתחנות מערך הניטור הארצי ברדיוס 15 ק"מ (הגרועה מביניהן) מ-air.sviva.gov.il, בסולם הישראלי: 100 הוא הטוב ביותר, מתחת לאפס — נמוכה.',
+  'The Israeli option reads the measured index of the national monitoring network\'s stations within 15 km (the worst of them) (':
+    'האפשרות הישראלית קוראת את המדד המדוד בתחנות מערך הניטור הארצי ברדיוס 15 ק"מ (הגרועה מביניהן) (',
+  '), on Israel\'s scale: 100 is best, below zero is poor.': '), בסולם הישראלי: 100 הוא הטוב ביותר, מתחת לאפס — נמוכה.',
+  'Current conditions source': 'מקור המצב הנוכחי',
+  'Open-Meteo model (default, no key)': 'מודל Open-Meteo (ברירת מחדל, ללא מפתח)',
+  'Google Weather API (needs Google key)': 'Google Weather API (דורש מפתח Google)',
+  'the forecast source\'s own (no key)': 'של מקור התחזית עצמו (ללא מפתח)',
+  'Where the big temperature and the humidity, dew point, pressure, wind and visibility widgets come from. The last option is weather.gov\'s hourly forecast for the current hour, or IMS\'s own current conditions; neither has pressure or visibility.':
+    'מכאן מגיעים הטמפרטורה הגדולה וווידג\'טי הלחות, נקודת הטל, הלחץ, הרוח והראות. האפשרות האחרונה היא התחזית השעתית של weather.gov לשעה הנוכחית, או התצפיות של השירות המטאורולוגי; לחץ וראות מושלמים אז מ-Open-Meteo.',
+  // Widgets
+  'Widgets': 'ווידג\'טים',
+  'Slot layout on the display: 0 1 / 2 3 / 4 5 / 6 7 / 8 9 (top to bottom). Pick which widget fills each slot; leave a slot empty to show nothing there. Slots 10-11 appear when Widget rows (in Schedule) is 6.':
+    'פריסת המשבצות על המסך (משמאל לימין, מלמעלה למטה): 0 1 / 2 3 / 4 5 / 6 7 / 8 9. בחרו איזה ווידג\'ט ממלא כל משבצת; משבצת ריקה לא מציגה דבר. משבצות 10–11 מופיעות כששורות הווידג\'טים (בלוח הזמנים) הן 6.',
+  'Slot': 'משבצת', '(left)': '(שמאל)', '(right)': '(ימין)', '— Empty —': '— ריק —',
+  'Sunrise': 'זריחה', 'Sunset': 'שקיעה', 'Humidity': 'לחות', 'Dew point': 'נקודת טל', 'Wind': 'רוח',
+  'UV index': 'מדד UV', 'Pressure': 'לחץ ברומטרי', 'Air quality': 'איכות אוויר', 'Visibility': 'ראות',
+  'Indoor temp': 'טמפרטורה בבית', 'Indoor humidity': 'לחות בבית', 'Moon phase': 'מופע הירח', 'Pollen': 'אבקנים',
+  'Heat stress': 'עומס חום',
+  '"%1" is in both slot %2 and slot %3 — a widget can only appear once.': '"%1" נמצא גם במשבצת %2 וגם במשבצת %3 — ווידג\'ט יכול להופיע פעם אחת בלבד.',
+  'Save & Restart': 'שמירה והפעלה מחדש',
+  // Backup
+  'Backup & Restore Configuration': 'גיבוי ושחזור הגדרות',
+  'Export your current settings as a JSON file or restore a previously saved backup.': 'ייצוא ההגדרות הנוכחיות לקובץ JSON או שחזור גיבוי שנשמר בעבר.',
+  'Download Config': 'הורדת הגדרות', 'Restore & Restart': 'שחזור והפעלה מחדש',
+  // Firmware
+  'Firmware update': 'עדכון קושחה',
+  'Install a new': 'התקנת קובץ', 'over WiFi (built with': 'חדש דרך WiFi (נבנה עם',
+  '; find it in': '; נמצא ב-',
+  '). Upload the file built for': '). העלו את הקובץ שנבנה עבור', 'this': 'הלוח והמסך',
+  'board and panel; one built for another is refused. The update installs to a spare slot and only takes effect when it completes and verifies, then the display restarts. Current firmware build:':
+    'האלה; קובץ שנבנה לאחרים יידחה. העדכון מותקן במחיצה חלופית ונכנס לתוקף רק לאחר שהושלם ואומת, ואז המסך מופעל מחדש. גרסת הקושחה הנוכחית:',
+  'This device:': 'מכשיר זה:',
+  'Upload & Install': 'העלאה והתקנה',
+  'Install even if the file was built for something else (after changing the panel, or to go back to a build from before this check)':
+    'התקנה גם אם הקובץ נבנה למשהו אחר (לאחר החלפת המסך, או כדי לחזור לגרסה מלפני בדיקה זו)',
+  'Choose a firmware.bin file first.': 'בחרו קובץ firmware.bin קודם.',
+  'That is not a .bin file.': 'זה אינו קובץ .bin.',
+  'Install "%1" (%2 kB)?': 'להתקין את "%1" (%2 kB)?',
+  'Uploading...': 'מעלה...',
+  'The page will stop responding while it reboots; the new firmware takes over on the next refresh.': 'הדף יפסיק להגיב בזמן ההפעלה מחדש; הקושחה החדשה פועלת מהעדכון הבא.',
+  'Update failed: %1. The previous firmware is still installed and running.': 'העדכון נכשל: %1. הקושחה הקודמת עדיין מותקנת ופועלת.',
+  'Unexpected response:': 'תגובה לא צפויה:',
+  'Upload failed (connection lost). The previous firmware is still installed.': 'ההעלאה נכשלה (החיבור אבד). הקושחה הקודמת עדיין מותקנת.',
+  // Diagnostics
+  'Diagnostics': 'אבחון',
+  'What the display did the last time it woke, and the last time something went wrong. Recorded on the device; nothing is sent anywhere.':
+    'מה המסך עשה בהתעוררות האחרונה, ובפעם האחרונה שמשהו השתבש. נרשם במכשיר; דבר אינו נשלח לשום מקום.',
+  'Nothing recorded yet.': 'לא נרשם דבר עדיין.',
+  'Last wake': 'התעוררות אחרונה', 'Last problem': 'בעיה אחרונה',
+  'When': 'מתי', 'Result': 'תוצאה', 'Detail': 'פירוט', 'Woken by': 'הופעל על ידי', 'Awake for': 'ער למשך',
+  'Then slept for': 'ואז ישן למשך', 'Battery': 'סוללה', 'WiFi signal': 'אות WiFi',
+  'clock not set': 'השעון לא הוגדר', 'power on or reset': 'הדלקה או איפוס', 'portal button': 'כפתור הפורטל',
+  'refresh button': 'כפתור העדכון', 'timer': 'טיימר', 'cause': 'סיבה', 'min': 'דקות', 'until reset': 'עד לאיפוס',
+  'not measured': 'לא נמדד', 'not connected': 'לא מחובר', 's': 'שנ\'', 'clock': 'שעון', 'weather': 'מזג אוויר', 'screen': 'מסך',
+  // Advanced
+  'Advanced: edit raw JSON': 'מתקדם: עריכת JSON גולמי',
+  'Full config.json, including settings not shown in the form (battery thresholds, NTP servers, portal options...). Comments allowed, trailing commas not. Saving here bypasses the form entirely.':
+    'קובץ config.json המלא, כולל הגדרות שאינן בטופס (ספי סוללה, שרתי NTP, אפשרויות פורטל...). הערות מותרות, פסיקים בסוף — לא. שמירה מכאן מדלגת על הטופס לחלוטין.',
+  'Save raw JSON & Restart': 'שמירת JSON גולמי והפעלה מחדש',
+  'Raw JSON invalid:': 'ה-JSON אינו תקין:',
+  // status / connection
+  'Saved! The display is restarting with the new settings. If you changed the WiFi network, reconnect to that network to reach it again.':
+    'נשמר! המסך מופעל מחדש עם ההגדרות החדשות. אם שיניתם את רשת ה-WiFi, התחברו לאותה רשת כדי להגיע אליו שוב.',
+  'Not saved:': 'לא נשמר:', 'unknown error': 'שגיאה לא ידועה', 'Request failed:': 'הבקשה נכשלה:',
+  'Failed to load current config:': 'טעינת ההגדרות הנוכחיות נכשלה:',
+  'Location set from this device\'s GPS.': 'המיקום נקבע לפי ה-GPS של מכשיר זה.',
+  'Approximate location set from your internet address (%1). Verify it looks right, and refine the coordinates if needed.':
+    'מיקום משוער נקבע לפי כתובת האינטרנט שלכם (%1). ודאו שהוא נראה נכון ודייקו את הקואורדינטות במידת הצורך.',
+  'Could not detect location (%1). If you are connected to the setup hotspot, your phone may have no internet right now -- enter coordinates manually instead: long-press your spot in a maps app and copy them from the popup.':
+    'לא ניתן לזהות את המיקום (%1). אם אתם מחוברים לנקודת ההתקנה, לטלפון אולי אין אינטרנט כעת — הזינו קואורדינטות ידנית: לחיצה ארוכה על המקום באפליקציית מפות והעתקה מהחלונית.',
+  'No networks found. Try again.': 'לא נמצאו רשתות. נסו שוב.', '(open)': '(פתוחה)', 'Scan failed:': 'הסריקה נכשלה:',
+  'Choose a config.json file first.': 'בחרו קובץ config.json קודם.',
+  'Invalid JSON config file:': 'קובץ הגדרות JSON לא תקין:',
+  'Connected via the setup hotspot': 'מחובר דרך נקודת ההתקנה', 'password:': 'סיסמה:', 'at': 'בכתובת',
+  'After saving a WiFi network below, the display joins that network and this page becomes reachable there instead.':
+    'לאחר שמירת רשת WiFi למטה, המסך מתחבר לאותה רשת ודף זה נגיש משם.',
+  'On WiFi network': 'ברשת WiFi', 'reachable at': 'נגיש בכתובת', 'or': 'או',
+  'Setup mode ends after %1 minutes of inactivity.': 'מצב ההתקנה מסתיים לאחר %1 דקות ללא פעילות.',
+  'Current:': 'נוכחי:',
+  // diagnostics outcomes
+  'Weather updated': 'מזג האוויר עודכן',
+  'Could not update; the last weather was left on the screen': 'העדכון נכשל; מזג האוויר האחרון נשאר על המסך',
+  'No WiFi connection': 'אין חיבור WiFi',
+  'Could not get the time': 'לא ניתן לקבל את השעה',
+  'The weather service did not answer': 'שירות מזג האוויר לא ענה',
+  'Battery low; did not update': 'סוללה חלשה; לא עודכן',
+  'Could not update; the last weather was drawn again, marked as old': 'העדכון נכשל; מזג האוויר האחרון צויר שוב ומסומן כישן',
+};
+
 const WIDGETS = [
   ['sunrise','Sunrise'],['sunset','Sunset'],['humidity','Humidity'],
   ['dewpoint','Dew point'],['wind','Wind'],['uvi','UV index'],
   ['pressure','Pressure'],['air_quality','Air quality'],
   ['visibility','Visibility'],['intemp','Indoor temp'],['inhumidity','Indoor humidity'],
-  ['moon_phase','Moon phase'],['pollen','Pollen']];
+  ['moon_phase','Moon phase'],['pollen','Pollen'],['heat_stress','Heat stress']];
 let cfg = null; // parsed config; the form writes back into this object
 
 // Font preview. Web equivalents of the display fonts: Google-hosted where
@@ -288,7 +511,7 @@ function setFontOptions(names) {
   fontList = names;
   el('s_font').innerHTML = '';
   el('s_font_small').innerHTML = '';
-  addOption(el('s_font_small'), '', 'Same as font');
+  addOption(el('s_font_small'), '', t('Same as font'));
   for (const n of names) {
     addOption(el('s_font'), n, fontLabel(n));
     addOption(el('s_font_small'), n, fontLabel(n));
@@ -310,7 +533,7 @@ function selectFontIn(id, name) {
   if (![...sel.options].some(o => o.value === name)) {
     // configured family missing from this firmware (or /info not in yet):
     // keep the setting as-is rather than silently changing it
-    addOption(sel, name, fontLabel(name) + (fontList ? ' (not in this firmware)' : ''));
+    addOption(sel, name, fontLabel(name) + (fontList ? ' ' + t('(not in this firmware)') : ''));
   }
   sel.value = name;
 }
@@ -358,10 +581,29 @@ const TIMEZONES = [
   ['PST8PDT,M3.2.0,M11.1.0',     'America/Los_Angeles', 'Pacific'],
   ['AKST9AKDT,M3.2.0,M11.1.0',   'America/Anchorage',   'Alaska'],
   ['HST10',                      'Pacific/Honolulu',    'Hawaii'],
-  ['AST4',                       'America/Puerto_Rico', 'Atlantic (PR/USVI)']];
+  ['AST4',                       'America/Puerto_Rico', 'Atlantic (PR/USVI)'],
+  ['IST-2IDT,M3.4.4/26,M10.5.0', 'Asia/Jerusalem',      'Israel']];
 
 const DATE_FORMATS = ['%a, %B %e', '%a, %b %e', '%A, %B %e', '%B %e',
-                      '%e %B', '%m/%d/%Y'];
+                      '%e %B', '%m/%d/%Y',
+                      // with the Hebrew calendar date (%K: day and month,
+                      // %J: with the year, %L / %N: the same with the
+                      // month's preposition; it turns over at sunset)
+                      '%A, %e %B, %K', '%e %B, %K', '%K', '%J', '%L',
+                      // %Q: the holiday's name on the day (empty otherwise)
+                      '%A, %e %B, %K, %Q', '%A, %e ב%B, %K, %Q'];
+
+// the Hebrew calendar date as the browser renders it (the device uses its
+// own calendar code and the firmware's locale, so the look may differ)
+function hebrewDateDemo(withYear) {
+  const d = new Date();
+  const opts = withYear ? { day: 'numeric', month: 'long', year: 'numeric' }
+                        : { day: 'numeric', month: 'long' };
+  for (const loc of ['he-u-ca-hebrew', 'en-u-ca-hebrew']) {
+    try { return new Intl.DateTimeFormat(loc, opts).format(d); } catch (e) {}
+  }
+  return withYear ? '24 Tishrei 5787' : '24 Tishrei';
+}
 
 // tiny strftime, just the specifiers the date-format options use
 function strftimeDemo(fmt) {
@@ -369,33 +611,57 @@ function strftimeDemo(fmt) {
   const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   const MONS = ['January','February','March','April','May','June','July',
                 'August','September','October','November','December'];
+  const dayName = (style) => LANG === 'he'
+    ? new Intl.DateTimeFormat('he-IL', { weekday: style }).format(d)
+    : (style === 'long' ? DAYS[d.getDay()] : DAYS[d.getDay()].slice(0, 3));
+  const monName = (style) => LANG === 'he'
+    ? new Intl.DateTimeFormat('he-IL', { month: style }).format(d)
+    : (style === 'long' ? MONS[d.getMonth()] : MONS[d.getMonth()].slice(0, 3));
   return fmt
-    .replace(/%A/g, DAYS[d.getDay()])
-    .replace(/%a/g, DAYS[d.getDay()].slice(0, 3))
-    .replace(/%B/g, MONS[d.getMonth()])
-    .replace(/%b/g, MONS[d.getMonth()].slice(0, 3))
+    .replace(/%A/g, dayName('long'))
+    .replace(/%a/g, dayName('short'))
+    .replace(/%B/g, monName('long'))
+    .replace(/%b/g, monName('short'))
     .replace(/%e/g, String(d.getDate()))
     .replace(/%d/g, String(d.getDate()).padStart(2, '0'))
     .replace(/%m/g, String(d.getMonth() + 1).padStart(2, '0'))
     .replace(/%Y/g, String(d.getFullYear()))
-    .replace(/%y/g, String(d.getFullYear()).slice(-2));
+    .replace(/%y/g, String(d.getFullYear()).slice(-2))
+    .replace(/%J/g, hebrewDateDemo(true))
+    .replace(/%N/g, hebrewDateDemo(true))
+    .replace(/%K/g, hebrewDateDemo(false))
+    .replace(/%L/g, hebrewDateDemo(false))
+    // the holiday name is empty on an ordinary day; the device drops the
+    // separator next to it, so do the same here
+    .replace(/%Q/g, '').replace(/, ,/g, ',').replace(/,\s*$/, '')
+    + (fmt.includes('%Q') ? ' ' + t('(+ holiday name)') : '');
 }
 
+const US_TZ = 'EST5EDT,M3.2.0,M11.1.0';
+const ISRAEL_TZ = 'IST-2IDT,M3.4.4/26,M10.5.0';
 function buildTimeSelects() {
   const tz = el('t_tz');
-  for (const [posix, iana, label] of TIMEZONES) {
+  // the firmware's own default zone (Israel for a Hebrew build) leads the list
+  const zones = [...TIMEZONES].sort((a, b) =>
+    (b[0] === info.default_timezone) - (a[0] === info.default_timezone));
+  for (const [posix, iana, label] of zones) {
     let now = '';
     try {
-      now = ' — now ' + new Date().toLocaleTimeString('en-US',
+      now = ' — ' + t('now') + ' ' + new Date().toLocaleTimeString(
+        LANG === 'he' ? 'he-IL' : 'en-US',
         { timeZone: iana, hour: 'numeric', minute: '2-digit' });
     } catch (e) {}
     const o = document.createElement('option');
     o.value = posix;
-    o.textContent = label + now;
+    o.textContent = t(label) + now;
     tz.appendChild(o);
   }
   const df = el('t_date');
+  // the Hebrew calendar formats belong to the Hebrew firmware, like the
+  // Shabbat settings; a configured one still shows as the current value
+  const hebrewFw = (info.locale ?? '').startsWith('he');
   for (const fmt of DATE_FORMATS) {
+    if (!hebrewFw && /%[KJLNQ]/.test(fmt)) continue;
     const o = document.createElement('option');
     o.value = fmt;
     o.textContent = strftimeDemo(fmt);
@@ -409,7 +675,7 @@ function selectOrAppend(sel, v) {
   if (![...sel.options].some(o => o.value === v)) {
     const o = document.createElement('option');
     o.value = v;
-    o.textContent = 'Current: ' + v;
+    o.textContent = t('Current:') + ' ' + v;
     sel.appendChild(o);
   }
   sel.value = v;
@@ -422,10 +688,12 @@ function buildWidgetSelects() {
     const d = document.createElement('div');
     d.id = 'slotbox_' + slot;
     const l = document.createElement('label');
-    l.textContent = 'Slot ' + slot + (slot % 2 ? ' (right)' : ' (left)');
+    // the slots are numbered left to right on the panel whatever the page
+    // direction, so the side is named, not implied
+    l.textContent = t('Slot') + ' ' + slot + ' ' + (slot % 2 ? t('(right)') : t('(left)'));
     const sel = document.createElement('select'); sel.id = 'slot_' + slot;
-    sel.add(new Option('— Empty —', ''));
-    for (const [key, label] of WIDGETS) sel.add(new Option(label, key));
+    sel.add(new Option(t('— Empty —'), ''));
+    for (const [key, label] of WIDGETS) sel.add(new Option(t(label), key));
     d.append(l, sel); box.append(d);
   }
 }
@@ -451,7 +719,7 @@ function populate() {
   el('l_lat').value = cfg.location?.lat ?? '';
   el('l_lon').value = cfg.location?.lon ?? '';
   el('l_city').value = cfg.location?.city ?? '';
-  selectOrAppend(el('t_tz'), cfg.time?.timezone ?? 'EST5EDT,M3.2.0,M11.1.0');
+  selectOrAppend(el('t_tz'), cfg.time?.timezone ?? info.default_timezone ?? US_TZ);
   el('t_clock').value = (cfg.time?.time_format ?? '').includes('%H') ? '24' : '12';
   selectOrAppend(el('t_date'), cfg.time?.date_format ?? '%a, %B %e');
   el('s_dur').value = cfg.sleep?.sleep_duration_minutes ?? 15;
@@ -469,6 +737,14 @@ function populate() {
   el('a_airnow').value = cfg.api?.airnow_api_key ?? '';
   el('a_pollen').value = cfg.api?.pollen_api_key ?? '';
   el('a_cursrc').value = cfg.api?.current_source ?? 'open-meteo';
+  el('a_fcsrc').value = cfg.api?.forecast_source ?? 'nws';
+  el('a_imslid').value = String(cfg.api?.ims_location_id ?? 0);
+  el('a_aqisrc').value = cfg.api?.aqi_source ?? 'auto';
+  el('a_ilsid').value = String(cfg.api?.il_aq_station_id ?? 0);
+  const sh = cfg.shabbat ?? {};
+  el('h_show').value = sh.show === undefined ? '-1' : (sh.show ? '1' : '0');
+  el('h_candle').value = sh.candle_lighting_minutes ?? 18;
+  el('h_havdalah').value = sh.havdalah_minutes ?? 42;
   for (let slot = 0; slot < 12; slot++) el('slot_' + slot).value = '';
   for (const [key] of WIDGETS) {
     const v = +(cfg.widget_positions?.[key] ?? -1);
@@ -515,6 +791,15 @@ function collect() {
   cfg.api.airnow_api_key = el('a_airnow').value.trim();
   cfg.api.pollen_api_key = el('a_pollen').value.trim();
   cfg.api.current_source = el('a_cursrc').value;
+  cfg.api.forecast_source = el('a_fcsrc').value;
+  cfg.api.ims_location_id = Math.max(0, parseInt(el('a_imslid').value, 10) || 0);
+  cfg.api.aqi_source = el('a_aqisrc').value;
+  cfg.api.il_aq_station_id = Math.max(0, parseInt(el('a_ilsid').value, 10) || 0);
+  cfg.shabbat = cfg.shabbat ?? {};
+  if (el('h_show').value === '-1') delete cfg.shabbat.show;
+  else cfg.shabbat.show = el('h_show').value === '1';
+  cfg.shabbat.candle_lighting_minutes = Math.max(0, parseInt(el('h_candle').value, 10) || 0);
+  cfg.shabbat.havdalah_minutes = Math.max(0, parseInt(el('h_havdalah').value, 10) || 0);
   const rows = +el('s_wrows').value;
   for (const [key] of WIDGETS) cfg.widget_positions[key] = -1;
   for (let slot = 0; slot < rows * 2; slot++) {
@@ -529,9 +814,9 @@ function validateWidgets() {
   for (let slot = 0; slot < rows * 2; slot++) {
     const key = el('slot_' + slot).value;
     if (!key) continue;
-    if (used.has(key)) return '"' + WIDGETS.find(w => w[0] === key)[1]
-      + '" is in both slot ' + used.get(key) + ' and slot ' + slot
-      + ' — a widget can only appear once.';
+    if (used.has(key)) return t('"%1" is in both slot %2 and slot %3 — a widget can only appear once.')
+      .replace('%1', t(WIDGETS.find(w => w[0] === key)[1]))
+      .replace('%2', used.get(key)).replace('%3', slot);
     used.set(key, slot);
   }
   return null;
@@ -544,14 +829,13 @@ async function save(body) {
       headers: { 'Content-Type': 'application/json' } });
     const j = await r.json();
     if (j.ok) {
-      setStatus('ok', 'Saved! The display is restarting with the new settings. '
-        + 'If you changed the WiFi network, reconnect to that network to reach it again.');
+      setStatus('ok', t('Saved! The display is restarting with the new settings. If you changed the WiFi network, reconnect to that network to reach it again.'));
     } else {
-      setStatus('err', 'Not saved: ' + (j.error ?? 'unknown error'));
+      setStatus('err', t('Not saved:') + ' ' + (j.error ?? t('unknown error')));
       el('save').disabled = false;
     }
   } catch (e) {
-    setStatus('err', 'Request failed: ' + e.message);
+    setStatus('err', t('Request failed:') + ' ' + e.message);
     el('save').disabled = false;
   }
 }
@@ -564,10 +848,10 @@ el('form').addEventListener('submit', ev => {
   save(JSON.stringify(cfg, null, 2) + '\n');
 });
 
-const LOC_LABEL = '\u{1F4CD} Detect my location';
 async function detectLocation() {
   const btn = el('locbtn');
-  btn.disabled = true; btn.textContent = 'Detecting...';
+  const LOC_LABEL = '\u{1F4CD} ' + t('Detect my location');
+  btn.disabled = true; btn.textContent = t('Detecting...');
   const fill = (lat, lon, city, note) => {
     el('l_lat').value = (+lat).toFixed(4);
     el('l_lon').value = (+lon).toFixed(4);
@@ -584,7 +868,7 @@ async function detectLocation() {
         const pos = await new Promise((res, rej) =>
           navigator.geolocation.getCurrentPosition(res, rej, { timeout: 10000 }));
         fill(pos.coords.latitude, pos.coords.longitude, null,
-             "Location set from this device's GPS.");
+             t("Location set from this device's GPS."));
         return;
       } catch (gpsErr) { /* fall through */ }
     }
@@ -597,14 +881,11 @@ async function detectLocation() {
     const j = await r.json();
     if (!j.success || !j.latitude) throw new Error(j.message ?? 'no location in response');
     fill(j.latitude, j.longitude, j.city,
-         'Approximate location set from your internet address ('
-         + (j.city ?? '?') + (j.region_code ? ', ' + j.region_code : '')
-         + '). Verify it looks right, and refine the coordinates if needed.');
+         t('Approximate location set from your internet address (%1). Verify it looks right, and refine the coordinates if needed.')
+         .replace('%1', (j.city ?? '?') + (j.region_code ? ', ' + j.region_code : '')));
   } catch (e) {
-    setStatus('err', 'Could not detect location (' + e.message + '). '
-      + 'If you are connected to the setup hotspot, your phone may have no '
-      + 'internet right now -- enter coordinates manually instead: long-press '
-      + 'your spot in a maps app and copy them from the popup.');
+    setStatus('err', t('Could not detect location (%1). If you are connected to the setup hotspot, your phone may have no internet right now -- enter coordinates manually instead: long-press your spot in a maps app and copy them from the popup.')
+      .replace('%1', e.message));
   } finally {
     btn.disabled = false; btn.textContent = LOC_LABEL;
   }
@@ -623,7 +904,8 @@ async function pollScan() {
     const box = el('scanlist');
     box.style.display = 'block';
     if (!j.networks || j.networks.length === 0) {
-      box.innerHTML = '<div class="hint">No networks found. Try again.</div>';
+      box.innerHTML = '<div class="hint"></div>';
+      box.firstChild.textContent = t('No networks found. Try again.');
     } else {
       // A network's name is whatever its owner typed, markup included, so it
       // goes into the page as text and never as HTML.
@@ -637,7 +919,7 @@ async function pollScan() {
         b.append(bars + ' ' + n.ssid);
         if (n.open) {
           const i = document.createElement('i');
-          i.textContent = ' (open)';
+          i.textContent = ' ' + t('(open)');
           b.append(i);
         }
         b.addEventListener('click', () => {
@@ -650,16 +932,16 @@ async function pollScan() {
       }));
     }
     el('scanbtn').disabled = false;
-    el('scanbtn').innerHTML = '&#x1F50D; Scan';
+    el('scanbtn').textContent = '\u{1F50D} ' + t('Scan');
   } catch (e) {
     el('scanbtn').disabled = false;
-    el('scanbtn').innerHTML = '&#x1F50D; Scan';
-    setStatus('err', 'Scan failed: ' + e.message);
+    el('scanbtn').textContent = '\u{1F50D} ' + t('Scan');
+    setStatus('err', t('Scan failed:') + ' ' + e.message);
   }
 }
 el('scanbtn').addEventListener('click', () => {
   el('scanbtn').disabled = true;
-  el('scanbtn').textContent = 'Scanning...';
+  el('scanbtn').textContent = t('Scanning...');
   clearTimeout(scanTimer);
   pollScan();
 });
@@ -667,10 +949,10 @@ el('scanbtn').addEventListener('click', () => {
 el('fwbtn').addEventListener('click', () => {
   const f = el('fwfile').files[0];
   const prog = el('fwprog');
-  if (!f) { setStatus('err', 'Choose a firmware.bin file first.'); return; }
-  if (!f.name.endsWith('.bin')) { setStatus('err', 'That is not a .bin file.'); return; }
-  if (!confirm('Install "' + f.name + '" (' + Math.round(f.size / 1024)
-      + ' kB)?')) { return; }
+  if (!f) { setStatus('err', t('Choose a firmware.bin file first.')); return; }
+  if (!f.name.endsWith('.bin')) { setStatus('err', t('That is not a .bin file.')); return; }
+  if (!confirm(t('Install "%1" (%2 kB)?').replace('%1', f.name)
+      .replace('%2', Math.round(f.size / 1024)))) { return; }
   const fd = new FormData();
   fd.append('firmware', f);
   const xhr = new XMLHttpRequest();
@@ -678,7 +960,7 @@ el('fwbtn').addEventListener('click', () => {
   prog.style.display = 'block';
   xhr.upload.onprogress = e => {
     if (e.lengthComputable) {
-      prog.textContent = 'Uploading... ' + Math.round(100 * e.loaded / e.total) + '%';
+      prog.textContent = t('Uploading...') + ' ' + Math.round(100 * e.loaded / e.total) + '%';
     }
   };
   xhr.onload = () => {
@@ -687,24 +969,30 @@ el('fwbtn').addEventListener('click', () => {
       const j = JSON.parse(xhr.responseText);
       if (j.ok) {
         prog.textContent = '';
-        setStatus('ok', j.message + ' The page will stop responding while it '
-          + 'reboots; the new firmware takes over on the next refresh.');
+        setStatus('ok', j.message + ' ' + t('The page will stop responding while it reboots; the new firmware takes over on the next refresh.'));
       } else {
-        setStatus('err', 'Update failed: ' + j.error
-          + '. The previous firmware is still installed and running.');
+        setStatus('err', t('Update failed: %1. The previous firmware is still installed and running.')
+          .replace('%1', j.error));
       }
-    } catch (e) { setStatus('err', 'Unexpected response: ' + xhr.responseText); }
+    } catch (e) { setStatus('err', t('Unexpected response:') + ' ' + xhr.responseText); }
   };
   xhr.onerror = () => {
     el('fwbtn').disabled = false;
-    setStatus('err', 'Upload failed (connection lost). The previous firmware '
-      + 'is still installed.');
+    setStatus('err', t('Upload failed (connection lost). The previous firmware is still installed.'));
   };
   xhr.open('POST', el('fwforce').checked ? '/update?force=1' : '/update');
   xhr.send(fd);
 });
 
 el('s_wrows').addEventListener('change', updateSlotVisibility);
+
+// Israel has one time zone: choosing its weather service while the zone is
+// still the shipped US default moves the zone along (and back, the other way)
+el('a_fcsrc').addEventListener('change', () => {
+  const tz = el('t_tz');
+  if (el('a_fcsrc').value === 'ims' && tz.value === US_TZ) tz.value = ISRAEL_TZ;
+  else if (el('a_fcsrc').value === 'nws' && tz.value === ISRAEL_TZ) tz.value = US_TZ;
+});
 
 el('statictoggle').addEventListener('click', () => {
   const box = el('staticbox');
@@ -722,7 +1010,7 @@ el('dlbtn').addEventListener('click', () => {
 
 el('restorebtn').addEventListener('click', () => {
   const f = el('restorefile').files[0];
-  if (!f) { setStatus('err', 'Choose a config.json file first.'); return; }
+  if (!f) { setStatus('err', t('Choose a config.json file first.')); return; }
   const reader = new FileReader();
   reader.onload = e => {
     try {
@@ -731,7 +1019,7 @@ el('restorebtn').addEventListener('click', () => {
       el('raw').value = text;
       save(text);
     } catch (err) {
-      setStatus('err', 'Invalid JSON config file: ' + err.message);
+      setStatus('err', t('Invalid JSON config file:') + ' ' + err.message);
     }
   };
   reader.readAsText(f);
@@ -743,7 +1031,7 @@ el('advtoggle').addEventListener('click', () => {
 });
 el('rawsave').addEventListener('click', () => {
   try { JSON.parse(stripComments(el('raw').value)); }
-  catch (e) { setStatus('err', 'Raw JSON invalid: ' + e.message); return; }
+  catch (e) { setStatus('err', t('Raw JSON invalid:') + ' ' + e.message); return; }
   save(el('raw').value);
 });
 
@@ -760,26 +1048,31 @@ function hideLayoutSettings() {
   el('fixednote').style.display = 'block';
 }
 
+// the outcome texts diag.cpp reports, by code, so they can be translated
+const OUTCOMES = {0: 'Weather updated', 1: 'Could not update; the last weather was left on the screen',
+  2: 'No WiFi connection', 3: 'Could not get the time', 4: 'The weather service did not answer',
+  5: 'Battery low; did not update', 7: 'Could not update; the last weather was drawn again, marked as old'};
+
 // One record of the diagnostics, as rows of label and value.
 function diagRows(title, d) {
-  const secs = ms => (ms / 1000).toFixed(1) + ' s';
-  const CAUSES = {0: 'power on or reset', 2: 'portal button', 3: 'refresh button', 4: 'timer'};
+  const secs = ms => (ms / 1000).toFixed(1) + ' ' + t('s');
+  const CAUSES = {0: t('power on or reset'), 2: t('portal button'), 3: t('refresh button'), 4: t('timer')};
   // only the parts of the wake that happened
-  const parts = [['WiFi', d.wifi_ms], ['clock', d.clock_ms],
-    ['weather', d.fetch_ms], ['screen', d.draw_ms]].filter(p => p[1] > 0);
+  const parts = [[t('WiFi'), d.wifi_ms], [t('clock'), d.clock_ms],
+    [t('weather'), d.fetch_ms], [t('screen'), d.draw_ms]].filter(p => p[1] > 0);
   const phases = parts.length
     ? ': ' + parts.map(p => p[0] + ' ' + secs(p[1])).join(', ') : '';
   const rows = [
-    ['When', d.when ? new Date(d.when * 1000).toLocaleString() : 'clock not set'],
-    ['Result', d.summary + (d.code ? ' (' + d.code + ')' : '')],
+    [t('When'), d.when ? new Date(d.when * 1000).toLocaleString(LANG === 'he' ? 'he-IL' : undefined) : t('clock not set')],
+    [t('Result'), (OUTCOMES[d.outcome] ? t(OUTCOMES[d.outcome]) : d.summary) + (d.code ? ' (' + d.code + ')' : '')],
   ];
-  if (d.note) rows.push(['Detail', d.note]);
+  if (d.note) rows.push([t('Detail'), d.note]);
   rows.push(
-    ['Woken by', CAUSES[d.cause] ?? 'cause ' + d.cause],
-    ['Awake for', secs(d.awake_ms) + phases],
-    ['Then slept for', d.sleep_s ? Math.round(d.sleep_s / 60) + ' min' : 'until reset'],
-    ['Battery', d.battery_mv ? (d.battery_mv / 1000).toFixed(2) + ' V' : 'not measured'],
-    ['WiFi signal', d.rssi ? d.rssi + ' dBm' : 'not connected']);
+    [t('Woken by'), CAUSES[d.cause] ?? t('cause') + ' ' + d.cause],
+    [t('Awake for'), secs(d.awake_ms) + phases],
+    [t('Then slept for'), d.sleep_s ? Math.round(d.sleep_s / 60) + ' ' + t('min') : t('until reset')],
+    [t('Battery'), d.battery_mv ? (d.battery_mv / 1000).toFixed(2) + ' V' : t('not measured')],
+    [t('WiFi signal'), d.rssi ? d.rssi + ' dBm' : t('not connected')]);
   const box = document.createElement('div');
   box.style.marginTop = '0.6rem';
   const h = document.createElement('b');
@@ -801,12 +1094,53 @@ function diagRows(title, d) {
 
 function showDiagnostics(i) {
   const parts = [];
-  if (i.last_wake) parts.push(diagRows('Last wake', i.last_wake));
+  if (i.last_wake) parts.push(diagRows(t('Last wake'), i.last_wake));
   if (i.last_problem && (!i.last_wake || i.last_problem.when !== i.last_wake.when
       || i.last_problem.outcome !== i.last_wake.outcome)) {
-    parts.push(diagRows('Last problem', i.last_problem));
+    parts.push(diagRows(t('Last problem'), i.last_problem));
   }
   if (parts.length) el('diag').replaceChildren(...parts);
+}
+
+// ---- Language -------------------------------------------------------------
+// A Hebrew firmware (LOCALE he_IL; /info says so) shows the page in Hebrew,
+// right to left. Markup is translated in place by text; strings the script
+// builds go through t(). Anything without a translation stays in English.
+let LANG = 'en';
+function t(s) {
+  if (LANG === 'he') { const v = I18N_HE[s]; if (v !== undefined) return v; }
+  return s;
+}
+function translatePage() {
+  document.documentElement.lang = 'he';
+  document.documentElement.dir = 'rtl';
+  document.title = t('Weather Display Setup');
+  // hints hold inline links and <code>; translate each text node, with its
+  // whitespace-only neighbours left alone. The key is the text collapsed to
+  // single spaces, so a wrapped source line matches the dictionary.
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+    acceptNode: n => (n.parentNode.nodeName === 'SCRIPT' || n.parentNode.nodeName === 'STYLE'
+      || !n.nodeValue.trim()) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  for (const n of nodes) {
+    const raw = n.nodeValue;
+    const key = raw.replace(/\s+/g, ' ').trim();
+    const v = I18N_HE[key];
+    if (v !== undefined) {
+      const lead = raw.match(/^\s*/)[0], tail = raw.match(/\s*$/)[0];
+      n.nodeValue = lead + v + tail;
+    }
+  }
+  for (const e of document.querySelectorAll('[placeholder]')) {
+    e.placeholder = t(e.placeholder);
+  }
+  // buttons built with entities
+  el('scanbtn').textContent = '\u{1F50D} ' + t('Scan');
+  el('passbtn').textContent = '\u{1F441} ' + t('Show');
+  el('locbtn').textContent = '\u{1F4CD} ' + t('Detect my location');
+  el('dlbtn').textContent = '\u2B07 ' + t('Download Config');
+  el('restorebtn').textContent = '\u2B06 ' + t('Restore & Restart');
 }
 
 function showConnInfo(i) {
@@ -819,18 +1153,17 @@ function showConnInfo(i) {
     return e;
   };
   if (i.mode === 'hotspot') {
-    box.replaceChildren('\u{1F4F6} Connected via the setup hotspot ',
-      tag('b', i.ssid), ' (password: ', tag('code', i.ap_password), ') at ',
+    box.replaceChildren('\u{1F4F6} ' + t('Connected via the setup hotspot') + ' ',
+      tag('b', i.ssid), ' (' + t('password:') + ' ', tag('code', i.ap_password), ') ' + t('at') + ' ',
       tag('code', 'http://' + i.ip + '/'),
-      '. After saving a WiFi network below, the display joins that network '
-      + 'and this page becomes reachable there instead.');
+      '. ' + t('After saving a WiFi network below, the display joins that network and this page becomes reachable there instead.'));
   } else {
-    box.replaceChildren('\u{1F4F6} On WiFi network ', tag('b', i.ssid),
-      ' \u2014 reachable at ', tag('code', 'http://' + i.ip + '/'), ' or ',
+    box.replaceChildren('\u{1F4F6} ' + t('On WiFi network') + ' ', tag('b', i.ssid),
+      ' \u2014 ' + t('reachable at') + ' ', tag('code', 'http://' + i.ip + '/'), ' ' + t('or') + ' ',
       tag('code', 'http://' + (i.mdns ?? 'weatherepd.local') + '/'), '.');
   }
-  box.append(' Setup mode ends after ' + (i.timeout_minutes ?? 10)
-    + ' minutes of inactivity.');
+  box.append(' ' + t('Setup mode ends after %1 minutes of inactivity.')
+    .replace('%1', i.timeout_minutes ?? 10));
   box.style.display = 'block';
   if (i.build) { el('fwbuild').textContent = i.build + (i.board ? ' for ' + i.board : ''); }
   if (i.layout === 'fixed') { hideLayoutSettings(); }
@@ -839,16 +1172,36 @@ function showConnInfo(i) {
   if (i.fonts) { setFontOptions(i.fonts); }
 }
 
-buildWidgetSelects();
-buildTimeSelects();
 el('s_font').addEventListener('change', previewFont);
 el('s_font_small').addEventListener('change', previewFont);
-fetch('/info').then(r => r.json()).then(showConnInfo).catch(() => {});
-fetch('/config').then(r => r.text()).then(t => {
+let info = {};
+// the generated selects wait for /info so a Hebrew build labels them in
+// Hebrew; without an answer the page comes up in English
+const infoLoaded = fetch('/info').then(r => r.json()).then(i => {
+  info = i;
+  if ((i.locale ?? '').startsWith('he')) {
+    LANG = 'he'; translatePage();
+    el('shabbatbox').style.display = '';
+  }
+}).catch(() => {}).then(() => {
+  buildWidgetSelects();
+  buildTimeSelects();
+  if (info.ip) showConnInfo(info);
+});
+fetch('/config').then(r => r.text()).then(t => infoLoaded.then(() => {
   el('raw').value = t;
   cfg = JSON.parse(stripComments(t));
+  // A Hebrew build shows heat stress where the dew point was unless the
+  // config places the widget itself (settings.cpp does the same on the
+  // device); show the picker the way the panel will come up, so that a
+  // save keeps it.
+  if (info.heat_stress_default && cfg.widget_positions
+      && cfg.widget_positions.heat_stress === undefined) {
+    cfg.widget_positions.heat_stress = cfg.widget_positions.dewpoint ?? -1;
+    cfg.widget_positions.dewpoint = -1;
+  }
   populate();
-}).catch(e => setStatus('err', 'Failed to load current config: ' + e.message));
+})).catch(e => setStatus('err', t('Failed to load current config:') + ' ' + e.message));
 </script>
 </body>
 </html>

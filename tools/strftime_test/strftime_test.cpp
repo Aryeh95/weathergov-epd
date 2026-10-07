@@ -15,6 +15,16 @@ const char *LC_DAY[7] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday",
 const char *LC_ABDAY[7] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 const char *LC_MON[12] = {"January", "February", "March", "April", "May", "June", "July",
                           "August", "September", "October", "November", "December"};
+const char *LC_HEB_MON[14] = {"Tishrei", "Cheshvan", "Kislev", "Tevet", "Shevat", "Adar", "Adar I",
+                              "Adar II", "Nisan", "Iyar", "Sivan", "Tammuz", "Av", "Elul"};
+const bool  LC_HEBCAL_LETTERS = false;
+const char *LC_HEB_HOLIDAYS[25] = {
+  "Rosh Hashanah", "Tzom Gedaliah", "Yom Kippur", "Sukkot", "Chol HaMoed Sukkot",
+  "Hoshana Rabbah", "Simchat Torah", "Hanukkah", "Asara BeTevet", "Tu BiShvat",
+  "Taanit Esther", "Purim", "Shushan Purim", "Pesach", "Chol HaMoed Pesach",
+  "Shvii shel Pesach", "Yom HaShoah", "Yom HaZikaron", "Yom HaAtzmaut", "Lag BaOmer",
+  "Yom Yerushalayim", "Shavuot", "Shiva Asar BeTammuz", "Tisha BeAv", "Tu BeAv"};
+const char *LC_HEBCAL_MONTH_PREFIX = "";
 const char *LC_ABMON[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 const char *LC_ERA = "";
 const char *LC_ERA_D_FMT = "";

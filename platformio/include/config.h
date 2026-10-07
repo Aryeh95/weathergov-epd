@@ -158,7 +158,28 @@
 //   Dutch (Belgium)                 nl_BE
 //   Portuguese (Brazil)             pt_BR
 //   Spanish (Spain)                 es_ES
-#define LOCALE en_US
+//   Hebrew (Israel)                 he_IL  (right-to-left; needs a Hebrew
+//                                          font family, see FONTS below)
+#ifndef LOCALE
+  // (or on the command line, which leaves this file alone:
+  //  PLATFORMIO_BUILD_FLAGS="-D LOCALE=he_IL" pio run)
+  #define LOCALE en_US
+#endif
+// Each locale may carry build defaults of its own -- the units its country
+// uses, the font family its script needs -- in locales/locale_<code>.defaults.h,
+// applied here unless the command line or this file chose otherwise (so
+// "-D LOCALE=he_IL" alone builds a metric, Hebrew-font device).
+#define LOCALE_XSTR(x) #x
+#define LOCALE_STR(x) LOCALE_XSTR(x)
+// two levels so that LOCALE is expanded before the token paste
+#define LOCALE_DEFAULTS_INC_(code) LOCALE_STR(locales/locale_ ## code.defaults.h)
+#define LOCALE_DEFAULTS_INC(code) LOCALE_DEFAULTS_INC_(code)
+#include LOCALE_DEFAULTS_INC(LOCALE)
+// The time zone a device starts with until config.json or the portal sets
+// one (POSIX string; see https://github.com/nayarsystems/posix_tz_db).
+#ifndef DEFAULT_TIMEZONE
+  #define DEFAULT_TIMEZONE "EST5EDT,M3.2.0,M11.1.0"
+#endif
 
 // UNITS
 // Define exactly one macro for each measurement type below.
@@ -168,7 +189,11 @@
 //   Imperial : Fahrenheit
 // #define UNITS_TEMP_KELVIN
 // #define UNITS_TEMP_CELSIUS
-#define UNITS_TEMP_FAHRENHEIT
+#if !(defined(UNITS_TEMP_KELVIN) || defined(UNITS_TEMP_CELSIUS) || defined(UNITS_TEMP_FAHRENHEIT))
+  // chosen on the command line, which leaves this file alone:
+  //   PLATFORMIO_BUILD_FLAGS="-D UNITS_TEMP_CELSIUS" pio run
+  #define UNITS_TEMP_FAHRENHEIT
+#endif
 
 // UNITS - WIND SPEED
 //   Metric   : Kilometers per Hour
@@ -176,7 +201,11 @@
 // #define UNITS_SPEED_METERSPERSECOND
 // #define UNITS_SPEED_FEETPERSECOND
 // #define UNITS_SPEED_KILOMETERSPERHOUR
-#define UNITS_SPEED_MILESPERHOUR
+#if !(defined(UNITS_SPEED_METERSPERSECOND) || defined(UNITS_SPEED_KILOMETERSPERHOUR) || defined(UNITS_SPEED_FEETPERSECOND) || defined(UNITS_SPEED_MILESPERHOUR) || defined(UNITS_SPEED_KNOTS) || defined(UNITS_SPEED_BEAUFORT))
+  // chosen on the command line, which leaves this file alone:
+  //   PLATFORMIO_BUILD_FLAGS="-D UNITS_SPEED_KILOMETERSPERHOUR" pio run
+  #define UNITS_SPEED_MILESPERHOUR
+#endif
 // #define UNITS_SPEED_KNOTS
 // #define UNITS_SPEED_BEAUFORT
 
@@ -187,7 +216,11 @@
 // #define UNITS_PRES_PASCALS
 // #define UNITS_PRES_MILLIMETERSOFMERCURY
 // #define UNITS_PRES_INCHESOFMERCURY
-#define UNITS_PRES_MILLIBARS
+#if !(defined(UNITS_PRES_HECTOPASCALS) || defined(UNITS_PRES_MILLIBARS) || defined(UNITS_PRES_PASCALS) || defined(UNITS_PRES_MILLIMETERSOFMERCURY) || defined(UNITS_PRES_INCHESOFMERCURY) || defined(UNITS_PRES_ATMOSPHERES) || defined(UNITS_PRES_GRAMSPERSQUARECENTIMETER) || defined(UNITS_PRES_POUNDSPERSQUAREINCH))
+  // chosen on the command line, which leaves this file alone:
+  //   PLATFORMIO_BUILD_FLAGS="-D UNITS_PRES_MILLIBARS" pio run
+  #define UNITS_PRES_MILLIBARS
+#endif
 // #define UNITS_PRES_ATMOSPHERES
 // #define UNITS_PRES_GRAMSPERSQUARECENTIMETER
 // #define UNITS_PRES_POUNDSPERSQUAREINCH
@@ -196,7 +229,11 @@
 //   Metric   : Kilometers
 //   Imperial : Miles
 // #define UNITS_DIST_KILOMETERS
-#define UNITS_DIST_MILES
+#if !(defined(UNITS_DIST_MILES) || defined(UNITS_DIST_KILOMETERS))
+  // chosen on the command line, which leaves this file alone:
+  //   PLATFORMIO_BUILD_FLAGS="-D UNITS_DIST_KILOMETERS" pio run
+  #define UNITS_DIST_MILES
+#endif
 
 // UNITS - PRECIPITATION (HOURLY)
 // The hourly outlook graph's bars. weather.gov's hourly forecast carries only
@@ -217,7 +254,11 @@
 // #define UNITS_DAILY_PRECIP_POP
 // #define UNITS_DAILY_PRECIP_MILLIMETERS
 // #define UNITS_DAILY_PRECIP_CENTIMETERS
-#define UNITS_DAILY_PRECIP_INCHES
+#if !(defined(UNITS_DAILY_PRECIP_POP) || defined(UNITS_DAILY_PRECIP_MILLIMETERS) || defined(UNITS_DAILY_PRECIP_CENTIMETERS) || defined(UNITS_DAILY_PRECIP_INCHES))
+  // chosen on the command line, which leaves this file alone:
+  //   PLATFORMIO_BUILD_FLAGS="-D UNITS_DAILY_PRECIP_MILLIMETERS" pio run
+  #define UNITS_DAILY_PRECIP_INCHES
+#endif
 
 // Derived: the daily row shows amounts, so fetch them.
 #if !defined(UNITS_DAILY_PRECIP_POP)
@@ -346,6 +387,9 @@
 //   Roboto Slab    RobotoSlab_Regular       Roboto Slab     Apache v2.0
 //   Ubuntu         Ubuntu_R                 Ubuntu font     UFL v1.0
 //   Ubuntu Mono    UbuntuMono_R             Ubuntu font     UFL v1.0
+//   Heebo          Heebo                    Heebo           OFL 1.1
+//                  (Hebrew + Latin, ISO-8859-8 slots: the family for the
+//                  he_IL locale. Oded Ezer's screen face, Roboto's Latin.)
 //
 // Adding a font: python tools/fontconvert.py <Name> <font.ttf>, then
 // python tools/gen_font_table.py, then switch it on below.
@@ -361,6 +405,11 @@
 // (on the FireBeetle's 4 MB that takes the firmware from 89% to 94% of its
 // slot).
 #define FONT_INCLUDE_FreeSans 1
+// A right-to-left locale (he_IL) needs a family whose high slots carry the
+// Hebrew alphabet; settings.cpp switches to the first such family when the
+// configured one has none. The he_IL locale's defaults file switches Heebo
+// on; for another build:
+// #define FONT_INCLUDE_Heebo 1
 #if defined(BOARD_RETERMINAL_E1002) && !defined(FONT_INCLUDE_Bitter)
   #define FONT_INCLUDE_Bitter 1
 #endif
@@ -512,6 +561,13 @@ extern String NWS_USER_AGENT;
 extern String AIRNOW_APIKEY;
 extern String POLLEN_APIKEY;
 extern String CURRENT_SOURCE;
+extern String FORECAST_SOURCE;
+extern int    IMS_LOCATION_ID;
+extern String AQI_SOURCE;
+extern int    IL_AQ_STATION_ID;
+extern int    SHABBAT_TIMES;        // -1 locale default, 0 off, 1 on
+extern int    CANDLE_LIGHTING_MINUTES;
+extern int    HAVDALAH_MINUTES;
 extern String PORTAL_AP_PASSWORD;
 extern int    PORTAL_TIMEOUT;
 extern String LAT;
@@ -553,6 +609,7 @@ extern int POS_SUNSET;
 extern int POS_WIND;
 extern int POS_HUMIDITY;
 extern int POS_DEWPOINT;
+extern int POS_HEAT_STRESS;
 extern int POS_UVI;
 extern int POS_PRESSURE;
 extern int POS_AIR_QUALITY;

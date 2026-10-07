@@ -114,6 +114,25 @@
 #include "FreeSerif/FreeSerif_48pt8b_temperature.h"
 #endif
 
+#if defined(FONT_INCLUDE_Heebo) && FONT_INCLUDE_Heebo
+#include "Heebo/Heebo_5pt8b.h"
+#include "Heebo/Heebo_6pt8b.h"
+#include "Heebo/Heebo_7pt8b.h"
+#include "Heebo/Heebo_8pt8b.h"
+#if FONT_TABLE_HAS_9pt8b
+  #include "Heebo/Heebo_9pt8b.h"
+#endif
+#include "Heebo/Heebo_11pt8b.h"
+#include "Heebo/Heebo_12pt8b.h"
+#include "Heebo/Heebo_14pt8b.h"
+#include "Heebo/Heebo_16pt8b.h"
+#if FONT_TABLE_HAS_22pt8b
+  #include "Heebo/Heebo_22pt8b.h"
+#endif
+#include "Heebo/Heebo_26pt8b.h"
+#include "Heebo/Heebo_48pt8b_temperature.h"
+#endif
+
 #if defined(FONT_INCLUDE_Lato_Regular) && FONT_INCLUDE_Lato_Regular
 #include "Lato_Regular/Lato_Regular_5pt8b.h"
 #include "Lato_Regular/Lato_Regular_6pt8b.h"
@@ -348,55 +367,62 @@
 struct font_family_t
 {
   const char *name;
+  // true when the 0xA0-0xFF slots carry ISO-8859-8 (the Hebrew
+  // alphabet at 0xE0-0xFA) instead of Latin-1; see renderer.cpp's
+  // shapeText() and the <Family>/ENCODING file fontconvert.py writes.
+  bool hebrew;
   // 5pt8b 6pt8b 7pt8b 8pt8b 9pt8b 11pt8b 12pt8b 14pt8b 16pt8b 22pt8b 26pt8b 48pt8b_temperature
   const GFXfont *const size[12];
 };
 
 static const font_family_t FONT_FAMILIES[] = {
 #if defined(FONT_INCLUDE_FreeSans) && FONT_INCLUDE_FreeSans
-  {"FreeSans", {FONT_FACE_5pt8b(FreeSans), FONT_FACE_6pt8b(FreeSans), FONT_FACE_7pt8b(FreeSans), FONT_FACE_8pt8b(FreeSans), FONT_FACE_9pt8b(FreeSans), FONT_FACE_11pt8b(FreeSans), FONT_FACE_12pt8b(FreeSans), FONT_FACE_14pt8b(FreeSans), FONT_FACE_16pt8b(FreeSans), FONT_FACE_22pt8b(FreeSans), FONT_FACE_26pt8b(FreeSans), FONT_FACE_48pt8b_temperature(FreeSans)}},
+  {"FreeSans", false, {FONT_FACE_5pt8b(FreeSans), FONT_FACE_6pt8b(FreeSans), FONT_FACE_7pt8b(FreeSans), FONT_FACE_8pt8b(FreeSans), FONT_FACE_9pt8b(FreeSans), FONT_FACE_11pt8b(FreeSans), FONT_FACE_12pt8b(FreeSans), FONT_FACE_14pt8b(FreeSans), FONT_FACE_16pt8b(FreeSans), FONT_FACE_22pt8b(FreeSans), FONT_FACE_26pt8b(FreeSans), FONT_FACE_48pt8b_temperature(FreeSans)}},
 #endif
 #if defined(FONT_INCLUDE_Bitter) && FONT_INCLUDE_Bitter
-  {"Bitter", {FONT_FACE_5pt8b(Bitter), FONT_FACE_6pt8b(Bitter), FONT_FACE_7pt8b(Bitter), FONT_FACE_8pt8b(Bitter), FONT_FACE_9pt8b(Bitter), FONT_FACE_11pt8b(Bitter), FONT_FACE_12pt8b(Bitter), FONT_FACE_14pt8b(Bitter), FONT_FACE_16pt8b(Bitter), FONT_FACE_22pt8b(Bitter), FONT_FACE_26pt8b(Bitter), FONT_FACE_48pt8b_temperature(Bitter)}},
+  {"Bitter", false, {FONT_FACE_5pt8b(Bitter), FONT_FACE_6pt8b(Bitter), FONT_FACE_7pt8b(Bitter), FONT_FACE_8pt8b(Bitter), FONT_FACE_9pt8b(Bitter), FONT_FACE_11pt8b(Bitter), FONT_FACE_12pt8b(Bitter), FONT_FACE_14pt8b(Bitter), FONT_FACE_16pt8b(Bitter), FONT_FACE_22pt8b(Bitter), FONT_FACE_26pt8b(Bitter), FONT_FACE_48pt8b_temperature(Bitter)}},
 #endif
 #if defined(FONT_INCLUDE_FreeMono) && FONT_INCLUDE_FreeMono
-  {"FreeMono", {FONT_FACE_5pt8b(FreeMono), FONT_FACE_6pt8b(FreeMono), FONT_FACE_7pt8b(FreeMono), FONT_FACE_8pt8b(FreeMono), FONT_FACE_9pt8b(FreeMono), FONT_FACE_11pt8b(FreeMono), FONT_FACE_12pt8b(FreeMono), FONT_FACE_14pt8b(FreeMono), FONT_FACE_16pt8b(FreeMono), FONT_FACE_22pt8b(FreeMono), FONT_FACE_26pt8b(FreeMono), FONT_FACE_48pt8b_temperature(FreeMono)}},
+  {"FreeMono", false, {FONT_FACE_5pt8b(FreeMono), FONT_FACE_6pt8b(FreeMono), FONT_FACE_7pt8b(FreeMono), FONT_FACE_8pt8b(FreeMono), FONT_FACE_9pt8b(FreeMono), FONT_FACE_11pt8b(FreeMono), FONT_FACE_12pt8b(FreeMono), FONT_FACE_14pt8b(FreeMono), FONT_FACE_16pt8b(FreeMono), FONT_FACE_22pt8b(FreeMono), FONT_FACE_26pt8b(FreeMono), FONT_FACE_48pt8b_temperature(FreeMono)}},
 #endif
 #if defined(FONT_INCLUDE_FreeSerif) && FONT_INCLUDE_FreeSerif
-  {"FreeSerif", {FONT_FACE_5pt8b(FreeSerif), FONT_FACE_6pt8b(FreeSerif), FONT_FACE_7pt8b(FreeSerif), FONT_FACE_8pt8b(FreeSerif), FONT_FACE_9pt8b(FreeSerif), FONT_FACE_11pt8b(FreeSerif), FONT_FACE_12pt8b(FreeSerif), FONT_FACE_14pt8b(FreeSerif), FONT_FACE_16pt8b(FreeSerif), FONT_FACE_22pt8b(FreeSerif), FONT_FACE_26pt8b(FreeSerif), FONT_FACE_48pt8b_temperature(FreeSerif)}},
+  {"FreeSerif", false, {FONT_FACE_5pt8b(FreeSerif), FONT_FACE_6pt8b(FreeSerif), FONT_FACE_7pt8b(FreeSerif), FONT_FACE_8pt8b(FreeSerif), FONT_FACE_9pt8b(FreeSerif), FONT_FACE_11pt8b(FreeSerif), FONT_FACE_12pt8b(FreeSerif), FONT_FACE_14pt8b(FreeSerif), FONT_FACE_16pt8b(FreeSerif), FONT_FACE_22pt8b(FreeSerif), FONT_FACE_26pt8b(FreeSerif), FONT_FACE_48pt8b_temperature(FreeSerif)}},
+#endif
+#if defined(FONT_INCLUDE_Heebo) && FONT_INCLUDE_Heebo
+  {"Heebo", true, {FONT_FACE_5pt8b(Heebo), FONT_FACE_6pt8b(Heebo), FONT_FACE_7pt8b(Heebo), FONT_FACE_8pt8b(Heebo), FONT_FACE_9pt8b(Heebo), FONT_FACE_11pt8b(Heebo), FONT_FACE_12pt8b(Heebo), FONT_FACE_14pt8b(Heebo), FONT_FACE_16pt8b(Heebo), FONT_FACE_22pt8b(Heebo), FONT_FACE_26pt8b(Heebo), FONT_FACE_48pt8b_temperature(Heebo)}},
 #endif
 #if defined(FONT_INCLUDE_Lato_Regular) && FONT_INCLUDE_Lato_Regular
-  {"Lato_Regular", {FONT_FACE_5pt8b(Lato_Regular), FONT_FACE_6pt8b(Lato_Regular), FONT_FACE_7pt8b(Lato_Regular), FONT_FACE_8pt8b(Lato_Regular), FONT_FACE_9pt8b(Lato_Regular), FONT_FACE_11pt8b(Lato_Regular), FONT_FACE_12pt8b(Lato_Regular), FONT_FACE_14pt8b(Lato_Regular), FONT_FACE_16pt8b(Lato_Regular), FONT_FACE_22pt8b(Lato_Regular), FONT_FACE_26pt8b(Lato_Regular), FONT_FACE_48pt8b_temperature(Lato_Regular)}},
+  {"Lato_Regular", false, {FONT_FACE_5pt8b(Lato_Regular), FONT_FACE_6pt8b(Lato_Regular), FONT_FACE_7pt8b(Lato_Regular), FONT_FACE_8pt8b(Lato_Regular), FONT_FACE_9pt8b(Lato_Regular), FONT_FACE_11pt8b(Lato_Regular), FONT_FACE_12pt8b(Lato_Regular), FONT_FACE_14pt8b(Lato_Regular), FONT_FACE_16pt8b(Lato_Regular), FONT_FACE_22pt8b(Lato_Regular), FONT_FACE_26pt8b(Lato_Regular), FONT_FACE_48pt8b_temperature(Lato_Regular)}},
 #endif
 #if defined(FONT_INCLUDE_Montserrat_Regular) && FONT_INCLUDE_Montserrat_Regular
-  {"Montserrat_Regular", {FONT_FACE_5pt8b(Montserrat_Regular), FONT_FACE_6pt8b(Montserrat_Regular), FONT_FACE_7pt8b(Montserrat_Regular), FONT_FACE_8pt8b(Montserrat_Regular), FONT_FACE_9pt8b(Montserrat_Regular), FONT_FACE_11pt8b(Montserrat_Regular), FONT_FACE_12pt8b(Montserrat_Regular), FONT_FACE_14pt8b(Montserrat_Regular), FONT_FACE_16pt8b(Montserrat_Regular), FONT_FACE_22pt8b(Montserrat_Regular), FONT_FACE_26pt8b(Montserrat_Regular), FONT_FACE_48pt8b_temperature(Montserrat_Regular)}},
+  {"Montserrat_Regular", false, {FONT_FACE_5pt8b(Montserrat_Regular), FONT_FACE_6pt8b(Montserrat_Regular), FONT_FACE_7pt8b(Montserrat_Regular), FONT_FACE_8pt8b(Montserrat_Regular), FONT_FACE_9pt8b(Montserrat_Regular), FONT_FACE_11pt8b(Montserrat_Regular), FONT_FACE_12pt8b(Montserrat_Regular), FONT_FACE_14pt8b(Montserrat_Regular), FONT_FACE_16pt8b(Montserrat_Regular), FONT_FACE_22pt8b(Montserrat_Regular), FONT_FACE_26pt8b(Montserrat_Regular), FONT_FACE_48pt8b_temperature(Montserrat_Regular)}},
 #endif
 #if defined(FONT_INCLUDE_OpenSans_Regular) && FONT_INCLUDE_OpenSans_Regular
-  {"OpenSans_Regular", {FONT_FACE_5pt8b(OpenSans_Regular), FONT_FACE_6pt8b(OpenSans_Regular), FONT_FACE_7pt8b(OpenSans_Regular), FONT_FACE_8pt8b(OpenSans_Regular), FONT_FACE_9pt8b(OpenSans_Regular), FONT_FACE_11pt8b(OpenSans_Regular), FONT_FACE_12pt8b(OpenSans_Regular), FONT_FACE_14pt8b(OpenSans_Regular), FONT_FACE_16pt8b(OpenSans_Regular), FONT_FACE_22pt8b(OpenSans_Regular), FONT_FACE_26pt8b(OpenSans_Regular), FONT_FACE_48pt8b_temperature(OpenSans_Regular)}},
+  {"OpenSans_Regular", false, {FONT_FACE_5pt8b(OpenSans_Regular), FONT_FACE_6pt8b(OpenSans_Regular), FONT_FACE_7pt8b(OpenSans_Regular), FONT_FACE_8pt8b(OpenSans_Regular), FONT_FACE_9pt8b(OpenSans_Regular), FONT_FACE_11pt8b(OpenSans_Regular), FONT_FACE_12pt8b(OpenSans_Regular), FONT_FACE_14pt8b(OpenSans_Regular), FONT_FACE_16pt8b(OpenSans_Regular), FONT_FACE_22pt8b(OpenSans_Regular), FONT_FACE_26pt8b(OpenSans_Regular), FONT_FACE_48pt8b_temperature(OpenSans_Regular)}},
 #endif
 #if defined(FONT_INCLUDE_Poppins_Regular) && FONT_INCLUDE_Poppins_Regular
-  {"Poppins_Regular", {FONT_FACE_5pt8b(Poppins_Regular), FONT_FACE_6pt8b(Poppins_Regular), FONT_FACE_7pt8b(Poppins_Regular), FONT_FACE_8pt8b(Poppins_Regular), FONT_FACE_9pt8b(Poppins_Regular), FONT_FACE_11pt8b(Poppins_Regular), FONT_FACE_12pt8b(Poppins_Regular), FONT_FACE_14pt8b(Poppins_Regular), FONT_FACE_16pt8b(Poppins_Regular), FONT_FACE_22pt8b(Poppins_Regular), FONT_FACE_26pt8b(Poppins_Regular), FONT_FACE_48pt8b_temperature(Poppins_Regular)}},
+  {"Poppins_Regular", false, {FONT_FACE_5pt8b(Poppins_Regular), FONT_FACE_6pt8b(Poppins_Regular), FONT_FACE_7pt8b(Poppins_Regular), FONT_FACE_8pt8b(Poppins_Regular), FONT_FACE_9pt8b(Poppins_Regular), FONT_FACE_11pt8b(Poppins_Regular), FONT_FACE_12pt8b(Poppins_Regular), FONT_FACE_14pt8b(Poppins_Regular), FONT_FACE_16pt8b(Poppins_Regular), FONT_FACE_22pt8b(Poppins_Regular), FONT_FACE_26pt8b(Poppins_Regular), FONT_FACE_48pt8b_temperature(Poppins_Regular)}},
 #endif
 #if defined(FONT_INCLUDE_Quicksand_Regular) && FONT_INCLUDE_Quicksand_Regular
-  {"Quicksand_Regular", {FONT_FACE_5pt8b(Quicksand_Regular), FONT_FACE_6pt8b(Quicksand_Regular), FONT_FACE_7pt8b(Quicksand_Regular), FONT_FACE_8pt8b(Quicksand_Regular), FONT_FACE_9pt8b(Quicksand_Regular), FONT_FACE_11pt8b(Quicksand_Regular), FONT_FACE_12pt8b(Quicksand_Regular), FONT_FACE_14pt8b(Quicksand_Regular), FONT_FACE_16pt8b(Quicksand_Regular), FONT_FACE_22pt8b(Quicksand_Regular), FONT_FACE_26pt8b(Quicksand_Regular), FONT_FACE_48pt8b_temperature(Quicksand_Regular)}},
+  {"Quicksand_Regular", false, {FONT_FACE_5pt8b(Quicksand_Regular), FONT_FACE_6pt8b(Quicksand_Regular), FONT_FACE_7pt8b(Quicksand_Regular), FONT_FACE_8pt8b(Quicksand_Regular), FONT_FACE_9pt8b(Quicksand_Regular), FONT_FACE_11pt8b(Quicksand_Regular), FONT_FACE_12pt8b(Quicksand_Regular), FONT_FACE_14pt8b(Quicksand_Regular), FONT_FACE_16pt8b(Quicksand_Regular), FONT_FACE_22pt8b(Quicksand_Regular), FONT_FACE_26pt8b(Quicksand_Regular), FONT_FACE_48pt8b_temperature(Quicksand_Regular)}},
 #endif
 #if defined(FONT_INCLUDE_Raleway_Regular) && FONT_INCLUDE_Raleway_Regular
-  {"Raleway_Regular", {FONT_FACE_5pt8b(Raleway_Regular), FONT_FACE_6pt8b(Raleway_Regular), FONT_FACE_7pt8b(Raleway_Regular), FONT_FACE_8pt8b(Raleway_Regular), FONT_FACE_9pt8b(Raleway_Regular), FONT_FACE_11pt8b(Raleway_Regular), FONT_FACE_12pt8b(Raleway_Regular), FONT_FACE_14pt8b(Raleway_Regular), FONT_FACE_16pt8b(Raleway_Regular), FONT_FACE_22pt8b(Raleway_Regular), FONT_FACE_26pt8b(Raleway_Regular), FONT_FACE_48pt8b_temperature(Raleway_Regular)}},
+  {"Raleway_Regular", false, {FONT_FACE_5pt8b(Raleway_Regular), FONT_FACE_6pt8b(Raleway_Regular), FONT_FACE_7pt8b(Raleway_Regular), FONT_FACE_8pt8b(Raleway_Regular), FONT_FACE_9pt8b(Raleway_Regular), FONT_FACE_11pt8b(Raleway_Regular), FONT_FACE_12pt8b(Raleway_Regular), FONT_FACE_14pt8b(Raleway_Regular), FONT_FACE_16pt8b(Raleway_Regular), FONT_FACE_22pt8b(Raleway_Regular), FONT_FACE_26pt8b(Raleway_Regular), FONT_FACE_48pt8b_temperature(Raleway_Regular)}},
 #endif
 #if defined(FONT_INCLUDE_RobotoMono_Regular) && FONT_INCLUDE_RobotoMono_Regular
-  {"RobotoMono_Regular", {FONT_FACE_5pt8b(RobotoMono_Regular), FONT_FACE_6pt8b(RobotoMono_Regular), FONT_FACE_7pt8b(RobotoMono_Regular), FONT_FACE_8pt8b(RobotoMono_Regular), FONT_FACE_9pt8b(RobotoMono_Regular), FONT_FACE_11pt8b(RobotoMono_Regular), FONT_FACE_12pt8b(RobotoMono_Regular), FONT_FACE_14pt8b(RobotoMono_Regular), FONT_FACE_16pt8b(RobotoMono_Regular), FONT_FACE_22pt8b(RobotoMono_Regular), FONT_FACE_26pt8b(RobotoMono_Regular), FONT_FACE_48pt8b_temperature(RobotoMono_Regular)}},
+  {"RobotoMono_Regular", false, {FONT_FACE_5pt8b(RobotoMono_Regular), FONT_FACE_6pt8b(RobotoMono_Regular), FONT_FACE_7pt8b(RobotoMono_Regular), FONT_FACE_8pt8b(RobotoMono_Regular), FONT_FACE_9pt8b(RobotoMono_Regular), FONT_FACE_11pt8b(RobotoMono_Regular), FONT_FACE_12pt8b(RobotoMono_Regular), FONT_FACE_14pt8b(RobotoMono_Regular), FONT_FACE_16pt8b(RobotoMono_Regular), FONT_FACE_22pt8b(RobotoMono_Regular), FONT_FACE_26pt8b(RobotoMono_Regular), FONT_FACE_48pt8b_temperature(RobotoMono_Regular)}},
 #endif
 #if defined(FONT_INCLUDE_RobotoSlab_Regular) && FONT_INCLUDE_RobotoSlab_Regular
-  {"RobotoSlab_Regular", {FONT_FACE_5pt8b(RobotoSlab_Regular), FONT_FACE_6pt8b(RobotoSlab_Regular), FONT_FACE_7pt8b(RobotoSlab_Regular), FONT_FACE_8pt8b(RobotoSlab_Regular), FONT_FACE_9pt8b(RobotoSlab_Regular), FONT_FACE_11pt8b(RobotoSlab_Regular), FONT_FACE_12pt8b(RobotoSlab_Regular), FONT_FACE_14pt8b(RobotoSlab_Regular), FONT_FACE_16pt8b(RobotoSlab_Regular), FONT_FACE_22pt8b(RobotoSlab_Regular), FONT_FACE_26pt8b(RobotoSlab_Regular), FONT_FACE_48pt8b_temperature(RobotoSlab_Regular)}},
+  {"RobotoSlab_Regular", false, {FONT_FACE_5pt8b(RobotoSlab_Regular), FONT_FACE_6pt8b(RobotoSlab_Regular), FONT_FACE_7pt8b(RobotoSlab_Regular), FONT_FACE_8pt8b(RobotoSlab_Regular), FONT_FACE_9pt8b(RobotoSlab_Regular), FONT_FACE_11pt8b(RobotoSlab_Regular), FONT_FACE_12pt8b(RobotoSlab_Regular), FONT_FACE_14pt8b(RobotoSlab_Regular), FONT_FACE_16pt8b(RobotoSlab_Regular), FONT_FACE_22pt8b(RobotoSlab_Regular), FONT_FACE_26pt8b(RobotoSlab_Regular), FONT_FACE_48pt8b_temperature(RobotoSlab_Regular)}},
 #endif
 #if defined(FONT_INCLUDE_Roboto_Regular) && FONT_INCLUDE_Roboto_Regular
-  {"Roboto_Regular", {FONT_FACE_5pt8b(Roboto_Regular), FONT_FACE_6pt8b(Roboto_Regular), FONT_FACE_7pt8b(Roboto_Regular), FONT_FACE_8pt8b(Roboto_Regular), FONT_FACE_9pt8b(Roboto_Regular), FONT_FACE_11pt8b(Roboto_Regular), FONT_FACE_12pt8b(Roboto_Regular), FONT_FACE_14pt8b(Roboto_Regular), FONT_FACE_16pt8b(Roboto_Regular), FONT_FACE_22pt8b(Roboto_Regular), FONT_FACE_26pt8b(Roboto_Regular), FONT_FACE_48pt8b_temperature(Roboto_Regular)}},
+  {"Roboto_Regular", false, {FONT_FACE_5pt8b(Roboto_Regular), FONT_FACE_6pt8b(Roboto_Regular), FONT_FACE_7pt8b(Roboto_Regular), FONT_FACE_8pt8b(Roboto_Regular), FONT_FACE_9pt8b(Roboto_Regular), FONT_FACE_11pt8b(Roboto_Regular), FONT_FACE_12pt8b(Roboto_Regular), FONT_FACE_14pt8b(Roboto_Regular), FONT_FACE_16pt8b(Roboto_Regular), FONT_FACE_22pt8b(Roboto_Regular), FONT_FACE_26pt8b(Roboto_Regular), FONT_FACE_48pt8b_temperature(Roboto_Regular)}},
 #endif
 #if defined(FONT_INCLUDE_UbuntuMono_R) && FONT_INCLUDE_UbuntuMono_R
-  {"UbuntuMono_R", {FONT_FACE_5pt8b(UbuntuMono_R), FONT_FACE_6pt8b(UbuntuMono_R), FONT_FACE_7pt8b(UbuntuMono_R), FONT_FACE_8pt8b(UbuntuMono_R), FONT_FACE_9pt8b(UbuntuMono_R), FONT_FACE_11pt8b(UbuntuMono_R), FONT_FACE_12pt8b(UbuntuMono_R), FONT_FACE_14pt8b(UbuntuMono_R), FONT_FACE_16pt8b(UbuntuMono_R), FONT_FACE_22pt8b(UbuntuMono_R), FONT_FACE_26pt8b(UbuntuMono_R), FONT_FACE_48pt8b_temperature(UbuntuMono_R)}},
+  {"UbuntuMono_R", false, {FONT_FACE_5pt8b(UbuntuMono_R), FONT_FACE_6pt8b(UbuntuMono_R), FONT_FACE_7pt8b(UbuntuMono_R), FONT_FACE_8pt8b(UbuntuMono_R), FONT_FACE_9pt8b(UbuntuMono_R), FONT_FACE_11pt8b(UbuntuMono_R), FONT_FACE_12pt8b(UbuntuMono_R), FONT_FACE_14pt8b(UbuntuMono_R), FONT_FACE_16pt8b(UbuntuMono_R), FONT_FACE_22pt8b(UbuntuMono_R), FONT_FACE_26pt8b(UbuntuMono_R), FONT_FACE_48pt8b_temperature(UbuntuMono_R)}},
 #endif
 #if defined(FONT_INCLUDE_Ubuntu_R) && FONT_INCLUDE_Ubuntu_R
-  {"Ubuntu_R", {FONT_FACE_5pt8b(Ubuntu_R), FONT_FACE_6pt8b(Ubuntu_R), FONT_FACE_7pt8b(Ubuntu_R), FONT_FACE_8pt8b(Ubuntu_R), FONT_FACE_9pt8b(Ubuntu_R), FONT_FACE_11pt8b(Ubuntu_R), FONT_FACE_12pt8b(Ubuntu_R), FONT_FACE_14pt8b(Ubuntu_R), FONT_FACE_16pt8b(Ubuntu_R), FONT_FACE_22pt8b(Ubuntu_R), FONT_FACE_26pt8b(Ubuntu_R), FONT_FACE_48pt8b_temperature(Ubuntu_R)}},
+  {"Ubuntu_R", false, {FONT_FACE_5pt8b(Ubuntu_R), FONT_FACE_6pt8b(Ubuntu_R), FONT_FACE_7pt8b(Ubuntu_R), FONT_FACE_8pt8b(Ubuntu_R), FONT_FACE_9pt8b(Ubuntu_R), FONT_FACE_11pt8b(Ubuntu_R), FONT_FACE_12pt8b(Ubuntu_R), FONT_FACE_14pt8b(Ubuntu_R), FONT_FACE_16pt8b(Ubuntu_R), FONT_FACE_22pt8b(Ubuntu_R), FONT_FACE_26pt8b(Ubuntu_R), FONT_FACE_48pt8b_temperature(Ubuntu_R)}},
 #endif
 };
 static const int FONT_FAMILY_COUNT =

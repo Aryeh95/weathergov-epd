@@ -7,7 +7,7 @@ scratch buffer. This checks that ordinary formats still come out as before
 and that no width, however large, produces more than the cap.
 
     g++ -std=gnu++17 -fsanitize=address,undefined -I. -I../../platformio/include \
-        strftime_test.cpp ../../platformio/src/_strftime.cpp -o strftime_test && ./strftime_test
+        strftime_test.cpp ../../platformio/src/_strftime.cpp ../../platformio/src/hebcal.cpp -o strftime_test && ./strftime_test
 
 `_locale.h` here stands in for the project's own, which needs Arduino.h.
 `-I.` has to come first so that it is the one found.

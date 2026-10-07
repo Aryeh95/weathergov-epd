@@ -44,6 +44,7 @@
 
 #include "_locale.h"
 #include "_strftime.h"
+#include "hebcal.h"
 
 #define TZ_EXT     // Olson's timezone package
 #define VMS_EXT    // includes %v for VMS date format
@@ -329,6 +330,24 @@ size_t _strftime(char *s, size_t maxsize, const char *format,
         strcpy(tbuf, "?");
       else
         strcpy(tbuf, LC_MON[timeptr->tm_mon]);
+      break;
+
+    // Hebrew calendar date (not in C's strftime; hebcal.cpp)
+    case 'K': // day and month: כ"ד תשרי
+      hebcalFormat(tbuf, sizeof(tbuf), timeptr, false);
+      break;
+    case 'J': // with the year: כ"ד תשרי תשפ"ז
+      hebcalFormat(tbuf, sizeof(tbuf), timeptr, true);
+      break;
+    case 'L': // day and month, the month with its preposition: כ"ד בתשרי
+      hebcalFormat(tbuf, sizeof(tbuf), timeptr, false, true);
+      break;
+    case 'N': // with the preposition and the year: כ"ד בתשרי תשפ"ז
+      hebcalFormat(tbuf, sizeof(tbuf), timeptr, true, true);
+      break;
+    case 'Q': // the Jewish holiday or observance, if the day is one, else nothing
+      strncpy(tbuf, hebcalHolidayName(timeptr), sizeof(tbuf) - 1);
+      tbuf[sizeof(tbuf) - 1] = 0;
       break;
 
     case 'c':

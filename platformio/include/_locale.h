@@ -38,8 +38,65 @@ extern const char *LC_ERA_D_FMT;
 extern const char *LC_ERA_D_T_FMT;
 extern const char *LC_ERA_T_FMT;
 
-// OWM LANGUAGE
+// OWM LANGUAGE (also the language code sent to IMS: "en" or "he")
 extern const String OWM_LANG;
+
+// SCRIPT DIRECTION
+// true for a right-to-left language (Hebrew). The renderer then transcodes
+// UTF-8 text to the Hebrew font family's code page and reorders each line
+// visually (renderer.cpp, shapeText); layout positions do not change.
+extern const bool LC_RTL;
+
+// HEBREW CALENDAR (_strftime's %K %J %L %N, hebcal.cpp)
+// Month names, Tishrei first, with Adar, Adar I and Adar II separately;
+// whether to write the day and year in Hebrew letters (gematria) rather
+// than digits; and the preposition %L and %N put before the month ("ב" in
+// Hebrew: כ"ד בתשרי, the form of running text; %K and %J leave it off, as
+// calendars and datelines do: כ"ד תשרי).
+extern const char *LC_HEB_MON[14];
+extern const bool  LC_HEBCAL_LETTERS;
+extern const char *LC_HEBCAL_MONTH_PREFIX;
+
+// ISRAELI AIR QUALITY INDEX (Ministry of Environmental Protection)
+// Its four bands, best first, as the Ministry's legend names and colours
+// them: good (51-100, green), medium (0-50, yellow), low (-1..-200, red),
+// very low (below -200, brown); and the widget's source tag.
+extern const char *TXT_IL_AQI[4];
+extern const char *TXT_IL_AQI_TAG;
+// the Air Quality widget's other source tags: AirNow (EPA stations) and
+// Open-Meteo's model
+extern const char *TXT_AQI_TAG_EPA;
+extern const char *TXT_AQI_TAG_MODEL;
+
+// PORTAL SCREEN (how to reach the setup page, drawn on the panel)
+extern const char *TXT_PORTAL_ON_WIFI;      // "Connected to WiFi: " + ssid
+extern const char *TXT_PORTAL_OPEN;         // "Open " + url
+extern const char *TXT_PORTAL_OR;           // "or " + url
+extern const char *TXT_PORTAL_JOIN;         // "Join WiFi network: " + ssid
+extern const char *TXT_PORTAL_PASSWORD;     // "Password: " + password
+extern const char *TXT_PORTAL_THEN_OPEN;    // "Then open " + url
+extern const char *TXT_PORTAL_PAUSED[3];    // setup paused, how to resume
+
+// JEWISH HOLIDAYS (hebcal.cpp, _strftime's %Q, the sunset widget)
+// 25 names in the order hebcal.cpp lists them: Rosh Hashanah, Tzom
+// Gedaliah, Yom Kippur, Sukkot, Chol HaMoed Sukkot, Hoshana Rabbah, Simchat
+// Torah, Hanukkah, Asara BeTevet, Tu BiShvat, Taanit Esther, Purim, Shushan
+// Purim, Pesach, Chol HaMoed Pesach, Shvii shel Pesach, Yom HaShoah, Yom
+// HaZikaron, Yom HaAtzmaut, Lag BaOmer, Yom Yerushalayim, Shavuot, Shiva
+// Asar BeTammuz, Tisha BeAv, Tu BeAv.
+extern const char *LC_HEB_HOLIDAYS[25];
+// The sunset widget's labels on the eve and the close of Shabbat and holidays.
+extern const char *TXT_CANDLE_LIGHTING;
+extern const char *TXT_SHABBAT_ENDS;
+extern const char *TXT_HOLIDAY_ENDS;
+// Whether the sunset widget shows them by default (config.json "shabbat").
+extern const bool LC_SHABBAT_TIMES;
+
+// WIDGET DEFAULTS
+// true where heat stress, not the dew point, is the everyday humidity
+// measure (Israel): a config.json that does not place the heat stress
+// widget gets it in the dew point's slot (settings.cpp).
+extern const bool LC_PREFER_HEAT_STRESS;
 
 // CURRENT CONDITIONS
 extern const char *TXT_FEELS_LIKE;
@@ -54,6 +111,7 @@ extern const char *TXT_PRESSURE;
 extern const char *TXT_AIR_QUALITY;
 extern const char *TXT_AIR_POLLUTION;
 extern const char *TXT_VISIBILITY;
+extern const char *TXT_MORE_THAN;   // prefix of a value above the scale ("> 10 km")
 extern const char *TXT_POLLEN;
 extern const char *TXT_POLLEN_TREE;
 extern const char *TXT_POLLEN_GRASS;
@@ -81,6 +139,11 @@ extern const char *TXT_UV_MODERATE;
 extern const char *TXT_UV_HIGH;
 extern const char *TXT_UV_VERY_HIGH;
 extern const char *TXT_UV_EXTREME;
+
+// HEAT STRESS (Israel Meteorological Service's discomfort index bands:
+// none < 22, light 22-24, mild 24-26, moderate 26-28, heavy 28-30, extreme)
+extern const char *TXT_HEAT_STRESS;
+extern const char *TXT_HEAT_STRESS_LEVEL[6];
 
 // WIFI
 extern const char *TXT_WIFI_EXCELLENT;
