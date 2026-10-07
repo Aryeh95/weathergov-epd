@@ -75,6 +75,33 @@ const char *LC_ERA_T_FMT   = "";
 // https://openweathermap.org/api/one-call-api#multi
 // Note: "[only] The contents of the 'description' field will be translated."
 const String OWM_LANG = "pt_br";
+const bool LC_RTL = false;
+const char *LC_HEB_MON[14] = {"Tishrei", "Cheshvan", "Kislev", "Tevet", "Shevat", "Adar", "Adar I",
+                              "Adar II", "Nisan", "Iyar", "Sivan", "Tammuz", "Av", "Elul"};
+const bool  LC_HEBCAL_LETTERS = false;
+const char *LC_HEBCAL_MONTH_PREFIX = "";
+const bool  LC_PREFER_HEAT_STRESS = false;
+const char *LC_HEB_HOLIDAYS[25] = {
+  "Rosh Hashanah", "Tzom Gedaliah", "Yom Kippur", "Sukkot", "Chol HaMoed Sukkot",
+  "Hoshana Rabbah", "Simchat Torah", "Hanukkah", "Asara BeTevet", "Tu BiShvat",
+  "Taanit Esther", "Purim", "Shushan Purim", "Pesach", "Chol HaMoed Pesach",
+  "Shvii shel Pesach", "Yom HaShoah", "Yom HaZikaron", "Yom HaAtzmaut", "Lag BaOmer",
+  "Yom Yerushalayim", "Shavuot", "Shiva Asar BeTammuz", "Tisha BeAv", "Tu BeAv"};
+const char *TXT_CANDLE_LIGHTING = "Candle lighting";
+const char *TXT_SHABBAT_ENDS    = "Shabbat ends";
+const char *TXT_HOLIDAY_ENDS    = "Holiday ends";
+const bool  LC_SHABBAT_TIMES = false;
+const char *TXT_IL_AQI[4] = {"Good", "Medium", "Low", "Very Low"};
+const char *TXT_IL_AQI_TAG = "(MoEP)";
+const char *TXT_AQI_TAG_EPA = "(EPA)";
+const char *TXT_AQI_TAG_MODEL = "(model)";
+const char *TXT_PORTAL_ON_WIFI = "Connected to WiFi: ";
+const char *TXT_PORTAL_OPEN = "Open ";
+const char *TXT_PORTAL_OR = "or ";
+const char *TXT_PORTAL_JOIN = "Join WiFi network: ";
+const char *TXT_PORTAL_PASSWORD = "Password: ";
+const char *TXT_PORTAL_THEN_OPEN = "Then open ";
+const char *TXT_PORTAL_PAUSED[3] = {"Setup paused to save power.", "Press the reset (RST) button", "to start the setup hotspot again."};
 
 // CURRENT CONDITIONS
 const char *TXT_FEELS_LIKE         = "Sensa\347\343o t\351rmica";
@@ -89,6 +116,7 @@ const char *TXT_PRESSURE           = "Press\343o";
 const char *TXT_AIR_QUALITY        = "Qualidade do Ar";
 const char *TXT_AIR_POLLUTION      = "Polui\347\343o do Ar";
 const char *TXT_VISIBILITY         = "Visibilidade";
+const char *TXT_MORE_THAN          = "> ";
 const char *TXT_POLLEN             = "Pólen";
 // Pollen type driving the index, shown as a small tag beside the
 // "Pollen" label. Keep these short -- they must fit the widget cell.
@@ -118,6 +146,10 @@ const char *TXT_UV_MODERATE  = "Moderado";
 const char *TXT_UV_HIGH      = "Alto";
 const char *TXT_UV_VERY_HIGH = "Muito Alto";
 const char *TXT_UV_EXTREME   = "Extremo";
+
+// HEAT STRESS (Israel Meteorological Service discomfort-index levels)
+const char *TXT_HEAT_STRESS = "Heat Stress";
+const char *TXT_HEAT_STRESS_LEVEL[6] = {"None", "Light", "Mild", "Moderate", "Heavy", "Extreme"};
 
 // WIFI
 const char *TXT_WIFI_EXCELLENT     = "Excelente";

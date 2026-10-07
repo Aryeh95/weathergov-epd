@@ -139,6 +139,20 @@ def family_guard(fam):
     return "#if defined(FONT_INCLUDE_%s) && FONT_INCLUDE_%s" % (fam, fam)
 
 
+def family_encoding(fam):
+    """The code page the family's 0xA0-0xFF slots stand for (fontconvert.py
+    --encoding writes it to <Family>/ENCODING; absent means latin-1)."""
+    path = os.path.join(FONT_DIR, fam, "ENCODING")
+    if os.path.exists(path):
+        with open(path) as f:
+            return f.read().strip().lower() or "latin-1"
+    return "latin-1"
+
+
+def family_hebrew(fam):
+    return "true" if family_encoding(fam) == "iso-8859-8" else "false"
+
+
 out = [HEADER,
        "//",
        "// Every family whose FONT_INCLUDE_<Family> macro is set (config.h) is",
@@ -189,6 +203,10 @@ out += ["",
         "struct font_family_t",
         "{",
         "  const char *name;",
+        "  // true when the 0xA0-0xFF slots carry ISO-8859-8 (the Hebrew",
+        "  // alphabet at 0xE0-0xFA) instead of Latin-1; see renderer.cpp's",
+        "  // shapeText() and the <Family>/ENCODING file fontconvert.py writes.",
+        "  bool hebrew;",
         "  // " + " ".join(NAMES),
         "  const GFXfont *const size[%d];" % len(NAMES),
         "};",
@@ -197,7 +215,7 @@ out += ["",
 for fam in fams:
     out.append(family_guard(fam))
     faces = ", ".join("FONT_FACE_%s(%s)" % (n, fam) for n in NAMES)
-    out.append('  {"%s", {%s}},' % (fam, faces))
+    out.append('  {"%s", %s, {%s}},' % (fam, family_hebrew(fam), faces))
     out.append("#endif")
 out += ["};",
         "static const int FONT_FAMILY_COUNT =",
@@ -223,7 +241,15 @@ for fam in fams:
     out.append("#endif")
 out += ["};",
         "static const int FONT_FAMILY_NAME_COUNT =",
-        "    sizeof(FONT_FAMILY_NAMES) / sizeof(FONT_FAMILY_NAMES[0]);", ""]
+        "    sizeof(FONT_FAMILY_NAMES) / sizeof(FONT_FAMILY_NAMES[0]);", "",
+        "// Same order: true for a family whose 0xA0-0xFF slots hold ISO-8859-8",
+        "// (Hebrew). A right-to-left locale needs one (settings.cpp).",
+        "static const bool FONT_FAMILY_HEBREW[] = {"]
+for fam in fams:
+    out.append(family_guard(fam))
+    out.append("  %s," % family_hebrew(fam))
+    out.append("#endif")
+out += ["};", ""]
 with open(os.path.join(FONT_DIR, "font_names.h"), "w", newline="\n") as f:
     f.write("\n".join(out) + "\n")
 

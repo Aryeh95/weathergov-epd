@@ -30,6 +30,8 @@
 #include "conversions.h"
 #include "display_utils.h"
 #include "roundrect.h"
+#include "rtl.h"
+#include "hebcal.h"
 #include "sun.h"
 
 // fonts: every compiled-in family, and the FONT_*pt8b names resolved at
@@ -431,13 +433,15 @@ static void drawFittedRiskChip(int16_t x, int16_t y, const String &full,
   display.setFont(&FONT_7pt8b);
 } // end drawFittedRiskChip
 
+
+
 /* Returns the string width in pixels
  */
 uint16_t getStringWidth(const String &text)
 {
   int16_t x1, y1;
   uint16_t w, h;
-  display.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
+  display.getTextBounds(shapeText(text), 0, 0, &x1, &y1, &w, &h);
   return w;
 }
 
@@ -447,7 +451,7 @@ uint16_t getStringHeight(const String &text)
 {
   int16_t x1, y1;
   uint16_t w, h;
-  display.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
+  display.getTextBounds(shapeText(text), 0, 0, &x1, &y1, &w, &h);
   return h;
 }
 
@@ -459,17 +463,23 @@ void drawString(int16_t x, int16_t y, const String &text, alignment_t alignment,
   int16_t x1, y1;
   uint16_t w, h;
   display.setTextColor(color);
-  display.getTextBounds(text, x, y, &x1, &y1, &w, &h);
+  const String shaped = shapeText(text);
+  display.getTextBounds(shaped, x, y, &x1, &y1, &w, &h);
+  // x1 is where the ink starts, which for a glyph with a side bearing is a
+  // pixel or two right of the cursor; align the ink, not the cursor, so a
+  // RIGHT-aligned string ends where it was asked to (Hebrew faces bear
+  // more than FreeSans, and at the panel's edge a pixel is the margin).
+  const int16_t bearing = x1 - x;
   if (alignment == RIGHT)
   {
-    x = x - w;
+    x = x - w - bearing;
   }
   if (alignment == CENTER)
   {
-    x = x - w / 2;
+    x = x - w / 2 - bearing;
   }
   display.setCursor(x, y);
-  display.print(text);
+  display.print(shaped);
   return;
 } // end drawString
 
@@ -495,7 +505,7 @@ void drawMultiLnString(int16_t x, int16_t y, const String &text,
     int16_t  x1, y1;
     uint16_t w, h;
 
-    display.getTextBounds(textRemaining, 0, 0, &x1, &y1, &w, &h);
+    display.getTextBounds(shapeText(textRemaining), 0, 0, &x1, &y1, &w, &h);
 
     int endIndex = textRemaining.length();
     // check if remaining text is to wide, if it is then print what we can
@@ -548,13 +558,13 @@ void drawMultiLnString(int16_t x, int16_t y, const String &text,
         if (current_line < max_lines - 1)
         {
           // this is not the last line
-          display.getTextBounds(subStr, 0, 0, &x1, &y1, &w, &h);
+          display.getTextBounds(shapeText(subStr), 0, 0, &x1, &y1, &w, &h);
         }
         else
         {
           // this is the last line, we need to make sure there is space for
           // ellipsis
-          display.getTextBounds(subStr + "...", 0, 0, &x1, &y1, &w, &h);
+          display.getTextBounds(shapeText(subStr + "..."), 0, 0, &x1, &y1, &w, &h);
           if (w <= max_width)
           {
             // ellipsis fit, add them to subStr
@@ -628,6 +638,35 @@ void powerOffDisplay()
  */
 
 // drawCurrentSunrise
+/* A widget's value with its unit in the smaller font beside it. Left to
+ * right the unit follows the number ("19 km/h"); in a right-to-left locale
+ * the unit stands to the number's left ("קמ"ש 19"), the way Hebrew lays out
+ * "19 קמ"ש". Leaves the cursor after whichever came last, for a further
+ * item (the compass point) to follow.
+ */
+static void drawValueUnit(int16_t x, int16_t y, const String &value,
+                          const String &unit, const GFXfont *valueFont,
+                          const GFXfont *unitFont)
+{
+  if (LC_RTL)
+  {
+    String u = unit;
+    u.trim();
+    display.setFont(unitFont);
+    drawString(x, y, u, LEFT);
+    // drawString places by ink, so a trailing space would not advance the
+    // cursor: the gap is the unit font's space itself
+    const int16_t gap = unitFont->glyph[' ' - unitFont->first].xAdvance;
+    display.setFont(valueFont);
+    drawString(display.getCursorX() + gap, y, value, LEFT);
+    return;
+  }
+  display.setFont(valueFont);
+  drawString(x, y, value, LEFT);
+  display.setFont(unitFont);
+  drawString(display.getCursorX(), y, unit, LEFT);
+}
+
 void drawCurrentSunrise(const owm_current_t &current)
 {
   if (POS_SUNRISE < 0 || POS_SUNRISE / 2 >= WIDGET_ROWS)
@@ -673,14 +712,45 @@ void drawCurrentSunset(const owm_current_t &current)
   drawWidgetIcon(162 * PosX, wgtY(PosY),
                  wi_sunset_48x48, wi_sunset_40x40, "sunset", COLOR_SUN);
 
+  // On the eve of Shabbat or a holiday the widget turns into candle
+  // lighting (sunset less the custom's minutes), on the day itself into
+  // its close (sunset plus the custom's minutes); any other day it is the
+  // sunset. config.json "shabbat".
+  const char *label = TXT_SUNSET;
+  time_t ts = current.sunset;
+  const bool shabbat = (SHABBAT_TIMES < 0) ? LC_SHABBAT_TIMES : (SHABBAT_TIMES > 0);
+  if (shabbat && current.sunset > 0)
+  {
+    time_t page = pageTime();
+    tm today;
+    localtime_r(&page, &today);
+    bool yomTov = false;
+    switch (hebcalEvening(&today, yomTov))
+    {
+      case HEBCAL_EVE_CANDLES:
+        label = TXT_CANDLE_LIGHTING;
+        ts = current.sunset - CANDLE_LIGHTING_MINUTES * 60;
+        break;
+      case HEBCAL_EVE_CANDLES_LATE:   // lit after the first holy day ends
+        label = TXT_CANDLE_LIGHTING;
+        ts = current.sunset + HAVDALAH_MINUTES * 60;
+        break;
+      case HEBCAL_EVE_HAVDALAH:
+        label = yomTov ? TXT_HOLIDAY_ENDS : TXT_SHABBAT_ENDS;
+        ts = current.sunset + HAVDALAH_MINUTES * 60;
+        break;
+      default:
+        break;
+    }
+  }
+
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_SUNSET, LEFT);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), label, LEFT);
 
-  // sunset
+  // sunset (or the candle lighting / close that stands in for it)
   display.setFont(&FONT_12pt8b);
   char timeBuffer[12] = {}; // big enough to accommodate "hh:mm:ss am"
-  time_t ts = current.sunset;
   tm *timeInfo = localtime(&ts);
   _strftime(timeBuffer, sizeof(timeBuffer), TIME_FORMAT, timeInfo);
   drawString(48 + (162 * PosX), wgtValueY(PosY), timeBuffer, LEFT);
@@ -745,13 +815,12 @@ void drawCurrentWind(const owm_current_t &current)
 #endif
 
 #ifdef WIND_INDICATOR_ARROW
-  drawString( (48 + 24)+ (162 * PosX), wgtValueY(PosY), dataStr, LEFT);
+  drawValueUnit((48 + 24) + (162 * PosX), wgtValueY(PosY), dataStr, unitStr,
+                &FONT_12pt8b, &FONT_8pt8b);
 #else
-  drawString(48    + (162 * PosX) , wgtValueY(PosY), dataStr, LEFT);
+  drawValueUnit(48 + (162 * PosX), wgtValueY(PosY), dataStr, unitStr,
+                &FONT_12pt8b, &FONT_8pt8b);
 #endif
-  display.setFont(&FONT_8pt8b);
-  drawString(display.getCursorX(), wgtValueY(PosY),
-             unitStr, LEFT);
 
 #if defined(WIND_INDICATOR_NUMBER)
   dataStr = String(current.wind_deg) + "\260";
@@ -887,9 +956,13 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   // the locale's configured AQI_SCALE. Otherwise compute an AQI on the
   // locale's scale from Open-Meteo's pollutant concentrations.
   const bool useAirNow = (owm_air_pollution.us_aqi >= 0);
+  // The Israel Ministry of Environmental Protection's index, when the
+  // nearest of its stations reported: its own scale (100 best, negative
+  // worst) and its own four bands, so it is drawn on its own path below.
+  const bool useIL = !useAirNow && owm_air_pollution.il_valid;
 
   const char *air_quality_index_label;
-  if (useAirNow || aqi_desc_type(AQI_SCALE) == AIR_QUALITY_DESC)
+  if (useAirNow || useIL || aqi_desc_type(AQI_SCALE) == AIR_QUALITY_DESC)
   {
     air_quality_index_label = TXT_AIR_QUALITY;
   }
@@ -907,7 +980,8 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   display.setFont(&FONT_5pt8b);
   {
     const int16_t tagX = display.getCursorX() + 3;
-    const char *tag = useAirNow ? "(EPA)" : "(model)";
+    const char *tag = useAirNow ? TXT_AQI_TAG_EPA
+                    : useIL ? TXT_IL_AQI_TAG : TXT_AQI_TAG_MODEL;
     if (tagX + getStringWidth(tag) <= wgtTagRight(PosX))
     {
       drawString(tagX, wgtLabelY(PosY), tag, LEFT);
@@ -920,6 +994,24 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
 
   // air quality index
   display.setFont(&FONT_12pt8b);
+  if (useIL)
+  {
+    const int il = owm_air_pollution.il_index;
+    const int band = (il > 50) ? 0 : (il >= 0) ? 1 : (il >= -200) ? 2 : 3;
+    // the Ministry's legend: good green, medium yellow, low red, very low
+    // brown (the red/black dither is the nearest ink mix to its brown)
+    static const int IL_BAND_RISK[4] = { RISK_GREEN, RISK_YELLOW, RISK_RED,
+                                         RISK_MAROON };
+    drawWidgetIcon(162 * PosX, wgtY(PosY),
+                   air_filter_48x48, air_filter_40x40, "aqi", DM_FG);
+    drawString(48 + (162 * PosX), wgtValueY(PosY), String(il), LEFT);
+    display.setFont(&FONT_7pt8b);
+    const int16_t chipX = display.getCursorX() + sp;
+    const int max_w = (162 + (PosX * 162) - sp) - chipX;
+    drawFittedRiskChip(chipX, wgtValueY(PosY), String(TXT_IL_AQI[band]),
+                       nullptr, IL_BAND_RISK[band], max_w);
+    return;
+  }
   if (!useAirNow && !owm_air_pollution.valid)
   { // neither source answered: no number, and no risk badge
     drawWidgetIcon(162 * PosX, wgtY(PosY),
@@ -950,7 +1042,7 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
                  air_filter_48x48, air_filter_40x40, "aqi", DM_FG);
   if (aqi > aqi_max)
   {
-    dataStr = "> " + String(aqi_max);
+    dataStr = String(TXT_MORE_THAN) + String(aqi_max);
   }
   else
   {
@@ -1210,12 +1302,10 @@ void drawCurrentVisibility(const owm_current_t &current)
   if (vis >= 6)
   {
 #endif
-    dataStr = "> " + dataStr;
+    dataStr = String(TXT_MORE_THAN) + dataStr;
   }
-  drawString(48 + (162 * PosX), wgtValueY(PosY), dataStr, LEFT);
-  display.setFont(&FONT_8pt8b);
-  drawString(display.getCursorX(), wgtValueY(PosY),
-             unitStr, LEFT);
+  drawValueUnit(48 + (162 * PosX), wgtValueY(PosY), dataStr, unitStr,
+                &FONT_12pt8b, &FONT_8pt8b);
 
   return;
 }
@@ -1359,6 +1449,64 @@ void drawCurrentInHumidity(float inHumidity)
 }
 // end drawCurrentInHumidity
 
+
+/* Heat stress: the Israel Meteorological Service's discomfort index for the
+ * current temperature and humidity, with its level on a chip in the IMS
+ * colours (none green ... extreme maroon). IMS's own figure when IMS is the
+ * source, computed on the device otherwise; it is what Israeli forecasts
+ * report where American ones give the dew point.
+ */
+void drawCurrentHeatStress(const owm_current_t &current)
+{
+  if (POS_HEAT_STRESS < 0 || POS_HEAT_STRESS / 2 >= WIDGET_ROWS)
+  {
+    return;
+  }
+  int PosX = (POS_HEAT_STRESS % 2);
+  int PosY = static_cast<int>(POS_HEAT_STRESS / 2);
+
+  // icons (no colour set entry yet: line art on every panel)
+  drawWidgetIcon(162 * PosX, wgtY(PosY),
+                 wi_hot_48x48, wi_thermometer_40x40, "heat_stress", DM_FG);
+
+  // labels
+  display.setFont(&FONT_7pt8b);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_HEAT_STRESS, LEFT);
+
+  // IMS reports the index and its level itself; any other source (and a
+  // page held through an outage) gets them computed from temperature and
+  // humidity.
+  float index;
+  int level;
+  if (current.heat_stress > 0.f && current.heat_stress_level >= 0)
+  {
+    index = current.heat_stress;
+    level = std::min(current.heat_stress_level, 5);
+  }
+  else
+  {
+    index = heatStressIndex(kelvin_to_celsius(current.temp), current.humidity);
+    level = heatStressLevel(index);
+  }
+
+  display.setFont(&FONT_12pt8b);
+  if (level < 0)
+  {
+    drawString(48 + (162 * PosX), wgtValueY(PosY), "--", LEFT);
+    return;
+  }
+  String dataStr = String(static_cast<int>(std::floor(index + 0.4999f)));
+  drawString(48 + (162 * PosX), wgtValueY(PosY), dataStr, LEFT);
+  display.setFont(&FONT_7pt8b);
+  static const int HEAT_RISK[6] = { RISK_GREEN, RISK_YELLOW, RISK_AMBER,
+                                    RISK_RED,   RISK_PURPLE, RISK_MAROON };
+  const int sp = 8;
+  const int16_t chipX = display.getCursorX() + sp;
+  const int max_w = (162 + (PosX * 162) - sp) - chipX;
+  drawFittedRiskChip(chipX, wgtValueY(PosY), String(TXT_HEAT_STRESS_LEVEL[level]),
+                     nullptr, HEAT_RISK[level], max_w);
+} // end drawCurrentHeatStress
+
 // drawCurrentDewpoint
 void drawCurrentDewpoint(const owm_current_t &current)
 {
@@ -1482,6 +1630,21 @@ void drawCurrentConditions(const owm_current_t &current,
 #elif defined(DISP_BW_V1)
   drawString(156 + 164 / 2, 98 + 69 / 2 + 12 + 17, dataStr, CENTER);
 #endif
+
+  // condition description, when the provider supplies one (IMS gives a
+  // short phrase per weather code, localized to OWM_LANG). The NWS path
+  // leaves it empty: its "short forecast" is too long for this slot.
+  if (!current.weather.description.isEmpty())
+  {
+    display.setFont(&FONT_7pt8b);
+#ifndef DISP_BW_V1
+    drawString(196 + 164 / 2, 98 + 69 / 2 + 12 + 17 + 17,
+               current.weather.description, CENTER);
+#elif defined(DISP_BW_V1)
+    drawString(156 + 164 / 2, 98 + 69 / 2 + 12 + 17 + 17,
+               current.weather.description, CENTER);
+#endif
+  }
   // line dividing top and bottom display areas
   // display.drawLine(0, 196, DISP_WIDTH - 1, 196, DM_FG);
 
@@ -1501,6 +1664,7 @@ void drawCurrentConditions(const owm_current_t &current,
   drawCurrentInTemp(inTemp, historyIndoorTrend());
   drawCurrentInHumidity(inHumidity);
   drawCurrentDewpoint(current);
+  drawCurrentHeatStress(current);
   drawCurrentMoonPhase();
 
   // end drawing left panel
@@ -1550,14 +1714,53 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
     }
   }
 #endif
+  // Day of week labels. Left to right the row shows the abbreviation (%a).
+  // Hebrew abbreviates its days to a single letter (א', ב'), terse for a
+  // column this wide, so a right-to-left locale uses the longest form in
+  // which all seven names fit the column, decided once for the whole row:
+  // at 11 pt the full name (יום ראשון), else the name without its "יום"
+  // word (ראשון); then the same two at 8 pt (the sizes every panel's font
+  // table has); else the letters. Size comes before length: a row of
+  // "ראשון" at 11 pt reads better than one of "יום ראשון" at 8 pt.
+  int rtlDayForm = 2;                  // 0 full name, 1 without "יום", 2 letters
+  const GFXfont *rtlDayFont = &FONT_11pt8b;
+  if (LC_RTL)
+  {
+    const int maxW = static_cast<int>(colW) - 6;
+    const GFXfont *const fonts[2] = {&FONT_11pt8b, &FONT_8pt8b};
+    for (const GFXfont *f : fonts)
+    {
+      display.setFont(f);
+      for (int form = 0; form < 2 && rtlDayForm == 2; ++form)
+      {
+        int widest = 0;
+        for (int d = 0; d < 7; ++d)
+        {
+          String name = LC_DAY[d];
+          int sp = name.indexOf(' ');
+          if (form == 1 && sp > 0) name = name.substring(sp + 1);
+          widest = std::max<int>(widest, getStringWidth(name));
+        }
+        if (widest <= maxW)
+        {
+          rtlDayForm = form;
+          rtlDayFont = f;
+        }
+      }
+      if (rtlDayForm < 2) break;
+    }
+  }
   for (int i = 0; i < days; ++i)
   {
     if (daily[i].dt <= 0 || std::isnan(daily[i].temp.max))
     { // the forecast did not reach this day
       continue;
     }
-    // column center; the icon's vertical center matches the old layout
-    int cx = xStart + static_cast<int>(i * colW + colW / 2);
+    // column center; the icon's vertical center matches the old layout.
+    // Right to left, today takes the rightmost column and the days run
+    // leftwards, as a Hebrew calendar row reads.
+    const int col = LC_RTL ? (days - 1 - i) : i;
+    int cx = xStart + static_cast<int>(col * colW + colW / 2);
     int iconX = cx - iconSize / 2;
     int iconY = 98 + 69 / 2 - 6 - iconSize / 2;
     // icons
@@ -1575,11 +1778,22 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
                                    : getDailyForecastBitmap48(daily[i]),
                                iconSize, iconSize,
                                getDailyForecastColor64(daily[i]));
-    // day of week label
+    // day of week label (see above)
     display.setFont(&FONT_11pt8b);
-    char dayBuffer[8] = {};
+    char dayBuffer[32] = {};
     _strftime(dayBuffer, sizeof(dayBuffer), "%a", &timeInfo); // abbrv'd day
-    drawString(cx - 2, 98 + 69 / 2 - 32 - 26 - 6 + 16, dayBuffer, CENTER);
+    String dayStr = dayBuffer;
+    if (LC_RTL)
+    {
+      if (rtlDayForm < 2)
+      {
+        dayStr = LC_DAY[timeInfo.tm_wday];
+        int sp = dayStr.indexOf(' ');
+        if (rtlDayForm == 1 && sp > 0) dayStr = dayStr.substring(sp + 1);
+      }
+      display.setFont(rtlDayFont);
+    }
+    drawString(cx - 2, 98 + 69 / 2 - 32 - 26 - 6 + 16, dayStr, CENTER);
     timeInfo.tm_wday = (timeInfo.tm_wday + 1) % 7; // increment to next day
 
     // high | low
@@ -1807,32 +2021,43 @@ static void drawAlertIcon(int16_t x, int16_t y, const owm_alerts_t &alert,
   Serial.println("]\n[debug] num_valid_alerts : " + String(num_valid_alerts));
 #endif
 
+  // The block spans x = 196 .. 196 + 4 + max_w. Left to right the icon
+  // stands at its left edge and the text runs rightwards from it; in a
+  // right-to-left locale the block is mirrored -- icon at the right edge,
+  // beside the city and date, and the text right-aligned against it,
+  // running leftwards -- so a Hebrew reader meets the icon first. The icon
+  // then also separates the alert from the right-aligned city and date.
+  const int blockRight = 196 + 4 + max_w;
+  const alignment_t textAlign = LC_RTL ? RIGHT : LEFT;
+
   if (num_valid_alerts == 1)
   { // 1 alert
     // adjust max width to for 48x48 icons
     max_w -= 48;
 
     owm_alerts_t &cur_alert = alerts[alert_indices[0]];
-    drawAlertIcon(196, 8, cur_alert, 48);
+    const int iconX = LC_RTL ? (blockRight - 48) : 196;
+    const int textX = LC_RTL ? (iconX - 4) : (196 + 48 + 4);
+    drawAlertIcon(iconX, 8, cur_alert, 48);
     // must be called after getAlertBitmap
     toTitleCase(cur_alert.event);
 
     display.setFont(&FONT_14pt8b);
     if (getStringWidth(cur_alert.event) <= max_w)
     { // Fits on a single line, draw along bottom
-      drawString(196 + 48 + 4, 24 + 8 - 12 + 20 + 1, cur_alert.event, LEFT);
+      drawString(textX, 24 + 8 - 12 + 20 + 1, cur_alert.event, textAlign);
     }
     else
     { // use smaller font
       display.setFont(&FONT_12pt8b);
       if (getStringWidth(cur_alert.event) <= max_w)
       { // Fits on a single line with smaller font, draw along bottom
-        drawString(196 + 48 + 4, 24 + 8 - 12 + 17 + 1, cur_alert.event, LEFT);
+        drawString(textX, 24 + 8 - 12 + 17 + 1, cur_alert.event, textAlign);
       }
       else
       { // Does not fit on a single line, draw higher to allow room for 2nd line
-        drawMultiLnString(196 + 48 + 4, 24 + 8 - 12 + 17 - 11,
-                          cur_alert.event, LEFT, max_w, 2, 23);
+        drawMultiLnString(textX, 24 + 8 - 12 + 17 - 11,
+                          cur_alert.event, textAlign, max_w, 2, 23);
       }
     }
   } // end 1 alert
@@ -1845,13 +2070,15 @@ static void drawAlertIcon(int16_t x, int16_t y, const owm_alerts_t &alert,
     for (int i = 0; i < 2; ++i)
     {
       owm_alerts_t &cur_alert = alerts[alert_indices[i]];
+      const int iconX = LC_RTL ? (blockRight - 32) : 196;
+      const int textX = LC_RTL ? (iconX - 3) : (196 + 32 + 3);
 
-      drawAlertIcon(196, (i * 32), cur_alert, 32);
+      drawAlertIcon(iconX, (i * 32), cur_alert, 32);
       // must be called after getAlertBitmap
       toTitleCase(cur_alert.event);
 
-      drawMultiLnString(196 + 32 + 3, 5 + 17 + (i * 32),
-                        cur_alert.event, LEFT, max_w, 1, 0);
+      drawMultiLnString(textX, 5 + 17 + (i * 32),
+                        cur_alert.event, textAlign, max_w, 1, 0);
     } // end for-loop
   } // end 2 alerts
 

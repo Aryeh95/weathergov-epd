@@ -84,6 +84,8 @@ typedef struct owm_current
   float   wind_speed;       // Wind speed. Units – default: metre/sec, metric: metre/sec, imperial: miles/hour.
   float   wind_gust;        // (where available) Wind gust. Units – default: metre/sec, metric: metre/sec, imperial: miles/hour.
   int     wind_deg;         // Wind direction, degrees (meteorological)
+  float   heat_stress;      // IMS discomfort index, when the source reports one (IMS); else 0 and computed on the device
+  int     heat_stress_level;// IMS level 0-5 that goes with it; 0 when not reported
   owm_weather_t         weather;
 } owm_current_t;
 
@@ -105,6 +107,8 @@ typedef struct owm_hourly
   float   wind_gust;        // Wind gust. Units – default: metre/sec, metric: metre/sec, imperial: miles/hour.
   int     wind_deg;         // Wind direction, degrees (meteorological)
   float   pop;              // Probability of precipitation. The values of the parameter vary between 0 and 1, where 0 is equal to 0%, 1 is equal to 100%
+  float   heat_stress;      // IMS discomfort index for the hour (IMS source only, else 0)
+  int     heat_stress_level;// IMS level 0-5 (IMS source only, else 0)
   owm_weather_t         weather;
 } owm_hourly_t;
 
@@ -181,6 +185,8 @@ typedef struct owm_resp_air_pollution
   int64_t          dt[OWM_NUM_AIR_POLLUTION];       // unused, reserved
   int              us_aqi;  // official US EPA AQI from AirNow, -1 if unavailable
   bool             valid;   // the concentrations above were fetched and enough of them are real readings
+  bool             il_valid; // il_index holds the Israel Ministry of Environmental Protection's index for the nearest station
+  int              il_index; // Israel's air quality index: 100 best; 51-100 good (green), 0-50 medium (yellow), -1..-200 low (red), below -200 very low (brown)
 } owm_resp_air_pollution_t;
 
 DeserializationError deserializeNWSPoints(WiFiClient &json, String &forecastUrl,
@@ -189,23 +195,67 @@ DeserializationError deserializeNWSForecastDaily(WiFiClient &json,
                                                  owm_daily_t *daily);
 DeserializationError deserializeNWSForecastHourly(WiFiClient &json,
                                                   owm_hourly_t *hourly);
+/* Pressure and visibility from Open-Meteo's `current` block, used to fill
+ * the two fields a forecast provider's own current-conditions feed lacks
+ * (IMS now_analysis has neither). pressure 0 / visibility -1 mean "not
+ * available", like owm_current_t.
+ */
+typedef struct {
+  int pressure;    // hPa
+  int visibility;  // m
+} om_gaps_t;
+
 DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
                                                  const owm_hourly_t &fallback,
                                                  owm_current_t &current,
                                                  om_daily_precip_t &omDaily,
-                                                 bool wantCurrent = true);
+                                                 bool wantCurrent = true,
+                                                 om_gaps_t *gaps = nullptr);
 DeserializationError deserializeGoogleCurrent(WiFiClient &json,
                                               const owm_hourly_t &fallback,
                                               owm_current_t &current);
 DeserializationError deserializeNWSGridpointQPF(WiFiClient &json,
                                                 std::vector<qpf_bucket_t> &qpf);
 void fillCurrentFromFallback(const owm_hourly_t &fallback, owm_current_t &current);
+
+/* Israel Meteorological Service (ims.gov.il): the public JSON feeds behind
+ * its site and app. Locations are picked by id (lid); each belongs to a
+ * warning region (rid). All times in the replies are Israel local time.
+ */
+DeserializationError deserializeIMSLocations(WiFiClient &json, double lat,
+                                             double lon, int wantLid,
+                                             int &lid, int &rid, String &name);
+DeserializationError deserializeIMSForecast(WiFiClient &json,
+                                            owm_hourly_t *hourly,
+                                            owm_daily_t *daily);
+DeserializationError deserializeIMSCurrent(WiFiClient &json, int lid,
+                                           const owm_hourly_t &fallback,
+                                           owm_current_t &current);
+DeserializationError deserializeIMSAlerts(WiFiClient &json, int rid,
+                                          std::vector<owm_alerts_t> &alerts);
 DeserializationError deserializeNWSAlerts(WiFiClient &json,
                                           std::vector<owm_alerts_t> &alerts);
 DeserializationError deserializeAirQuality(WiFiClient &json,
                                            owm_resp_air_pollution_t &r,
                                            float &uvi);
 DeserializationError deserializeAirNow(WiFiClient &json, int &aqi);
+
+/* Israel Ministry of Environmental Protection (air.sviva.gov.il), the
+ * national monitoring network. The regions list (~900 KB, every station
+ * with its coordinates) picks the active stations around (lat, lon); the
+ * latest-index list (~170 KB, one row per station) gives their current
+ * Israeli index, of which the worst is shown -- one station rarely
+ * measures everything (Netanya's nearest has no ozone monitor, and ozone
+ * is what spoils a summer afternoon), so the area's reading is the lowest
+ * index among its stations, as the Ministry's own regional forecast
+ * speaks. Both are filtered down to a few fields while streaming.
+ */
+DeserializationError deserializeSvivaStations(WiFiClient &json, double lat,
+                                              double lon,
+                                              std::vector<int> &stationIds);
+DeserializationError deserializeSvivaIndex(WiFiClient &json,
+                                           const std::vector<int> &stationIds,
+                                           bool &found, int &index);
 
 /* Pollen forecast (Google Pollen API). Universal Pollen Index per type,
  * 0-5 (0 also covers out-of-season/no-data); max_upi is the highest of

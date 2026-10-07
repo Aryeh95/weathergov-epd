@@ -221,6 +221,49 @@ String POLLEN_APIKEY = "";
 // forecast (plus the last cached humidity/dew point/pressure/visibility).
 String CURRENT_SOURCE = "open-meteo";
 
+// FORECAST SOURCE
+// Where the hourly and daily forecasts, the condition icons and the weather
+// alerts come from.
+//   "nws" (default) - weather.gov (US National Weather Service). United
+//                     States only. Free, no key.
+//   "ims"           - the Israel Meteorological Service (ims.gov.il), the
+//                     public JSON feeds behind its site and app. Israel only.
+//                     Free, no key. Hourly forecast for 7 days, with humidity,
+//                     rain, wind and UV per hour; regional warnings. Replies
+//                     come in the locale's language (LOCALE he_IL -> Hebrew).
+//                     The CURRENT_SOURCE option "nws" then means IMS's own
+//                     current conditions. IMS times are Israel local time, so
+//                     TIMEZONE should be Israel's.
+String FORECAST_SOURCE = "nws";
+// IMS forecast location (lid from https://ims.gov.il/en/locations_info):
+// 0 picks the one nearest LAT/LON automatically.
+int IMS_LOCATION_ID = 0;
+
+// AIR QUALITY INDEX SOURCE
+//   "auto" (default) - the Israel Ministry of Environmental Protection when
+//                      the forecast source is IMS; otherwise AirNow when an
+//                      AirNow key is set; otherwise Open-Meteo's model.
+//   "airnow"         - AirNow (US EPA), needs AIRNOW_APIKEY.
+//   "israel"         - the Israel Ministry of Environmental Protection's
+//                      national monitoring network (air.sviva.gov.il): the
+//                      measured Israeli index of the nearest station, no
+//                      key (the site's own guest token). Israel only.
+//   "model"          - Open-Meteo's CAMS model, computed on the device.
+String AQI_SOURCE = "auto";
+// Ministry station id (air.sviva.gov.il) to pin one station; 0 uses the
+// active stations within 15 km of LAT/LON (worst index), found once.
+int IL_AQ_STATION_ID = 0;
+
+// SHABBAT AND HOLIDAY TIMES
+// On the eve of Shabbat or a holiday the sunset widget shows candle
+// lighting instead (sunset less CANDLE_LIGHTING_MINUTES: 18 is the common
+// custom, Jerusalem's is 40), and on the day itself their end (sunset plus
+// HAVDALAH_MINUTES: 42 is common, some wait for 50 or 72). SHABBAT_TIMES
+// -1 follows the locale (on for Hebrew), 0 and 1 force it.
+int SHABBAT_TIMES = -1;
+int CANDLE_LIGHTING_MINUTES = 18;
+int HAVDALAH_MINUTES = 42;
+
 // CONFIGURATION WEB PORTAL
 // A browser UI for editing config.json without reflashing. Entered by
 // pressing RST twice a few seconds apart (config mode on your WiFi), or
@@ -243,7 +286,7 @@ String CITY_STRING = "New York";
 // TIME
 // For list of time zones see
 // https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
-char TIMEZONE[64] = "EST5EDT,M3.2.0,M11.1.0";
+char TIMEZONE[64] = DEFAULT_TIMEZONE; // the locale's (config.h)
 // Time format used when displaying sunrise/set times. (Max 11 characters)
 // For more information about formatting see
 // https://man7.org/linux/man-pages/man3/strftime.3.html
@@ -342,6 +385,7 @@ int POS_SUNRISE     = 0;
 int POS_SUNSET      = 1;
 int POS_HUMIDITY    = 2;
 int POS_DEWPOINT    = 3;
+int POS_HEAT_STRESS = -1; // heat stress (IMS discomfort index); the Israeli counterpart of the dew point
 int POS_WIND        = 4;
 int POS_UVI         = 5;
 int POS_PRESSURE    = 6;

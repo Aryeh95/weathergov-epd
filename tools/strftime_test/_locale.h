@@ -14,9 +14,13 @@ extern const char *LC_PM_STR;
 extern const char *LC_DAY[7];
 extern const char *LC_ABDAY[7];
 extern const char *LC_MON[12];
+extern const char *LC_HEB_MON[14];
+extern const bool  LC_HEBCAL_LETTERS;
+extern const char *LC_HEBCAL_MONTH_PREFIX;
 extern const char *LC_ABMON[12];
 extern const char *LC_ERA;
 extern const char *LC_ERA_D_FMT;
 extern const char *LC_ERA_D_T_FMT;
 extern const char *LC_ERA_T_FMT;
+extern const char *LC_HEB_HOLIDAYS[25];
 #endif

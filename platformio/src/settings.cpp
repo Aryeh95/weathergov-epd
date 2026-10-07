@@ -22,6 +22,7 @@
 #include "settings.h"
 #include "api_response.h" // OWM_NUM_HOURLY
 #include "fonts/font_names.h"
+#include "_locale.h" // LC_RTL
 
 /* Copies a JSON string field into a fixed-size char buffer, truncating
  * safely. Leaves dst untouched if the field is absent/null.
@@ -298,6 +299,37 @@ bool loadSettings()
   FONT_FAMILY_INDEX       = fontIndex(doc["font"] | "", 0);
   FONT_SMALL_FAMILY_INDEX = fontIndex(doc["font_small"] | "",
                                       FONT_FAMILY_INDEX);
+  // A right-to-left locale's text is transcoded to ISO-8859-8 (renderer.cpp,
+  // shapeText), so both families must carry the Hebrew alphabet in their
+  // high slots; a Latin-1 family there would draw accented letters for
+  // every Hebrew word. Fall back to the first Hebrew family compiled in.
+  if (LC_RTL)
+  {
+    int hebrew = -1;
+    for (int i = 0; i < FONT_FAMILY_NAME_COUNT; ++i)
+    {
+      if (FONT_FAMILY_HEBREW[i]) { hebrew = i; break; }
+    }
+    if (hebrew < 0)
+    {
+      Serial.println("[font] WARNING: right-to-left locale but no Hebrew "
+                     "font family is compiled in (FONT_INCLUDE_Heebo)");
+    }
+    else
+    {
+      if (!FONT_FAMILY_HEBREW[FONT_FAMILY_INDEX])
+      {
+        Serial.println("[font] " + String(FONT_FAMILY_NAMES[FONT_FAMILY_INDEX])
+                       + " has no Hebrew, using "
+                       + FONT_FAMILY_NAMES[hebrew]);
+        FONT_FAMILY_INDEX = hebrew;
+      }
+      if (!FONT_FAMILY_HEBREW[FONT_SMALL_FAMILY_INDEX])
+      {
+        FONT_SMALL_FAMILY_INDEX = hebrew;
+      }
+    }
+  }
   Serial.println("[font] " + String(FONT_FAMILY_NAMES[FONT_FAMILY_INDEX])
                  + ", small text "
                  + String(FONT_FAMILY_NAMES[FONT_SMALL_FAMILY_INDEX]));
@@ -325,6 +357,28 @@ bool loadSettings()
   {
     CURRENT_SOURCE = "open-meteo";
   }
+  FORECAST_SOURCE = api["forecast_source"] | FORECAST_SOURCE;
+  if (FORECAST_SOURCE != "ims")
+  {
+    FORECAST_SOURCE = "nws";
+  }
+  IMS_LOCATION_ID = api["ims_location_id"] | IMS_LOCATION_ID;
+  AQI_SOURCE = api["aqi_source"] | AQI_SOURCE;
+  if (AQI_SOURCE != "airnow" && AQI_SOURCE != "israel" && AQI_SOURCE != "model")
+  {
+    AQI_SOURCE = "auto";
+  }
+  IL_AQ_STATION_ID = api["il_aq_station_id"] | IL_AQ_STATION_ID;
+
+  JsonObjectConst shabbat = doc["shabbat"];
+  if (!shabbat["show"].isNull())
+  {
+    SHABBAT_TIMES = shabbat["show"].as<bool>() ? 1 : 0;
+  }
+  CANDLE_LIGHTING_MINUTES = shabbat["candle_lighting_minutes"] | CANDLE_LIGHTING_MINUTES;
+  HAVDALAH_MINUTES        = shabbat["havdalah_minutes"]        | HAVDALAH_MINUTES;
+  CANDLE_LIGHTING_MINUTES = constrain(CANDLE_LIGHTING_MINUTES, 0, 90);
+  HAVDALAH_MINUTES        = constrain(HAVDALAH_MINUTES, 0, 120);
 
   JsonObjectConst portal = doc["portal"];
   PORTAL_AP_PASSWORD = portal["ap_password"]     | PORTAL_AP_PASSWORD;
@@ -338,6 +392,14 @@ bool loadSettings()
   POS_WIND       = widgets["wind"]        | POS_WIND;
   POS_HUMIDITY   = widgets["humidity"]    | POS_HUMIDITY;
   POS_DEWPOINT   = widgets["dewpoint"]    | POS_DEWPOINT;
+  POS_HEAT_STRESS = widgets["heat_stress"] | POS_HEAT_STRESS;
+  // Where heat stress is the everyday measure (the Hebrew locale), a config
+  // that does not place the widget gets it in the dew point's slot.
+  if (LC_PREFER_HEAT_STRESS && widgets["heat_stress"].isNull())
+  {
+    POS_HEAT_STRESS = POS_DEWPOINT;
+    POS_DEWPOINT = -1;
+  }
   POS_UVI        = widgets["uvi"]         | POS_UVI;
   POS_PRESSURE   = widgets["pressure"]    | POS_PRESSURE;
   POS_AIR_QUALITY = widgets["air_quality"] | POS_AIR_QUALITY;

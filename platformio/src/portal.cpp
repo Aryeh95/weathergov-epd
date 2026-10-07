@@ -37,6 +37,9 @@
 #include "build_rev.h"
 #include "portal_page.h"
 #include "fonts/font_names.h"
+#include "_locale.h"
+#define PORTAL_XSTR(x) #x
+#define PORTAL_STR(x) PORTAL_XSTR(x)
 
 // icon header files
 #include "icons/icons_196x196.h"
@@ -261,6 +264,12 @@ static void handleGetInfo()
 #endif
   doc["target"] = ownTarget();
   diagToJson(doc);
+  // the locale compiled in, so the page can show its defaults (a Hebrew
+  // build places the heat stress widget where the dew point was)
+  doc["locale"] = PORTAL_STR(LOCALE);
+  doc["rtl"] = LC_RTL;
+  doc["heat_stress_default"] = LC_PREFER_HEAT_STRESS;
+  doc["default_timezone"] = DEFAULT_TIMEZONE;
   // font families compiled into this firmware, for the Font dropdown
   JsonArray fonts = doc["fonts"].to<JsonArray>();
   for (int i = 0; i < FONT_FAMILY_NAME_COUNT; ++i)
@@ -497,9 +506,9 @@ void runConfigPortal(bool forceAp)
     }
     Serial.println("[portal] on WiFi '" + String(WIFI_SSID) + "' at " + urlStr
                    + " (or http://weatherepd.local/)");
-    drawPortalScreen("Connected to WiFi: " + String(WIFI_SSID),
-                     "Open " + urlStr,
-                     "or http://weatherepd.local/");
+    drawPortalScreen(String(TXT_PORTAL_ON_WIFI) + WIFI_SSID,
+                     String(TXT_PORTAL_OPEN) + urlStr,
+                     String(TXT_PORTAL_OR) + "http://weatherepd.local/");
   }
   else
   {
@@ -516,9 +525,9 @@ void runConfigPortal(bool forceAp)
     urlStr = "http://" + AP_IP.toString() + "/";
     Serial.println("[portal] hotspot '" + String(AP_SSID) + "' (password: "
                    + PORTAL_AP_PASSWORD + ") at " + urlStr);
-    drawPortalScreen("Join WiFi network: " + String(AP_SSID),
-                     "Password: " + PORTAL_AP_PASSWORD,
-                     "Then open " + urlStr);
+    drawPortalScreen(String(TXT_PORTAL_JOIN) + AP_SSID,
+                     String(TXT_PORTAL_PASSWORD) + PORTAL_AP_PASSWORD,
+                     String(TXT_PORTAL_THEN_OPEN) + urlStr);
   }
 
   server.on("/", HTTP_GET, handleRoot);
@@ -557,9 +566,8 @@ void runConfigPortal(bool forceAp)
         // boards that have one, the portal button) wakes it.
         Serial.println("[portal] setup inactive for " + String(PORTAL_TIMEOUT)
                        + "min, hibernating until reset");
-        drawPortalScreen("Setup paused to save power.",
-                         "Press the reset (RST) button",
-                         "to start the setup hotspot again.");
+        drawPortalScreen(TXT_PORTAL_PAUSED[0], TXT_PORTAL_PAUSED[1],
+                         TXT_PORTAL_PAUSED[2]);
         WiFi.mode(WIFI_OFF);
 #if SOC_PM_SUPPORT_EXT_WAKEUP
         if (PIN_BTN_PORTAL != PIN_UNUSED)

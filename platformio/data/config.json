@@ -51,6 +51,7 @@
   "time": {
     // POSIX timezone string, including daylight-saving rules. For a list see
     // https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
+    // Israel (the Hebrew build's default): "IST-2IDT,M3.4.4/26,M10.5.0"
     "timezone": "EST5EDT,M3.2.0,M11.1.0",
 
     // All four format strings below use strftime formatting, see
@@ -64,7 +65,12 @@
     //   "%l%P" -> 12-hour, ex:  1am  11pm
     //   "%H"   -> 24-hour, ex:  01   23
     "hour_format": "%l%P",
-    // Date in the top-right corner, ex: "Sat, January 1"
+    // Date in the top-right corner, ex: "Sat, January 1". Besides strftime's
+    // usual codes, %K is the Hebrew calendar date (day and month, turning
+    // over at sunset) and %J the same with the year -- in Hebrew letters in
+    // a Hebrew build (כ"ד תשרי תשפ"ז), "24 Tishrei 5787" otherwise. %L and
+    // %N are the same with the month's preposition (כ"ד בתשרי), the form of
+    // running text. Ex: "%A, %e ב%B, %K"
     "date_format": "%a, %B %e",
     // Last-refresh timestamp along the bottom status bar.
     "refresh_time_format": "%x %H:%M",
@@ -186,6 +192,35 @@
     //                  visibility widgets have no data with this source.
     "current_source": "open-meteo",
 
+    // Where the forecasts, condition icons and weather alerts come from.
+    //   "nws" - weather.gov, the US National Weather Service. US only. (default)
+    //   "ims" - the Israel Meteorological Service (ims.gov.il). Israel only.
+    //           7-day hourly forecast and regional warnings, no key. Replies
+    //           follow the firmware's locale (LOCALE he_IL in config.h gives
+    //           Hebrew). "current_source": "nws" then means IMS's own current
+    //           conditions. IMS times are Israel local time: set "timezone"
+    //           to Israel's.
+    "forecast_source": "nws",
+    // IMS location id (https://ims.gov.il/en/locations_info); 0 picks the
+    // location nearest the coordinates above.
+    "ims_location_id": 0,
+
+    // Where the Air Quality widget's index comes from.
+    //   "auto"   - the Israel Ministry of Environmental Protection when the
+    //              forecast source is "ims"; otherwise AirNow when an AirNow
+    //              key is set above; otherwise Open-Meteo's model. (default)
+    //   "airnow" - AirNow, the US EPA's measured AQI (needs the key).
+    //   "israel" - the Israel Ministry of Environmental Protection's national
+    //              monitoring network (air.sviva.gov.il): the measured
+    //              Israeli index (100 best, negative worst): the worst among
+    //              the stations within 15 km, with the Ministry's bands and colours (good, medium, low, very low).
+    //              No key. Israel only.
+    //   "model"  - Open-Meteo's CAMS model, computed on the device.
+    "aqi_source": "auto",
+    // Ministry station id (the number in a station's URL on air.sviva.gov.il);
+    // 0 uses the active stations within 15 km of the coordinates (found once).
+    "il_aq_station_id": 0,
+
     // TCP timeout for API requests, in milliseconds. These errors in the
     // serial log usually mean this value is too low:
     //   -1   Connection Refused
@@ -267,11 +302,30 @@
   // "moon_phase" is computed on-device from the date (illuminated % and
   // phase name) and is hidden by default -- there are more widgets than
   // slots, so give it another widget's slot to show it.
+  // Shabbat and holiday times in the sunset widget: candle lighting on the
+  // eve (sunset less the minutes below; 18 is the common custom, Jerusalem
+  // uses 40) and the close on the day (sunset plus the minutes; 42 is
+  // common, some wait 50 or 72). "show" left out follows the firmware's
+  // language (on in Hebrew); true or false forces it. The date format's %Q
+  // adds the holiday's name on the day.
+  "shabbat": {
+    // "show": true,
+    "candle_lighting_minutes": 18,
+    "havdalah_minutes": 42
+  },
+
   "widget_positions": {
     "sunrise": 0,
     "sunset": 1,
     "humidity": 2,
     "dewpoint": 3,
+    // Heat stress: the Israel Meteorological Service's discomfort index and
+    // its level (none/light/mild/moderate/heavy/extreme), from the current
+    // temperature and humidity. Israel's usual muggy-weather measure, in
+    // place of the dew point. Any forecast source. Left out (as here) it is
+    // hidden, except in a Hebrew build, where it takes the dew point's slot;
+    // give it a slot to place it yourself, -1 to hide it.
+    // "heat_stress": -1,
     "wind": 4,
     "uvi": 5,
     "pressure": 6,

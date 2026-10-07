@@ -71,6 +71,27 @@ int getAirQuality(WiFiClient &client, owm_resp_air_pollution_t &air,
  * Returns the HTTP Status Code.
  */
 int getAirNowAQI(WiFiClient &client, int &aqi);
+
+/* Fetches the Israel Ministry of Environmental Protection's air quality
+ * index (air.sviva.gov.il, the national monitoring network): the worst
+ * current index among the stations within 15 km of LAT/LON, or the one
+ * IL_AQ_STATION_ID names. No key: the site's own guest token. found is
+ * false when no station has a current index.
+ *
+ * Returns the HTTP Status Code.
+ */
+int getIsraelAQI(WiFiClient &client, bool &found, int &index);
+/* Israel Meteorological Service (ims.gov.il), the "ims" FORECAST_SOURCE:
+ * the location for LAT/LON (cached in NVS), its 7-day hourly forecast plus
+ * current conditions, and its regional warnings. Same contracts as the
+ * weather.gov functions above.
+ */
+int getIMSLocation(WiFiClient &client, int &lid, int &rid, String &name);
+int getIMSWeather(WiFiClient &client, owm_current_t &current,
+                  owm_hourly_t *hourly, owm_daily_t *daily,
+                  String &failedStep);
+int getIMSAlerts(WiFiClient &client, std::vector<owm_alerts_t> &alerts);
+
 /* Fetches current conditions from the Google Weather API (uses
  * POLLEN_APIKEY). On failure `current` is filled from `fallback`.
  *
