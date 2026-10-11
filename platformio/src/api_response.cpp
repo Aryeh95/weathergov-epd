@@ -1571,13 +1571,15 @@ DeserializationError deserializeAirQuality(WiFiClient &json,
     r.components.no[i]  = 0.f; // not provided by Open-Meteo
     r.components.nh3[i] = 0.f; // not provided by Open-Meteo
     if (srcIdx < 0)
-    {
-      r.components.pm10[i]  = 0.f;
-      r.components.pm2_5[i] = 0.f;
-      r.components.co[i]    = 0.f;
-      r.components.no2[i]   = 0.f;
-      r.components.so2[i]   = 0.f;
-      r.components.o3[i]    = 0.f;
+    { // an hour the reply does not reach is unknown, not clean air: NAN here
+      // keeps it out of the count of real hours below, and the fill after
+      // that gives it the nearest hour that has a value
+      r.components.pm10[i]  = NAN;
+      r.components.pm2_5[i] = NAN;
+      r.components.co[i]    = NAN;
+      r.components.no2[i]   = NAN;
+      r.components.so2[i]   = NAN;
+      r.components.o3[i]    = NAN;
       continue;
     }
     r.components.pm10[i]  = pm10arr[srcIdx] | NAN;

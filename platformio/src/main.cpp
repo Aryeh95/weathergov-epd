@@ -179,10 +179,6 @@ static bool markStale(const String &reason, int rssi, uint32_t batteryVoltage)
   Preferences store;
   store.begin(NVS_NAMESPACE, false);
   const bool marked = store.getBool("staleShown", false);
-  if (!marked)
-  { // before drawing: a wake cut short must not try again every time
-    store.putBool("staleShown", true);
-  }
   store.end();
   if (marked)
   {
@@ -191,10 +187,15 @@ static bool markStale(const String &reason, int rssi, uint32_t batteryVoltage)
 
   snapshot_meta_t meta;
   if (!snapshotLoad(current, hourly, daily, alerts, air_quality, meta))
-  {
+  { // nothing was drawn, so a later wake of this outage may try again
     Serial.println("[outage] no saved weather to draw again");
     return false;
   }
+  // The page is marked as shown before it is drawn, not after: a wake cut
+  // short in the middle of the refresh must not try again every time.
+  store.begin(NVS_NAMESPACE, false);
+  store.putBool("staleShown", true);
+  store.end();
   // the page as it was: its own time, its own graph length
   setenv("TZ", TIMEZONE, 1);
   tzset();
@@ -386,13 +387,16 @@ void setup()
   prefs.begin(NVS_NAMESPACE, false);
 
   // Everything cached between wakes was fetched for one place, from one
-  // source, in one time zone. When any of those changes -- in the portal
-  // or by uploading a new config.json -- the caches go, or the next refresh
-  // would show the new city's forecast with the old city's rain, pollen
-  // and air quality.
+  // set of sources, in one time zone. When any of those changes -- in the
+  // portal or by uploading a new config.json -- the caches go, or the next
+  // refresh would show the new city's forecast with the old city's rain,
+  // pollen and air quality. (Adding a source to this key drops the caches
+  // once, on the first wake of the firmware that added it.)
   {
     const String place = LAT + "," + LON + "|" + CURRENT_SOURCE + "|"
-                       + TIMEZONE;
+                       + TIMEZONE + "|" + FORECAST_SOURCE + ":"
+                       + String(IMS_LOCATION_ID) + "|" + AQI_SOURCE + ":"
+                       + String(IL_AQ_STATION_ID);
     if (!prefs.isKey("cfgKey"))
     { // the first wake of a firmware that keeps this record: what is
       // cached was fetched under the settings in force, so it stays
@@ -404,7 +408,8 @@ void setup()
         "qpfStamp", "qpfBlob", "qpfTime", "pollenStamp", "pollenTree",
         "pollenGrass", "pollenWeed", "pollenMax", "airnowStamp", "airnowAqi",
         "omStamp", "omHum", "omDew", "omPres", "omVis", "dayStamp", "dayHi",
-        "dayLo", "nwsLat", "nwsLon", "nwsFc", "nwsFcH", "wxhist"};
+        "dayLo", "nwsLat", "nwsLon", "nwsFc", "nwsFcH", "wxhist",
+        "ilaqStamp", "ilaqValid", "ilaqIdx"};
       for (const char *key : CACHES)
       {
         if (prefs.isKey(key))

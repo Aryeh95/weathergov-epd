@@ -15,6 +15,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <ArduinoJson.h>
 #include <LittleFS.h>
@@ -69,6 +71,25 @@ static bool readConfig(const char *path, JsonDocument &doc)
 
 // one number of a configuration: absent is fine, anything else has to be a
 // number within [lo, hi]
+/* A coordinate is kept as text, since that is what the APIs are sent, so
+ * the text itself is checked: the whole of it must read as one finite
+ * number no further than `limit` from zero. (String::toDouble() would read
+ * "12abc" as 12 and "abc" as 0.)
+ */
+static bool coordinateOk(const String &text, double limit)
+{
+  String s = text;
+  s.trim();
+  if (s.isEmpty())
+  {
+    return false;
+  }
+  char *end = nullptr;
+  const double d = strtod(s.c_str(), &end);
+  return end != s.c_str() && *end == '\0' && std::isfinite(d)
+      && fabs(d) <= limit;
+}
+
 static String numberProblem(const char *name, JsonVariantConst v, long lo,
                             long hi)
 {
@@ -160,16 +181,16 @@ String settingsProblem(JsonVariantConst doc)
       return p;
     }
   }
-  // coordinates are kept as text, since that is what the APIs are sent
-  if (!loc["latitude"].isNull()
-      && fabs(loc["latitude"].as<String>().toDouble()) > 90.0)
+  // the keys the loader reads: lat and lon (an earlier version of this check
+  // looked for "latitude" and "longitude", which nothing writes, so it
+  // never ran)
+  if (!loc["lat"].isNull() && !coordinateOk(loc["lat"].as<String>(), 90.0))
   {
-    return "location.latitude must be between -90 and 90";
+    return "location.lat must be a number between -90 and 90";
   }
-  if (!loc["longitude"].isNull()
-      && fabs(loc["longitude"].as<String>().toDouble()) > 180.0)
+  if (!loc["lon"].isNull() && !coordinateOk(loc["lon"].as<String>(), 180.0))
   {
-    return "location.longitude must be between -180 and 180";
+    return "location.lon must be a number between -180 and 180";
   }
   if (!battery["max_voltage_mv"].isNull()
       && !battery["min_voltage_mv"].isNull()
@@ -231,8 +252,23 @@ bool loadSettings()
   loadStrToCharArray(STATIC_DNS, sizeof(STATIC_DNS), wifi["dns"]);
 
   JsonObjectConst location = doc["location"];
-  LAT         = location["lat"]  | LAT;
-  LON         = location["lon"]  | LON;
+  {
+    // A file copied in by hand skips the portal's checks, so the same test
+    // runs here: a coordinate that is not one finite number in range leaves
+    // the built-in pair in place rather than going out in every request.
+    const String lat = location["lat"] | LAT;
+    const String lon = location["lon"] | LON;
+    if (coordinateOk(lat, 90.0) && coordinateOk(lon, 180.0))
+    {
+      LAT = lat;
+      LON = lon;
+    }
+    else
+    {
+      Serial.println("[settings] location.lat/lon unusable; keeping the "
+                     "built-in coordinates");
+    }
+  }
   CITY_STRING = location["city"] | CITY_STRING;
 
   JsonObjectConst t = doc["time"];

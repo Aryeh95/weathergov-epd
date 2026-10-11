@@ -338,6 +338,9 @@ static void handleScan()
 // completes and verifies, so a failed or interrupted upload leaves the
 // running firmware untouched.
 static String otaError;
+// true once Update.end() has committed an image: a POST that carried no
+// file reaches the finish handler with no error and must not count as done
+static bool otaCommitted = false;
 
 // reads what an uploaded file was built for as it streams past
 static TargetScanner uploadTarget(OWN_TARGET,
@@ -350,6 +353,7 @@ static void handleUpdateUpload()
   if (up.status == UPLOAD_FILE_START)
   {
     otaError = "";
+    otaCommitted = false;
     uploadTarget.reset();
     Serial.println("[portal] OTA upload started: " + up.filename);
     if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH))
@@ -387,6 +391,7 @@ static void handleUpdateUpload()
                        + String(uploadTarget.target()) + "'");
       }
       Serial.printf("[portal] OTA complete: %u bytes\n", up.totalSize);
+      otaCommitted = true;
     }
     else
     {
@@ -416,6 +421,14 @@ static void handleUpdateFinish()
     server.send(500, "application/json", out);
     return;
   }
+  if (!otaCommitted)
+  {
+    Serial.println("[portal] OTA request carried no firmware file");
+    server.send(400, "application/json",
+                "{\"ok\":false,\"error\":\"No firmware file was uploaded\"}");
+    return;
+  }
+  otaCommitted = false;
   server.send(200, "application/json",
               "{\"ok\":true,\"message\":\"Firmware updated. Restarting...\"}");
   restartAt = millis() + 1500;
