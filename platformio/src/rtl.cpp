@@ -17,8 +17,10 @@
 
 #include <vector>
 #include <utility>
+#include "config.h"
 #include "_locale.h"
 #include "rtl.h"
+#include "fonts/font_encoding.h"
 
 /* Text shaping for a right-to-left locale (LC_RTL, the Hebrew locale).
  *
@@ -162,10 +164,88 @@ static void decodeUtf8(const String &text, std::vector<uint32_t> &out)
   }
 }
 
+/* ISO-8859-2 (Central European): the code points its 0xA0-0xFF slots
+ * stand for, in slot order. Latin-2 shares 0xA0, 0xA4, 0xA7, 0xA8, 0xAD,
+ * 0xB0, 0xB4, 0xB8, 0xC1, 0xC2, 0xC4, 0xC7, 0xC9, 0xCB, 0xCD, 0xCE, 0xD3,
+ * 0xD4, 0xD6, 0xD7, 0xDA, 0xDC, 0xDD, 0xDF and their lower-case rows with
+ * Latin-1, so the degree sign and the Western letters a locale may still
+ * use keep their bytes.
+ */
+static const uint16_t LATIN2_HIGH[96] = {
+  0x00A0, 0x0104, 0x02D8, 0x0141, 0x00A4, 0x013D, 0x015A, 0x00A7,
+  0x00A8, 0x0160, 0x015E, 0x0164, 0x0179, 0x00AD, 0x017D, 0x017B,
+  0x00B0, 0x0105, 0x02DB, 0x0142, 0x00B4, 0x013E, 0x015B, 0x02C7,
+  0x00B8, 0x0161, 0x015F, 0x0165, 0x017A, 0x02DD, 0x017E, 0x017C,
+  0x0154, 0x00C1, 0x00C2, 0x0102, 0x00C4, 0x0139, 0x0106, 0x00C7,
+  0x010C, 0x00C9, 0x0118, 0x00CB, 0x011A, 0x00CD, 0x00CE, 0x010E,
+  0x0110, 0x0143, 0x0147, 0x00D3, 0x00D4, 0x0150, 0x00D6, 0x00D7,
+  0x0158, 0x016E, 0x00DA, 0x0170, 0x00DC, 0x00DD, 0x0162, 0x00DF,
+  0x0155, 0x00E1, 0x00E2, 0x0103, 0x00E4, 0x013A, 0x0107, 0x00E7,
+  0x010D, 0x00E9, 0x0119, 0x00EB, 0x011B, 0x00ED, 0x00EE, 0x010F,
+  0x0111, 0x0144, 0x0148, 0x00F3, 0x00F4, 0x0151, 0x00F6, 0x00F7,
+  0x0159, 0x016F, 0x00FA, 0x0171, 0x00FC, 0x00FD, 0x0163, 0x02D9,
+};
+
+// One code point to the ISO-8859-2 byte the Central European families
+// carry; 0 for one that has no slot (dropped).
+static uint8_t toLatin2Page(uint32_t c)
+{
+  if (c < 0x80)
+  {
+    return static_cast<uint8_t>(c);
+  }
+  switch (c)
+  {
+    case 0x2010: case 0x2011: case 0x2012: case 0x2013: case 0x2014:
+      return '-';
+    case 0x2018: case 0x2019: case 0x201A: return '\'';
+    case 0x201C: case 0x201D: case 0x201E: return '"';
+    case 0x2026: return '.';
+    default: break;
+  }
+  for (int i = 0; i < 96; ++i)
+  {
+    if (LATIN2_HIGH[i] == c)
+    {
+      return static_cast<uint8_t>(0xA0 + i);
+    }
+  }
+  return '?';
+}
+
+/* The locale's strings to the font's page, no reordering: the Central
+ * European locales (LOCALE_FONT_ENCODING 2). Bytes that are not valid
+ * UTF-8 pass through, as in the Hebrew path.
+ */
+static String transcodeLatin2(const String &text)
+{
+  std::vector<uint32_t> cps;
+  decodeUtf8(text, cps);
+  String out;
+  out.reserve(cps.size());
+  for (uint32_t c : cps)
+  {
+    uint8_t b = toLatin2Page(c);
+    if (b != 0)
+    {
+      out += static_cast<char>(b);
+    }
+  }
+  return out;
+}
+
 String shapeText(const String &text)
 {
-  if (!LC_RTL || text.isEmpty())
+  if (text.isEmpty())
   {
+    return text;
+  }
+  if (!LC_RTL)
+  {
+    if (LOCALE_FONT_ENCODING == FONT_ENC_ISO8859_2)
+    {
+      return transcodeLatin2(text);
+    }
     return text;
   }
   std::vector<uint32_t> cps;

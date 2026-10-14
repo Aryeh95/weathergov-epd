@@ -7,6 +7,8 @@
 // for code that must not pull in the glyph data (settings.cpp, portal.cpp).
 #pragma once
 
+#include "font_encoding.h"
+
 static const char *const FONT_FAMILY_NAMES[] = {
 #if defined(FONT_INCLUDE_FreeSans) && FONT_INCLUDE_FreeSans
   "FreeSans",
@@ -22,6 +24,9 @@ static const char *const FONT_FAMILY_NAMES[] = {
 #endif
 #if defined(FONT_INCLUDE_Heebo) && FONT_INCLUDE_Heebo
   "Heebo",
+#endif
+#if defined(FONT_INCLUDE_Lato_CE) && FONT_INCLUDE_Lato_CE
+  "Lato_CE",
 #endif
 #if defined(FONT_INCLUDE_Lato_Regular) && FONT_INCLUDE_Lato_Regular
   "Lato_Regular",
@@ -60,56 +65,60 @@ static const char *const FONT_FAMILY_NAMES[] = {
 static const int FONT_FAMILY_NAME_COUNT =
     sizeof(FONT_FAMILY_NAMES) / sizeof(FONT_FAMILY_NAMES[0]);
 
-// Same order: true for a family whose 0xA0-0xFF slots hold ISO-8859-8
-// (Hebrew). A right-to-left locale needs one (settings.cpp).
-static const bool FONT_FAMILY_HEBREW[] = {
+// Same order: the code page each family's 0xA0-0xFF slots hold
+// (FONT_ENC_*). A locale whose strings need one (LOCALE_FONT_ENCODING)
+// gets a family that carries it (settings.cpp).
+static const uint8_t FONT_FAMILY_ENCODING[] = {
 #if defined(FONT_INCLUDE_FreeSans) && FONT_INCLUDE_FreeSans
-  false,
+  FONT_ENC_LATIN1,
 #endif
 #if defined(FONT_INCLUDE_Bitter) && FONT_INCLUDE_Bitter
-  false,
+  FONT_ENC_LATIN1,
 #endif
 #if defined(FONT_INCLUDE_FreeMono) && FONT_INCLUDE_FreeMono
-  false,
+  FONT_ENC_LATIN1,
 #endif
 #if defined(FONT_INCLUDE_FreeSerif) && FONT_INCLUDE_FreeSerif
-  false,
+  FONT_ENC_LATIN1,
 #endif
 #if defined(FONT_INCLUDE_Heebo) && FONT_INCLUDE_Heebo
-  true,
+  FONT_ENC_ISO8859_8,
+#endif
+#if defined(FONT_INCLUDE_Lato_CE) && FONT_INCLUDE_Lato_CE
+  FONT_ENC_ISO8859_2,
 #endif
 #if defined(FONT_INCLUDE_Lato_Regular) && FONT_INCLUDE_Lato_Regular
-  false,
+  FONT_ENC_LATIN1,
 #endif
 #if defined(FONT_INCLUDE_Montserrat_Regular) && FONT_INCLUDE_Montserrat_Regular
-  false,
+  FONT_ENC_LATIN1,
 #endif
 #if defined(FONT_INCLUDE_OpenSans_Regular) && FONT_INCLUDE_OpenSans_Regular
-  false,
+  FONT_ENC_LATIN1,
 #endif
 #if defined(FONT_INCLUDE_Poppins_Regular) && FONT_INCLUDE_Poppins_Regular
-  false,
+  FONT_ENC_LATIN1,
 #endif
 #if defined(FONT_INCLUDE_Quicksand_Regular) && FONT_INCLUDE_Quicksand_Regular
-  false,
+  FONT_ENC_LATIN1,
 #endif
 #if defined(FONT_INCLUDE_Raleway_Regular) && FONT_INCLUDE_Raleway_Regular
-  false,
+  FONT_ENC_LATIN1,
 #endif
 #if defined(FONT_INCLUDE_RobotoMono_Regular) && FONT_INCLUDE_RobotoMono_Regular
-  false,
+  FONT_ENC_LATIN1,
 #endif
 #if defined(FONT_INCLUDE_RobotoSlab_Regular) && FONT_INCLUDE_RobotoSlab_Regular
-  false,
+  FONT_ENC_LATIN1,
 #endif
 #if defined(FONT_INCLUDE_Roboto_Regular) && FONT_INCLUDE_Roboto_Regular
-  false,
+  FONT_ENC_LATIN1,
 #endif
 #if defined(FONT_INCLUDE_UbuntuMono_R) && FONT_INCLUDE_UbuntuMono_R
-  false,
+  FONT_ENC_LATIN1,
 #endif
 #if defined(FONT_INCLUDE_Ubuntu_R) && FONT_INCLUDE_Ubuntu_R
-  false,
+  FONT_ENC_LATIN1,
 #endif
 };
 

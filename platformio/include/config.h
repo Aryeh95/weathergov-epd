@@ -157,6 +157,14 @@
 #define LOCALE_DEFAULTS_INC_(code) LOCALE_STR(locales/locale_ ## code.defaults.h)
 #define LOCALE_DEFAULTS_INC(code) LOCALE_DEFAULTS_INC_(code)
 #include LOCALE_DEFAULTS_INC(LOCALE)
+// The code page the locale's strings are drawn through (fonts/
+// font_encoding.h): 0 Latin-1, 1 ISO-8859-8 (Hebrew), 2 ISO-8859-2
+// (Polish and the other Central European languages). A locale that needs
+// one sets it in its defaults file; its UTF-8 strings are transcoded to
+// that page by the renderer, and a font family carrying it is selected.
+#ifndef LOCALE_FONT_ENCODING
+  #define LOCALE_FONT_ENCODING 0
+#endif
 // The time zone a device starts with until config.json or the portal sets
 // one (POSIX string; see https://github.com/nayarsystems/posix_tz_db).
 #ifndef DEFAULT_TIMEZONE
@@ -372,6 +380,9 @@
 //   Heebo          Heebo                    Heebo           OFL 1.1
 //                  (Hebrew + Latin, ISO-8859-8 slots: the family for the
 //                  he_IL locale. Oded Ezer's screen face, Roboto's Latin.)
+//   Lato CE        Lato_CE                  Lato            SIL OFL v1.1
+//                  (Lato with ISO-8859-2 slots: the Polish letters and the
+//                  rest of Central Europe's. The pl_PL locale's family.)
 //
 // Adding a font: python tools/fontconvert.py <Name> <font.ttf>, then
 // python tools/gen_font_table.py, then switch it on below.

@@ -23,6 +23,10 @@
 #ifndef FONT_INCLUDE_Heebo
   #define FONT_INCLUDE_Heebo 1
 #endif
+// the strings are UTF-8 Hebrew, drawn through an ISO-8859-8 family
+#ifndef LOCALE_FONT_ENCODING
+  #define LOCALE_FONT_ENCODING 1
+#endif
 // Israel has a single time zone (IST, with IDT from the Friday before the
 // last Sunday of March to the last Sunday of October).
 #ifndef DEFAULT_TIMEZONE
