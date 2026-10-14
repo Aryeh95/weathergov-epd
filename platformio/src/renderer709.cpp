@@ -120,14 +120,30 @@ static const Tone T_AMBER     = {R, 0.50f, Y, 1.0f};
 static const Tone T_PLUM      = {R, 0.60f, B, 1.0f};
 static const Tone T_MAROON    = {R, 0.50f, K, 1.0f};
 static const Tone T_ADVISORY  = {Y, 0.55f, W, 1.0f};
-static const Tone T_RAIN_BAR  = {B, 0.40f, W, 1.0f};
+// 85 % blue: on the panel (white at 34 % reflectance) 40 % blue vanished
+// and 85 % still lets the curves read over the bars (test card, 2026-10-14)
+static const Tone T_RAIN_BAR  = {B, 0.85f, W, 1.0f};
 
 /* =========================================================================
  * Shapes
  * ====================================================================== */
 
+/* The ink the layout writes with. The panel's black state is a dark maroon
+ * (datasheet: L* 10, a* +9.5); a screen of 70 % black over blue read as a
+ * neutral charcoal on the third test card (2026-10-14) with no loss of
+ * crispness in 22 px text, so every black dot the renderer puts down
+ * becomes that screen. Text, lines and icon outlines all pass through px;
+ * the test cards switch it off to show the bare ink.
+ */
+static const Tone T_INK = {K, 0.70f, B, 1.0f};
+static const Tone *BLACK_AS = &T_INK;
+
 static inline void px(int x, int y, uint16_t ink)
 {
+  if (ink == K && BLACK_AS)
+  {
+    ink = toneAt(*BLACK_AS, x, y);
+  }
   display.drawPixel(x, y, ink);
 }
 
@@ -941,10 +957,12 @@ static void drawChip(int x, int y, const char *word, int level)
   {
   case RISK_GREEN:  fillBox(x, y, x + w, y + h, 8, G);              break;
   case RISK_YELLOW: fillBox(x, y, x + w, y + h, 8, Y); ink = K;     break;
-  case RISK_AMBER:  fillTone(x, y, x + w, y + h, 8, T_AMBER); ink = K; break;
+  case RISK_AMBER:  fillTone(x, y, x + w, y + h, 8, T_AMBER);       break;
   case RISK_RED:    fillBox(x, y, x + w, y + h, 8, R);              break;
-  case RISK_PURPLE: fillTone(x, y, x + w, y + h, 8, T_PLUM);        break;
-  case RISK_MAROON: fillTone(x, y, x + w, y + h, 8, T_MAROON);      break;
+  // the panel's black is itself a maroon, so plum and maroon chips were
+  // the same colour as it: the two top levels are navy and black instead
+  case RISK_PURPLE: fillTone(x, y, x + w, y + h, 8, {K, 0.50f, B, 1}); break;
+  case RISK_MAROON: fillBox(x, y, x + w, y + h, 8, K);              break;
   default:          ink = K;                                        break;
   }
   drawText(x + w / 2, y + h / 2, word, F_SANSB_25, ink, MM);
@@ -1638,20 +1656,24 @@ struct Ribbon
   int edgeWidth;  // 1 is drawn as a hairline of every other dot
   uint16_t text;
 };
+// Screens set on the real panel (test cards, 2026-10-14): its white is a
+// 34 % grey, so anything under about a fifth of black or half of blue
+// disappears, and black over blue reads as a dark teal that is still a
+// colour of its own beside the panel's maroon black.
 static const Ribbon RIBBON[13] = {
-  /* sunny   */ {{Y, 0.90f, W, 1}, false, K, 1, K},
-  /* msunny  */ {{Y, 0.50f, W, 1}, false, K, 1, K},
+  /* sunny   */ {{Y, 1.00f, W, 1}, false, K, 1, K},
+  /* msunny  */ {{Y, 0.75f, W, 1}, false, K, 1, K},
   /* clear   */ {{K, 0.50f, B, 1}, false, K, 1, W},
-  /* mclear  */ {{K, 0.50f, B, 0.82f}, false, K, 1, W},
-  /* partly  */ {{K, 0.10f, W, 1}, false, K, 1, K},
-  /* mcloudy */ {{K, 0.21f, W, 1}, false, K, 1, K},
-  /* cloudy  */ {{K, 0.33f, W, 1}, false, K, 1, K},
-  /* fog     */ {{K, 0.08f, W, 1}, false, K, 1, K},
-  /* showers */ {{B, 0.34f, W, 1}, false, B, 2, K},
+  /* mclear  */ {{K, 0.30f, B, 1}, false, K, 1, W},
+  /* partly  */ {{K, 0.26f, W, 1}, false, K, 1, K},
+  /* mcloudy */ {{K, 0.33f, W, 1}, false, K, 1, K},
+  /* cloudy  */ {{K, 0.45f, W, 1}, false, K, 1, K},
+  /* fog     */ {{K, 0.21f, W, 1}, false, K, 1, K},
+  /* showers */ {{B, 0.70f, W, 1}, false, B, 2, K},
   /* rain    */ {{B, 1, B, 1}, true, B, 0, W},
   /* storms  */ {{B, 1, B, 1}, true, B, 0, W},
   /* snow    */ {{W, 1, W, 1}, true, B, 2, B},
-  /* ice     */ {{R, 0.30f, W, 1}, false, R, 2, K},
+  /* ice     */ {{R, 0.45f, W, 1}, false, R, 2, K},
 };
 
 struct Lines
@@ -1866,7 +1888,7 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
   drawText(1088, ly, TXT709_TEMPERATURE, F_SANS_26, K, LM, true);
   if (GRAPH_DEWPOINT)
   {
-    fillBox(1262, ly - 1, 1302, ly + 1, 0, B);
+    fillBox(1262, ly - 2, 1302, ly + 1, 0, B);
     drawText(1310, ly, TXT709_DEW_POINT, F_SANS_26, K, LM, true);
   }
   fillTone(1446, ly - 12, 1470, ly + 12, 0, T_RAIN_BAR);
@@ -1973,7 +1995,7 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
           continue;
         }
         stroke(X(i - 1), Yt(toUnitsF(hourly[i - 1].dew_point)), X(i),
-               Yt(toUnitsF(hourly[i].dew_point)), pass ? 3 : 8,
+               Yt(toUnitsF(hourly[i].dew_point)), pass ? 4 : 9,
                pass ? B : W);
       }
     }
@@ -2161,8 +2183,163 @@ void drawError(const uint8_t *bitmap_196x196, const String &errMsgLn1,
  *   - how small can type go? The ladder runs from the largest label to the
  *     smallest, solid and grey
  */
+/* The second card (-D EPD709_TEST_CARD_PAGE=2): candidate mixes for the
+ * parts of the layout that faded on the real panel on 2026-10-14 -- its
+ * white reflects 34 % with a green cast and its black is a dark maroon, so
+ * light screens vanish and red over black changes nothing.
+ */
+/* The third card (-D EPD709_TEST_CARD_PAGE=3): the same text, numeral,
+ * lines and icon in the panel's black and in five dark screens that might
+ * read more like ink than its maroon.
+ */
+void drawTestCard709Inks()
+{
+  static const struct { Tone tone; const char *name; } INK[6] = {
+    {{K, 1.00f, W, 1}, "black"},        {{K, 0.70f, B, 1}, "70% black on blue"},
+    {{K, 0.50f, B, 1}, "navy"},         {{K, 0.30f, B, 1}, "slate"},
+    {{B, 1.00f, W, 1}, "blue"},         {{K, 0.50f, G, 1}, "black on green"}};
+  for (int i = 0; i < 6; ++i)
+  {
+    const int x = 20 + i * 262;
+    BLACK_AS = (i == 0) ? nullptr : &INK[i].tone;   // column 0: the bare ink
+    drawText(x + 120, 10, INK[i].name, F_SANS_24, K, MA);
+    drawText(x, 50, "Riverside", F_BITTER_52, K, LA);
+    drawText(x, 120, "Wed, October 14", F_BITTER_32, K, LA);
+    drawText(x, 170, "78°", F_BITTER_150D, K, LA);
+    drawText(x, 360, "Feels like 80°", F_BITTER_40, K, LA);
+    drawText(x, 420, "Humidity", F_SANS_24, K, LA);
+    drawText(x, 450, "59%", F_BITTER_36, K, LA);
+    drawText(x, 500, "Partly cloudy 7pm \x7F 5am", F_SANS_24, K, LA);
+    drawText(x, 535, "Updated 10/14/26 12:49pm", F_SANS_22, K, LA);
+    drawText(x, 570, "Today  Thu  Fri  Sat", F_BITTER_32, K, LA);
+    drawText(x, 620, "86°", F_BITTER_52, K, LA);
+    drawText(x + 110, 630, "57°", F_BITTER_36, K, LA, true);
+    fillBox(x, 700, x + 220, 700, 0, K);
+    fillBox(x, 712, x + 220, 713, 0, K);
+    fillBox(x, 726, x + 220, 728, 0, K);
+    dashH(x, x + 220, 745, 1, 2, 8, K);
+    stroke(x, 820, x + 220, 770, 3, K);
+    drawIcon(conditionIcon(802, true, 104), 104, x + 10, 840);
+    drawIcon(conditionIcon(500, true, 104), 104, x + 124, 840);
+    drawChip(x, 960, "Hazardous", RISK_MAROON);
+    drawText(x, 1010, "Sunrise 7:15am", F_SANS_30, K, LA);
+    drawText(x, 1050, "The quick brown fox", F_SANS_26, K, LA);
+    drawText(x, 1085, "jumps over the lazy dog", F_SANS_26, K, LA);
+    drawText(x, 1125, "0123456789", F_SANS_28, K, LA);
+    fillBox(x, 1170, x + 220, 1190, 0, K);
+  }
+  BLACK_AS = &T_INK;
+} // end drawTestCard709Inks
+
+void drawTestCard709Mixes()
+{
+  BLACK_AS = nullptr;
+  const int w = DISP_WIDTH;
+  drawText(w / 2, 14, "GDEB0709E01 mixes", F_BITTER_40, K, MA);
+
+  // 1. rain bars: four bars under the two curves and a grid line
+  drawText(60, 78, "Rain bars", F_SANS_26, K, LA);
+  static const struct { Tone tone; const char *name; } BARS[6] = {
+    {{B, 0.55f, W, 1}, "55% blue"},  {{B, 0.70f, W, 1}, "70% blue"},
+    {{B, 0.85f, W, 1}, "85% blue"},  {{B, 1.00f, W, 1}, "solid blue"},
+    {{K, 0.30f, B, 1}, "30% black on blue"}, {{B, 0.60f, G, 1}, "blue on green"}};
+  for (int i = 0; i < 6; ++i)
+  {
+    const int x = 60 + i * 250, y0 = 110, y1 = 250;
+    static const int H[5] = {30, 75, 120, 60, 20};
+    for (int b = 0; b < 5; ++b)
+    {
+      fillTone(x + b * 44, y1 - H[b], x + b * 44 + 42, y1, 0, BARS[i].tone);
+    }
+    dashH(x, x + 219, y0 + 60, 1, 2, 8, K);
+    stroke(x, y0 + 20, x + 219, y1 - 10, 3, R);
+    stroke(x, y1 - 30, x + 219, y0 + 40, 2, B);
+    drawText(x + 110, 258, BARS[i].name, F_SANS_24, K, MA);
+  }
+
+  // 2. the ribbon: a spell's background under its word
+  drawText(60, 300, "Ribbon spells", F_SANS_26, K, LA);
+  static const struct { Tone tone; uint16_t ink; const char *name; } SPELLS[8] = {
+    {{K, 0.10f, W, 1}, K, "10% (now)"},   {{K, 0.21f, W, 1}, K, "21%"},
+    {{K, 0.26f, W, 1}, K, "26%"},         {{K, 0.33f, W, 1}, K, "33%"},
+    {{Y, 0.55f, W, 1}, K, "55% yellow"},  {{B, 0.30f, W, 1}, K, "30% blue"},
+    {{K, 0.50f, B, 1}, W, "navy, white"}, {{K, 0.30f, B, 1}, W, "slate, white"}};
+  for (int i = 0; i < 8; ++i)
+  {
+    const int x = 60 + i * 187;
+    fillTone(x, 332, x + 169, 392, 8, SPELLS[i].tone);
+    drawText(x + 85, 362, "Partly cloudy", F_SANS_26, SPELLS[i].ink, MM);
+    drawText(x + 85, 400, SPELLS[i].name, F_SANS_22, K, MA);
+  }
+
+  // 3. the big sun
+  drawText(60, 444, "Big sun", F_SANS_26, K, LA);
+  static const struct { Tone tone; const char *name; } SUNS[6] = {
+    {{R, 0.19f, Y, 1}, "sun gold (now)"}, {{Y, 0.90f, W, 1}, "90% yellow"},
+    {{Y, 1.00f, W, 1}, "solid yellow"},   {{R, 0.30f, Y, 1}, "30% red on yellow"},
+    {{R, 0.50f, Y, 1}, "amber"},          {{Y, 0.70f, W, 1}, "70% yellow"}};
+  for (int i = 0; i < 6; ++i)
+  {
+    const int x = 60 + i * 250;
+    fillTone(x + 35, 476, x + 184, 625, 75, SUNS[i].tone);
+    drawText(x + 110, 634, SUNS[i].name, F_SANS_22, K, MA);
+  }
+
+  // 4. darks beside black: which of them is still a different colour
+  drawText(60, 676, "Darks beside black", F_SANS_26, K, LA);
+  static const struct { Tone tone; const char *name; } DARKS[10] = {
+    {{K, 1.00f, W, 1}, "black"},        {{R, 0.50f, K, 1}, "maroon"},
+    {{R, 0.70f, K, 1}, "70% red on black"}, {{R, 0.60f, B, 1}, "plum"},
+    {{K, 0.50f, B, 1}, "navy"},         {{K, 0.30f, B, 1}, "slate"},
+    {{K, 0.75f, W, 1}, "75% black"},    {{B, 1.00f, W, 1}, "blue"},
+    {{G, 1.00f, W, 1}, "green"},        {{R, 1.00f, W, 1}, "red"}};
+  for (int i = 0; i < 10; ++i)
+  {
+    const int x = 60 + i * 149;
+    fillTone(x, 708, x + 129, 788, 0, DARKS[i].tone);
+    drawText(x + 65, 796, DARKS[i].name, F_SANS_22, K, MA);
+  }
+
+  // 5. blue and green screens on paper, and the two on each other
+  drawText(60, 840, "Blue and green screens", F_SANS_26, K, LA);
+  static const struct { Tone tone; const char *name; } COOL[9] = {
+    {{B, 0.30f, W, 1}, "30% blue"},  {{B, 0.50f, W, 1}, "50% blue"},
+    {{B, 0.60f, W, 1}, "60% blue"},  {{B, 0.70f, W, 1}, "70% blue"},
+    {{B, 0.85f, W, 1}, "85% blue"},  {{G, 0.50f, W, 1}, "50% green"},
+    {{G, 0.75f, W, 1}, "75% green"}, {{G, 0.50f, B, 1}, "teal"},
+    {{G, 0.50f, Y, 1}, "lime"}};
+  for (int i = 0; i < 9; ++i)
+  {
+    const int x = 60 + i * 166;
+    fillTone(x, 872, x + 139, 952, 0, COOL[i].tone);
+    drawText(x + 70, 960, COOL[i].name, F_SANS_22, K, MA);
+  }
+
+  // 6. lines and words in each ink
+  drawText(60, 1004, "Lines and words", F_SANS_26, K, LA);
+  stroke(60, 1050, 360, 1050, 2, B);   drawText(380, 1038, "2 px blue", F_SANS_22, K, LA);
+  stroke(60, 1080, 360, 1080, 3, B);   drawText(380, 1068, "3 px blue", F_SANS_22, K, LA);
+  stroke(60, 1110, 360, 1110, 3, G);   drawText(380, 1098, "3 px green", F_SANS_22, K, LA);
+  stroke(60, 1140, 360, 1140, 3, K);   drawText(380, 1128, "3 px black", F_SANS_22, K, LA);
+  dashH(60, 360, 1170, 1, 2, 8, K);    drawText(380, 1158, "grid dash, black", F_SANS_22, K, LA);
+  drawText(600, 1038, "Dew point 62", F_SANS_30, B, LA);
+  drawText(600, 1078, "Dew point 62", F_SANS_30, G, LA);
+  drawText(600, 1118, "Dew point 62", F_SANS_30, R, LA);
+  drawText(600, 1158, "Dew point 62", F_SANS_30, K, LA);
+  fillTone(900, 1036, 1180, 1096, 8, T_ADVISORY);
+  drawText(1040, 1066, "Heat advisory", F_SANS_30, K, MM);
+  fillBox(900, 1110, 1180, 1170, 8, Y);
+  drawText(1040, 1140, "Heat advisory", F_SANS_30, K, MM);
+  fillBox(1210, 1036, 1490, 1096, 8, B);
+  drawText(1350, 1066, "Rain 7pm", F_SANS_30, W, MM);
+  fillTone(1210, 1110, 1490, 1170, 8, {K, 0.50f, B, 1});
+  drawText(1350, 1140, "Clear 7pm", F_SANS_30, W, MM);
+  BLACK_AS = &T_INK;
+} // end drawTestCard709Mixes
+
 void drawTestCard709()
 {
+  BLACK_AS = nullptr;
   const int w = DISP_WIDTH, h = DISP_HEIGHT;
   // the corners, to the very last pixel
   fillBox(0, 0, 79, 2, 0, K);           fillBox(0, 0, 2, 79, 0, K);
@@ -2275,6 +2452,7 @@ void drawTestCard709()
   drawMoon(1280, 1020, MOON709_STEPS / 4);
   drawMoon(1380, 1020, MOON709_STEPS / 2);
   drawMoon(1480, 1020, MOON709_STEPS * 7 / 8);
+  BLACK_AS = &T_INK;
 } // end drawTestCard709
 
 // The rest of renderer.h belongs to the 800x480 layouts. Nothing outside

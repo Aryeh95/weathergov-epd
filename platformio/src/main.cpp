@@ -388,7 +388,13 @@ void setup()
   initDisplay();
   do
   {
+#if defined(EPD709_TEST_CARD_PAGE) && EPD709_TEST_CARD_PAGE == 2
+    drawTestCard709Mixes();
+#elif defined(EPD709_TEST_CARD_PAGE) && EPD709_TEST_CARD_PAGE == 3
+    drawTestCard709Inks();
+#else
     drawTestCard709();
+#endif
   } while (display.nextPage());
   powerOffDisplay();
   Serial.println("[epd709] test card drawn, sleeping");

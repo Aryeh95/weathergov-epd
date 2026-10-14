@@ -89,6 +89,8 @@
   // Inks, screens, type sizes and orientation marks, for a first look at
   // a real panel. Drawn instead of the weather by the _testcard build.
   void drawTestCard709();
+  void drawTestCard709Mixes();
+  void drawTestCard709Inks();
 #endif
 
 typedef enum alignment
