@@ -51,7 +51,7 @@ const char *LC_PM_STR      = "";
 const char *LC_DAY[7]      = {"niedziela", "poniedziałek", "wtorek", "środa",
                               "czwartek", "piątek", "sobota"};
 // ABDAY_{1-7}             abbreviated name of the n-th day of the week
-const char *LC_ABDAY[7]    = {"nd", "pn", "wt", "śr", "cz", "pt", "sb"};
+const char *LC_ABDAY[7]    = {"nie", "pon", "wto", "śro", "czw", "pią", "sob"};
 // MON_{1-12}              name of the n-th month of the year
 const char *LC_MON[12]     = {"stycznia", "lutego", "marca", "kwietnia",
                                "maja", "czerwca", "lipca", "sierpnia",
