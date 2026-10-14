@@ -165,7 +165,7 @@ String POLLEN_APIKEY = "";
 // CURRENT CONDITIONS SOURCE
 // Where the "right now" temperature, feels-like, humidity, dew point,
 // pressure, wind, cloud cover and visibility come from. Forecasts and
-// alerts always come from weather.gov regardless of this setting.
+// alerts come from FORECAST_SOURCE regardless of this setting.
 //   "open-meteo" (default) - Open-Meteo's model interpolated to LAT/LON,
 //                            refreshed every ~15 minutes. Free, no key.
 //   "google"               - Google Maps Platform Weather API current
@@ -185,6 +185,11 @@ String CURRENT_SOURCE = "open-meteo";
 // alerts come from.
 //   "nws" (default) - weather.gov (US National Weather Service). United
 //                     States only. Free, no key.
+//   "open-meteo"    - Open-Meteo (open-meteo.com), anywhere in the world.
+//                     Free, no key. 7-day forecast with hourly temperature,
+//                     humidity, rain chance, wind and WMO condition codes;
+//                     no weather alerts. "current_source": "nws" then means
+//                     the forecast's first hour.
 //   "ims"           - the Israel Meteorological Service (ims.gov.il), the
 //                     public JSON feeds behind its site and app. Israel only.
 //                     Free, no key. Hourly forecast for 7 days, with humidity,

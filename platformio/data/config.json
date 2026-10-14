@@ -194,6 +194,9 @@
 
     // Where the forecasts, condition icons and weather alerts come from.
     //   "nws" - weather.gov, the US National Weather Service. US only. (default)
+    //   "open-meteo" - Open-Meteo (open-meteo.com), anywhere in the world:
+    //           7-day forecast with hourly detail, no key, no weather alerts.
+    //           "current_source": "nws" then means the forecast's first hour.
     //   "ims" - the Israel Meteorological Service (ims.gov.il). Israel only.
     //           7-day hourly forecast and regional warnings, no key. Replies
     //           follow the firmware's locale (LOCALE he_IL in config.h gives

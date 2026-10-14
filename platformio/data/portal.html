@@ -197,11 +197,13 @@
     <label>Forecast source</label>
     <select id="a_fcsrc">
       <option value="nws">weather.gov (United States)</option>
+      <option value="open-meteo">Open-Meteo (anywhere in the world)</option>
       <option value="ims">Israel Meteorological Service (Israel)</option>
     </select>
     <label>IMS location id (0 = nearest to the coordinates)</label><input id="a_imslid" type="number" min="0" step="1">
     <div class="hint">Forecasts, condition icons and weather alerts.
-      weather.gov covers US locations; the Israel Meteorological Service
+      weather.gov covers US locations; Open-Meteo covers the whole world
+      (no alerts); the Israel Meteorological Service
       (ims.gov.il) covers Israel, in the firmware's language (Hebrew with
       LOCALE he_IL). Location ids are listed at
       <a href="https://ims.gov.il/en/locations_info" target="_blank"

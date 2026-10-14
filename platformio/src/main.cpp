@@ -774,35 +774,38 @@ void setup()
 
   phaseStart = millis();
   int rxStatus = HTTP_CODE_OK;
+  // The forecast provider (config.json api.forecast_source): weather.gov,
+  // Open-Meteo, or the Israel Meteorological Service.
+  const bool useIMS = (FORECAST_SOURCE == "ims");
+  const bool useOM  = (FORECAST_SOURCE == "open-meteo");
+  const char *providerName = useIMS ? "ims.gov.il" : useOM ? "Open-Meteo" : "weather.gov";
 #if DISPLAY_ALERTS
   // Alerts first: the reply is small and arrives over HTTP/1.1 keep-alive,
   // so the forecast requests that follow reuse its TLS session instead of
   // paying their own ~1.2 s handshake. Non-fatal: if this fails, the display
-  // simply shows no alerts.
-  const bool useIMS = (FORECAST_SOURCE == "ims");
-  rxStatus = useIMS ? getIMSAlerts(client, alerts)
-                    : getNWSAlerts(client, alerts);
-  if (rxStatus != HTTP_CODE_OK)
+  // simply shows no alerts. (Open-Meteo has no alert feed: none shown.)
+  if (!useOM)
   {
-    statusStr = useIMS ? "ims.gov.il Warnings API" : "weather.gov Alerts API";
-    tmpStr = String(rxStatus, DEC) + ": " + getHttpResponsePhrase(rxStatus);
+    rxStatus = useIMS ? getIMSAlerts(client, alerts)
+                      : getNWSAlerts(client, alerts);
+    if (rxStatus != HTTP_CODE_OK)
+    {
+      statusStr = useIMS ? "ims.gov.il Warnings API" : "weather.gov Alerts API";
+      tmpStr = String(rxStatus, DEC) + ": " + getHttpResponsePhrase(rxStatus);
+    }
   }
 #endif
 
-  // Forecast + current conditions from FORECAST_SOURCE (weather.gov, or
-  // the Israel Meteorological Service). This is the primary data source;
-  // if it fails there is nothing worth displaying.
+  // Forecast + current conditions from FORECAST_SOURCE. This is the primary
+  // data source; if it fails there is nothing worth displaying.
   String failedStep;
-#if !DISPLAY_ALERTS
-  const bool useIMS = (FORECAST_SOURCE == "ims");
-#endif
   rxStatus = useIMS ? getIMSWeather(client, current, hourly, daily, failedStep)
+           : useOM  ? getOpenMeteoWeather(client, current, hourly, daily, failedStep)
                     : getNWSWeather(client, current, hourly, daily, failedStep);
   if (rxStatus != HTTP_CODE_OK)
   {
     killWiFi();
-    statusStr = String(useIMS ? "ims.gov.il API (" : "weather.gov API (")
-              + failedStep + ")";
+    statusStr = String(providerName) + " API (" + failedStep + ")";
     tmpStr = String(rxStatus, DEC) + ": " + getHttpResponsePhrase(rxStatus);
     Serial.println(statusStr + " - " + tmpStr);
     wakeDiag.fetchMs = millis() - phaseStart;
