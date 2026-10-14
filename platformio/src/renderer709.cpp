@@ -454,8 +454,8 @@ static const Font709 &fitFont(const String &s, int room,
 static void labelOnPaper(int cx, int cy, const String &s, const Font709 &f,
                          uint16_t ink)
 {
-  const int w = textWidth(s, f) + 12;
-  const int h = f.ascent + f.descent - 4;
+  const int w = textWidth(s, f) + 18;
+  const int h = f.ascent + f.descent + 2;
   fillBox(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2, 6, W);
   drawText(cx, cy, s, f, ink, MM);
 }
@@ -1860,12 +1860,20 @@ static void drawRibbon(int x0, int x1, int y, const Spell *spells, int count,
     const int tx = cx + bolt / 2;
     if (l.n == 1)
     {
+      // the words in the bare ink: a screened ink over a screened box
+      // breaks the letters up
+      const Tone *keep = BLACK_AS;
+      BLACK_AS = nullptr;
       drawText(tx, cy, l.text[0], *l.face[0], look.text, MM);
+      BLACK_AS = keep;
     }
     else if (l.n == 2)
     {
+      const Tone *keep = BLACK_AS;
+      BLACK_AS = nullptr;
       drawText(tx, cy - 12, l.text[0], *l.face[0], look.text, MM);
       drawText(tx, cy + 13, l.text[1], *l.face[1], look.text, MM);
+      BLACK_AS = keep;
     }
   }
 } // end drawRibbon
