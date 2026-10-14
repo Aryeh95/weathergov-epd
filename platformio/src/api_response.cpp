@@ -688,6 +688,273 @@ DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
   return error;
 } // end deserializeOpenMeteoCurrent
 
+/* ---- Open-Meteo forecast ----------------------------------------------- */
+
+/* WMO weather interpretation codes, as Open-Meteo reports them
+ * (https://open-meteo.com/en/docs#weather_variable_documentation), to the
+ * OpenWeatherMap-style condition id the icon selection runs on, an
+ * estimated cloud cover, and a short description (English, Hebrew and
+ * Polish for those builds; other locales leave it blank, as the
+ * weather.gov path does, and let the icon speak).
+ */
+struct WmoCodeMapEntry { int code; int id; int clouds; const char *en; const char *he; const char *pl; };
+static const WmoCodeMapEntry WMO_CODE_MAP[] = {
+  { 0, 800,  0, "Clear",                   "בהיר", "Bezchmurnie"},
+  { 1, 801, 20, "Mainly clear",            "בהיר בעיקר", "Przeważnie bezchmurnie"},
+  { 2, 802, 50, "Partly cloudy",           "מעונן חלקית", "Częściowe zachmurzenie"},
+  { 3, 804, 95, "Overcast",                "מעונן", "Pochmurno"},
+  {45, 741, 85, "Fog",                     "ערפל", "Mgła"},
+  {48, 741, 85, "Freezing fog",            "ערפל מקפיא", "Mgła osadzająca szadź"},
+  {51, 300, 80, "Light drizzle",           "טפטוף קל", "Lekka mżawka"},
+  {53, 301, 85, "Drizzle",                 "טפטוף", "Mżawka"},
+  {55, 302, 90, "Heavy drizzle",           "טפטוף חזק", "Gęsta mżawka"},
+  {56, 511, 90, "Freezing drizzle",        "טפטוף מקפיא", "Marznąca mżawka"},
+  {57, 511, 90, "Freezing drizzle",        "טפטוף מקפיא", "Marznąca mżawka"},
+  {61, 500, 85, "Light rain",              "גשם קל", "Słaby deszcz"},
+  {63, 501, 90, "Rain",                    "גשם", "Deszcz"},
+  {65, 502, 95, "Heavy rain",              "גשם חזק", "Ulewny deszcz"},
+  {66, 511, 90, "Freezing rain",           "גשם מקפיא", "Marznący deszcz"},
+  {67, 511, 95, "Freezing rain",           "גשם מקפיא", "Marznący deszcz"},
+  {71, 600, 90, "Light snow",              "שלג קל", "Słaby śnieg"},
+  {73, 601, 90, "Snow",                    "שלג", "Śnieg"},
+  {75, 602, 95, "Heavy snow",              "שלג כבד", "Intensywny śnieg"},
+  {77, 600, 85, "Snow grains",             "גרגרי שלג", "Ziarna śniegu"},
+  {80, 520, 50, "Light showers",           "ממטרים קלים", "Słabe przelotne opady"},
+  {81, 521, 65, "Showers",                 "ממטרים", "Przelotne opady"},
+  {82, 522, 80, "Heavy showers",           "ממטרים חזקים", "Ulewne przelotne opady"},
+  {85, 620, 70, "Snow showers",            "ממטרי שלג", "Przelotny śnieg"},
+  {86, 621, 80, "Heavy snow showers",      "ממטרי שלג חזקים", "Intensywny przelotny śnieg"},
+  {95, 211, 85, "Thunderstorm",            "סופת רעמים", "Burza"},
+  {96, 211, 90, "Thunderstorm with hail",  "סופת רעמים עם ברד", "Burza z gradem"},
+  {99, 212, 95, "Thunderstorm with hail",  "סופת רעמים עם ברד", "Burza z gradem"},
+};
+
+static void applyWmoCode(int code, bool isDay, owm_weather_t &weather,
+                         int &clouds)
+{
+  int id = 804, cl = 50;
+  const char *en = "", *he = "", *pl = "";
+  for (const WmoCodeMapEntry &e : WMO_CODE_MAP)
+  {
+    if (e.code == code)
+    {
+      id = e.id;
+      cl = e.clouds;
+      en = e.en;
+      he = e.he;
+      pl = e.pl;
+      break;
+    }
+  }
+  weather.id = id;
+  weather.icon = isDay ? "d" : "n";
+  if (OWM_LANG == "he")
+  {
+    weather.description = he;
+  }
+  else if (OWM_LANG == "pl")
+  {
+    weather.description = pl;
+  }
+  else if (OWM_LANG == "en")
+  {
+    weather.description = en;
+  }
+  else
+  {
+    weather.description = "";
+  }
+  clouds = cl;
+} // end applyWmoCode
+
+/* Parses Open-Meteo's forecast (/v1/forecast?hourly=...&daily=..., requested
+ * with forecast_hours=48, forecast_days=7, timezone=auto,
+ * timeformat=unixtime and wind_speed_unit=ms): 48 hours from the current
+ * hour into hourly[], seven local calendar days into daily[]. Every value
+ * is model output interpolated to LAT/LON; a null (Open-Meteo's way of
+ * saying "not available") leaves the field at its "unknown" value.
+ */
+DeserializationError deserializeOpenMeteoForecast(WiFiClient &json,
+                                                  owm_hourly_t *hourly,
+                                                  owm_daily_t *daily)
+{
+  JsonDocument filter;
+  JsonObject h = filter["hourly"].to<JsonObject>();
+  h["time"]                      = true;
+  h["temperature_2m"]            = true;
+  h["apparent_temperature"]      = true;
+  h["relative_humidity_2m"]      = true;
+  h["dew_point_2m"]              = true;
+  h["precipitation_probability"] = true;
+  h["weather_code"]              = true;
+  h["cloud_cover"]               = true;
+  h["wind_speed_10m"]            = true;
+  h["wind_gusts_10m"]            = true;
+  h["wind_direction_10m"]        = true;
+  h["is_day"]                    = true;
+  JsonObject d = filter["daily"].to<JsonObject>();
+  d["time"]                          = true;
+  d["weather_code"]                  = true;
+  d["temperature_2m_max"]            = true;
+  d["temperature_2m_min"]            = true;
+  d["precipitation_sum"]             = true;
+  d["precipitation_probability_max"] = true;
+  d["wind_speed_10m_max"]            = true;
+  d["wind_gusts_10m_max"]            = true;
+  d["wind_direction_10m_dominant"]   = true;
+  d["uv_index_max"]                  = true;
+  d["cloud_cover_mean"]              = true;
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, json,
+                                         DeserializationOption::Filter(filter));
+#if DEBUG_LEVEL >= 1
+  Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
+#endif
+#if DEBUG_LEVEL >= 2
+  serializeJsonPretty(doc, Serial);
+#endif
+  if (error)
+  {
+    return error;
+  }
+
+  for (int i = 0; i < OWM_NUM_HOURLY; ++i)
+  {
+    hourly[i] = {};
+  }
+  for (int i = 0; i < OWM_NUM_DAILY; ++i)
+  {
+    daily[i] = {};
+    daily[i].temp.min = NAN;
+    daily[i].temp.max = NAN;
+    daily[i].rain = NAN;
+    daily[i].dew_point = NAN;
+  }
+
+  // a column of the response as an array, or an empty array when the
+  // variable is missing
+  auto col = [&](const char *block, const char *name) -> JsonArrayConst {
+    return doc[block][name].as<JsonArrayConst>();
+  };
+  // element k of a column, NAN when the column is short or the value null
+  auto num = [](JsonArrayConst a, size_t k) -> float {
+    if (k >= a.size())
+    {
+      return NAN;
+    }
+    JsonVariantConst v = a[k];
+    return v.isNull() ? NAN : v.as<float>();
+  };
+
+  // ---- hours
+  JsonArrayConst hTime = col("hourly", "time");
+  JsonArrayConst hTemp = col("hourly", "temperature_2m");
+  JsonArrayConst hFeel = col("hourly", "apparent_temperature");
+  JsonArrayConst hRh   = col("hourly", "relative_humidity_2m");
+  JsonArrayConst hDew  = col("hourly", "dew_point_2m");
+  JsonArrayConst hPop  = col("hourly", "precipitation_probability");
+  JsonArrayConst hCode = col("hourly", "weather_code");
+  JsonArrayConst hCld  = col("hourly", "cloud_cover");
+  JsonArrayConst hWs   = col("hourly", "wind_speed_10m");
+  JsonArrayConst hWg   = col("hourly", "wind_gusts_10m");
+  JsonArrayConst hWd   = col("hourly", "wind_direction_10m");
+  JsonArrayConst hDay  = col("hourly", "is_day");
+  const int64_t now = static_cast<int64_t>(time(nullptr));
+  int hi = 0;
+  for (size_t k = 0; k < hTime.size() && hi < OWM_NUM_HOURLY; ++k)
+  {
+    const int64_t t = hTime[k].as<int64_t>();
+    if (t <= 0 || t < now - 3600)
+    { // the series should start at the current hour; drop anything older
+      continue;
+    }
+    owm_hourly_t &hh = hourly[hi];
+    hh.dt = t;
+    const float tempC = num(hTemp, k);
+    const float feelC = num(hFeel, k);
+    const float dewC  = num(hDew, k);
+    const float rh    = num(hRh, k);
+    const float pop   = num(hPop, k);
+    const float cld   = num(hCld, k);
+    const float ws    = num(hWs, k);
+    const float wg    = num(hWg, k);
+    const float wd    = num(hWd, k);
+    hh.temp       = std::isnan(tempC) ? NAN : celsius_to_kelvin(tempC);
+    hh.feels_like = std::isnan(feelC) ? hh.temp : celsius_to_kelvin(feelC);
+    hh.humidity   = std::isnan(rh) ? 0 : static_cast<int>(std::round(rh));
+    hh.dew_point  = std::isnan(dewC) ? NAN : celsius_to_kelvin(dewC);
+    hh.pop        = std::isnan(pop) ? 0.f : pop / 100.f;
+    hh.wind_speed = std::isnan(ws) ? 0.f : ws;
+    hh.wind_gust  = std::isnan(wg) ? hh.wind_speed : wg;
+    hh.wind_deg   = std::isnan(wd) ? 0 : static_cast<int>(wd);
+    const float codeF = num(hCode, k);
+    const int code = std::isnan(codeF) ? -1 : static_cast<int>(codeF);  // -1: unmapped -> overcast
+    const bool isDay = k < hDay.size() ? (hDay[k].as<int>() != 0) : true;
+    applyWmoCode(code, isDay, hh.weather, hh.clouds);
+    if (!std::isnan(cld))
+    { // the model's own cloud cover beats the code's estimate
+      hh.clouds = static_cast<int>(std::round(cld));
+    }
+    ++hi;
+  }
+
+  // ---- days
+  JsonArrayConst dTime = col("daily", "time");
+  JsonArrayConst dCode = col("daily", "weather_code");
+  JsonArrayConst dTmax = col("daily", "temperature_2m_max");
+  JsonArrayConst dTmin = col("daily", "temperature_2m_min");
+  JsonArrayConst dSum  = col("daily", "precipitation_sum");
+  JsonArrayConst dPop  = col("daily", "precipitation_probability_max");
+  JsonArrayConst dWs   = col("daily", "wind_speed_10m_max");
+  JsonArrayConst dWg   = col("daily", "wind_gusts_10m_max");
+  JsonArrayConst dWd   = col("daily", "wind_direction_10m_dominant");
+  JsonArrayConst dUv   = col("daily", "uv_index_max");
+  JsonArrayConst dCld  = col("daily", "cloud_cover_mean");
+  int di = 0;
+  for (size_t k = 0; k < dTime.size() && di < OWM_NUM_DAILY; ++k)
+  {
+    const int64_t t = dTime[k].as<int64_t>();   // local midnight (timezone=auto)
+    if (t <= 0)
+    {
+      continue;
+    }
+    owm_daily_t &dd = daily[di];
+    dd.dt = t;
+    const float tmax = num(dTmax, k);
+    const float tmin = num(dTmin, k);
+    const float pop  = num(dPop, k);
+    const float ws   = num(dWs, k);
+    const float wg   = num(dWg, k);
+    const float wd   = num(dWd, k);
+    const float uv   = num(dUv, k);
+    const float cld  = num(dCld, k);
+    dd.temp.max   = std::isnan(tmax) ? NAN : celsius_to_kelvin(tmax);
+    dd.temp.min   = std::isnan(tmin) ? NAN : celsius_to_kelvin(tmin);
+    dd.pop        = std::isnan(pop) ? 0.f : pop / 100.f;
+    dd.rain       = num(dSum, k);               // NaN when the model has none
+    dd.snow       = 0.f;
+    dd.precip_src = std::isnan(dd.rain) ? PRECIP_SRC_NONE : PRECIP_SRC_OPEN_METEO;
+    dd.wind_speed = std::isnan(ws) ? 0.f : ws;
+    dd.wind_gust  = std::isnan(wg) ? dd.wind_speed : wg;
+    dd.wind_deg   = std::isnan(wd) ? 0 : static_cast<int>(wd);
+    dd.uvi        = std::isnan(uv) ? 0.f : uv;
+    const float dCodeF = num(dCode, k);
+    applyWmoCode(std::isnan(dCodeF) ? -1 : static_cast<int>(dCodeF), true, dd.weather, dd.clouds);
+    if (!std::isnan(cld))
+    {
+      dd.clouds = static_cast<int>(std::round(cld));
+    }
+    ++di;
+  }
+
+  if (hi == 0 || di == 0)
+  {
+    return DeserializationError::EmptyInput;
+  }
+  return error;
+} // end deserializeOpenMeteoForecast
+
 /* Parses the Google Maps Platform Weather API's current conditions
  * (/v1/currentConditions:lookup, default METRIC units): a nowcast blended
  * from nearby stations, refreshed every 15 minutes. Any missing field falls
@@ -1571,13 +1838,15 @@ DeserializationError deserializeAirQuality(WiFiClient &json,
     r.components.no[i]  = 0.f; // not provided by Open-Meteo
     r.components.nh3[i] = 0.f; // not provided by Open-Meteo
     if (srcIdx < 0)
-    {
-      r.components.pm10[i]  = 0.f;
-      r.components.pm2_5[i] = 0.f;
-      r.components.co[i]    = 0.f;
-      r.components.no2[i]   = 0.f;
-      r.components.so2[i]   = 0.f;
-      r.components.o3[i]    = 0.f;
+    { // an hour the reply does not reach is unknown, not clean air: NAN here
+      // keeps it out of the count of real hours below, and the fill after
+      // that gives it the nearest hour that has a value
+      r.components.pm10[i]  = NAN;
+      r.components.pm2_5[i] = NAN;
+      r.components.co[i]    = NAN;
+      r.components.no2[i]   = NAN;
+      r.components.so2[i]   = NAN;
+      r.components.o3[i]    = NAN;
       continue;
     }
     r.components.pm10[i]  = pm10arr[srcIdx] | NAN;

@@ -50,13 +50,7 @@ inline void yield() {}
 #define DEC 10
 typedef bool boolean;
 
-#ifdef _WIN32
-inline struct tm *localtime_r(const time_t *t, struct tm *out)
-{
-  localtime_s(out, t);
-  return out;
-}
-#endif
+#include "win_time.h"
 
 class String
 {

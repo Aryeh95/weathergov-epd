@@ -7,7 +7,7 @@ parsers over the replies in data/ and the renderer over the result, and
 turns what it drew into PNGs: the dots as the panel is told to set them in
 the Spectra 6 inks' measured colours, and a "_blended" copy averaged 2x2.
 
-    python tools/sim480/build.py [output folder] [data folder]
+    python tools/sim480/build.py [output folder] [data folder] [--locale=he_IL|pl_PL]
 
 Built for the Hebrew (LOCALE he_IL) / Israel Meteorological Service
 configuration on the reTerminal E1002's panel, in metric units. Needs a
@@ -40,7 +40,14 @@ PANELS = {
     "bwv2": ["BOARD_RETERMINAL_E1002", "BOARD_RETERMINAL_E1001"],
     "3c":   ["DISP_3C_B"],
 }
-DEFINES = ["ARDUINO=10000", "LOCALE=he_IL", "FONT_INCLUDE_Heebo=1",
+# --locale: the build's locale, with the font family its defaults file would
+# switch on. he_IL draws the Netanya pages from data/; pl_PL the Kraków
+# pages (Open-Meteo forecast source) from data/krakow.
+LOCALES = {
+    "he_IL": ["LOCALE=he_IL", "FONT_INCLUDE_Heebo=1"],
+    "pl_PL": ["LOCALE=pl_PL", "FONT_INCLUDE_Lato_CE=1"],
+}
+DEFINES = ["ARDUINO=10000",
            "UNITS_TEMP_CELSIUS", "UNITS_SPEED_KILOMETERSPERHOUR",
            "UNITS_PRES_HECTOPASCALS", "UNITS_DIST_KILOMETERS",
            "UNITS_DAILY_PRECIP_MILLIMETERS",
@@ -66,16 +73,24 @@ def compiler():
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     panel = "e6"
+    locale = "he_IL"
     for a in sys.argv[1:]:
         if a.startswith("--panel="):
             panel = a.split("=", 1)[1]
+        if a.startswith("--locale="):
+            locale = a.split("=", 1)[1]
     if panel not in PANELS:
         sys.exit("--panel must be one of: " + ", ".join(PANELS))
+    if locale not in LOCALES:
+        sys.exit("--locale must be one of: " + ", ".join(LOCALES))
     out = os.path.abspath(args[0] if len(args) > 0 else os.path.join(HERE, "out"))
-    data = os.path.abspath(args[1] if len(args) > 1 else os.path.join(HERE, "data"))
-    # each panel builds and draws in its own folder: the defines differ
+    data = os.path.abspath(args[1] if len(args) > 1 else
+                           os.path.join(HERE, "data", "krakow" if locale == "pl_PL" else ""))
+    # each panel and locale builds and draws in its own folder: the defines differ
     if panel != "e6":
         out = os.path.join(out, panel)
+    if locale != "he_IL":
+        out = os.path.join(out, locale)
     os.makedirs(out, exist_ok=True)
     gfx = libdep("Adafruit GFX Library")
     includes = [os.path.join(HERE, "shim"), os.path.join(PIO, "include"),
@@ -83,13 +98,16 @@ def main():
                 os.path.join(PIO, "lib", "pollutant-concentration-to-aqi"),
                 os.path.join(libdep("ArduinoJson"), "src"), gfx]
     cxx, cc = compiler()
-    flags = ["-O1", "-w"] + ["-I" + i for i in includes] + ["-D" + d for d in DEFINES + PANELS[panel]]
+    flags = ["-O1", "-w"] + ["-I" + i for i in includes] + ["-D" + d for d in DEFINES + PANELS[panel] + LOCALES[locale]]
+    if os.name == "nt":
+        # MinGW: localtime_r for every source, not only those that see Arduino.h
+        flags += ["-include", os.path.join(HERE, "shim", "win_time.h")]
     objects = []
     for src in C_SOURCES:
         obj = os.path.join(out, os.path.basename(src) + ".o")
         subprocess.check_call(cc + flags + ["-c", src, "-o", obj])
         objects.append(obj)
-    exe = os.path.join(out, "sim480")
+    exe = os.path.join(out, "sim480" + (".exe" if os.name == "nt" else ""))
     subprocess.check_call(cxx + ["-std=gnu++17"] + flags + SOURCES
                           + [os.path.join(gfx, "Adafruit_GFX.cpp")] + objects + ["-o", exe])
     subprocess.check_call([exe, out, data, panel])

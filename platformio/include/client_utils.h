@@ -92,6 +92,15 @@ int getIMSWeather(WiFiClient &client, owm_current_t &current,
                   String &failedStep);
 int getIMSAlerts(WiFiClient &client, std::vector<owm_alerts_t> &alerts);
 
+/* Open-Meteo (api.open-meteo.com), the "open-meteo" FORECAST_SOURCE: its
+ * forecast for LAT/LON, anywhere in the world, with current conditions
+ * from CURRENT_SOURCE as usual ("nws" then means the forecast's first
+ * hour). Open-Meteo has no alert feed. Same contract as getNWSWeather.
+ */
+int getOpenMeteoWeather(WiFiClient &client, owm_current_t &current,
+                        owm_hourly_t *hourly, owm_daily_t *daily,
+                        String &failedStep);
+
 /* Fetches current conditions from the Google Weather API (uses
  * POLLEN_APIKEY). On failure `current` is filled from `fallback`.
  *

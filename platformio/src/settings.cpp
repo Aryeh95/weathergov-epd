@@ -15,6 +15,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <ArduinoJson.h>
 #include <LittleFS.h>
@@ -69,6 +71,25 @@ static bool readConfig(const char *path, JsonDocument &doc)
 
 // one number of a configuration: absent is fine, anything else has to be a
 // number within [lo, hi]
+/* A coordinate is kept as text, since that is what the APIs are sent, so
+ * the text itself is checked: the whole of it must read as one finite
+ * number no further than `limit` from zero. (String::toDouble() would read
+ * "12abc" as 12 and "abc" as 0.)
+ */
+static bool coordinateOk(const String &text, double limit)
+{
+  String s = text;
+  s.trim();
+  if (s.isEmpty())
+  {
+    return false;
+  }
+  char *end = nullptr;
+  const double d = strtod(s.c_str(), &end);
+  return end != s.c_str() && *end == '\0' && std::isfinite(d)
+      && fabs(d) <= limit;
+}
+
 static String numberProblem(const char *name, JsonVariantConst v, long lo,
                             long hi)
 {
@@ -160,16 +181,16 @@ String settingsProblem(JsonVariantConst doc)
       return p;
     }
   }
-  // coordinates are kept as text, since that is what the APIs are sent
-  if (!loc["latitude"].isNull()
-      && fabs(loc["latitude"].as<String>().toDouble()) > 90.0)
+  // the keys the loader reads: lat and lon (an earlier version of this check
+  // looked for "latitude" and "longitude", which nothing writes, so it
+  // never ran)
+  if (!loc["lat"].isNull() && !coordinateOk(loc["lat"].as<String>(), 90.0))
   {
-    return "location.latitude must be between -90 and 90";
+    return "location.lat must be a number between -90 and 90";
   }
-  if (!loc["longitude"].isNull()
-      && fabs(loc["longitude"].as<String>().toDouble()) > 180.0)
+  if (!loc["lon"].isNull() && !coordinateOk(loc["lon"].as<String>(), 180.0))
   {
-    return "location.longitude must be between -180 and 180";
+    return "location.lon must be a number between -180 and 180";
   }
   if (!battery["max_voltage_mv"].isNull()
       && !battery["min_voltage_mv"].isNull()
@@ -231,8 +252,23 @@ bool loadSettings()
   loadStrToCharArray(STATIC_DNS, sizeof(STATIC_DNS), wifi["dns"]);
 
   JsonObjectConst location = doc["location"];
-  LAT         = location["lat"]  | LAT;
-  LON         = location["lon"]  | LON;
+  {
+    // A file copied in by hand skips the portal's checks, so the same test
+    // runs here: a coordinate that is not one finite number in range leaves
+    // the built-in pair in place rather than going out in every request.
+    const String lat = location["lat"] | LAT;
+    const String lon = location["lon"] | LON;
+    if (coordinateOk(lat, 90.0) && coordinateOk(lon, 180.0))
+    {
+      LAT = lat;
+      LON = lon;
+    }
+    else
+    {
+      Serial.println("[settings] location.lat/lon unusable; keeping the "
+                     "built-in coordinates");
+    }
+  }
   CITY_STRING = location["city"] | CITY_STRING;
 
   JsonObjectConst t = doc["time"];
@@ -299,34 +335,36 @@ bool loadSettings()
   FONT_FAMILY_INDEX       = fontIndex(doc["font"] | "", 0);
   FONT_SMALL_FAMILY_INDEX = fontIndex(doc["font_small"] | "",
                                       FONT_FAMILY_INDEX);
-  // A right-to-left locale's text is transcoded to ISO-8859-8 (renderer.cpp,
-  // shapeText), so both families must carry the Hebrew alphabet in their
-  // high slots; a Latin-1 family there would draw accented letters for
-  // every Hebrew word. Fall back to the first Hebrew family compiled in.
-  if (LC_RTL)
+  // A locale whose strings are UTF-8 Hebrew or Central European text is
+  // transcoded to its code page (rtl.cpp, shapeText), so both families
+  // must carry that page in their high slots; a Latin-1 family there would
+  // draw accented Western letters for every Hebrew or Polish word. Fall
+  // back to the first family compiled in that carries it.
+  if (LOCALE_FONT_ENCODING != FONT_ENC_LATIN1)
   {
-    int hebrew = -1;
+    int fit = -1;
     for (int i = 0; i < FONT_FAMILY_NAME_COUNT; ++i)
     {
-      if (FONT_FAMILY_HEBREW[i]) { hebrew = i; break; }
+      if (FONT_FAMILY_ENCODING[i] == LOCALE_FONT_ENCODING) { fit = i; break; }
     }
-    if (hebrew < 0)
+    if (fit < 0)
     {
-      Serial.println("[font] WARNING: right-to-left locale but no Hebrew "
-                     "font family is compiled in (FONT_INCLUDE_Heebo)");
+      Serial.println("[font] WARNING: the locale needs a font family with "
+                     "code page " + String(LOCALE_FONT_ENCODING)
+                     + " (fonts/font_encoding.h) and none is compiled in");
     }
     else
     {
-      if (!FONT_FAMILY_HEBREW[FONT_FAMILY_INDEX])
+      if (FONT_FAMILY_ENCODING[FONT_FAMILY_INDEX] != LOCALE_FONT_ENCODING)
       {
         Serial.println("[font] " + String(FONT_FAMILY_NAMES[FONT_FAMILY_INDEX])
-                       + " has no Hebrew, using "
-                       + FONT_FAMILY_NAMES[hebrew]);
-        FONT_FAMILY_INDEX = hebrew;
+                       + " lacks the locale's letters, using "
+                       + FONT_FAMILY_NAMES[fit]);
+        FONT_FAMILY_INDEX = fit;
       }
-      if (!FONT_FAMILY_HEBREW[FONT_SMALL_FAMILY_INDEX])
+      if (FONT_FAMILY_ENCODING[FONT_SMALL_FAMILY_INDEX] != LOCALE_FONT_ENCODING)
       {
-        FONT_SMALL_FAMILY_INDEX = hebrew;
+        FONT_SMALL_FAMILY_INDEX = fit;
       }
     }
   }
@@ -358,7 +396,7 @@ bool loadSettings()
     CURRENT_SOURCE = "open-meteo";
   }
   FORECAST_SOURCE = api["forecast_source"] | FORECAST_SOURCE;
-  if (FORECAST_SOURCE != "ims")
+  if (FORECAST_SOURCE != "ims" && FORECAST_SOURCE != "open-meteo")
   {
     FORECAST_SOURCE = "nws";
   }

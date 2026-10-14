@@ -24,6 +24,7 @@ namespace
 
 const char *const PATH = "/last.bin";
 const char *const PATH_TMP = "/last.tmp";
+const char *const PATH_OLD = "/last.old"; // the previous file, while the new one takes its place
 const uint32_t MAGIC = 0x31584557; // "WEX1"
 const uint16_t VERSION = 1;
 const size_t   MAX_TEXT = 200;     // longest string kept
@@ -307,18 +308,49 @@ bool snapshotSave(const owm_current_t &current, const owm_hourly_t *hourly,
     LittleFS.remove(PATH_TMP);
     return false;
   }
-  if (LittleFS.exists(PATH))
+  // The old file is set aside rather than deleted, so that a reset or a
+  // failed rename in the middle of the swap still leaves one usable
+  // snapshot; snapshotLoad() puts the set-aside file back if the new one
+  // never arrived.
+  if (LittleFS.exists(PATH_OLD))
   {
-    LittleFS.remove(PATH);
+    LittleFS.remove(PATH_OLD);
   }
-  return LittleFS.rename(PATH_TMP, PATH);
+  if (LittleFS.exists(PATH) && !LittleFS.rename(PATH, PATH_OLD))
+  {
+    LittleFS.remove(PATH_TMP);
+    return false; // the old snapshot stays
+  }
+  if (!LittleFS.rename(PATH_TMP, PATH))
+  {
+    LittleFS.remove(PATH_TMP);
+    if (LittleFS.exists(PATH_OLD))
+    {
+      LittleFS.rename(PATH_OLD, PATH);
+    }
+    return false;
+  }
+  if (LittleFS.exists(PATH_OLD))
+  {
+    LittleFS.remove(PATH_OLD);
+  }
+  return true;
 } // end snapshotSave
 
 bool snapshotLoad(owm_current_t &current, owm_hourly_t *hourly,
                   owm_daily_t *daily, std::vector<owm_alerts_t> &alerts,
                   owm_resp_air_pollution_t &air, snapshot_meta_t &meta)
 {
-  if (!LittleFS.begin(false) || !LittleFS.exists(PATH))
+  if (!LittleFS.begin(false))
+  {
+    return false;
+  }
+  if (!LittleFS.exists(PATH) && LittleFS.exists(PATH_OLD))
+  { // a save was interrupted between setting the old file aside and
+    // naming the new one: the old one is still good
+    LittleFS.rename(PATH_OLD, PATH);
+  }
+  if (!LittleFS.exists(PATH))
   {
     return false;
   }
@@ -359,6 +391,10 @@ void snapshotForget()
     if (LittleFS.exists(PATH_TMP))
     {
       LittleFS.remove(PATH_TMP);
+    }
+    if (LittleFS.exists(PATH_OLD))
+    {
+      LittleFS.remove(PATH_OLD);
     }
   }
 } // end snapshotForget
