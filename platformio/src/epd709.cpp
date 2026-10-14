@@ -1,10 +1,12 @@
 /* GDEB0709E01 display driver for esp32-weather-epd.
  *
- * The register values and the refresh sequence follow Seeed Studio's
- * Driver_GDEB0709E01 (Seeed_GFX2, MIT license, Copyright (c) 2026 Seeed
- * Studio); the full notice is in epd709.h. Everything else in this file is
- * part of esp32-weather-epd and is free software under the GNU General
- * Public License, version 3 or later.
+ * The register values and the refresh sequence are Good Display's, from
+ * their GDEB0709E01 demo (2026); the frame layout and the two-controller
+ * structure follow Seeed Studio's Driver_GDEB0709E01 (Seeed_GFX2, MIT
+ * license, Copyright (c) 2026 Seeed Studio); the full notice is in
+ * epd709.h. Everything else in this file is part of esp32-weather-epd and
+ * is free software under the GNU General Public License, version 3 or
+ * later.
  */
 
 #include "config.h"
@@ -197,44 +199,65 @@ void Epd709::init(uint32_t, bool, uint16_t, bool)
   delay(20);
   waitReady(EPD709_BUSY_TIMEOUT_MS);
 
-  // Seeed's value set, which is the 13.3in T133A01's byte for byte and the
-  // one verified on Seeed's boards with this panel. Good Display's own
-  // example differs in four places, measured only on their 5 V carrier
-  // board; if the panel stays blank they are the first thing to try:
-  //   0x74 AN_TM  C0 1E 1E CE CE CE 15 15 55
-  //   0x50 CDI    F7
-  //   0x06 / 0x05 BTST  E8 28
-  //   0xA5        not sent at all
-  static const uint8_t anTm[] = {0x00, 0x0C, 0x0C, 0xD9, 0xDD, 0xDD, 0x15,
-                                 0x15, 0x55};
-  static const uint8_t rF0[]  = {0x49, 0x55, 0x13, 0x5D, 0x05, 0x10};
-  static const uint8_t psr[]  = {0xDF, 0x69};
-  static const uint8_t dcdc[] = {0x44, 0x54, 0x00};
-  static const uint8_t cdi[]  = {0x37};
-  static const uint8_t tcon[] = {0x03, 0x03};
-  static const uint8_t r86[]  = {0x10};
-  static const uint8_t pws[]  = {0x22};
-  static const uint8_t tres[] = {0x04, 0xB0, 0x03, 0x20};
-  static const uint8_t pwr[]  = {0x0F, 0x00, 0x28, 0x2C, 0x28, 0x38};
-  static const uint8_t rB6[]  = {0x07};
-  static const uint8_t btst[] = {0xE0, 0x20};
-  static const uint8_t rB7[]  = {0x01};
-  static const uint8_t rB0[]  = {0x01};
-  static const uint8_t rB1[]  = {0x02};
-  struct Step { bool both; uint8_t cmd; const uint8_t *data; size_t len; };
+  // Good Display's own GDEB0709E01 demo (2026), register for register and
+  // in its order. Seeed's set for the 13.3in T133A01 (the same controller
+  // pair) drove this panel on 2026-10-14 but with dull inks: a grey-green
+  // white and a brown black. The two differ in PSR (6B, not 69), the PLL,
+  // the power-off sequences (0x03, one per controller), register 0xA4, the
+  // refresh mode byte (DRF 00, not 01) and the power-off byte (POF 01,
+  // not 00); EPD709_SEEED_VALUES brings Seeed's set back for comparison.
+  static const uint8_t anTm[]  = {0x00, 0x0C, 0x0C, 0xD9, 0xDD, 0xDD, 0x15,
+                                  0x15, 0x55};
+  static const uint8_t rF0[]   = {0x49, 0x55, 0x13, 0x5D, 0x05, 0x10};
+#ifdef EPD709_SEEED_VALUES
+  static const uint8_t psr[]   = {0xDF, 0x69};
+#else
+  static const uint8_t psr[]   = {0xDF, 0x6B};
+#endif
+  static const uint8_t dcdc[]  = {0x44, 0x54, 0x00};
+  static const uint8_t pll[]   = {0x08};
+  static const uint8_t cdi[]   = {0x37};
+  static const uint8_t tcon[]  = {0x03, 0x03};
+  static const uint8_t pofsM[] = {0x00, 0xC0, 0x03, 0xA8};
+  static const uint8_t pofsS[] = {0x00, 0xC0, 0x03, 0x9A};
+  static const uint8_t r86[]   = {0x10};
+  static const uint8_t pws[]   = {0x22};
+  static const uint8_t ccset[] = {0x01};
+  static const uint8_t tres[]  = {0x04, 0xB0, 0x03, 0x20};
+  static const uint8_t rA4[]   = {0x03, 0x00, 0x01, 0x03, 0x00, 0x03, 0x00,
+                                  0x00, 0x00};
+  static const uint8_t pwr[]   = {0x0F, 0x00, 0x28, 0x2C, 0x28, 0x38};
+  static const uint8_t rB6[]   = {0x07};
+  static const uint8_t btst[]  = {0xE0, 0x20};
+  static const uint8_t rB7[]   = {0x01};
+  static const uint8_t rB0[]   = {0x01};
+  static const uint8_t rB1[]   = {0x02};
+  // M = master only, S = slave only, B = both controllers
+  enum : uint8_t { M, S, B };
+  struct Step { uint8_t to; uint8_t cmd; const uint8_t *data; size_t len; };
   const Step steps[] = {
-    {false, 0x74, anTm, sizeof(anTm)}, {true,  0xF0, rF0,  sizeof(rF0)},
-    {true,  0x00, psr,  sizeof(psr)},  {false, 0xA5, dcdc, sizeof(dcdc)},
-    {true,  0x50, cdi,  sizeof(cdi)},  {true,  0x60, tcon, sizeof(tcon)},
-    {true,  0x86, r86,  sizeof(r86)},  {true,  0xE3, pws,  sizeof(pws)},
-    {true,  0x61, tres, sizeof(tres)}, {false, 0x01, pwr,  sizeof(pwr)},
-    {false, 0xB6, rB6,  sizeof(rB6)},  {false, 0x06, btst, sizeof(btst)},
-    {false, 0xB7, rB7,  sizeof(rB7)},  {false, 0x05, btst, sizeof(btst)},
-    {false, 0xB0, rB0,  sizeof(rB0)},  {false, 0xB1, rB1,  sizeof(rB1)},
+    {M, 0x74, anTm,  sizeof(anTm)},  {B, 0xF0, rF0,   sizeof(rF0)},
+    {B, 0x00, psr,   sizeof(psr)},   {M, 0xA5, dcdc,  sizeof(dcdc)},
+#ifndef EPD709_SEEED_VALUES
+    {B, 0x30, pll,   sizeof(pll)},
+#endif
+    {B, 0x50, cdi,   sizeof(cdi)},   {B, 0x60, tcon,  sizeof(tcon)},
+#ifndef EPD709_SEEED_VALUES
+    {M, 0x03, pofsM, sizeof(pofsM)}, {S, 0x03, pofsS, sizeof(pofsS)},
+#endif
+    {B, 0x86, r86,   sizeof(r86)},   {B, 0xE3, pws,   sizeof(pws)},
+    {B, 0xE0, ccset, sizeof(ccset)}, {B, 0x61, tres,  sizeof(tres)},
+#ifndef EPD709_SEEED_VALUES
+    {M, 0xA4, rA4,   sizeof(rA4)},
+#endif
+    {M, 0x01, pwr,   sizeof(pwr)},   {M, 0xB6, rB6,   sizeof(rB6)},
+    {M, 0x06, btst,  sizeof(btst)},  {M, 0xB7, rB7,   sizeof(rB7)},
+    {M, 0x05, btst,  sizeof(btst)},  {M, 0xB0, rB0,   sizeof(rB0)},
+    {M, 0xB1, rB1,   sizeof(rB1)},
   };
   for (const Step &s : steps)
   {
-    command(true, s.both, s.cmd, s.data, s.len);
+    command(s.to != S, s.to != M, s.cmd, s.data, s.len);
     delay(10);
   }
   _started = true;
@@ -269,11 +292,16 @@ void Epd709::sendFrame()
 
 void Epd709::refresh()
 {
+#ifdef EPD709_SEEED_VALUES
   static const uint8_t drf = 0x01;
   static const uint8_t pof = 0x00;
+#else
+  static const uint8_t drf = 0x00;
+  static const uint8_t pof = 0x01;
+#endif
   command(true, true, 0x04, nullptr, 0); // power on
   waitReady(EPD709_BUSY_TIMEOUT_MS);
-  delay(30);
+  delay(50);
   const uint32_t start = millis();
   command(true, true, 0x12, &drf, 1);    // refresh
   waitReady(EPD709_BUSY_TIMEOUT_MS);
@@ -301,6 +329,13 @@ bool Epd709::nextPage()
  */
 void Epd709::hibernate()
 {
+  if (_started)
+  { // the controllers' deep sleep, as Good Display's demo sends it before
+    // the supply goes
+    static const uint8_t dslp = 0xA5;
+    command(true, true, 0x02, &dslp, 1);
+    delay(20);
+  }
   SPI.end();
   pinMode(_csM, INPUT);
   pinMode(_csS, INPUT);
