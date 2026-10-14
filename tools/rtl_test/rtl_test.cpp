@@ -4,13 +4,17 @@
  * checks the ISO-8859-8 bytes that come out: Hebrew runs reversed, numbers
  * and Latin words in their own order, signs attached to their numbers,
  * brackets mirrored, Latin-1 escapes passed through, Latin-only text
- * untouched.
+ * untouched. Built with -D LOCALE=pl_PL it checks the other job of
+ * shapeText instead: UTF-8 onto the ISO-8859-2 page of a Central European
+ * font family, no reordering.
  */
 #include <cstdio>
 #include <cstdlib>
 #include <string>
 #include "Arduino.h"
 #include "_locale.h"
+#include "config.h"
+#include "fonts/font_encoding.h"
 #include "rtl.h"
 
 bool LC_RTL = true;
@@ -105,14 +109,46 @@ int main()
     printf("%s %-28s %zu bytes\n", ok ? "ok  " : "FAIL", "alphabet in page", all.length());
     if (!ok) ++failures;
   }
-  // with LC_RTL off nothing changes at all
   LC_RTL = false;
+#if LOCALE_FONT_ENCODING == FONT_ENC_ISO8859_2
+  // a Latin-2 locale: the Polish letters land on the ISO-8859-2 slots the
+  // Lato_CE family carries, in order, nothing reversed
+  {
+    String s = shapeText(String("ąćęłńóśźż ŁŚŻ"));
+    static const unsigned char want[] = {0xB1, 0xE6, 0xEA, 0xB3, 0xF1, 0xF3, 0xB6, 0xBC, 0xBF,
+                                         0x20, 0xA3, 0xA6, 0xAF};
+    bool ok = s.length() == sizeof want;
+    for (size_t i = 0; ok && i < sizeof want; ++i)
+    {
+      ok = static_cast<unsigned char>(s.c_str()[i]) == want[i];
+    }
+    printf("%s %-28s %s\n", ok ? "ok  " : "FAIL", "Polish letters on the page", hex(s).c_str());
+    if (!ok) ++failures;
+  }
+  // ASCII and the Latin-1 degree escape pass through; typographic dashes
+  // and quotes fall back to ASCII
+  {
+    String s = shapeText(String("Odczuwalna 24\260C \xE2\x80\x93 \xE2\x80\x9E" "5" "\xE2\x80\x9D"));
+    bool ok = s == "Odczuwalna 24\260C - \"5\"";
+    printf("%s %-28s %s\n", ok ? "ok  " : "FAIL", "ASCII and escapes kept", hex(s).c_str());
+    if (!ok) ++failures;
+  }
+  // a letter with no slot on the page becomes '?' rather than vanishing
+  {
+    String s = shapeText(String("לחות 91%"));
+    bool ok = s == "???? 91%";
+    printf("%s %-28s %s\n", ok ? "ok  " : "FAIL", "no slot -> '?'", hex(s).c_str());
+    if (!ok) ++failures;
+  }
+#else
+  // with LC_RTL off (a Latin-1 locale) nothing changes at all
   {
     String s = shapeText(String("לחות 91%"));
     bool ok = s == "לחות 91%";
     printf("%s %-28s\n", ok ? "ok  " : "FAIL", "LTR locale untouched");
     if (!ok) ++failures;
   }
+#endif
   printf("%d failure(s)\n", failures);
   return failures ? 1 : 0;
 }
