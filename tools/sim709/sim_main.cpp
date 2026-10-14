@@ -338,6 +338,11 @@ int main(int argc, char **argv)
 
   weather((out + "/sim_day.ppm").c_str(), false, 0);
   weather((out + "/sim_night.ppm").c_str(), true, 0);
+  DARK_MODE = true;
+  weather((out + "/sim_dark.ppm").c_str(), false, 0);
+  weather((out + "/sim_dark_night.ppm").c_str(), true, 0);
+  weather((out + "/sim_dark_alert.ppm").c_str(), false, 1);
+  DARK_MODE = false;
   weather((out + "/sim_alert1.ppm").c_str(), false, 1);
   weather((out + "/sim_alert2.ppm").c_str(), false, 2);
   weather((out + "/sim_alert4.ppm").c_str(), false, 4);

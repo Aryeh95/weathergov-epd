@@ -67,6 +67,13 @@ static time_t nowUtc() { return pageTime(); }
 
 static const uint16_t K = GxEPD_BLACK, W = GxEPD_WHITE, R = GxEPD_RED,
                       Y = GxEPD_YELLOW, G = GxEPD_GREEN, B = GxEPD_BLUE;
+/* In dark mode (DARK_MODE, the portal's setting) the paper is the ink and
+ * the ink is the paper: px() swaps K and W. Where a colour must stay what it
+ * is -- black words on a yellow chip, the white side of the moon, a white
+ * cloud -- these two say so; px() maps them to K and W after the swap.
+ */
+static const uint16_t K_ABS = 0x0101, W_ABS = 0xFEFE;
+
 
 // the page
 static const int LEFT0 = 36, LEFT1 = 548, LEFTC = 292; // left column
@@ -140,12 +147,27 @@ static const Tone *BLACK_AS = &T_INK;
 
 static inline void px(int x, int y, uint16_t ink)
 {
+  if (DARK_MODE)
+  {
+    if (ink == K)      ink = W;
+    else if (ink == W) ink = K;
+  }
+  if (ink == K_ABS)      ink = K;
+  else if (ink == W_ABS) ink = W;
   if (ink == K && BLACK_AS)
   {
     ink = toneAt(*BLACK_AS, x, y);
   }
   display.drawPixel(x, y, ink);
 }
+
+// the curves and bars of the graph, by mode: on the dark ground the panel's
+// red and blue are too dark to carry a line, so the temperature goes yellow
+// and the dew point white, and the rain bars lighten to half blue on white
+static inline uint16_t tempInk() { return DARK_MODE ? Y : R; }
+static inline uint16_t dewInk()  { return DARK_MODE ? W_ABS : B; }
+static const Tone T_RAIN_BAR_DARK = {B, 0.50f, W_ABS, 1.0f};
+static inline const Tone &rainBarTone() { return DARK_MODE ? T_RAIN_BAR_DARK : T_RAIN_BAR; }
 
 // is (x, y) inside the box with corners rounded to radius r? Corners
 // inclusive, as the mockups' drawing library counted them.
@@ -466,7 +488,7 @@ static void labelOnPaper(int cx, int cy, const String &s, const Font709 &f,
 
 static void drawIcon(const uint8_t *data, int size, int x, int y)
 {
-  static const uint16_t INK[7] = {0, K, W, R, Y, G, B};
+  static const uint16_t INK[7] = {0, K_ABS, W_ABS, R, Y, G, B};
   if (!data)
   {
     return;
@@ -574,10 +596,10 @@ static void drawMoon(int cx, int cy, int phase)
         continue;
       }
       const uint8_t b = pgm_read_byte(&data[j * row + (i >> 3)]);
-      px(cx - half + i, cy - half + j, (b & (0x80 >> (i & 7))) ? W : K);
+      px(cx - half + i, cy - half + j, (b & (0x80 >> (i & 7))) ? W_ABS : K_ABS);
     }
   }
-  ring(cx - 0.5f, cy - 0.5f, half, 2, K);
+  ring(cx - 0.5f, cy - 0.5f, half, 2, DARK_MODE ? W_ABS : K);
 }
 
 // a 1-bit picture (a cleared bit is ink), each of its dots drawn 2x2
@@ -838,7 +860,7 @@ static void drawNotice(int x0, int y0, int x1, int y1, const Alert709 &a,
   if (a.rank == 0)
   { // a warning: the strongest thing on the page
     fillBox(x0, y0, x1, y1, 10, R);
-    ink = W;
+    ink = W_ABS;
     sign = R;
   }
   else
@@ -952,17 +974,19 @@ static int chipWidth(const char *word)
 static void drawChip(int x, int y, const char *word, int level)
 {
   const int w = chipWidth(word), h = 39;
-  uint16_t ink = W;
+  uint16_t ink = W_ABS;
   switch (level)
   {
   case RISK_GREEN:  fillBox(x, y, x + w, y + h, 8, G);              break;
-  case RISK_YELLOW: fillBox(x, y, x + w, y + h, 8, Y); ink = K;     break;
+  case RISK_YELLOW: fillBox(x, y, x + w, y + h, 8, Y); ink = K_ABS; break;
   case RISK_AMBER:  fillTone(x, y, x + w, y + h, 8, T_AMBER);       break;
   case RISK_RED:    fillBox(x, y, x + w, y + h, 8, R);              break;
   // the panel's black is itself a maroon, so plum and maroon chips were
   // the same colour as it: the two top levels are navy and black instead
-  case RISK_PURPLE: fillTone(x, y, x + w, y + h, 8, {K, 0.50f, B, 1}); break;
-  case RISK_MAROON: fillBox(x, y, x + w, y + h, 8, K);              break;
+  // (white, on the dark ground)
+  case RISK_PURPLE: fillTone(x, y, x + w, y + h, 8, {K_ABS, 0.50f, B, 1}); break;
+  case RISK_MAROON: fillBox(x, y, x + w, y + h, 8, DARK_MODE ? W_ABS : K_ABS);
+                    ink = DARK_MODE ? K_ABS : W_ABS;                 break;
   default:          ink = K;                                        break;
   }
   drawText(x + w / 2, y + h / 2, word, F_SANSB_25, ink, MM);
@@ -1556,11 +1580,11 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
     {
       drawText(cx, y0 + 350,
                String(static_cast<int>(lroundf(daily[i].pop * 100))) + "%",
-               F_SANS_32, B, MA);
+               F_SANS_32, dewInk(), MA);
       const String amount = amountText(daily[i]);
       if (amount.length())
       {
-        drawText(cx, y0 + 388, amount, F_SANS_25, B, MA, true);
+        drawText(cx, y0 + 388, amount, F_SANS_25, dewInk(), MA, true);
       }
     }
 #endif
@@ -1661,18 +1685,18 @@ struct Ribbon
 // disappears, and black over blue reads as a dark teal that is still a
 // colour of its own beside the panel's maroon black.
 static const Ribbon RIBBON[13] = {
-  /* sunny   */ {{Y, 1.00f, W, 1}, false, K, 1, K},
-  /* msunny  */ {{Y, 0.75f, W, 1}, false, K, 1, K},
-  /* clear   */ {{K, 0.50f, B, 1}, false, K, 1, W},
-  /* mclear  */ {{K, 0.30f, B, 1}, false, K, 1, W},
+  /* sunny   */ {{Y, 1.00f, W_ABS, 1}, false, K, 1, K_ABS},
+  /* msunny  */ {{Y, 0.75f, W_ABS, 1}, false, K, 1, K_ABS},
+  /* clear   */ {{K_ABS, 0.50f, B, 1}, false, K, 1, W_ABS},
+  /* mclear  */ {{K_ABS, 0.30f, B, 1}, false, K, 1, W_ABS},
   /* partly  */ {{K, 0.26f, W, 1}, false, K, 1, K},
   /* mcloudy */ {{K, 0.33f, W, 1}, false, K, 1, K},
   /* cloudy  */ {{K, 0.45f, W, 1}, false, K, 1, K},
   /* fog     */ {{K, 0.21f, W, 1}, false, K, 1, K},
   /* showers */ {{B, 0.70f, W, 1}, false, B, 2, K},
-  /* rain    */ {{B, 1, B, 1}, true, B, 0, W},
-  /* storms  */ {{B, 1, B, 1}, true, B, 0, W},
-  /* snow    */ {{W, 1, W, 1}, true, B, 2, B},
+  /* rain    */ {{B, 1, B, 1}, true, B, 0, W_ABS},
+  /* storms  */ {{B, 1, B, 1}, true, B, 0, W_ABS},
+  /* snow    */ {{W_ABS, 1, W_ABS, 1}, true, B, 2, B},
   /* ice     */ {{R, 0.45f, W, 1}, false, R, 2, K},
 };
 
@@ -1842,7 +1866,7 @@ static void drawRibbon(int x0, int x1, int y, const Spell *spells, int count,
         const int yy = y + 8 + static_cast<int>((seed >> 16) % (h - 18));
         if (xx < gapA || xx > gapB)
         {
-          fillBox(xx, yy, xx + 1, yy + 1, 0, W);
+          fillBox(xx, yy, xx + 1, yy + 1, 0, W_ABS);
         }
       }
     }
@@ -1892,14 +1916,14 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
 
   // what the lines mean
   const int ly = gy + 28;
-  fillBox(1040, ly - 3, 1080, ly + 2, 0, R);
+  fillBox(1040, ly - 3, 1080, ly + 2, 0, tempInk());
   drawText(1088, ly, TXT709_TEMPERATURE, F_SANS_26, K, LM, true);
   if (GRAPH_DEWPOINT)
   {
-    fillBox(1262, ly - 2, 1302, ly + 1, 0, B);
+    fillBox(1262, ly - 2, 1302, ly + 1, 0, dewInk());
     drawText(1310, ly, TXT709_DEW_POINT, F_SANS_26, K, LM, true);
   }
-  fillTone(1446, ly - 12, 1470, ly + 12, 0, T_RAIN_BAR);
+  fillTone(1446, ly - 12, 1470, ly + 12, 0, rainBarTone());
   drawText(1478, ly, TXT709_RAIN, F_SANS_26, K, LM, true);
 
   static Spell spells[OWM_NUM_HOURLY];
@@ -1950,7 +1974,7 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     {
       fillTone(static_cast<int>(X(i)) + 2,
                static_cast<int>(y1 - (y1 - y0) * p / 100.0f),
-               static_cast<int>(X(i + 1)) - 2, y1, 0, T_RAIN_BAR);
+               static_cast<int>(X(i + 1)) - 2, y1, 0, rainBarTone());
     }
   }
   // the scale's lines and figures
@@ -2004,7 +2028,7 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
         }
         stroke(X(i - 1), Yt(toUnitsF(hourly[i - 1].dew_point)), X(i),
                Yt(toUnitsF(hourly[i].dew_point)), pass ? 4 : 9,
-               pass ? B : W);
+               pass ? dewInk() : W);
       }
     }
   }
@@ -2013,7 +2037,7 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     for (int i = 1; i < n; ++i)
     {
       stroke(X(i - 1), Yt(toUnitsF(hourly[i - 1].temp)), X(i),
-             Yt(toUnitsF(hourly[i].temp)), pass ? 6 : 12, pass ? R : W);
+             Yt(toUnitsF(hourly[i].temp)), pass ? 6 : 12, pass ? tempInk() : W);
     }
   }
   // highs and lows: a dot on the curve and the figure beside it
@@ -2045,7 +2069,7 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     }
     const int x = static_cast<int>(X(i)), y = static_cast<int>(Yt(t));
     disc(x, y, 11, W);
-    disc(x, y, 7, R);
+    disc(x, y, 7, tempInk());
     int ly2 = y + (high ? -36 : 38);
     ly2 = std::max(y0 + 20, std::min(y1 - 22, ly2));
     labelOnPaper(x, ly2, String(static_cast<int>(lroundf(t))) + "\xB0",
@@ -2087,7 +2111,7 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     const int cx = (anchor == LD) ? pxl + wide / 2
                  : (anchor == RD) ? pxl - wide / 2 : pxl;
     const int tall = F_SANS_28.ascent + F_SANS_28.descent;
-    labelOnPaper(cx, std::max(py, y0 + 30) - tall / 2, share, F_SANS_28, B);
+    labelOnPaper(cx, std::max(py, y0 + 30) - tall / 2, share, F_SANS_28, dewInk());
   }
 } // end drawOutlookGraph
 
@@ -2097,11 +2121,17 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
 
 void fillDisplayBackground()
 {
-  // paper; this layout has no dark version
+  if (DARK_MODE)
+  { // the charcoal ink over the whole page (W swaps to K, K is screened)
+    fillBox(0, 0, DISP_WIDTH - 1, DISP_HEIGHT - 1, 0, W);
+  }
 }
 
 void initDisplay()
 {
+#ifdef EPD709_FORCE_DARK
+  DARK_MODE = true;   // the dark-mode trial build; the portal's setting otherwise
+#endif
   if (PIN_EPD_PWR != PIN_UNUSED)
   {
     pinMode(PIN_EPD_PWR, OUTPUT);
