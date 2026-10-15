@@ -1928,7 +1928,7 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
   drawText(1088, ly, TXT709_TEMPERATURE, F_SANS_26, K, LM, true);
   if (GRAPH_DEWPOINT)
   {
-    fillBox(1262, ly - 2, 1302, ly + 1, 0, dewInk());
+    fillBox(1262, ly - 3, 1302, ly + 2, 0, dewInk());
     drawText(1310, ly, TXT709_DEW_POINT, F_SANS_26, K, LM, true);
   }
   fillTone(1446, ly - 12, 1470, ly + 12, 0, rainBarTone());
@@ -2035,8 +2035,9 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
           continue;
         }
         stroke(X(i - 1), Yt(toUnitsF(hourly[i - 1].dew_point)), X(i),
-               Yt(toUnitsF(hourly[i].dew_point)), pass ? 4 : 9,
-               pass ? dewInk() : W);
+               Yt(toUnitsF(hourly[i].dew_point)), pass ? 6 : 12,
+               pass ? dewInk() : W);   // as wide as the temperature: at 282
+                                       // ppi 4 px read as a thin grey hairline
       }
     }
   }
