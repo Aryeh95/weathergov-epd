@@ -1482,7 +1482,7 @@ void drawStatusBar(const String &statusStr, const String &refreshTimeStr,
     }
   }
   const bool low = BATTERY_MONITORING && batVoltage < WARN_BATTERY_VOLTAGE;
-  drawText(LEFT0, 1168, s, F_SANS_26, low ? R : K, LA, !low);   // 26 px: at 24 the grey line faded
+  drawText(LEFT0, 1168, s, F_SANS_24, low ? R : K, LA, !low);
 } // end drawStatusBar
 
 /* =========================================================================
