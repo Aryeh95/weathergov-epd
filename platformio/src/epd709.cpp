@@ -330,10 +330,13 @@ bool Epd709::nextPage()
 void Epd709::hibernate()
 {
   if (_started)
-  { // the controllers' deep sleep, as Good Display's demo sends it before
-    // the supply goes
+  { // the controllers' deep sleep before the supply goes. Good Display's
+    // demo sends the 0xA5 check code after 0x02 (power off), which this
+    // controller family takes with 0x07 (DSLP, as GxEPD2's GDEP073E01
+    // driver and the UC81xx data sheets have it); power is already off
+    // from refresh(), so the deep sleep is what is meant here.
     static const uint8_t dslp = 0xA5;
-    command(true, true, 0x02, &dslp, 1);
+    command(true, true, 0x07, &dslp, 1);
     delay(20);
   }
   SPI.end();
