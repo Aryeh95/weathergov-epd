@@ -319,6 +319,15 @@ bool Epd709::nextPage()
   {
     sendFrame();
     refresh();
+#if defined(EPD709_TRIAL) && EPD709_TRIAL == 1
+    // trial: a second pass over the same frame, from a settled state. (A
+    // second trial, telling the controller it was at 15 C through the
+    // UC81xx TSE/TSSET commands 0x41/0xE5 so that it would pick a harder
+    // waveform, was tried on 2026-10-14: the refresh never started and BUSY
+    // never cleared -- those commands do not mean that on this controller.)
+    Serial.println("[epd709] trial: second refresh");
+    refresh();
+#endif
   }
   return false;
 }
