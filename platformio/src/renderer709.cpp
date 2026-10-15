@@ -2132,6 +2132,9 @@ void initDisplay()
 #ifdef EPD709_FORCE_DARK
   DARK_MODE = true;   // the dark-mode trial build; the portal's setting otherwise
 #endif
+#ifdef EPD709_FORCE_LIGHT
+  DARK_MODE = false;  // light-mode trial builds, whatever the portal says
+#endif
   if (PIN_EPD_PWR != PIN_UNUSED)
   {
     pinMode(PIN_EPD_PWR, OUTPUT);

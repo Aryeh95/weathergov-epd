@@ -206,8 +206,20 @@ void Epd709::init(uint32_t, bool, uint16_t, bool)
   // the power-off sequences (0x03, one per controller), register 0xA4, the
   // refresh mode byte (DRF 00, not 01) and the power-off byte (POF 01,
   // not 00); EPD709_SEEED_VALUES brings Seeed's set back for comparison.
+  // The analog timing (0x74), CDI (0x50) and booster (0x06/0x05) values are
+  // Good Display's from their own GDEP133C02 carrier board; the demo's (and
+  // Seeed's) 00 0C 0C D9.. / 37 / E0 20 left a grey-green white. Tried on
+  // this panel on 2026-10-14: the driven white came up to nearly the
+  // undriven border's, with a clean 30.6 s refresh. EPD709_LOW_DRIVE_ANALOG
+  // brings the old values back. (Good Display's carrier also leaves the
+  // DC/DC command 0xA5 out; it is still sent here.)
+#ifndef EPD709_LOW_DRIVE_ANALOG
+  static const uint8_t anTm[]  = {0xC0, 0x1C, 0x1C, 0xCC, 0xCC, 0xCC, 0x15,
+                                  0x15, 0x55};
+#else
   static const uint8_t anTm[]  = {0x00, 0x0C, 0x0C, 0xD9, 0xDD, 0xDD, 0x15,
                                   0x15, 0x55};
+#endif
   static const uint8_t rF0[]   = {0x49, 0x55, 0x13, 0x5D, 0x05, 0x10};
 #ifdef EPD709_SEEED_VALUES
   static const uint8_t psr[]   = {0xDF, 0x69};
@@ -216,7 +228,11 @@ void Epd709::init(uint32_t, bool, uint16_t, bool)
 #endif
   static const uint8_t dcdc[]  = {0x44, 0x54, 0x00};
   static const uint8_t pll[]   = {0x08};
+#ifndef EPD709_LOW_DRIVE_ANALOG
+  static const uint8_t cdi[]   = {0xF7};
+#else
   static const uint8_t cdi[]   = {0x37};
+#endif
   static const uint8_t tcon[]  = {0x03, 0x03};
   static const uint8_t pofsM[] = {0x00, 0xC0, 0x03, 0xA8};
   static const uint8_t pofsS[] = {0x00, 0xC0, 0x03, 0x9A};
@@ -228,7 +244,11 @@ void Epd709::init(uint32_t, bool, uint16_t, bool)
                                   0x00, 0x00};
   static const uint8_t pwr[]   = {0x0F, 0x00, 0x28, 0x2C, 0x28, 0x38};
   static const uint8_t rB6[]   = {0x07};
+#ifndef EPD709_LOW_DRIVE_ANALOG
+  static const uint8_t btst[]  = {0xE8, 0x28};
+#else
   static const uint8_t btst[]  = {0xE0, 0x20};
+#endif
   static const uint8_t rB7[]   = {0x01};
   static const uint8_t rB0[]   = {0x01};
   static const uint8_t rB1[]   = {0x02};
@@ -269,6 +289,9 @@ void Epd709::sendFrame()
   // out before every frame, not once at start-up.
   static const uint8_t ccset = 0x01;
   command(true, true, 0xE0, &ccset, 1);
+  // (TSSET 0xE5 must not be sent here: tried on 2026-10-14, alone it left
+  // one controller busy and half the panel unrefreshed; with TSE 0x41 it
+  // stopped the whole panel.)
   waitReady(EPD709_BUSY_TIMEOUT_MS);
 
   // Master takes the left 600 columns, slave the right 600. Each gets its
