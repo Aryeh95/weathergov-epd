@@ -1685,22 +1685,25 @@ struct Ribbon
   int edgeWidth;  // 1 is drawn as a hairline of every other dot
   uint16_t text;
 };
-// Screens set on the real panel (test cards, 2026-10-14): its white is a
-// 34 % grey, so anything under about a fifth of black or half of blue
-// disappears, and black over blue reads as a dark teal that is still a
-// colour of its own beside the panel's maroon black.
+// Spells, as set on the panel with Good Display's analog values (the test
+// cards again, 2026-10-14): grey screens now show from 10 %, so the cloud
+// steps are lighter (10 / 21 / 33 %, fog 16 %) and read as tints rather
+// than speckle; the colour inks are strong, so the sunny spells are solid
+// and pale yellow (55 % read as a clean pale yellow), showers a pale blue
+// (55 %), rain the blue ink itself, and storms navy with yellow words to
+// echo the lightning. Night spells keep navy and slate with white words.
 static const Ribbon RIBBON[13] = {
   /* sunny   */ {{Y, 1.00f, W_ABS, 1}, false, K, 1, K_ABS},
-  /* msunny  */ {{Y, 0.75f, W_ABS, 1}, false, K, 1, K_ABS},
+  /* msunny  */ {{Y, 0.55f, W_ABS, 1}, false, K, 1, K_ABS},
   /* clear   */ {{K_ABS, 0.50f, B, 1}, false, K, 1, W_ABS},
   /* mclear  */ {{K_ABS, 0.30f, B, 1}, false, K, 1, W_ABS},
-  /* partly  */ {{K, 0.26f, W, 1}, false, K, 1, K},
-  /* mcloudy */ {{K, 0.33f, W, 1}, false, K, 1, K},
-  /* cloudy  */ {{K, 0.45f, W, 1}, false, K, 1, K},
-  /* fog     */ {{K, 0.21f, W, 1}, false, K, 1, K},
-  /* showers */ {{B, 0.70f, W, 1}, false, B, 2, K},
+  /* partly  */ {{K, 0.10f, W, 1}, false, K, 1, K},
+  /* mcloudy */ {{K, 0.21f, W, 1}, false, K, 1, K},
+  /* cloudy  */ {{K, 0.33f, W, 1}, false, K, 1, K},
+  /* fog     */ {{K, 0.16f, W, 1}, false, K, 1, K},
+  /* showers */ {{B, 0.55f, W, 1}, false, B, 2, K},
   /* rain    */ {{B, 1, B, 1}, true, B, 0, W_ABS},
-  /* storms  */ {{B, 1, B, 1}, true, B, 0, W_ABS},
+  /* storms  */ {{K_ABS, 0.50f, B, 1}, false, K, 1, Y},
   /* snow    */ {{W_ABS, 1, W_ABS, 1}, true, B, 2, B},
   /* ice     */ {{R, 0.45f, W, 1}, false, R, 2, K},
 };
