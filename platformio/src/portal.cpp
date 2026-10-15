@@ -248,6 +248,13 @@ static void handleGetInfo()
   // commit the firmware was built from (scripts/git_rev.py), plus the
   // compile time, so an update can be confirmed from a phone
   doc["build"] = String(GIT_REV) + " (" __DATE__ " " __TIME__ ")";
+#ifdef BOARD_RETERMINAL_E1001
+  doc["board"] = "Seeed reTerminal E1001";
+#elif defined(BOARD_RETERMINAL_E1002)
+  doc["board"] = "Seeed reTerminal E1002";
+#else
+  doc["board"] = "FireBeetle ESP32";
+#endif
   doc["target"] = ownTarget();
   diagToJson(doc);
   // the locale compiled in, so the page can show its defaults (a Hebrew

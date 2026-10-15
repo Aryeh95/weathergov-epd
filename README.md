@@ -295,7 +295,7 @@ The WiFi, API and time server screens below appear once an outage has lasted lon
 
 ### Low Battery
 <img src="showcase/demo-error-low-battery.jpg" align="left" width="25%" />
-This error screen appears once the battery voltage has fallen below <code>low_voltage_mv</code> (default = 3.462v, ~10%). The display will not refresh again until the battery is charged. While between <code>low_voltage_mv</code> and <code>very_low_voltage_mv</code> (default = 3.442v) the esp32 deep-sleeps for <code>low_sleep_interval_minutes</code> (default = 30min) between voltage checks; below that, for <code>very_low_sleep_interval_minutes</code> (default = 120min). If the voltage falls below <code>crit_low_voltage_mv</code> (default = 3.404v), the esp32 hibernates and requires a manual press of the reset (RST) button once charged. All thresholds are configurable in the portal's raw-JSON editor.
+This error screen appears once the battery voltage has fallen below <code>low_voltage_mv</code> (default = 3.462v, ~10%). It stays up until the battery is charged, as an e-reader's does, drawn in black on white only and redrawn once a day while the device still wakes, since colour inks ghost more easily when one image stays for long. While between <code>low_voltage_mv</code> and <code>very_low_voltage_mv</code> (default = 3.442v) the esp32 deep-sleeps for <code>low_sleep_interval_minutes</code> (default = 30min) between voltage checks; below that, for <code>very_low_sleep_interval_minutes</code> (default = 120min). If the voltage falls below <code>crit_low_voltage_mv</code> (default = 3.404v), the esp32 hibernates and requires a manual press of the reset (RST) button once charged. All thresholds are configurable in the portal's raw-JSON editor.
 
 <br clear="left"/>
 

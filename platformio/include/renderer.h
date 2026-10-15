@@ -124,8 +124,11 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
 void drawStatusBar(const String &statusStr, const String &refreshTimeStr,
                    int rssi, uint32_t batVoltage, int batDaysLeft = -1,
                    bool stale = false);
+// mono: the icon in black instead of the accent colour (the low-battery
+// page, which may stay on the panel for days)
 void drawError(const uint8_t *bitmap_196x196,
-               const String &errMsgLn1, const String &errMsgLn2="");
+               const String &errMsgLn1, const String &errMsgLn2="",
+               bool mono = false);
 void drawConfigPortalScreen(const String &line1, const String &line2,
                             const String &line3);
 void drawCurrentSunrise(const owm_current_t &current);

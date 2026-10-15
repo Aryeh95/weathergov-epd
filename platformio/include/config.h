@@ -467,8 +467,6 @@
   #define PANEL_NAME "DISP_7C_E6"
 #elif defined(DISP_BW_V1)
   #define PANEL_NAME "DISP_BW_V1"
-#elif defined(DISP_7C_709)
-  #define PANEL_NAME "DISP_7C_709"
 #else
   #define PANEL_NAME "unknown"
 #endif

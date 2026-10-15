@@ -1149,7 +1149,7 @@ function showConnInfo(i) {
   box.append(' ' + t('Setup mode ends after %1 minutes of inactivity.')
     .replace('%1', i.timeout_minutes ?? 10));
   box.style.display = 'block';
-  if (i.build) { el('fwbuild').textContent = i.build; }
+  if (i.build) { el('fwbuild').textContent = i.build + (i.board ? ' for ' + i.board : ''); }
   if (i.target) { el('fwtarget').textContent = i.target; }
   showDiagnostics(i);
   if (i.fonts) { setFontOptions(i.fonts); }

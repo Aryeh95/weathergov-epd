@@ -3,7 +3,7 @@ name: PlatformIO CI
 on:
   workflow_dispatch:
   push:
-    branches: [ main, develop, ee02-gdeb0709e01, open-meteo-forecast ]
+    branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
 

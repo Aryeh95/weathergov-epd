@@ -429,30 +429,46 @@ void setup()
   Serial.print(TXT_BATTERY_VOLTAGE);
   Serial.println(": " + String(batteryVoltage) + "mv");
 
-  // When the battery is low, the display should be updated to reflect that, but
-  // only the first time we detect low voltage. The next time the display will
-  // refresh is when voltage is no longer low. To keep track of that we will
-  // make use of non-volatile storage.
+  // When the battery is low, the display shows a low-battery page instead of
+  // the weather, and keeps it until the battery recovers -- like a Kindle,
+  // and like upstream. Two refinements for colour panels, whose inks are
+  // the more prone to ghosting when one image stays for long (Good
+  // Display's E6 design notice): the page is drawn in black on white only,
+  // with no coloured icon and no dark-mode ground, and it is drawn again
+  // once a day while the device still wakes (low and very low battery).
+  // At a critically low battery the device hibernates showing it.
   bool lowBat = prefs.getBool("lowBat", false);
 
   // low battery, deep sleep now
   if (batteryVoltage <= LOW_BATTERY_VOLTAGE)
   {
-    if (lowBat == false)
-    { // battery is now low for the first time
+    const bool critical = batteryVoltage <= CRIT_LOW_BATTERY_VOLTAGE;
+    // minutes since the low-battery page was last drawn
+    const int lowMin = prefs.getInt("lowBatMin", 0);
+    if (lowBat == false || (!critical && lowMin >= 24 * 60))
+    { // battery is low for the first time, or the page is a day old
       prefs.putBool("lowBat", true);
       prefs.putBool("goodScreen", false);
+      prefs.putInt("lowBatMin", 0);
       prefs.end();
+      DARK_MODE = false;   // a white page, whatever the portal says
       initDisplay();
       do
       {
-        fillDisplayBackground();
-        drawError(battery_alert_0deg_196x196, TXT_LOW_BATTERY);
+        drawError(battery_alert_0deg_196x196, TXT_LOW_BATTERY, "", true);
       } while (display.nextPage());
       powerOffDisplay();
     }
+    else if (!critical)
+    {
+      prefs.putInt("lowBatMin", lowMin
+                   + static_cast<int>((batteryVoltage <= VERY_LOW_BATTERY_VOLTAGE)
+                                      ? VERY_LOW_BATTERY_SLEEP_INTERVAL
+                                      : LOW_BATTERY_SLEEP_INTERVAL));
+      prefs.end();
+    }
 
-    if (batteryVoltage <= CRIT_LOW_BATTERY_VOLTAGE)
+    if (critical)
     { // critically low battery
       // don't set esp_sleep_enable_timer_wakeup();
       // We won't wake up again until someone manually presses the RST button.
@@ -484,10 +500,11 @@ void setup()
                : LOW_BATTERY_SLEEP_INTERVAL * 60UL);
     esp_deep_sleep_start();
   }
-  // battery is no longer low, reset variable in non-volatile storage
+  // battery is no longer low, reset the variables in non-volatile storage
   if (lowBat == true)
   {
     prefs.putBool("lowBat", false);
+    prefs.putInt("lowBatMin", 0);
   }
 #else
   uint32_t batteryVoltage = UINT32_MAX;
@@ -880,7 +897,8 @@ void setup()
   pollen_info_t pollen;
   pollen.tree = pollen.grass = pollen.weed = 0;
   pollen.max_upi = -1;
-  if (!POLLEN_APIKEY.isEmpty() && POS_POLLEN >= 0)
+  const bool wantPollen = (POS_POLLEN >= 0);
+  if (!POLLEN_APIKEY.isEmpty() && wantPollen)
   {
     // Pollen is a daily forecast, so the result is cached in NVS and the
     // API is only called once per 3-hour bucket -- ~8 calls/day instead of
@@ -1151,7 +1169,13 @@ void setup()
   }
   if (PIN_BME_PWR != PIN_UNUSED)
   {
-    digitalWrite(PIN_BME_PWR, LOW);
+    // let go of the lines before the sensor loses its supply, or it
+    // would draw through them
+    I2C_bme.end();
+    if (PIN_BME_PWR != PIN_EPD_PWR)
+    { // a supply shared with the panel stays up: the panel is next
+      digitalWrite(PIN_BME_PWR, LOW);
+    }
   }
 #endif // SENSOR_NONE
 
