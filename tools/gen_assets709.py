@@ -150,11 +150,11 @@ BAYER = np.array([[0, 32, 8, 40, 2, 34, 10, 42], [48, 16, 56, 24, 50, 18, 58, 26
                   [3, 35, 11, 43, 1, 33, 9, 41], [51, 19, 59, 27, 49, 17, 57, 25],
                   [15, 47, 7, 39, 13, 45, 5, 37], [63, 31, 55, 23, 61, 29, 53, 21]],
                  dtype=np.float32) / 64.0 + 1 / 128.0
-# Yellow ink alone is too close to the paper to read as a sun: on the
-# panel it is a pale mustard. The E1002's icons, which do read, carry
-# about one red dot in five among the yellow (measured in icons_color.h:
-# 18 to 20%), so the sun gets the same share here, as a regular screen.
-SUN_RED = 0.19
+# The sun is solid yellow. (Until 2026-10-14 it was a screen of about one
+# red dot in five, as the E1002's icons have it, because yellow alone was a
+# pale mustard with Seeed's low-drive analog values; with Good Display's
+# values the panel's yellow is strong and the user preferred it pure.)
+SUN_RED = 0.0
 # cloud greys, lightest lobe to deepest shadow, as the share of black dots
 CLOUD = (0.06, 0.16, 0.26, 0.48)
 
@@ -207,7 +207,7 @@ def rework(path, size):
     mdens = np.interp(s, [0.10, 0.22, 0.34], [0.20, 0.30, 0.46])
     out[moon] = np.where(mdens > th, BLUE, WHITE)[moon]
     shade = np.clip((0.80 - lum) / 0.22, 0, 1) * 0.38
-    out[sun] = np.where(SUN_RED + shade * (1 - SUN_RED) > th, RED, YELLOW)[sun]
+    out[sun] = np.where(SUN_RED > th, RED, YELLOW)[sun]   # one ink, no shading
     out[bolt] = np.where(0.42 > th, RED, YELLOW)[bolt]
     out[rain] = BLUE
     out[snow] = BLUE
