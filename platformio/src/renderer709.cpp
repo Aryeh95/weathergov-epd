@@ -127,9 +127,11 @@ static const Tone T_AMBER     = {R, 0.50f, Y, 1.0f};
 static const Tone T_PLUM      = {R, 0.60f, B, 1.0f};
 static const Tone T_MAROON    = {R, 0.50f, K, 1.0f};
 static const Tone T_ADVISORY  = {Y, 0.55f, W, 1.0f};
-// 85 % blue: on the panel (white at 34 % reflectance) 40 % blue vanished
-// and 85 % still lets the curves read over the bars (test card, 2026-10-14)
-static const Tone T_RAIN_BAR  = {B, 0.85f, W, 1.0f};
+// 70 % blue: with Seeed's low-drive analog values 40 % blue vanished and
+// 85 % was needed; with Good Display's values (the test cards again, under
+// 5000 K light, 2026-10-14) 70 % reads clearly and lets the curves over the
+// bars read better
+static const Tone T_RAIN_BAR  = {B, 0.70f, W, 1.0f};
 
 /* =========================================================================
  * Shapes
@@ -142,7 +144,10 @@ static const Tone T_RAIN_BAR  = {B, 0.85f, W, 1.0f};
  * becomes that screen. Text, lines and icon outlines all pass through px;
  * the test cards switch it off to show the bare ink.
  */
-static const Tone T_INK = {K, 0.70f, B, 1.0f};
+// With Good Display's analog values the third card showed 70 % black on
+// blue as a warm dark brown-grey and navy (50 %) as the most neutral dark,
+// still crisp at 22 px: navy it is.
+static const Tone T_INK = {K, 0.50f, B, 1.0f};
 static const Tone *BLACK_AS = &T_INK;
 
 static inline void px(int x, int y, uint16_t ink)
