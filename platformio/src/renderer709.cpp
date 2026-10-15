@@ -1482,7 +1482,7 @@ void drawStatusBar(const String &statusStr, const String &refreshTimeStr,
     }
   }
   const bool low = BATTERY_MONITORING && batVoltage < WARN_BATTERY_VOLTAGE;
-  drawText(LEFT0, 1168, s, F_SANS_24, low ? R : K, LA, !low);
+  drawText(LEFT0, 1168, s, F_SANS_26, low ? R : K, LA, !low);   // 26 px: at 24 the grey line faded
 } // end drawStatusBar
 
 /* =========================================================================
@@ -1589,7 +1589,7 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
       const String amount = amountText(daily[i]);
       if (amount.length())
       {
-        drawText(cx, y0 + 388, amount, F_SANS_25, dewInk(), MA, true);
+        drawText(cx, y0 + 388, amount, F_SANS_25, dewInk(), MA);   // solid: blue at half coverage vanished on the panel
       }
     }
 #endif
