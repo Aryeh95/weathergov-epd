@@ -3,7 +3,7 @@
 > [!NOTE]
 > **This fork replaces OpenWeatherMap with the free, keyless [weather.gov (NWS) API](https://www.weather.gov/documentation/services-web-api).** US locations only. Major differences from upstream:
 >
-> - **No API keys or accounts required.** [weather.gov (NWS)](https://www.weather.gov/documentation/services-web-api) provides hourly/daily forecasts and weather alerts (`api.forecast_source` can switch these to the [Israel Meteorological Service](https://ims.gov.il/en) for a Hebrew or English display in Israel). [Open-Meteo](https://open-meteo.com/) (also free/keyless) provides current conditions, UV index and air-pollutant concentrations; current conditions can alternatively come from the Google Weather API or weather.gov's hourly forecast (`api.current_source`). Optionally, a free [AirNow](https://docs.airnowapi.org/) API key upgrades the Air Quality widget to the EPA's official US AQI from certified monitoring stations, with automatic fallback to Open-Meteo.
+> - **No API keys or accounts required.** [weather.gov (NWS)](https://www.weather.gov/documentation/services-web-api) provides hourly/daily forecasts and weather alerts (`api.forecast_source` can switch these to [Open-Meteo](https://open-meteo.com/) for anywhere in the world, or to the [Israel Meteorological Service](https://ims.gov.il/en) for a Hebrew or English display in Israel). [Open-Meteo](https://open-meteo.com/) (also free/keyless) provides current conditions, UV index and air-pollutant concentrations; current conditions can alternatively come from the Google Weather API or weather.gov's hourly forecast (`api.current_source`). Optionally, a free [AirNow](https://docs.airnowapi.org/) API key upgrades the Air Quality widget to the EPA's official US AQI from certified monitoring stations, with automatic fallback to Open-Meteo.
 > - **Phone-based setup, no code editing.** A fresh device boots into a WiFi hotspot with a captive setup page — see [First-Time Setup](#first-time-setup-hotspot). Every runtime setting lives in [`platformio/data/config.json`](platformio/data/config.json) and can be changed from the [configuration web portal](#the-configuration-web-portal) afterwards, including **over-the-air firmware updates** — the only time a device needs a USB cable is its very first flash.
 > - **Full-color weather icons on 7-color panels** (ACeP and Spectra 6): condition and widget icons derived from the [InkyPi](https://github.com/fatihak/InkyPi) icon set, quantized to the panels' native inks (gray dithered clouds, blue rain, yellow suns), plus a semantic color palette — red highs/blue lows, color-coded UV and AQI values. Black/white and 3-color panels keep the original line art.
 > - **More widgets, flexible layout**: a moon phase widget (computed on-device, dithered grayscale icons on every panel type), 5–7 day forecast row, and a 5- or 6-row widget grid (10 or 12 slots) — all selectable at runtime.
@@ -100,9 +100,56 @@ Other items needed:
   | Good Display 7.3in e-paper (GDEY073D46) | 800x480px  | 7-Color         | Available [here](https://www.aliexpress.com/item/3256805485098421.html). Full-color icons.                            |
   | Good Display 7.3in e-paper (GDEP073E01) | 800x480px  | 7-Color         | Available [here](https://www.good-display.com/blank7.html?productId=533). Spectra 6. Full-color icons. This is also the panel built into the reTerminal E1002. |
   | Waveshare 7.5in e-paper (v1)            | 640x384px  | Black/White     | Limited support. Some information not displayed, see [image](showcase/demo-waveshare75-version1.jpg).                 |
+  | Good Display 7.09in e-paper (GDEB0709E01) | 1600x1200px | 6-Color       | Spectra 6, 282 ppi, on the Seeed EE02 board. Experimental, with a layout of its own: see [below](#high-resolution-panel-gdeb0709e01-experimental). |
   | Good Display 7.5in e-paper (GDEW075T8)  | 640x384px  | Black/White     | Limited support. Some information not displayed, see [image](showcase/demo-waveshare75-version1.jpg).                 |
 
   On the 7-color panels this fork renders full-color condition and widget icons plus a semantic color palette (red highs / blue lows, color-coded UV and AQI); the 3-color panels use a single red accent; B/W panels use line art. Panels with additional colors have much longer refresh times (~12s for 3-color, ~28s for 7-color), which reduces battery life.
+
+### High-Resolution Panel: GDEB0709E01 (experimental)
+
+  ![preview](showcase/preview-gdeb0709e01.png)
+
+  *(What the firmware draws, rendered on a PC in the panel's measured ink colours. Sample weather.)*
+
+  The Good Display GDEB0709E01 is a 7.09in Spectra 6 panel the size of the ones above with four times the dots: 1600x1200 in landscape, 282 ppi. It is driven by Seeed's [XIAO ePaper Display Board EE02](https://www.seeedstudio.com/XIAO-ePaper-Display-Board-EE02-p-6639.html) (XIAO ESP32-S3 Plus, battery charger, three buttons), which takes the panel's 60-pin cable directly.
+
+  > **Status: not yet run on the hardware.** The firmware builds, and its drawing code has been run on a PC and checked against the design. The panel driver follows Seeed's driver for this panel, but has not lit a panel yet. Expect to adjust things on first power-up.
+
+  The extra dots buy sharpness, not room, so this panel has a layout of its own rather than the 800x480 one scaled up:
+
+  - **Left:** city, date and current conditions; the sun's path through the day, with sunrise, sunset and the moon at its true phase (rendered from NASA's map of the lunar surface); eight readings, with UV, air quality and pollen on colour-coded chips.
+  - **Right:** weather alerts (one, two side by side, or two and a count of the rest); the week; the next 48 hours as a ribbon of named weather ("Rain 7pm – 5am") over a graph of temperature, dew point and chance of rain.
+  - At night the sun's arc shows tomorrow's path and counts down to sunrise.
+
+  Build and flash:
+
+  ```
+  pio run -e seeed_xiao_ee02_709_testcard -t upload   # first: a test card, no WiFi needed
+  pio run -e seeed_xiao_ee02_709 -t upload            # the weather display
+  pio run -e seeed_xiao_ee02_709 -t uploadfs          # config.json, as for the other boards
+  ```
+
+  Flash the test card first. It shows the six inks, every screen of dots the layout relies on, a ladder of type sizes, and named corners, so one look tells whether the picture is the right way up (if not, change `EPD709_ROTATION` in config.h) and whether fine dots and small type hold on real ink.
+
+  Things to know:
+
+  - **Buttons:** KEY1 opens the configuration portal, KEY2 forces a refresh.
+  - **Serial output is on the USB port.** The board uses the UART pins for the panel.
+  - **Indoor sensor: optional, four wires.** The EE02 has no sensor and no free pins, and without one the Indoor cell shows visibility. An SHT40, SHT41 or SHT45 breakout (3.3 V, with its own pull-up resistors) can be soldered to the pads of **U6**, an eight-pad footprint between the buttons and the flash chip that Seeed leaves empty. The firmware looks for the sensor on every wake and uses it if it answers, so the same build serves both. *Worked out from Seeed's board files; not yet tried on a board.*
+
+    | Sensor | U6 pad | Signal |
+    |---|---|---|
+    | VIN / 3V3 | 8 | 3.3 V, switched on with the panel supply (GPIO43) |
+    | SCL | 6 | GPIO11 |
+    | SDA | 5 | GPIO13 |
+    | GND | 4 | ground |
+
+    Hold the board with the USB-C connector at the top right: the footprint's top row is then pads 8, 7, 6, 5 from left to right and its bottom row 1, 2, 3, 4. Before soldering, confirm with a meter that pad 4 is connected to ground (the USB connector's shell). Pad 8 only carries 3.3 V while the display is awake. Never give the sensor 5 V: the board's pins are 3.3 V. Keep the sensor on a few centimetres of wire, away from the board and out of the enclosure's warm air. For a BME280 on the same pads, define `SENSOR_BME280` for this board in config.h in place of `SENSOR_SHT4X`.
+  - **Battery reading** assumes a 1:2 divider, as on the reTerminal E1002. Check it against a meter.
+  - **Refresh takes about 27 seconds**, as on the other Spectra 6 panels.
+  - **English only, no dark mode** for this layout so far. Settings that belong to the 800x480 layouts (`font`, `widget_rows`, widget positions, `dark_mode`) are ignored.
+
+  To see the layout without the hardware, or to change it: `python tools/sim709/build.py` builds the firmware's own drawing code for your computer and writes what it draws as PNGs (see [tools/sim709](tools/sim709/README.md)). Fonts, icons and moon images are generated by `tools/gen_assets709.py`.
 
 ### Enclosure Options
 
@@ -261,7 +308,8 @@ Notes on specific settings:
 - `api.nws_user_agent` — weather.gov requests a contact email in the User-Agent so they can reach you if your device misbehaves. Please set one.
 - `api.airnow_api_key` — optional; a free [AirNow key](https://docs.airnowapi.org/) upgrades the AQI widget to the EPA's official measured US AQI. Leave empty to use Open-Meteo's modeled values.
 - `api.pollen_api_key` — optional; a [Google Maps Platform](https://developers.google.com/maps/documentation/pollen) key with the Pollen API enabled turns on the pollen widget. The same key serves the Google current-conditions source below when the Weather API is also enabled on its project.
-- `api.forecast_source` — where the forecasts, condition icons and alerts come from. `"nws"` (default) is weather.gov, US only. `"ims"` is the [Israel Meteorological Service](https://ims.gov.il/en) (the public JSON feeds behind its site and app: 7-day hourly forecast with humidity, rain, wind and UV per hour, plus regional warnings), Israel only, no key. Replies follow the firmware's locale, so a build with `LOCALE he_IL` shows Hebrew. With IMS, `"current_source": "nws"` means IMS's own current conditions. IMS times are Israel local time, so set `timezone` to Israel's. `api.ims_location_id` picks one of IMS's ~160 locations ([list](https://ims.gov.il/en/locations_info)); 0 takes the nearest to the coordinates. Also in the portal.
+- `api.forecast_source` — where the forecasts, condition icons and alerts come from. `"nws"` (default) is weather.gov, US only. `"open-meteo"` is [Open-Meteo](https://open-meteo.com/), worldwide and keyless: a 7-day forecast with hourly temperature, humidity, rain chance, wind and WMO condition codes (mapped to the same icons), daily rain totals and UV; it has no alert feed, so the alert bar stays empty. The condition description under the feels-like temperature comes in English, Hebrew or Polish. `"ims"` is the [Israel Meteorological Service](https://ims.gov.il/en) (the public JSON feeds behind its site and app: 7-day hourly forecast with humidity, rain, wind and UV per hour, plus regional warnings), Israel only, no key. Replies follow the firmware's locale, so a build with `LOCALE he_IL` shows Hebrew. With IMS, `"current_source": "nws"` means IMS's own current conditions. IMS times are Israel local time, so set `timezone` to Israel's. `api.ims_location_id` picks one of IMS's ~160 locations ([list](https://ims.gov.il/en/locations_info)); 0 takes the nearest to the coordinates. Also in the portal.
+- **Polish** (`LOCALE pl_PL`): the locale's strings are UTF-8 and the renderer transcodes them to an ISO-8859-2 font family, so ą ć ę ł ń ó ś ź ż draw correctly. The locale switches on `Lato_CE` (Lato, by Łukasz Dziedzic, generated with `fontconvert.py --encoding=iso-8859-2`) and metric units; Open-Meteo is the forecast source to use with it. The same mechanism (`LOCALE_FONT_ENCODING` in a locale's defaults file plus a family with the matching `ENCODING`) serves any other Latin-2 language. Preview of a Kraków build on the E1002, drawn by the PC simulator from live Open-Meteo replies: [morning](showcase/preview-krakow-pl.png), [afternoon](showcase/preview-krakow-pl-afternoon.png).
 - **Hebrew** (`#define LOCALE he_IL` in config.h, or `-D LOCALE=he_IL` on the command line) needs a font family whose high slots carry the Hebrew alphabet: switch on `FONT_INCLUDE_Heebo` (Heebo, Oded Ezer's Hebrew companion to Roboto, generated with `tools/fontconvert.py --encoding=iso-8859-8`). The renderer transcodes the UTF-8 strings and lays each line out right to left (`shapeText` in renderer.cpp); numbers and Latin words inside Hebrew text keep their own order. The forecast row runs right to left too, today in the rightmost column, with the day names spelt out in the longest form that fits the columns (יום שני in the 5-day row, שני in the 7-day row, [preview](showcase/preview-netanya-he-5day.png)) instead of the one-letter abbreviations; the widget grid and the hourly graph's time axis keep their places. The alert block is mirrored too: icon at the right, text running leftwards from it ([preview](showcase/preview-netanya-he-alert.png)). The portal screen drawn on the panel (how to reach the setup page) and the Air Quality source tags are locale strings as well. The portal switches both font settings to Heebo when the configured family has no Hebrew. `tools/sim480` draws the page on a PC with the firmware's own renderer and parsers over saved IMS replies; [this](showcase/preview-netanya-he.png) is Netanya on the reTerminal E1002's panel, and [this](showcase/preview-netanya-he-bw.png) the same on the 7.5in black-and-white panel (`--panel=bwv2`).
 - Each locale carries its own build defaults in `platformio/include/locales/locale_<code>.defaults.h`: `he_IL` selects metric units (°C, km/h, hPa, km, mm), Israel's time zone as the default (`DEFAULT_TIMEZONE`; Israel has one) and switches on `FONT_INCLUDE_Heebo`, so `PLATFORMIO_BUILD_FLAGS="-D LOCALE=he_IL" pio run -e seeed_reterminal_e1002` builds the Israel variant without editing config.h. Any `UNITS_*` or `FONT_INCLUDE_*` given on the command line or in config.h still wins.
 - With a Hebrew firmware the setup portal itself comes up in Hebrew, right to left ([screenshot](showcase/portal-he.png)); the device tells the page its locale over `/info`. Technical fields (coordinates, keys, the JSON editor) stay left to right. The time zone list includes Israel.

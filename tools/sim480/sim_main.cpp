@@ -27,6 +27,11 @@
 #include "sun.h"
 #include "fonts/font_names.h"
 #include <WiFi.h>
+#ifdef _WIN32
+  #include <stdlib.h>
+  static int setenv(const char *k, const char *v, int) { return _putenv_s(k, v); }
+  #define tzset _tzset
+#endif
 
 SerialStub Serial;
 SPIStub SPI;
@@ -197,6 +202,87 @@ static void drawPage(const char *out, const String &status, bool stale)
   savePpm(out);
 }
 
+/* Kraków, in the Polish build: Open-Meteo's forecast and current
+ * conditions (data/krakow, saved 2026-10-14), the air quality from the
+ * same model, no pollen key, no alerts (Open-Meteo has no feed).
+ */
+static void loadKrakow(time_t now, bool omCurrent)
+{
+  hostNow = now;
+  setPageTime(now);
+  if (!parse("openmeteo_forecast.json", [](WiFiClient &c) { return deserializeOpenMeteoForecast(c, hourly, daily); }))
+  {
+    exit(1);
+  }
+  om_daily_precip_t omDaily;
+  if (omCurrent)
+  {
+    parse("openmeteo_current.json", [&](WiFiClient &c) {
+      return deserializeOpenMeteoCurrent(c, hourly[0], current, omDaily, true, nullptr); });
+  }
+  else
+  {
+    fillCurrentFromFallback(hourly[0], current);
+  }
+  tm lt;
+  localtime_r(&now, &lt);
+  if (!calcSunriseSunset(lt.tm_year + 1900, lt.tm_mon + 1, lt.tm_mday,
+                         LAT.toDouble(), LON.toDouble(), current.sunrise, current.sunset))
+  {
+    current.sunrise = current.sunset = 0;
+  }
+  setSunTimes(current.sunrise, current.sunset);
+  current.dt = now;
+  float uvi = NAN;
+  air.valid = false;
+  air.us_aqi = -1;
+  air.il_valid = false;
+  parse("openmeteo_air.json", [&](WiFiClient &c) { return deserializeAirQuality(c, air, uvi); });
+  current.uvi = uvi;
+  pollen.tree = pollen.grass = pollen.weed = 0;
+  pollen.max_upi = -1;
+  alerts.clear();
+  printf("  hourly from %lld, %d days, %s\n", (long long)hourly[0].dt,
+         (int)(daily[6].dt > 0 ? 7 : 0), current.weather.description.c_str());
+}
+
+static int mainKrakow(const std::string &outDir)
+{
+  // Poland, as the device would be configured. (MinGW's C runtime reads
+  // only the first part of a POSIX TZ string and applies US summer-time
+  // dates; the saved replies are from October, inside both rules.)
+  setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 1);
+  tzset();
+  strncpy(TIMEZONE, "CET-1CEST,M3.5.0,M10.5.0/3", sizeof(TIMEZONE) - 1);
+  CITY_STRING = "Kraków";
+  LAT = "50.0614";
+  LON = "19.9372";
+  strcpy(TIME_FORMAT, "%H:%M");
+  strcpy(HOUR_FORMAT, "%H");
+  strcpy(DATE_FORMAT, "%A, %e %B");
+  FORECAST_DAYS = 7;
+  FORECAST_SOURCE = "open-meteo";
+  CURRENT_SOURCE = "open-meteo";
+  for (int i = 0; i < FONT_FAMILY_NAME_COUNT; ++i)
+  {
+    if (FONT_FAMILY_ENCODING[i] == LOCALE_FONT_ENCODING) { FONT_FAMILY_INDEX = FONT_SMALL_FAMILY_INDEX = i; break; }
+  }
+  printf("font %s\n", FONT_FAMILY_NAMES[FONT_FAMILY_INDEX]);
+
+  // 1. the moment the replies were saved (2026-10-14 09:10 CEST), Open-Meteo's
+  //    current conditions
+  loadKrakow(local(2026, 10, 14, 9, 10), true);
+  drawPage((outDir + "/sim_krakow_morning.ppm").c_str(), "", false);
+  // 2. the same day at 15:00, current conditions from the forecast hour
+  loadKrakow(local(2026, 10, 14, 15, 0), false);
+  drawPage((outDir + "/sim_krakow_afternoon.ppm").c_str(), "", false);
+  // 2a. with a 5-day forecast row
+  FORECAST_DAYS = 5;
+  drawPage((outDir + "/sim_krakow_5day.ppm").c_str(), "", false);
+  FORECAST_DAYS = 7;
+  return 0;
+}
+
 int main(int argc, char **argv)
 {
   const std::string outDir = argc > 1 ? argv[1] : ".";
@@ -205,6 +291,10 @@ int main(int argc, char **argv)
   if (panel == "bwv2") INK_RGB = INK_RGB_BW;
   else if (panel == "3c") INK_RGB = INK_RGB_3C;
   printf("panel %s, %dx%d\n", panel.c_str(), display.width(), display.height());
+  if (strcmp(LOCALE_STR(LOCALE), "pl_PL") == 0)
+  {
+    return mainKrakow(outDir);
+  }
 
   // Israel, as the device would be configured
   setenv("TZ", "IST-2IDT,M3.4.4/26,M10.5.0", 1);
@@ -220,10 +310,10 @@ int main(int argc, char **argv)
   FORECAST_SOURCE = "ims";
   CURRENT_SOURCE = "nws";
 
-  // the Hebrew family, as settings.cpp would pick it
+  // the family with the locale's code page, as settings.cpp would pick it
   for (int i = 0; i < FONT_FAMILY_NAME_COUNT; ++i)
   {
-    if (FONT_FAMILY_HEBREW[i]) { FONT_FAMILY_INDEX = FONT_SMALL_FAMILY_INDEX = i; break; }
+    if (FONT_FAMILY_ENCODING[i] == LOCALE_FONT_ENCODING) { FONT_FAMILY_INDEX = FONT_SMALL_FAMILY_INDEX = i; break; }
   }
   printf("font %s\n", FONT_FAMILY_NAMES[FONT_FAMILY_INDEX]);
   // as settings.cpp does for a Hebrew build: heat stress in the dew point's slot

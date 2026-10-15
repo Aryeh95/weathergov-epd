@@ -26,7 +26,46 @@
 //       board's pinout to ensure you avoid using a pin with this shared 
 //       functionality.
 //
-#ifdef BOARD_RETERMINAL_E1002
+#if defined(BOARD_XIAO_EE02)
+// Seeed XIAO ePaper Display Board EE02 (XIAO ESP32-S3 Plus soldered on) --
+// fixed wiring, do not change. Read from Seeed's schematic and confirmed
+// against the pin table of their Seeed_GFX2 driver.
+// Battery: GPIO1 through a divider that ADC_EN (GPIO6) connects.
+// The divider is taken to be 1:2 like the E1002's -- CHECK against a meter
+// on the first board; readBatteryVoltage() doubles the reading.
+const uint8_t PIN_BAT_ADC  = 1;
+const uint8_t PIN_BAT_EN   = 6;
+// 60-pin panel connector, two controllers behind two chip selects
+const uint8_t PIN_EPD_BUSY = 4;
+const uint8_t PIN_EPD_CS   = 44; // master, left half (the UART0 RX pin)
+const uint8_t PIN_EPD_CS2  = 41; // slave, right half
+const uint8_t PIN_EPD_RST  = 38;
+const uint8_t PIN_EPD_DC   = 10;
+const uint8_t PIN_EPD_SCK  = 7;
+const uint8_t PIN_EPD_MISO = 8;  // wired to the panel's SI1, never read
+const uint8_t PIN_EPD_MOSI = 9;
+const uint8_t PIN_EPD_PWR  = 43; // panel supply load switch (the UART0 TX pin)
+const uint8_t PIN_SD_EN    = PIN_UNUSED; // no microSD slot
+const uint8_t PIN_SD_CS    = PIN_UNUSED;
+// Three buttons, active low. KEY1 wakes into the configuration portal,
+// KEY2 into an immediate refresh; KEY3 (GPIO5) is unassigned.
+const uint8_t PIN_BTN_PORTAL  = 2;
+const uint8_t PIN_BTN_REFRESH = 3;
+// No sensor on the board, and every XIAO pin is taken. An SHT4x goes on
+// the pads of U6, a font chip that is not fitted: they carry the second
+// SPI bus of the on-board flash chip, which this firmware never uses and
+// which ignores the bus while its chip select (GPIO40, pulled up on the
+// board) is high.
+//   U6 pad 8  3V3   (switched together with the panel supply)
+//   U6 pad 6  SCL   GPIO11
+//   U6 pad 5  SDA   GPIO13
+//   U6 pad 4  GND
+// NOT TESTED ON HARDWARE YET.
+const uint8_t PIN_BME_SDA = 13;
+const uint8_t PIN_BME_SCL = 11;
+const uint8_t PIN_BME_PWR = PIN_EPD_PWR; // one load switch for both
+const uint8_t BME_ADDRESS = 0x76;
+#elif defined(BOARD_RETERMINAL_E1002)
 // Seeed reTerminal E1002 -- fixed internal wiring, do not change.
 // (Sources: Seeed wiki "Arduino Cookbook" pages for the reTerminal E Series.)
 // ADC pin used to measure battery voltage (GPIO1 = ADC1_CH0, 1:2 divider).
@@ -36,6 +75,7 @@ const uint8_t PIN_BAT_EN   = 21;
 // Built-in 7.3in Spectra 6 panel (GDEP073E01)
 const uint8_t PIN_EPD_BUSY = 13;
 const uint8_t PIN_EPD_CS   = 10;
+const uint8_t PIN_EPD_CS2  = PIN_UNUSED;
 const uint8_t PIN_EPD_RST  = 12;
 const uint8_t PIN_EPD_DC   = 11;
 const uint8_t PIN_EPD_SCK  = 7;  // SPI bus shared with the microSD slot
@@ -66,6 +106,7 @@ const uint8_t PIN_BTN_REFRESH = PIN_UNUSED;
 // Pins for E-Paper Driver Board
 const uint8_t PIN_EPD_BUSY = 14; // 5 for micro-usb firebeetle
 const uint8_t PIN_EPD_CS   = 13;
+const uint8_t PIN_EPD_CS2  = PIN_UNUSED;
 const uint8_t PIN_EPD_RST  = 21;
 const uint8_t PIN_EPD_DC   = 22;
 const uint8_t PIN_EPD_SCK  = 18;
@@ -165,7 +206,7 @@ String POLLEN_APIKEY = "";
 // CURRENT CONDITIONS SOURCE
 // Where the "right now" temperature, feels-like, humidity, dew point,
 // pressure, wind, cloud cover and visibility come from. Forecasts and
-// alerts always come from weather.gov regardless of this setting.
+// alerts come from FORECAST_SOURCE regardless of this setting.
 //   "open-meteo" (default) - Open-Meteo's model interpolated to LAT/LON,
 //                            refreshed every ~15 minutes. Free, no key.
 //   "google"               - Google Maps Platform Weather API current
@@ -185,6 +226,11 @@ String CURRENT_SOURCE = "open-meteo";
 // alerts come from.
 //   "nws" (default) - weather.gov (US National Weather Service). United
 //                     States only. Free, no key.
+//   "open-meteo"    - Open-Meteo (open-meteo.com), anywhere in the world.
+//                     Free, no key. 7-day forecast with hourly temperature,
+//                     humidity, rain chance, wind and WMO condition codes;
+//                     no weather alerts. "current_source": "nws" then means
+//                     the forecast's first hour.
 //   "ims"           - the Israel Meteorological Service (ims.gov.il), the
 //                     public JSON feeds behind its site and app. Israel only.
 //                     Free, no key. Hourly forecast for 7 days, with humidity,

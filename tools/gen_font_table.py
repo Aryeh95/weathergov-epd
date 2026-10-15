@@ -25,6 +25,7 @@ after adding or removing a family, or after the renderer starts using a new
 size (an unknown FONT_ name then fails to compile, which is the reminder).
 """
 import os
+import sys
 import re
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -149,8 +150,17 @@ def family_encoding(fam):
     return "latin-1"
 
 
-def family_hebrew(fam):
-    return "true" if family_encoding(fam) == "iso-8859-8" else "false"
+# the FONT_ENC_* constants of fonts/font_encoding.h
+ENCODING_CONST = {"latin-1": "FONT_ENC_LATIN1", "iso-8859-8": "FONT_ENC_ISO8859_8",
+                  "iso-8859-2": "FONT_ENC_ISO8859_2"}
+
+
+def family_enc_const(fam):
+    enc = family_encoding(fam)
+    if enc not in ENCODING_CONST:
+        sys.exit("%s/ENCODING: %s is not a code page the renderer transcodes to "
+                 "(fonts/font_encoding.h, rtl.cpp)" % (fam, enc))
+    return ENCODING_CONST[enc]
 
 
 out = [HEADER,
@@ -200,13 +210,16 @@ for n in NAMES:
     else:
         out.append("#define FONT_FACE_%s(F) &F##_%s" % (n, n))
 out += ["",
+        '#include "font_encoding.h"',
+        "",
         "struct font_family_t",
         "{",
         "  const char *name;",
-        "  // true when the 0xA0-0xFF slots carry ISO-8859-8 (the Hebrew",
-        "  // alphabet at 0xE0-0xFA) instead of Latin-1; see renderer.cpp's",
-        "  // shapeText() and the <Family>/ENCODING file fontconvert.py writes.",
-        "  bool hebrew;",
+        "  // the code page the 0xA0-0xFF slots carry (FONT_ENC_*): Latin-1, or",
+        "  // ISO-8859-8 (the Hebrew alphabet at 0xE0-0xFA) or ISO-8859-2 (the",
+        "  // Central European letters); see rtl.cpp's shapeText() and the",
+        "  // <Family>/ENCODING file fontconvert.py writes.",
+        "  uint8_t encoding;",
         "  // " + " ".join(NAMES),
         "  const GFXfont *const size[%d];" % len(NAMES),
         "};",
@@ -215,7 +228,7 @@ out += ["",
 for fam in fams:
     out.append(family_guard(fam))
     faces = ", ".join("FONT_FACE_%s(%s)" % (n, fam) for n in NAMES)
-    out.append('  {"%s", %s, {%s}},' % (fam, family_hebrew(fam), faces))
+    out.append('  {"%s", %s, {%s}},' % (fam, family_enc_const(fam), faces))
     out.append("#endif")
 out += ["};",
         "static const int FONT_FAMILY_COUNT =",
@@ -234,6 +247,7 @@ out = [HEADER,
        "// Names of the compiled-in families, in FONT_FAMILIES order (font_table.h),",
        "// for code that must not pull in the glyph data (settings.cpp, portal.cpp).",
        "#pragma once", "",
+       '#include "font_encoding.h"', "",
        "static const char *const FONT_FAMILY_NAMES[] = {"]
 for fam in fams:
     out.append(family_guard(fam))
@@ -242,12 +256,13 @@ for fam in fams:
 out += ["};",
         "static const int FONT_FAMILY_NAME_COUNT =",
         "    sizeof(FONT_FAMILY_NAMES) / sizeof(FONT_FAMILY_NAMES[0]);", "",
-        "// Same order: true for a family whose 0xA0-0xFF slots hold ISO-8859-8",
-        "// (Hebrew). A right-to-left locale needs one (settings.cpp).",
-        "static const bool FONT_FAMILY_HEBREW[] = {"]
+        "// Same order: the code page each family's 0xA0-0xFF slots hold",
+        "// (FONT_ENC_*). A locale whose strings need one (LOCALE_FONT_ENCODING)",
+        "// gets a family that carries it (settings.cpp).",
+        "static const uint8_t FONT_FAMILY_ENCODING[] = {"]
 for fam in fams:
     out.append(family_guard(fam))
-    out.append("  %s," % family_hebrew(fam))
+    out.append("  %s," % family_enc_const(fam))
     out.append("#endif")
 out += ["};", ""]
 with open(os.path.join(FONT_DIR, "font_names.h"), "w", newline="\n") as f:

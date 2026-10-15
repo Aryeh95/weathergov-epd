@@ -171,12 +171,17 @@
       time marked as old (in red, or with a warning sign on black and
       white panels); 0 shows errors at once. Pressing a button always
       shows the error.</div>
+    <div class="hint" id="fixednote" style="display:none">This panel has a layout of
+      its own, so fonts, theme and widget slots are not offered here. The
+      readings it shows are fixed: humidity, dew point, wind, pressure, UV
+      index, air quality, pollen, and indoor (or visibility without a
+      sensor).</div>
     <div id="fontprev" class="fontprev">
       <div class="fp-big">72&deg;</div>
       <div class="fp-mid">Partly Cloudy</div>
       <div class="fp-small">Humidity &nbsp; Dew Point &nbsp; Air Quality (EPA) &nbsp; 12am 3am 6am 9am &nbsp; 0.1in</div>
     </div>
-    <div class="hint">Only fonts compiled into this firmware are listed
+    <div class="hint" id="fonthint">Only fonts compiled into this firmware are listed
       (see FONT_INCLUDE_ in config.h). The small text font covers everything
       under 11 pt: widget labels, the graph axis, source tags. A sans like
       FreeSans stays crisper there than a serif. The preview uses the web
@@ -197,11 +202,13 @@
     <label>Forecast source</label>
     <select id="a_fcsrc">
       <option value="nws">weather.gov (United States)</option>
+      <option value="open-meteo">Open-Meteo (anywhere in the world)</option>
       <option value="ims">Israel Meteorological Service (Israel)</option>
     </select>
     <label>IMS location id (0 = nearest to the coordinates)</label><input id="a_imslid" type="number" min="0" step="1">
     <div class="hint">Forecasts, condition icons and weather alerts.
-      weather.gov covers US locations; the Israel Meteorological Service
+      weather.gov covers US locations; Open-Meteo covers the whole world
+      (no alerts); the Israel Meteorological Service
       (ims.gov.il) covers Israel, in the firmware's language (Hebrew with
       LOCALE he_IL). Location ids are listed at
       <a href="https://ims.gov.il/en/locations_info" target="_blank"
@@ -1030,6 +1037,19 @@ el('rawsave').addEventListener('click', () => {
   save(el('raw').value);
 });
 
+// The 1600x1200 layout has no widget slots, fonts or theme to choose. The
+// controls are hidden, not removed: their values still travel with the
+// rest of the configuration, so a backup restores on any board.
+function hideLayoutSettings() {
+  for (const id of ['s_wrows', 's_dark', 's_font', 's_font_small']) {
+    el(id).parentElement.style.display = 'none';
+  }
+  el('fontprev').style.display = 'none';
+  el('fonthint').style.display = 'none';
+  el('widgets').closest('fieldset').style.display = 'none';
+  el('fixednote').style.display = 'block';
+}
+
 // the outcome texts diag.cpp reports, by code, so they can be translated
 const OUTCOMES = {0: 'Weather updated', 1: 'Could not update; the last weather was left on the screen',
   2: 'No WiFi connection', 3: 'Could not get the time', 4: 'The weather service did not answer',
@@ -1147,7 +1167,8 @@ function showConnInfo(i) {
   box.append(' ' + t('Setup mode ends after %1 minutes of inactivity.')
     .replace('%1', i.timeout_minutes ?? 10));
   box.style.display = 'block';
-  if (i.build) { el('fwbuild').textContent = i.build; }
+  if (i.build) { el('fwbuild').textContent = i.build + (i.board ? ' for ' + i.board : ''); }
+  if (i.layout === 'fixed') { hideLayoutSettings(); }
   if (i.target) { el('fwtarget').textContent = i.target; }
   showDiagnostics(i);
   if (i.fonts) { setFontOptions(i.fonts); }

@@ -28,6 +28,9 @@
 //   DISP_7C_F  - 7.3in ACeP e-Paper (F)       800x480px  7-Color
 //   DISP_7C_E6 - 7.3in spectra 6 e-Paper (E6) 800x480px  7-Color
 //   DISP_BW_V1 - 7.5in e-Paper (v1)           640x384px  Black/White
+//   DISP_7C_709 - 7.09in spectra 6 e-Paper    1600x1200px 6-Color
+//                 (Good Display GDEB0709E01, 282 ppi; has a layout of its
+//                 own, see renderer709.cpp)
 // Uncomment the macro that identifies your physical panel.
 // (Building with -e seeed_reterminal_e1002 selects the panel automatically;
 //  the reTerminal E1002's built-in 7.3in Spectra 6 panel is a GDEP073E01,
@@ -35,7 +38,11 @@
 // (The reTerminal E1001 build defines both board flags: the E1002 flag for
 //  the shared E-series mainboard quirks, plus E1001 to swap the panel for
 //  its 7.5in monochrome one -- a GDEY075T7-class panel, i.e. DISP_BW_V2.)
-#if defined(BOARD_RETERMINAL_E1001)
+// (Building with -e seeed_xiao_ee02_709 selects the GDEB0709E01 on Seeed's
+//  XIAO ePaper Display Board EE02.)
+#if defined(BOARD_XIAO_EE02)
+  #define DISP_7C_709
+#elif defined(BOARD_RETERMINAL_E1001)
   #define DISP_BW_V2
 #elif defined(BOARD_RETERMINAL_E1002)
   #define DISP_7C_E6
@@ -64,7 +71,17 @@
 // Uncomment the macro that identifies your sensor.
 // (The reTerminal E1002 has an SHT4x temperature/humidity sensor onboard,
 //  selected automatically when building with -e seeed_reterminal_e1002.)
-#ifdef BOARD_RETERMINAL_E1002
+// (The EE02 has no sensor of its own. An SHT4x soldered to the pads of the
+//  font chip the board was never given is found by itself; without one the
+//  Indoor cell shows visibility. See the README for the four wires.)
+// SENSOR_OPTIONAL: a sensor that does not answer is taken to be absent
+// rather than broken, and is not reported in the status bar.
+#if defined(BOARD_XIAO_EE02)
+  #define SENSOR_SHT4X
+  #define SENSOR_OPTIONAL
+  // its supply is switched on just before it is read
+  #define SENSOR_INIT_DELAY_MS 10
+#elif defined(BOARD_RETERMINAL_E1002)
   #define SENSOR_SHT4X
 #else
 #define SENSOR_BME280
@@ -77,7 +94,8 @@
 
 // 3 COLOR E-INK ACCENT COLOR
 // Defines the 3rd color to be used when a 3+ color display is selected.
-#if defined(DISP_3C_B) || defined(DISP_7C_F) || defined(DISP_7C_E6)
+#if defined(DISP_3C_B) || defined(DISP_7C_F) || defined(DISP_7C_E6) \
+ || defined(DISP_7C_709)
   // #define ACCENT_COLOR GxEPD_BLACK
   #define ACCENT_COLOR GxEPD_RED
   // #define ACCENT_COLOR GxEPD_GREEN
@@ -106,7 +124,7 @@
 // Note: yellow line art on white e-paper has the least contrast of the
 // palette; if COLOR_SUN is hard to read on your panel, GxEPD_ORANGE (dithered
 // red/yellow) or GxEPD_RED are the usual substitutes.
-#if defined(DISP_7C_F) || defined(DISP_7C_E6)
+#if defined(DISP_7C_F) || defined(DISP_7C_E6) || defined(DISP_7C_709)
   #define MULTICOLOR_DISPLAY
   #define COLOR_SUN     GxEPD_YELLOW
   #define COLOR_PRECIP  GxEPD_BLUE
@@ -157,6 +175,14 @@
 #define LOCALE_DEFAULTS_INC_(code) LOCALE_STR(locales/locale_ ## code.defaults.h)
 #define LOCALE_DEFAULTS_INC(code) LOCALE_DEFAULTS_INC_(code)
 #include LOCALE_DEFAULTS_INC(LOCALE)
+// The code page the locale's strings are drawn through (fonts/
+// font_encoding.h): 0 Latin-1, 1 ISO-8859-8 (Hebrew), 2 ISO-8859-2
+// (Polish and the other Central European languages). A locale that needs
+// one sets it in its defaults file; its UTF-8 strings are transcoded to
+// that page by the renderer, and a font family carrying it is selected.
+#ifndef LOCALE_FONT_ENCODING
+  #define LOCALE_FONT_ENCODING 0
+#endif
 // The time zone a device starts with until config.json or the portal sets
 // one (POSIX string; see https://github.com/nayarsystems/posix_tz_db).
 #ifndef DEFAULT_TIMEZONE
@@ -372,6 +398,9 @@
 //   Heebo          Heebo                    Heebo           OFL 1.1
 //                  (Hebrew + Latin, ISO-8859-8 slots: the family for the
 //                  he_IL locale. Oded Ezer's screen face, Roboto's Latin.)
+//   Lato CE        Lato_CE                  Lato            SIL OFL v1.1
+//                  (Lato with ISO-8859-2 slots: the Polish letters and the
+//                  rest of Central Europe's. The pl_PL locale's family.)
 //
 // Adding a font: python tools/fontconvert.py <Name> <font.ttf>, then
 // python tools/gen_font_table.py, then switch it on below.
@@ -442,6 +471,13 @@
 // NON-VOLATILE STORAGE (NVS) NAMESPACE
 #define NVS_NAMESPACE "weather_epd"
 
+// GDEB0709E01 ORIENTATION (DISP_7C_709 only)
+//   The panel counts its pixels in portrait, flex cable at the bottom; the
+//   layout is landscape. 1 = the flex cable is on the viewer's right, which
+//   is how the enclosure in enclosure/gdeb0709e01 holds it. 3 = on the left.
+//   If the picture comes up upside down, this is the number to change.
+#define EPD709_ROTATION 1
+
 // WHAT THIS FIRMWARE WAS BUILT FOR
 //   The build target's name and the panel, compiled into the image as one
 //   line of text. The portal reads it out of a firmware file before
@@ -498,6 +534,9 @@ extern const uint8_t PIN_BTN_PORTAL;
 extern const uint8_t PIN_BTN_REFRESH;
 extern const uint8_t PIN_EPD_BUSY;
 extern const uint8_t PIN_EPD_CS;
+// Second chip select, for panels with two controllers (GDEB0709E01: the
+// right half of the glass). PIN_UNUSED everywhere else.
+extern const uint8_t PIN_EPD_CS2;
 extern const uint8_t PIN_EPD_RST;
 extern const uint8_t PIN_EPD_DC;
 extern const uint8_t PIN_EPD_SCK;
@@ -597,7 +636,8 @@ extern int POS_INHUMIDITY;
       ^ defined(DISP_7C_F)   \
       ^ defined(DISP_7C_E6)  \
       ^ defined(DISP_BW_V1)  \
-      ^ defined(DISP_BW_X3))
+      ^ defined(DISP_BW_X3)  \
+      ^ defined(DISP_7C_709))
   #error Invalid configuration. Exactly one display panel must be selected.
 #endif
 #if !(  defined(DRIVER_WAVESHARE) \

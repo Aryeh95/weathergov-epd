@@ -150,6 +150,9 @@ static void drawWeatherPage(const tm &timeInfo, const String &dateStr,
                             const pollen_info_t &pollen, float inTemp,
                             float inHumidity, bool stale)
 {
+#ifdef DISP_7C_709
+  layout709Begin(alerts, hourly);
+#endif
   initDisplay();
   do
   {
@@ -361,6 +364,12 @@ void setup()
 {
   unsigned long startTime = millis();
   Serial.begin(115200);
+#if defined(BOARD_XIAO_EE02)
+  // Serial is the USB port here (UART0's pins drive the panel). Without a
+  // computer listening, every print would wait out its timeout; on battery
+  // that is most of the time, so do not wait at all.
+  Serial.setTxTimeoutMs(0);
+#endif
   Serial.println("[build] " GIT_REV " (" __DATE__ " " __TIME__ ")");
 #if defined(USE_HTTPS_NO_CERT_VERIF)
   Serial.println("[tls] certificates are NOT verified (config_local.h)");
@@ -372,6 +381,29 @@ void setup()
 
   wakeDiag.outcome = DIAG_OTHER;
   wakeDiag.cause = static_cast<uint8_t>(esp_sleep_get_wakeup_cause());
+
+#if defined(DISP_7C_709) && defined(EPD709_TEST_CARD)
+  // Bring-up build: no WiFi, no settings, just the test card, then sleep
+  // until the reset button is pressed.
+  initDisplay();
+  do
+  {
+#if defined(EPD709_TEST_CARD_PAGE) && EPD709_TEST_CARD_PAGE == 2
+    drawTestCard709Mixes();
+#elif defined(EPD709_TEST_CARD_PAGE) && EPD709_TEST_CARD_PAGE == 3
+    drawTestCard709Inks();
+#elif defined(EPD709_TEST_CARD_PAGE) && EPD709_TEST_CARD_PAGE == 4
+    drawTestCard709RawInks();
+#elif defined(EPD709_TEST_CARD_PAGE) && EPD709_TEST_CARD_PAGE == 5
+    drawTestCard709AirQuality();
+#else
+    drawTestCard709();
+#endif
+  } while (display.nextPage());
+  powerOffDisplay();
+  Serial.println("[epd709] test card drawn, sleeping");
+  esp_deep_sleep_start();
+#endif
 
   disableBuiltinLED();
   // Before any SPI activity: an unparked microSD slot on the panel's bus
@@ -429,30 +461,46 @@ void setup()
   Serial.print(TXT_BATTERY_VOLTAGE);
   Serial.println(": " + String(batteryVoltage) + "mv");
 
-  // When the battery is low, the display should be updated to reflect that, but
-  // only the first time we detect low voltage. The next time the display will
-  // refresh is when voltage is no longer low. To keep track of that we will
-  // make use of non-volatile storage.
+  // When the battery is low, the display shows a low-battery page instead of
+  // the weather, and keeps it until the battery recovers -- like a Kindle,
+  // and like upstream. Two refinements for colour panels, whose inks are
+  // the more prone to ghosting when one image stays for long (Good
+  // Display's E6 design notice): the page is drawn in black on white only,
+  // with no coloured icon and no dark-mode ground, and it is drawn again
+  // once a day while the device still wakes (low and very low battery).
+  // At a critically low battery the device hibernates showing it.
   bool lowBat = prefs.getBool("lowBat", false);
 
   // low battery, deep sleep now
   if (batteryVoltage <= LOW_BATTERY_VOLTAGE)
   {
-    if (lowBat == false)
-    { // battery is now low for the first time
+    const bool critical = batteryVoltage <= CRIT_LOW_BATTERY_VOLTAGE;
+    // minutes since the low-battery page was last drawn
+    const int lowMin = prefs.getInt("lowBatMin", 0);
+    if (lowBat == false || (!critical && lowMin >= 24 * 60))
+    { // battery is low for the first time, or the page is a day old
       prefs.putBool("lowBat", true);
       prefs.putBool("goodScreen", false);
+      prefs.putInt("lowBatMin", 0);
       prefs.end();
+      DARK_MODE = false;   // a white page, whatever the portal says
       initDisplay();
       do
       {
-        fillDisplayBackground();
-        drawError(battery_alert_0deg_196x196, TXT_LOW_BATTERY);
+        drawError(battery_alert_0deg_196x196, TXT_LOW_BATTERY, "", true);
       } while (display.nextPage());
       powerOffDisplay();
     }
+    else if (!critical)
+    {
+      prefs.putInt("lowBatMin", lowMin
+                   + static_cast<int>((batteryVoltage <= VERY_LOW_BATTERY_VOLTAGE)
+                                      ? VERY_LOW_BATTERY_SLEEP_INTERVAL
+                                      : LOW_BATTERY_SLEEP_INTERVAL));
+      prefs.end();
+    }
 
-    if (batteryVoltage <= CRIT_LOW_BATTERY_VOLTAGE)
+    if (critical)
     { // critically low battery
       // don't set esp_sleep_enable_timer_wakeup();
       // We won't wake up again until someone manually presses the RST button.
@@ -484,10 +532,11 @@ void setup()
                : LOW_BATTERY_SLEEP_INTERVAL * 60UL);
     esp_deep_sleep_start();
   }
-  // battery is no longer low, reset variable in non-volatile storage
+  // battery is no longer low, reset the variables in non-volatile storage
   if (lowBat == true)
   {
     prefs.putBool("lowBat", false);
+    prefs.putInt("lowBatMin", 0);
   }
 #else
   uint32_t batteryVoltage = UINT32_MAX;
@@ -499,7 +548,7 @@ void setup()
   // automatically when the device has no WiFi configured (fresh flash).
   // Arming happens after the low-battery check above so a battery-protection
   // wake can neither trigger nor be interrupted into the portal.
-#ifdef BOARD_RETERMINAL_E1002
+#if defined(BOARD_RETERMINAL_E1002) || defined(BOARD_XIAO_EE02)
   // This board has a dedicated portal button, so the double-reset detector
   // is unnecessary -- and skipping it means an interrupted wake (a firmware
   // flash, most commonly) no longer drops the next boot into the portal.
@@ -774,35 +823,38 @@ void setup()
 
   phaseStart = millis();
   int rxStatus = HTTP_CODE_OK;
+  // The forecast provider (config.json api.forecast_source): weather.gov,
+  // Open-Meteo, or the Israel Meteorological Service.
+  const bool useIMS = (FORECAST_SOURCE == "ims");
+  const bool useOM  = (FORECAST_SOURCE == "open-meteo");
+  const char *providerName = useIMS ? "ims.gov.il" : useOM ? "Open-Meteo" : "weather.gov";
 #if DISPLAY_ALERTS
   // Alerts first: the reply is small and arrives over HTTP/1.1 keep-alive,
   // so the forecast requests that follow reuse its TLS session instead of
   // paying their own ~1.2 s handshake. Non-fatal: if this fails, the display
-  // simply shows no alerts.
-  const bool useIMS = (FORECAST_SOURCE == "ims");
-  rxStatus = useIMS ? getIMSAlerts(client, alerts)
-                    : getNWSAlerts(client, alerts);
-  if (rxStatus != HTTP_CODE_OK)
+  // simply shows no alerts. (Open-Meteo has no alert feed: none shown.)
+  if (!useOM)
   {
-    statusStr = useIMS ? "ims.gov.il Warnings API" : "weather.gov Alerts API";
-    tmpStr = String(rxStatus, DEC) + ": " + getHttpResponsePhrase(rxStatus);
+    rxStatus = useIMS ? getIMSAlerts(client, alerts)
+                      : getNWSAlerts(client, alerts);
+    if (rxStatus != HTTP_CODE_OK)
+    {
+      statusStr = useIMS ? "ims.gov.il Warnings API" : "weather.gov Alerts API";
+      tmpStr = String(rxStatus, DEC) + ": " + getHttpResponsePhrase(rxStatus);
+    }
   }
 #endif
 
-  // Forecast + current conditions from FORECAST_SOURCE (weather.gov, or
-  // the Israel Meteorological Service). This is the primary data source;
-  // if it fails there is nothing worth displaying.
+  // Forecast + current conditions from FORECAST_SOURCE. This is the primary
+  // data source; if it fails there is nothing worth displaying.
   String failedStep;
-#if !DISPLAY_ALERTS
-  const bool useIMS = (FORECAST_SOURCE == "ims");
-#endif
   rxStatus = useIMS ? getIMSWeather(client, current, hourly, daily, failedStep)
+           : useOM  ? getOpenMeteoWeather(client, current, hourly, daily, failedStep)
                     : getNWSWeather(client, current, hourly, daily, failedStep);
   if (rxStatus != HTTP_CODE_OK)
   {
     killWiFi();
-    statusStr = String(useIMS ? "ims.gov.il API (" : "weather.gov API (")
-              + failedStep + ")";
+    statusStr = String(providerName) + " API (" + failedStep + ")";
     tmpStr = String(rxStatus, DEC) + ": " + getHttpResponsePhrase(rxStatus);
     Serial.println(statusStr + " - " + tmpStr);
     wakeDiag.fetchMs = millis() - phaseStart;
@@ -877,7 +929,14 @@ void setup()
   pollen_info_t pollen;
   pollen.tree = pollen.grass = pollen.weed = 0;
   pollen.max_upi = -1;
-  if (!POLLEN_APIKEY.isEmpty() && POS_POLLEN >= 0)
+#ifdef DISP_7C_709
+  // This layout always has a pollen cell; it has no widget slots to give
+  // or withhold one.
+  const bool wantPollen = true;
+#else
+  const bool wantPollen = (POS_POLLEN >= 0);
+#endif
+  if (!POLLEN_APIKEY.isEmpty() && wantPollen)
   {
     // Pollen is a daily forecast, so the result is cached in NVS and the
     // API is only called once per 3-hour bucket -- ~8 calls/day instead of
@@ -1143,12 +1202,23 @@ void setup()
   }
   else
   {
+#if defined(SENSOR_OPTIONAL)
+    // none fitted, which is how the board comes
+    Serial.println(TXT_NOT_FOUND);
+#else
     statusStr = SENSOR_NAME " " + String(TXT_NOT_FOUND); // check wiring
     Serial.println(statusStr);
+#endif
   }
   if (PIN_BME_PWR != PIN_UNUSED)
   {
-    digitalWrite(PIN_BME_PWR, LOW);
+    // let go of the lines before the sensor loses its supply, or it
+    // would draw through them
+    I2C_bme.end();
+    if (PIN_BME_PWR != PIN_EPD_PWR)
+    { // a supply shared with the panel stays up: the panel is next
+      digitalWrite(PIN_BME_PWR, LOW);
+    }
   }
 #endif // SENSOR_NONE
 

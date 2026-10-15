@@ -211,6 +211,13 @@ DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
                                                  om_daily_precip_t &omDaily,
                                                  bool wantCurrent = true,
                                                  om_gaps_t *gaps = nullptr);
+/* Open-Meteo's forecast (/v1/forecast?hourly=...&daily=...), the
+ * "open-meteo" FORECAST_SOURCE: 48 hours from the current hour and seven
+ * local days, with WMO weather codes mapped to condition ids.
+ */
+DeserializationError deserializeOpenMeteoForecast(WiFiClient &json,
+                                                  owm_hourly_t *hourly,
+                                                  owm_daily_t *daily);
 DeserializationError deserializeGoogleCurrent(WiFiClient &json,
                                               const owm_hourly_t &fallback,
                                               owm_current_t &current);

@@ -3,7 +3,7 @@ name: PlatformIO CI
 on:
   workflow_dispatch:
   push:
-    branches: [ main, develop, ee02-gdeb0709e01 ]
+    branches: [ main, develop, ee02-gdeb0709e01, open-meteo-forecast ]
   pull_request:
     branches: [ main, develop ]
 
@@ -37,9 +37,12 @@ jobs:
       - name: Right-to-left text shaper
         working-directory: tools/rtl_test
         run: |
-          g++ $CXXFLAGS -I. -I../../platformio/include \
+          g++ $CXXFLAGS -I. -I../../platformio/include -I../../platformio/lib/esp32-weather-epd-assets \
             rtl_test.cpp ../../platformio/src/rtl.cpp -o rtl_test
           ./rtl_test
+          g++ $CXXFLAGS -D LOCALE=pl_PL -I. -I../../platformio/include -I../../platformio/lib/esp32-weather-epd-assets \
+            rtl_test.cpp ../../platformio/src/rtl.cpp -o rtl_test_pl
+          ./rtl_test_pl
       - name: Firmware target scanner
         working-directory: tools/ota_target_test
         run: |
@@ -52,7 +55,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        env: [dfrobot_firebeetle2_esp32e, seeed_reterminal_e1002, seeed_reterminal_e1001, firebeetle32]
+        env: [dfrobot_firebeetle2_esp32e, seeed_reterminal_e1002, seeed_reterminal_e1001, firebeetle32,
+              seeed_xiao_ee02_709, seeed_xiao_ee02_709_testcard]
 
     steps:
       - uses: actions/checkout@v4
