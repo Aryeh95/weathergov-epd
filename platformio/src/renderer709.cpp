@@ -127,11 +127,11 @@ static const Tone T_AMBER     = {R, 0.50f, Y, 1.0f};
 static const Tone T_PLUM      = {R, 0.60f, B, 1.0f};
 static const Tone T_MAROON    = {R, 0.50f, K, 1.0f};
 static const Tone T_ADVISORY  = {Y, 0.55f, W, 1.0f};
-// 70 % blue: with Seeed's low-drive analog values 40 % blue vanished and
-// 85 % was needed; with Good Display's values (the test cards again, under
-// 5000 K light, 2026-10-14) 70 % reads clearly and lets the curves over the
-// bars read better
-static const Tone T_RAIN_BAR  = {B, 0.70f, W, 1.0f};
+// Solid blue: with Seeed's low-drive analog values 40 % blue vanished and
+// 85 % was needed; with Good Display's values the panel's own blue reads
+// as a clear mid blue, and the user preferred it to any screen (2026-10-14).
+// The dew point line keeps its paper halo, so it still reads over the bars.
+static const Tone T_RAIN_BAR  = {B, 1.0f, W, 1.0f};
 
 /* =========================================================================
  * Shapes

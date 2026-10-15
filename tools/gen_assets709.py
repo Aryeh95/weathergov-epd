@@ -208,7 +208,7 @@ def rework(path, size):
     out[moon] = np.where(mdens > th, BLUE, WHITE)[moon]
     shade = np.clip((0.80 - lum) / 0.22, 0, 1) * 0.38
     out[sun] = np.where(SUN_RED > th, RED, YELLOW)[sun]   # one ink, no shading
-    out[bolt] = np.where(0.42 > th, RED, YELLOW)[bolt]
+    out[bolt] = YELLOW   # solid yellow, like the sun (was an orange screen until 2026-10-14)
     out[rain] = BLUE
     out[snow] = BLUE
     w = max(1, int(round(size / 95.0)))
