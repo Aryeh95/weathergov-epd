@@ -738,6 +738,7 @@ function populate() {
   el('a_imslid').value = String(cfg.api?.ims_location_id ?? 0);
   el('a_aqisrc').value = cfg.api?.aqi_source ?? 'auto';
   el('a_ilsid').value = String(cfg.api?.il_aq_station_id ?? 0);
+  updateSourceFields();
   const sh = cfg.shabbat ?? {};
   el('h_show').value = sh.show === undefined ? '-1' : (sh.show ? '1' : '0');
   el('h_candle').value = sh.candle_lighting_minutes ?? 18;
@@ -1031,6 +1032,22 @@ el('rawsave').addEventListener('click', () => {
   catch (e) { setStatus('err', t('Raw JSON invalid:') + ' ' + e.message); return; }
   save(el('raw').value);
 });
+
+// The IMS location and the Ministry station only matter when those sources
+// are in use; their fields (and their hints) show only then.
+function updateSourceFields() {
+  const ims = el('a_fcsrc').value === 'ims';
+  const aq = el('a_aqisrc').value;
+  const il = aq === 'israel' || (aq === 'auto' && ims);
+  for (const [id, on] of [['a_imslid', ims], ['a_ilsid', il]]) {
+    const input = el(id);
+    input.style.display = on ? '' : 'none';
+    input.previousElementSibling.style.display = on ? '' : 'none';
+  }
+  el('a_ilsid').nextElementSibling.style.display = il ? '' : 'none';
+}
+el('a_fcsrc').addEventListener('change', updateSourceFields);
+el('a_aqisrc').addEventListener('change', updateSourceFields);
 
 // the outcome texts diag.cpp reports, by code, so they can be translated
 const OUTCOMES = {0: 'Weather updated', 1: 'Could not update; the last weather was left on the screen',

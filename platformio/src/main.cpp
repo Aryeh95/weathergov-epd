@@ -1138,10 +1138,17 @@ void setup()
     sht4.setPrecision(SHT4X_HIGH_PRECISION);
     sht4.setHeater(SHT4X_NO_HEATER);
     sensors_event_t humEvent, tempEvent;
-    if (sht4.getEvent(&humEvent, &tempEvent))
+    // up to three tries: a sensor on long wires can miss one measurement
+    // now and then (2026-10-15)
+    for (int attempt = 0; attempt < 3; ++attempt)
     {
-      inTemp     = tempEvent.temperature;       // Celsius
-      inHumidity = humEvent.relative_humidity;  // %
+      if (sht4.getEvent(&humEvent, &tempEvent))
+      {
+        inTemp     = tempEvent.temperature;       // Celsius
+        inHumidity = humEvent.relative_humidity;  // %
+        break;
+      }
+      delay(50);
     }
 #else
     inTemp     = bme.readTemperature(); // Celsius
