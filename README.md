@@ -109,7 +109,7 @@ Other items needed:
 
   ![preview](showcase/preview-gdeb0709e01.png)
 
-  *(What the firmware draws, rendered on a PC in the panel's measured colours, set against white paper: the panel's white is a green-grey that reflects about 40 % as much light as paper. Sample weather, with the graph set to 48 hours.)*
+  *(What the firmware draws, rendered on a PC in the panel's measured colours, set against white paper: the panel's white is a green-grey that reflects about 40 % as much light as paper. Sample weather.)*
 
   The Good Display GDEB0709E01 is a 7.09in Spectra 6 panel the size of the ones above with four times the dots: 1600x1200 in landscape, 282 ppi. It is driven by Seeed's [XIAO ePaper Display Board EE02](https://www.seeedstudio.com/XIAO-ePaper-Display-Board-EE02-p-6639.html) (XIAO ESP32-S3 Plus, battery charger, three buttons), which takes the panel's 60-pin cable directly.
 

@@ -123,12 +123,17 @@ static float dewAt(float h)
 {
   return 47 + 5 * clamp01((h - 18) / 12) + 2 * sinf((15 + h) / 24 * 2 * M_PI);
 }
+// hours by which the sample's rain and cloud come early: the README's
+// picture shows a 24-hour graph, which the rain at hour 33 would miss
+static float g_rainLead = 0;
 static float popAt(float h)
 {
+  h += g_rainLead;
   return std::max(0.0f, 85 * expf(-powf((h - 33) / 5.5f, 2)) - 3);
 }
 static float cloudAt(float h)
 {
+  h += g_rainLead;
   static const float K[][2] = {{0, 20}, {6, 12}, {11, 18}, {16, 40}, {24, 78}, {30, 100},
                                {37, 95}, {40, 70}, {44, 45}, {48, 35}, {96, 30}};
   for (size_t i = 1; i < sizeof(K) / sizeof(K[0]); ++i)
@@ -394,6 +399,13 @@ int main(int argc, char **argv)
   LON = "-75.0";
 
   weather((out + "/sim_day.ppm").c_str(), false, 0);
+  // the README's picture: a 24-hour graph, as the panel is usually set, with
+  // the sample's rain brought forward to fall tonight
+  HOURLY_GRAPH_MAX = 24;
+  g_rainLead = 24;
+  weather((out + "/sim_readme.ppm").c_str(), false, 0);
+  g_rainLead = 0;
+  HOURLY_GRAPH_MAX = 48;
   HOURLY_GRAPH_MAX = 24;
   weather((out + "/sim_day24.ppm").c_str(), false, 0);
   HOURLY_GRAPH_MAX = 36;
