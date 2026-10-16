@@ -9,7 +9,7 @@
 > - **More widgets, flexible layout**: a moon phase widget (computed on-device, dithered grayscale icons on every panel type), 5–7 day forecast row, and a 5- or 6-row widget grid (10 or 12 slots) — all selectable at runtime.
 > - **Sunrise/sunset are computed on-device** (NOAA solar algorithm in `platformio/src/sun.cpp`), and day/night icon selection follows those real sun times instead of NWS's fixed 6am/6pm icon boundary.
 > - **Robust WiFi**: connects to the strongest access point on multi-AP (mesh) networks, the error screen explains *why* a connection failed (wrong password, network not found, no response...), and the device retries every 15 minutes (configurable) instead of requiring a manual reset. A short outage does not cost you the forecast: the last weather stays on the screen for up to 3 hours (`sleep.outage_grace_minutes`) before an error screen replaces it, redrawn once with its update time marked as old -- in red on colour panels, with a warning sign on black and white.
-> - **Supported boards**: the FireBeetle 2 ESP32-E wiring from upstream, plus native support for the [Seeed reTerminal E1002](https://www.seeedstudio.com/reTerminal-E1002-p-6533.html) — an all-in-one ESP32-S3 device with a built-in 7.3" Spectra 6 panel, battery, and buttons (`pio run -e seeed_reterminal_e1002`; its middle button opens the portal, the green button forces a refresh).
+> - **Supported boards**: the FireBeetle 2 ESP32-E wiring from upstream, plus native support for the [Seeed reTerminal E1002](https://www.seeedstudio.com/reTerminal-E1002-p-6533.html) — an all-in-one ESP32-S3 device with a built-in 7.3" Spectra 6 panel, battery, and buttons (`pio run -e seeed_reterminal_e1002`; its middle button opens the portal, the green button forces a refresh), and Seeed's [XIAO ePaper Display Board EE02](https://www.seeedstudio.com/XIAO-ePaper-Display-Board-EE02-p-6639.html) with Good Display's 7.09" 1600x1200 Spectra 6 panel, which has a layout of its own (see [GDEB0709E01](#high-resolution-panel-gdeb0709e01)).
 > - **Precipitation**: the hourly graph shows probability (PoP %) — NWS's hourly forecast has no amounts. The daily row shows **amounts in inches** (`UNITS_DAILY_PRECIP_INCHES`, compile-time): weather.gov's gridpoint QPF for the ~3 days it reaches, Open-Meteo's daily total for the days beyond. Dry days show nothing; a forecast trace under 0.1 in shows as `<0.1 in`. Set `UNITS_DAILY_PRECIP_POP` in `config.h` for probability there too.
 > - HTTPS is required (all APIs are HTTPS-only), and the servers' certificates are verified against the root CAs in `cert.h` (valid until 2035). To build without verification, create `platformio/include/config_local.h` containing `#define USE_HTTPS_NO_CERT_VERIF`; git ignores that file.
 >
@@ -100,26 +100,28 @@ Other items needed:
   | Good Display 7.3in e-paper (GDEY073D46) | 800x480px  | 7-Color         | Available [here](https://www.aliexpress.com/item/3256805485098421.html). Full-color icons.                            |
   | Good Display 7.3in e-paper (GDEP073E01) | 800x480px  | 7-Color         | Available [here](https://www.good-display.com/blank7.html?productId=533). Spectra 6. Full-color icons. This is also the panel built into the reTerminal E1002. |
   | Waveshare 7.5in e-paper (v1)            | 640x384px  | Black/White     | Limited support. Some information not displayed, see [image](showcase/demo-waveshare75-version1.jpg).                 |
-  | Good Display 7.09in e-paper (GDEB0709E01) | 1600x1200px | 6-Color       | Spectra 6, 282 ppi, on the Seeed EE02 board. Experimental, with a layout of its own: see [below](#high-resolution-panel-gdeb0709e01-experimental). |
+  | Good Display 7.09in e-paper (GDEB0709E01) | 1600x1200px | 6-Color       | Spectra 6, 282 ppi, on the Seeed EE02 board, with a layout of its own: see [below](#high-resolution-panel-gdeb0709e01). |
   | Good Display 7.5in e-paper (GDEW075T8)  | 640x384px  | Black/White     | Limited support. Some information not displayed, see [image](showcase/demo-waveshare75-version1.jpg).                 |
 
   On the 7-color panels this fork renders full-color condition and widget icons plus a semantic color palette (red highs / blue lows, color-coded UV and AQI); the 3-color panels use a single red accent; B/W panels use line art. Panels with additional colors have much longer refresh times (~12s for 3-color, ~28s for 7-color), which reduces battery life.
 
-### High-Resolution Panel: GDEB0709E01 (experimental)
+### High-Resolution Panel: GDEB0709E01
 
   ![preview](showcase/preview-gdeb0709e01.png)
 
-  *(What the firmware draws, rendered on a PC in the panel's measured ink colours. Sample weather.)*
+  *(What the firmware draws, rendered on a PC in the panel's measured colours, set against white paper: the panel's white is a green-grey that reflects about 40 % as much light as paper. Sample weather, with the graph set to 48 hours.)*
 
   The Good Display GDEB0709E01 is a 7.09in Spectra 6 panel the size of the ones above with four times the dots: 1600x1200 in landscape, 282 ppi. It is driven by Seeed's [XIAO ePaper Display Board EE02](https://www.seeedstudio.com/XIAO-ePaper-Display-Board-EE02-p-6639.html) (XIAO ESP32-S3 Plus, battery charger, three buttons), which takes the panel's 60-pin cable directly.
 
-  > **Status: not yet run on the hardware.** The firmware builds, and its drawing code has been run on a PC and checked against the design. The panel driver follows Seeed's driver for this panel, but has not lit a panel yet. Expect to adjust things on first power-up.
+  It runs on the hardware. The driver uses Good Display's own register values for this panel, whose analog timing and booster settings give a cleaner, brighter white than the 13.3in values Seeed's libraries use ([Seeed_GFX#78](https://github.com/Seeed-Studio/Seeed_GFX/issues/78)), and the layout's colours were chosen from test cards drawn on the panel and scanned on a flatbed.
 
   The extra dots buy sharpness, not room, so this panel has a layout of its own rather than the 800x480 one scaled up:
 
-  - **Left:** city, date and current conditions; the sun's path through the day, with sunrise, sunset and the moon at its true phase (rendered from NASA's map of the lunar surface); eight readings, with UV, air quality and pollen on colour-coded chips.
-  - **Right:** weather alerts (one, two side by side, or two and a count of the rest); the week; the next 48 hours as a ribbon of named weather ("Rain 7pm – 5am") over a graph of temperature, dew point and chance of rain.
-  - At night the sun's arc shows tomorrow's path and counts down to sunrise.
+  - **Left:** city, date and current conditions; the sun's path through the day, with sunrise, sunset and the moon at its true phase (rendered from NASA's map of the lunar surface); eight readings, chosen in the portal from humidity, dew point, heat stress, wind (with a direction arrow), pressure (with its trend), UV, air quality, pollen, visibility and indoor, with UV, air quality and pollen on colour-coded chips.
+  - **Right:** weather alerts (one, two side by side, or two and a count of the rest); the week, with each day's highs and lows drawn as one band of smooth curves; the next 24 hours (up to 48, in the portal) as a timeline of named weather ("Showers 12am – 8am") over a graph of temperature, dew point and chance of rain.
+  - At night the sun's arc shows tomorrow's path and counts down to sunrise. Dark mode is a portal setting, as on the other panels.
+
+  This panel's inks are not a screen's: its black is a dark maroon, its blue a teal and its white a green-grey, and dots of two inks side by side come out darker than they would on paper. The layout writes in navy (black and blue dots together, which reads as a more neutral black than the black ink alone), keeps colour to flat areas and was tuned on the glass. Photographs and dark pictures do not reproduce well on it.
 
   Build and flash:
 
@@ -129,13 +131,13 @@ Other items needed:
   pio run -e seeed_xiao_ee02_709 -t uploadfs          # config.json, as for the other boards
   ```
 
-  Flash the test card first. It shows the six inks, every screen of dots the layout relies on, a ladder of type sizes, and named corners, so one look tells whether the picture is the right way up (if not, change `EPD709_ROTATION` in config.h) and whether fine dots and small type hold on real ink.
+  Flash the test card first. It shows the six inks, every screen of dots the layout relies on, a ladder of type sizes, and named corners, so one look tells whether the picture is the right way up (if not, change `EPD709_ROTATION` in config.h) and whether fine dots and small type hold on real ink. Further cards (`seeed_xiao_ee02_709_testcard2` to `testcard12`) were used to choose the inks, chips, suns and timeline, and to measure the panel for the simulator.
 
   Things to know:
 
-  - **Buttons:** KEY1 opens the configuration portal, KEY2 forces a refresh.
-  - **Serial output is on the USB port.** The board uses the UART pins for the panel.
-  - **Indoor sensor: optional, four wires.** The EE02 has no sensor and no free pins, and without one the Indoor cell shows visibility. An SHT40, SHT41 or SHT45 breakout (3.3 V, with its own pull-up resistors) can be soldered to the pads of **U6**, an eight-pad footprint between the buttons and the flash chip that Seeed leaves empty. The firmware looks for the sensor on every wake and uses it if it answers, so the same build serves both. *Worked out from Seeed's board files; not yet tried on a board.*
+  - **Buttons:** KEY1 opens the configuration portal, KEY2 forces a refresh. KEY3 is unassigned.
+  - **Serial output is on the USB port.** The board uses the UART pins for the panel. While a computer is attached it waits awake between refreshes instead of sleeping, so the port stays up and the board can be flashed or its log read without pressing reset; on a charger, a power bank or the battery it sleeps as usual. (Some power banks switch themselves off at the tiny current the board draws asleep; if the display stops updating on one, that is the reason.)
+  - **Indoor sensor: optional, four wires.** The EE02 has no sensor and no free pins, and without one the Indoor cell shows visibility. An SHT40, SHT41 or SHT45 breakout (3.3 V, with its own pull-up resistors) can be soldered to the pads of **U6**, an eight-pad footprint between the buttons and the flash chip that Seeed leaves empty. The firmware looks for the sensor on every wake and uses it if it answers, so the same build serves both. Tested with an SHT41 breakout.
 
     | Sensor | U6 pad | Signal |
     |---|---|---|
@@ -145,11 +147,11 @@ Other items needed:
     | GND | 4 | ground |
 
     Hold the board with the USB-C connector at the top right: the footprint's top row is then pads 8, 7, 6, 5 from left to right and its bottom row 1, 2, 3, 4. Before soldering, confirm with a meter that pad 4 is connected to ground (the USB connector's shell). Pad 8 only carries 3.3 V while the display is awake. Never give the sensor 5 V: the board's pins are 3.3 V. Keep the sensor on a few centimetres of wire, away from the board and out of the enclosure's warm air. For a BME280 on the same pads, define `SENSOR_BME280` for this board in config.h in place of `SENSOR_SHT4X`.
-  - **Battery reading** assumes a 1:2 divider, as on the reTerminal E1002. Check it against a meter.
-  - **Refresh takes about 27 seconds**, as on the other Spectra 6 panels.
-  - **English only, no dark mode** for this layout so far. Settings that belong to the 800x480 layouts (`font`, `widget_rows`, widget positions, `dark_mode`) are ignored.
+  - **Battery reading** assumes a 1:2 divider, as on the reTerminal E1002. Check it against a meter. With no battery plugged in, the charger's green LED blinks; that is normal.
+  - **A refresh takes about 30 to 35 seconds.** Good Display's notes for this panel family ask for a refresh at least once a day, at least 150 seconds between refreshes, and no outdoor or direct sunlight use.
+  - **English only** for this layout so far. Settings that belong to the 800x480 layouts (`font`, `font_small`, `widget_rows`, widget positions) are ignored; the portal shows the eight cells (`panel_slots`) in their place.
 
-  To see the layout without the hardware, or to change it: `python tools/sim709/build.py` builds the firmware's own drawing code for your computer and writes what it draws as PNGs (see [tools/sim709](tools/sim709/README.md)). Fonts, icons and moon images are generated by `tools/gen_assets709.py`.
+  To see the layout without the hardware, or to change it: `python tools/sim709/build.py` builds the firmware's own drawing code for your computer and writes what it draws as PNGs, in the panel's measured colours, with the dot mixes the layout uses shown as measured on the panel (see [tools/sim709](tools/sim709/README.md)). Fonts, icons and moon images are generated by `tools/gen_assets709.py`.
 
 ### Enclosure Options
 
@@ -251,13 +253,13 @@ PlatformIO for VSCode is used for managing dependencies, code compilation, and u
    - **Indoor sensor** (`SENSOR_BME280` or `SENSOR_BME680`).
    - **Units** (temperature, wind speed, pressure, distance) and **locale/language**.
 
-   *(reTerminal E1002 owners skip this step — building with the `seeed_reterminal_e1002` environment selects the panel, sensor, and pins automatically.)*
+   *(reTerminal E1002 owners skip this step — building with the `seeed_reterminal_e1002` environment selects the panel, sensor, and pins automatically. Likewise the `seeed_xiao_ee02_709` environment for the EE02 with the GDEB0709E01.)*
 
 6. Build and Upload.
 
    a. Connect the ESP32 to your computer via USB.
 
-   b. Upload the **firmware**: click the upload arrow along the bottom of the VSCode window ("PlatformIO: Upload"). For the reTerminal E1002, select the `seeed_reterminal_e1002` environment first (or run `pio run -e seeed_reterminal_e1002 -t upload`).
+   b. Upload the **firmware**: click the upload arrow along the bottom of the VSCode window ("PlatformIO: Upload"). For the reTerminal E1002, select the `seeed_reterminal_e1002` environment first (or run `pio run -e seeed_reterminal_e1002 -t upload`); for the EE02, `seeed_xiao_ee02_709`.
 
    c. Upload the **filesystem** (the settings file and the portal web page): run "PlatformIO: Upload Filesystem Image" from the task list (or `pio run -t uploadfs`).
 
@@ -286,6 +288,7 @@ The same page used for first-time setup remains available after the device is co
 
 - **Enter it** by pressing the RST button **twice, one to three seconds apart**, once the display has finished refreshing (on the reTerminal E1002, just press the **middle front button** once while it sleeps). The display shows where to reach it — `http://weatherepd.local/` or the device's IP — for the next 10 minutes (configurable).
 - **Every setting** in `config.json` is editable: WiFi (with network scan), location (with phone-GPS detection), time zone and clock/date formats (dropdowns with live examples), refresh schedule and bedtime hours, forecast days (5–7), widget rows (5 = 10 slots, 6 = 12 slots — enough for every widget at once), and a per-slot widget picker that mirrors the physical layout.
+- On the EE02's 1600x1200 layout the widget picker gives way to the layout's eight cells (`panel_slots`), and the font and widget-row settings, which that layout does not use, are hidden.
 - An **advanced raw-JSON editor** exposes the settings not in the form (battery thresholds, NTP servers, portal options). Saves are validated on-device and keep a one-generation backup (`config.bak`).
 - A **Diagnostics** section shows what the display did the last time it woke and the last time something went wrong: the result, how long WiFi, the weather requests and the screen each took, the battery voltage and the WiFi signal. It answers "why did it not update?" without a USB cable. The record stays on the device.
 - The portal serves plain HTTP on your LAN while active.
@@ -342,7 +345,7 @@ The WiFi, API and time server screens below appear once an outage has lasted lon
 
 ### Low Battery
 <img src="showcase/demo-error-low-battery.jpg" align="left" width="25%" />
-This error screen appears once the battery voltage has fallen below <code>low_voltage_mv</code> (default = 3.462v, ~10%). The display will not refresh again until the battery is charged. While between <code>low_voltage_mv</code> and <code>very_low_voltage_mv</code> (default = 3.442v) the esp32 deep-sleeps for <code>low_sleep_interval_minutes</code> (default = 30min) between voltage checks; below that, for <code>very_low_sleep_interval_minutes</code> (default = 120min). If the voltage falls below <code>crit_low_voltage_mv</code> (default = 3.404v), the esp32 hibernates and requires a manual press of the reset (RST) button once charged. All thresholds are configurable in the portal's raw-JSON editor.
+This error screen appears once the battery voltage has fallen below <code>low_voltage_mv</code> (default = 3.462v, ~10%). It stays up until the battery is charged, as an e-reader's does, drawn in black on white only and redrawn once a day while the device still wakes, since colour inks ghost more easily when one image stays for long. While between <code>low_voltage_mv</code> and <code>very_low_voltage_mv</code> (default = 3.442v) the esp32 deep-sleeps for <code>low_sleep_interval_minutes</code> (default = 30min) between voltage checks; below that, for <code>very_low_sleep_interval_minutes</code> (default = 120min). If the voltage falls below <code>crit_low_voltage_mv</code> (default = 3.404v), the esp32 hibernates and requires a manual press of the reset (RST) button once charged. All thresholds are configurable in the portal's raw-JSON editor.
 
 <br clear="left"/>
 
