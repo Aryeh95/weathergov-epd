@@ -291,6 +291,18 @@ int main(int argc, char **argv)
   if (panel == "bwv2") INK_RGB = INK_RGB_BW;
   else if (panel == "3c") INK_RGB = INK_RGB_3C;
   printf("panel %s, %dx%d\n", panel.c_str(), display.width(), display.height());
+#if defined(DISP_7C_E6)
+  if (getenv("SIM480_TESTCARD"))
+  { // the ink card (seeed_reterminal_e1002_testcard), on its own
+    initDisplay();
+    do
+    {
+      drawTestCardE6();
+    } while (display.nextPage());
+    savePpm((outDir + "/sim_e6_testcard.ppm").c_str());
+    return 0;
+  }
+#endif
   if (strcmp(LOCALE_STR(LOCALE), "pl_PL") == 0)
   {
     return mainKrakow(outDir);

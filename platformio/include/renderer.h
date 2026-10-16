@@ -75,6 +75,9 @@
             GxEPD2_730c_GDEP073E01_Patient::HEIGHT / 4> display;
 #endif
 
+#ifdef DISP_7C_E6
+  void drawTestCardE6();
+#endif
 #ifdef DISP_7C_709
   // Landscape, as the layout sees it; the panel itself counts 1200x1600.
   #define DISP_WIDTH  1600

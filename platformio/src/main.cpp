@@ -446,6 +446,18 @@ void setup()
   wakeDiag.outcome = DIAG_OTHER;
   wakeDiag.cause = static_cast<uint8_t>(esp_sleep_get_wakeup_cause());
 
+#if defined(DISP_7C_E6) && defined(E6_TEST_CARD)
+  // Bring-up build for the 7.3in Spectra 6: the ink card, then sleep until
+  // reset
+  initDisplay();
+  do
+  {
+    drawTestCardE6();
+  } while (display.nextPage());
+  powerOffDisplay();
+  Serial.println("[e6] test card drawn, sleeping");
+  esp_deep_sleep_start();
+#endif
 #if defined(DISP_7C_709) && defined(EPD709_TEST_CARD)
   // Bring-up build: no WiFi, no settings, just the test card, then sleep
   // until the reset button is pressed.
