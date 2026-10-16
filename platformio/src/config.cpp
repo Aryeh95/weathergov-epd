@@ -386,6 +386,10 @@ uint32_t MIN_BATTERY_VOLTAGE = 3000; // (millivolts)
 // WIDGET POSITIONS comment in config.h for the grid layout. -1 disables a
 // widget. air_quality and visibility default to sharing a slot (visibility
 // disabled) since there usually isn't room to show both.
+#if defined(DISP_7C_709)
+String PANEL_SLOTS[8] = {"humidity", "dewpoint", "wind", "pressure",
+                         "uvi", "air_quality", "pollen", "indoor"};
+#endif
 int POS_SUNRISE     = 0;
 int POS_SUNSET      = 1;
 int POS_HUMIDITY    = 2;

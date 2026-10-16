@@ -154,14 +154,56 @@ static const Tone T_RAIN_BAR  = {B, 1.0f, W, 1.0f};
  * becomes that screen. Text, lines and icon outlines all pass through px;
  * the test cards switch it off to show the bare ink.
  */
-// With Good Display's analog values the third card showed 70 % black on
-// blue as a warm dark brown-grey and navy (50 %) as the most neutral dark,
-// still crisp at 22 px: navy it is.
+// With Good Display's analog values a phone photo of the third card made
+// 70 % look warm and navy (50 %) more neutral, so navy was used for a day;
+// a flatbed scan (2026-10-15) settled it the other way: the 70 % strokes
+// are the darkest (L* 18 against navy's 22) and the most neutral (a* -1,
+// b* +2; navy a* -5), and to the eye the most like black. Seen again with
+// the panel in its black bezel (2026-10-15, evening), navy won: a little
+// less contrast, but beside the black frame its slight coolness reads as a
+// neutral black, where 70 % reads warm.
 static const Tone T_INK = {K, 0.50f, B, 1.0f};
 static const Tone *BLACK_AS = &T_INK;
+// A candidate ink (2026-10-15, test card 3): black, green and blue on a
+// fixed 2x2 cell -- [K G / B K] -- half black, a quarter of each of the two
+// cool inks, to pull the black's maroon toward neutral from both sides.
+// Not a Tone (a Tone mixes two inks); px() draws it when BLACK_AS points
+// here.
+static const Tone T_INK_KGB = {K, 0.50f, G, 1.0f};
+
+#if defined(EPD709_HOST)
+// The simulator's record of what each dot belongs to (tools/sim709): the
+// screen it was drawn with, so its preview can show the colour measured on
+// the panel for that screen instead of an average of the inks. Host only;
+// the firmware draws exactly as before.
+uint32_t g_hostTone = 0;
+void hostTag(int x, int y, uint32_t tag);
+static uint32_t hostInk(uint16_t c)
+{
+  if (c == K || c == K_ABS) return 0;
+  if (c == W || c == W_ABS) return 1;
+  if (c == Y) return 2;
+  if (c == R) return 3;
+  if (c == B) return 5;
+  if (c == G) return 6;
+  return 7;
+}
+// valid bit, top ink, under ink, 2x2 cells, share and cover in thousandths
+static uint32_t hostKey(const Tone &t, bool cells2x)
+{
+  if (DARK_MODE) return 0;               // measured in light mode only
+  return (1u << 31) | (hostInk(t.top) << 28) | (hostInk(t.under) << 25)
+       | ((cells2x ? 1u : 0u) << 24)
+       | (static_cast<uint32_t>(t.share * 1000.0f + 0.5f) << 12)
+       | static_cast<uint32_t>(t.cover * 1000.0f + 0.5f);
+}
+#endif
 
 static inline void px(int x, int y, uint16_t ink)
 {
+#if defined(EPD709_HOST)
+  uint32_t tag = g_hostTone;
+#endif
   if (DARK_MODE)
   {
     if (ink == K)      ink = W;
@@ -171,8 +213,21 @@ static inline void px(int x, int y, uint16_t ink)
   else if (ink == W_ABS) ink = W;
   if (ink == K && BLACK_AS)
   {
-    ink = toneAt(*BLACK_AS, x, y);
+    if (BLACK_AS == &T_INK_KGB)
+    {
+      ink = (((x + y) & 1) == 0) ? K : ((y & 1) ? G : B);
+    }
+    else
+    {
+      ink = toneAt(*BLACK_AS, x, y);
+#if defined(EPD709_HOST)
+      if (!tag) tag = hostKey(*BLACK_AS, false);
+#endif
+    }
   }
+#if defined(EPD709_HOST)
+  hostTag(x, y, tag);
+#endif
   display.drawPixel(x, y, ink);
 }
 
@@ -225,6 +280,9 @@ static void fillBox(int x0, int y0, int x1, int y1, int r, uint16_t ink)
 
 static void fillTone(int x0, int y0, int x1, int y1, int r, const Tone &t)
 {
+#if defined(EPD709_HOST)
+  g_hostTone = hostKey(t, false);
+#endif
   for (int y = y0; y <= y1; ++y)
   {
     for (int x = x0; x <= x1; ++x)
@@ -235,6 +293,9 @@ static void fillTone(int x0, int y0, int x1, int y1, int r, const Tone &t)
       }
     }
   }
+#if defined(EPD709_HOST)
+  g_hostTone = 0;
+#endif
 }
 
 // outline, `w` pixels wide, drawn inward from the box's edge
@@ -276,6 +337,29 @@ static void disc(float cx, float cy, float r, uint16_t ink)
       }
     }
   }
+}
+// fillTone with the screen's dots grouped in 2x2 cells (180 um). Two
+// opposed inks in single dots at 282 ppi do not fully develop: red over
+// blue measured a brown-grey in single dots and a dusty mauve in 2x2 cells
+// (test card 6, 2026-10-15).
+static void fillTone2x(int x0, int y0, int x1, int y1, int r, const Tone &t)
+{
+#if defined(EPD709_HOST)
+  g_hostTone = hostKey(t, true);
+#endif
+  for (int y = y0; y <= y1; ++y)
+  {
+    for (int x = x0; x <= x1; ++x)
+    {
+      if (inRound(x, y, x0, y0, x1, y1, r))
+      {
+        px(x, y, toneAt(t, x >> 1, y >> 1));
+      }
+    }
+  }
+#if defined(EPD709_HOST)
+  g_hostTone = 0;
+#endif
 }
 
 static void ring(float cx, float cy, float r, float w, uint16_t ink)
@@ -575,7 +659,19 @@ static const uint8_t *conditionIcon(int id, bool day, int size)
  * that fades into the paper. `risen` false draws only what stands above
  * the horizon at y.
  */
-static void drawSun(int cx, int cy, bool whole)
+/* Styles, for test card 7 (2026-10-15): 0 the gradient above; 1 solid
+ * yellow; 2 yellow with a 2 px outline in the ink; 3 yellow with a red rim;
+ * 4 yellow with the halo but no red; 5 yellow with yellow rays; 6 solid
+ * orange; 7 yellow with an orange outer band; 8 yellow, ink outline and ink
+ * rays; 9-11 shaded as a sphere lit from the upper left -- 9 orange
+ * shading with a highlight, 10 the same in a halo, 11 a deeper shade with a
+ * red edge on the shadow side only; 12 InkyPi's sun, a flat disc graded
+ * from orange at the lower left to yellow at the upper right, and 13 the
+ * same in 2x2 cells. SUN_STYLE is the one the layout draws.
+ */
+static const int SUN_STYLE = 8;   // chosen on the panel, 2026-10-15
+
+static void drawSunStyle(int cx, int cy, bool whole, int style)
 {
   const float core = 26.0f, glow = 50.0f;
   for (int y = cy - 50; y <= (whole ? cy + 50 : cy); ++y)
@@ -586,13 +682,53 @@ static void drawSun(int cx, int cy, bool whole)
                                                + (y - cy) * (y - cy)));
       if (d <= core)
       {
-        px(x, y, screen(x, y, 0.65f * powf(d / core, 2.2f)) ? R : Y);
+        uint16_t ink = Y;
+        if (style == 0)
+        {
+          ink = screen(x, y, 0.65f * powf(d / core, 2.2f)) ? R : Y;
+        }
+        else if (style == 12 || style == 13)
+        { // InkyPi's linear gradient: u -1 at the lower left .. +1 upper right
+          const float u = ((x - cx) - (y - cy)) / (1.4142f * core);
+          const float red = 0.06f + 0.34f * (1.0f - std::max(-1.0f, std::min(1.0f, u))) / 2.0f;
+          ink = (style == 13 ? screen(x >> 1, y >> 1, red) : screen(x, y, red)) ? R : Y;
+        }
+        else if (style >= 9)
+        { // a sphere lit from the upper left: how far a point sits on the
+          // shadow side, 0 in the highlight .. 1 at the far rim
+          const float nx = (x - cx) / core, ny = (y - cy) / core;
+          const float nz = sqrtf(std::max(0.0f, 1.0f - nx * nx - ny * ny));
+          const float lit = std::max(0.0f, -0.55f * nx - 0.55f * ny + 0.63f * nz);
+          const float shade = 1.0f - lit;
+          const float deep = (style == 11) ? 0.70f : 0.50f;
+          if (lit > 0.93f && screen(x + 1, y + 2, (lit - 0.93f) * 9.0f))
+          {
+            ink = W_ABS;                                  // the highlight
+          }
+          else if (style == 11 && d > core - 2.0f && nx + ny > 0.2f)
+          {
+            ink = R;                                      // edge, shadow side
+          }
+          else
+          {
+            ink = screen(x, y, deep * powf(shade, 1.8f)) ? R : Y;
+          }
+        }
+        else if (style == 6 || (style == 7 && d > 18.0f))
+        {
+          ink = toneAt(T_ORANGE, x, y);
+        }
+        else if ((style == 2 || style == 8) && d > core - 2.0f)
+        {
+          ink = K;
+        }
+        px(x, y, ink);
       }
-      else if (d <= core + 2.0f)
+      else if (d <= core + 2.0f && (style == 0 || style == 3))
       {
         px(x, y, R);
       }
-      else if (d <= glow)
+      else if (d <= glow && (style == 0 || style == 4 || style == 10))
       {
         const float k = powf((glow - d) / (glow - core), 1.6f) * 0.7f;
         if (screen(x, y, k))
@@ -600,8 +736,24 @@ static void drawSun(int cx, int cy, bool whole)
           px(x, y, Y);
         }
       }
+      else if ((style == 5 || style == 8) && d >= 32.0f && d <= 44.0f)
+      { // eight rays: near one of the eight directions
+        const float a = atan2f(static_cast<float>(y - cy),
+                               static_cast<float>(x - cx));
+        const float step = 3.14159265f / 4.0f;
+        const float off = a - step * roundf(a / step);
+        if (fabsf(d * sinf(off)) <= (style == 5 ? 2.6f : 1.6f))
+        {
+          px(x, y, style == 5 ? Y : K);
+        }
+      }
     }
   }
+}
+
+static void drawSun(int cx, int cy, bool whole)
+{
+  drawSunStyle(cx, cy, whole, SUN_STYLE);
 }
 
 /* The moon at a phase (0 = new .. MOON709_STEPS / 2 = full), from NASA's
@@ -890,8 +1042,18 @@ static void drawNotice(int x0, int y0, int x1, int y1, const Alert709 &a,
   }
   else
   {
-    fillTone(x0, y0, x1, y1, 10, (a.rank == 1) ? T_ORANGE : T_ADVISORY);
-    strokeBox(x0, y0, x1, y1, 10, 2, K);
+    // in dark mode as well the notice stays light, a note on the dark page:
+    // its paper is true white and its words true black (flipped, the
+    // advisory's yellow went dark and its words pale on it)
+    Tone t = (a.rank == 1) ? T_ORANGE : T_ADVISORY;
+    if (DARK_MODE)
+    {
+      if (t.under == W) t.under = W_ABS;
+      if (t.top == W)   t.top = W_ABS;
+      ink = K_ABS;
+    }
+    fillTone(x0, y0, x1, y1, 10, t);
+    strokeBox(x0, y0, x1, y1, 10, 2, DARK_MODE ? K_ABS : K);
   }
   const int cy = (y0 + y1) / 2;
   triangle(x0 + 22, cy + 17, x0 + 42, cy - 19, x0 + 62, cy + 17, ink);
@@ -1011,11 +1173,14 @@ static void drawChip(int x, int y, const char *word, int level)
   case RISK_YELLOW: fillBox(x, y, x + w, y + h, 8, Y); ink = K_ABS; break;
   case RISK_AMBER:  fillTone(x, y, x + w, y + h, 8, T_ORANGE); ink = K_ABS; break;
   case RISK_RED:    fillBox(x, y, x + w, y + h, 8, R);              break;
-  // the panel's black is itself a maroon, so plum and maroon chips were
-  // the same colour as it: the two top levels are navy and black instead
-  // (white, on the dark ground)
-  case RISK_PURPLE: fillTone(x, y, x + w, y + h, 8, {K_ABS, 0.50f, B, 1}); break;
+  // Extreme: 50 % red over blue in 2x2 cells, a dusty mauve -- the nearest
+  // the inks come to purple, and clear of both red and the black chip
+  // (test card 6, 2026-10-15). Hazardous: black, which on this panel is
+  // already a maroon, with a red ring that tells it from every other chip
+  // (3 px: the card's 6 px on a 90 px chip, scaled to this one's 39).
+  case RISK_PURPLE: fillTone2x(x, y, x + w, y + h, 8, {R, 0.50f, B, 1}); break;
   case RISK_MAROON: fillBox(x, y, x + w, y + h, 8, DARK_MODE ? W_ABS : K_ABS);
+                    strokeBox(x, y, x + w, y + h, 8, 3, R);
                     ink = DARK_MODE ? K_ABS : W_ABS;                 break;
   default:          ink = K;                                        break;
   }
@@ -1044,7 +1209,23 @@ struct Cell
   const char *brief; // a shorter word for it, or nullptr
   int level;
   int trend;         // 1 rising, -1 falling, anything else draws nothing
+  int arrowDeg = -1; // wind: where it blows from, in degrees; < 0 no arrow
 };
+
+/* The wind's arrow, as the 800x480 layout's: it points the way the air is
+ * going (downwind), a notched tail behind. (cx, cy) is its middle.
+ */
+static void drawWindArrow(float cx, float cy, int fromDeg)
+{
+  const float b = (fromDeg + 180) * 3.14159265f / 180.0f;
+  const float dx = sinf(b), dy = -cosf(b);          // screen y grows down
+  const float px = -dy, py = dx;                    // across the arrow
+  const float tipX = cx + 15 * dx, tipY = cy + 15 * dy;
+  const float bx = cx - 13 * dx, by = cy - 13 * dy;
+  const float nX = cx - 5 * dx, nY = cy - 5 * dy;   // the notch in the tail
+  triangle(tipX, tipY, bx + 10 * px, by + 10 * py, nX, nY, K);
+  triangle(tipX, tipY, nX, nY, bx - 10 * px, by - 10 * py, K);
+}
 
 static void drawCell(int i, const Cell &c)
 {
@@ -1056,7 +1237,16 @@ static void drawCell(int i, const Cell &c)
   {
     drawText(lx + 8, y + 3, c.tag, F_SANS_22, K, LA, true);
   }
-  int vx = drawText(x, y + 28, c.value, F_BITTER_36, K, LA);
+  int vx;
+  if (c.arrowDeg >= 0)
+  {
+    drawWindArrow(x + 15, y + 50, c.arrowDeg);
+    vx = drawText(x + 36, y + 28, c.value, F_BITTER_36, K, LA);
+  }
+  else
+  {
+    vx = drawText(x, y + 28, c.value, F_BITTER_36, K, LA);
+  }
   if (c.trend == 1 || c.trend == -1)
   {
     drawTrend(vx + 8, y + 28, c.trend);
@@ -1219,14 +1409,14 @@ static void drawSky(const owm_current_t &current)
       {
         float x, y;
         onArc(i / 200.0f, x, y);
-        if (i && hypotf(x - sx, y - sy) > 33 && hypotf(px0 - sx, py0 - sy) > 33)
+        if (i && hypotf(x - sx, y - sy) > 46 && hypotf(px0 - sx, py0 - sy) > 46)
         {
           stroke(px0, py0, x, y, 3, K);
         }
         px0 = x;
         py0 = y;
       }
-      dotted(static_cast<int>(f * 100) + 1, sx, sy, 39);
+      dotted(static_cast<int>(f * 100) + 1, sx, sy, 47);  // clear of the rays (r 44)
       drawSun(static_cast<int>(sx), static_cast<int>(sy), true);
       top = span(static_cast<long>(set - rise));
       bottom = TXT709_OF_DAYLIGHT;
@@ -1252,7 +1442,7 @@ static void drawSky(const owm_current_t &current)
           set += 86400;
         }
       }
-      dotted(1, LEFTC - rx, cy, 40);
+      dotted(1, LEFTC - rx, cy, 47);
       drawSun(LEFTC - rx, cy, false);
       fillBox(LEFTC - rx - 52, cy, LEFTC - rx + 52, cy + 1, 0, K);
       top = TXT709_SUNRISE_IN;
@@ -1307,36 +1497,49 @@ void drawCurrentConditions(const owm_current_t &current,
 
   drawSky(current);
 
-  Cell c[8];
-  for (Cell &cell : c)
+  // every cell the layout can show; PANEL_SLOTS (the portal's choice) says
+  // which go where
+  enum { CK_HUMIDITY, CK_DEWPOINT, CK_HEAT, CK_WIND, CK_PRESSURE, CK_UVI,
+         CK_AIR, CK_POLLEN, CK_VISIBILITY, CK_INDOOR, CK_COUNT };
+  static const char *const KEY[CK_COUNT] = {
+    "humidity", "dewpoint", "heat_stress", "wind", "pressure", "uvi",
+    "air_quality", "pollen", "visibility", "indoor"};
+  Cell cells[CK_COUNT];
+  for (Cell &cell : cells)
   {
     cell.word = nullptr;
     cell.brief = nullptr;
     cell.level = RISK_PLAIN;
     cell.trend = 0;
   }
-  c[0].label = TXT_HUMIDITY;
-  c[0].value = String(current.humidity) + "%";
-  c[1].label = label(TXT_DEWPOINT);
-  c[1].value = tempText(current.dew_point);
-  c[2].label = TXT_WIND;
-  c[2].value = windText(current);
-  c[3].label = TXT_PRESSURE;
-  c[3].value = pressureText(current);
-  c[3].trend = historyPressureTrend();
+  cells[CK_HUMIDITY].label = TXT_HUMIDITY;
+  cells[CK_HUMIDITY].value = String(current.humidity) + "%";
+  cells[CK_DEWPOINT].label = label(TXT_DEWPOINT);
+  cells[CK_DEWPOINT].value = tempText(current.dew_point);
+  cells[CK_WIND].label = TXT_WIND;
+  cells[CK_WIND].value = windText(current);
+#if defined(WIND_INDICATOR_ARROW)
+  if (current.wind_speed >= 0.5f)       // calm: no direction worth an arrow
+  {
+    cells[CK_WIND].arrowDeg = ((current.wind_deg % 360) + 360) % 360;
+  }
+#endif
+  cells[CK_PRESSURE].label = TXT_PRESSURE;
+  cells[CK_PRESSURE].value = pressureText(current);
+  cells[CK_PRESSURE].trend = historyPressureTrend();
 
-  c[4].label = label(TXT_UV_INDEX);
+  cells[CK_UVI].label = label(TXT_UV_INDEX);
   if (std::isnan(current.uvi))
   { // not fetched: no number, and no chip to call it low
-    c[4].value = "--";
+    cells[CK_UVI].value = "--";
   }
   else
   {
     const unsigned uvi = static_cast<unsigned>(
                            std::max(lroundf(current.uvi), 0L));
-    c[4].value = String(uvi);
-    c[4].word = getUVIdesc(uvi);
-    c[4].level = (uvi <= 2)  ? RISK_GREEN
+    cells[CK_UVI].value = String(uvi);
+    cells[CK_UVI].word = getUVIdesc(uvi);
+    cells[CK_UVI].level = (uvi <= 2)  ? RISK_GREEN
                : (uvi <= 5)  ? RISK_YELLOW
                : (uvi <= 7)  ? RISK_AMBER
                : (uvi <= 10) ? RISK_RED
@@ -1361,17 +1564,17 @@ void drawCurrentConditions(const owm_current_t &current,
     aqiMax = aqi_scale_max(AQI_SCALE);
   }
   const bool usScale = epa || (AQI_SCALE == UNITED_STATES_AQI);
-  c[5].label = label((epa || aqi_desc_type(AQI_SCALE) == AIR_QUALITY_DESC)
+  cells[CK_AIR].label = label((epa || aqi_desc_type(AQI_SCALE) == AIR_QUALITY_DESC)
                      ? TXT_AIR_QUALITY : TXT_AIR_POLLUTION);
   if (!airKnown)
   { // neither source answered
-    c[5].value = "--";
+    cells[CK_AIR].value = "--";
   }
   else
   {
-    c[5].tag = epa ? TXT709_TAG_EPA : TXT709_TAG_MODEL;
-    c[5].value = (aqi > aqiMax) ? "> " + String(aqiMax) : String(aqi);
-    c[5].word = epa ? united_states_aqi_desc(aqi)
+    cells[CK_AIR].tag = epa ? TXT709_TAG_EPA : TXT709_TAG_MODEL;
+    cells[CK_AIR].value = (aqi > aqiMax) ? "> " + String(aqiMax) : String(aqi);
+    cells[CK_AIR].word = epa ? united_states_aqi_desc(aqi)
                     : aqi_desc(AQI_SCALE, aqi);
   }
   if (airKnown && usScale)
@@ -1380,14 +1583,14 @@ void drawCurrentConditions(const owm_current_t &current,
                                 RISK_RED, RISK_PURPLE, RISK_MAROON};
     const int band = (aqi <= 50) ? 0 : (aqi <= 100) ? 1 : (aqi <= 150) ? 2
                    : (aqi <= 200) ? 3 : (aqi <= 300) ? 4 : 5;
-    c[5].level = BAND[band];
-    c[5].brief = UNITED_STATES_AQI_SHORT_TXT[band];
+    cells[CK_AIR].level = BAND[band];
+    cells[CK_AIR].brief = UNITED_STATES_AQI_SHORT_TXT[band];
   }
 
-  c[6].label = TXT_POLLEN;
+  cells[CK_POLLEN].label = TXT_POLLEN;
   if (pollen.max_upi < 0)
   {
-    c[6].value = "--";
+    cells[CK_POLLEN].value = "--";
   }
   else
   {
@@ -1415,26 +1618,54 @@ void drawCurrentConditions(const owm_current_t &current,
           types += TXT_POLLEN_WEED;
         }
       }
-      c[6].tag = "(" + types + ")";
+      cells[CK_POLLEN].tag = "(" + types + ")";
     }
-    c[6].value = String(pollen.max_upi);
-    c[6].word = (pollen.max_upi <= 2) ? TXT_UV_LOW
+    cells[CK_POLLEN].value = String(pollen.max_upi);
+    cells[CK_POLLEN].word = (pollen.max_upi <= 2) ? TXT_UV_LOW
               : (pollen.max_upi == 3) ? TXT_UV_MODERATE
               : (pollen.max_upi == 4) ? TXT_UV_HIGH
                                       : TXT_UV_VERY_HIGH;
-    c[6].level = (pollen.max_upi <= 2) ? RISK_GREEN
+    cells[CK_POLLEN].level = (pollen.max_upi <= 2) ? RISK_GREEN
                : (pollen.max_upi == 3) ? RISK_AMBER
                                        : RISK_RED;
   }
 
+  cells[CK_VISIBILITY].label = TXT_VISIBILITY;
+  cells[CK_VISIBILITY].value = visibilityText(current);
+
+  // heat stress: IMS's own index and level, else computed from the
+  // temperature and humidity (as the 800x480 layouts do)
+  {
+    float index = current.heat_stress;
+    int level = current.heat_stress_level;
+    if (!(index > 0.f && level >= 0))
+    {
+      index = heatStressIndex(kelvin_to_celsius(current.temp), current.humidity);
+      level = heatStressLevel(index);
+    }
+    level = std::min(level, 5);
+    cells[CK_HEAT].label = label(TXT_HEAT_STRESS);
+    if (level < 0)
+    {
+      cells[CK_HEAT].value = "--";
+    }
+    else
+    {
+      static const int CHIP[6] = {RISK_PLAIN, RISK_GREEN, RISK_YELLOW,
+                                  RISK_AMBER, RISK_RED, RISK_PURPLE};
+      cells[CK_HEAT].value = String(static_cast<int>(std::floor(index + 0.4999f)));
+      cells[CK_HEAT].word = TXT_HEAT_STRESS_LEVEL[level];
+      cells[CK_HEAT].level = CHIP[level];
+    }
+  }
+
   if (std::isnan(inTemp) && std::isnan(inHumidity))
-  { // no sensor, or it did not answer: the cell goes to visibility
-    c[7].label = TXT_VISIBILITY;
-    c[7].value = visibilityText(current);
+  { // no sensor, or it did not answer: the indoor cell shows visibility
+    cells[CK_INDOOR] = cells[CK_VISIBILITY];
   }
   else
   {
-    c[7].label = TXT709_INDOOR;
+    cells[CK_INDOOR].label = TXT709_INDOOR;
 #if defined(UNITS_TEMP_KELVIN)
     const float in = celsius_to_kelvin(inTemp);
 #elif defined(UNITS_TEMP_CELSIUS)
@@ -1442,16 +1673,23 @@ void drawCurrentConditions(const owm_current_t &current,
 #else
     const float in = celsius_to_fahrenheit(inTemp);
 #endif
-    c[7].value = (std::isnan(inTemp) ? String("--")
+    cells[CK_INDOOR].value = (std::isnan(inTemp) ? String("--")
                   : String(static_cast<int>(lroundf(in))) + "\xB0")
                + TXT709_DOT
                + (std::isnan(inHumidity) ? String("--")
                   : String(static_cast<int>(lroundf(inHumidity))) + "%");
-    c[7].trend = historyIndoorTrend();
+    cells[CK_INDOOR].trend = historyIndoorTrend();
   }
   for (int i = 0; i < 8; ++i)
   {
-    drawCell(i, c[i]);
+    for (int k = 0; k < CK_COUNT; ++k)
+    {
+      if (PANEL_SLOTS[i] == KEY[k])
+      {
+        drawCell(i, cells[k]);
+        break;
+      }
+    }
   }
   dashV(584, 40, 1170, 1, 2, 6, K); // between the columns
 } // end drawCurrentConditions
@@ -1582,12 +1820,153 @@ static String amountText(const owm_daily_t &day)
 /* Name, icon, high, low -- and rain only when it is likely (30% and up), so
  * that a dry week is a quiet one.
  */
+/* The week's highs and lows as one band (planning round 7, option B):
+ * a red line through the highs, a blue one through the lows, the space
+ * between them shaded from yellow (warm) to blue (cool) on one scale for
+ * the whole week, each figure beside its dot. Names, icons and rain stay
+ * in their columns.
+ */
+static const bool WEEK_BAND = true;
+// 0: yellow screened over blue (your mockup; olive on this panel), 1: pale
+// yellow at the warm edge through white to pale blue at the cool edge
+static const int WEEK_BAND_FILL = 1;
+// smooth curves through the days, no dots (false: straight segments, dots)
+static const bool WEEK_BAND_SMOOTH = true;
+
+/* A smooth curve through values at 0, 1, .. n-1 (cubic Hermite). Where
+ * the values turn -- a high or a low -- the curve is flat there, so it does
+ * not run past the figure that labels it. Elsewhere the slope is the mean
+ * of its two sides, held to three times the gentler one: forecasts come in
+ * whole degrees (64, 64, 65 ..), and flattening at every repeat, as strict
+ * monotone curves do, terraced a steady warm-up into steps. Across a
+ * plateau the curve may stray a few hundredths of a degree.
+ */
+static float smoothAt(const float *v, int n, float f)
+{
+  const int i = std::max(0, std::min(static_cast<int>(f), n - 2));
+  const float u = f - i;
+  auto slope = [&](int k) {
+    if (k <= 0) return v[1] - v[0];
+    if (k >= n - 1) return v[n - 1] - v[n - 2];
+    const float a = v[k] - v[k - 1], b = v[k + 1] - v[k];
+    if (a * b < 0 || (a == 0 && b == 0)) return 0.0f;   // a turn, or level
+    float m = (a + b) / 2;
+    if (a != 0 && b != 0)
+    {
+      const float lim = 3 * std::min(std::fabs(a), std::fabs(b));
+      m = std::max(-lim, std::min(lim, m));
+    }
+    return m;
+  };
+  const float m0 = slope(i), m1 = slope(i + 1);
+  const float h00 = (1 + 2 * u) * (1 - u) * (1 - u), h10 = u * (1 - u) * (1 - u);
+  const float h01 = u * u * (3 - 2 * u), h11 = u * u * (u - 1);
+  return h00 * v[i] + h10 * m0 + h01 * v[i + 1] + h11 * m1;
+}
+
+static void drawWeekBand(const owm_daily_t *daily, int days, float cw, int y0)
+{
+  int n = 0;                               // days with a forecast, in a run
+  while (n < days && daily[n].dt > 0 && !std::isnan(daily[n].temp.max)
+         && !std::isnan(daily[n].temp.min))
+  {
+    ++n;
+  }
+  if (n < 2)
+  {
+    return;
+  }
+  float hi = -1e9f, lo = 1e9f;
+  for (int i = 0; i < n; ++i)
+  {
+    hi = std::max(hi, toUnitsF(daily[i].temp.max));
+    lo = std::min(lo, toUnitsF(daily[i].temp.min));
+  }
+  if (hi - lo < 1)
+  {
+    hi = lo + 1;
+  }
+  const int yT = y0 + 222, yB = y0 + 302;   // the scale: hi at yT, lo at yB
+  auto Yof = [&](float t) { return yB - (yB - yT) * (t - lo) / (hi - lo); };
+  auto X = [&](int i) { return RIGHT0 + cw * (i + 0.5f); };
+  float vh[OWM_NUM_DAILY], vl[OWM_NUM_DAILY];
+  for (int i = 0; i < n; ++i)
+  {
+    vh[i] = toUnitsF(daily[i].temp.max);
+    vl[i] = toUnitsF(daily[i].temp.min);
+  }
+  auto hiAt = [&](float f) {
+    if (WEEK_BAND_SMOOTH) return smoothAt(vh, n, f);
+    const int i = std::min(static_cast<int>(f), n - 2);
+    return vh[i] + (vh[i + 1] - vh[i]) * (f - i);
+  };
+  auto loAt = [&](float f) {
+    if (WEEK_BAND_SMOOTH) return smoothAt(vl, n, f);
+    const int i = std::min(static_cast<int>(f), n - 2);
+    return vl[i] + (vl[i + 1] - vl[i]) * (f - i);
+  };
+  // the fill, column by column, yellow to blue by temperature
+  for (int x = static_cast<int>(X(0)); x <= static_cast<int>(X(n - 1)); ++x)
+  {
+    const float f = (x - X(0)) / cw;
+    const float th = hiAt(f), tl = loAt(f);
+    for (int y = static_cast<int>(Yof(th)); y <= static_cast<int>(Yof(tl)); ++y)
+    {
+      const float share = std::max(0.0f, std::min(1.0f, (yB - y) / float(yB - yT)));
+      if (WEEK_BAND_FILL == 0)
+      {
+        px(x, y, toneAt({Y, share, B, 1}, x, y));
+      }
+      else if (share >= 0.5f)
+      {
+        px(x, y, toneAt({Y, (share - 0.5f) * 1.4f, W, 1}, x, y));
+      }
+      else
+      { // on the dark ground blue dots vanish: white ones read as a cool grey
+        px(x, y, toneAt({DARK_MODE ? W_ABS : B, (0.5f - share) * 1.4f, W, 1}, x, y));
+      }
+    }
+  }
+  // the lines on a halo of paper, then the dots and the figures; the lows
+  // white on the dark ground, as the graph's dew point is
+  const uint16_t lowInk = DARK_MODE ? W_ABS : B;
+  const float steps = WEEK_BAND_SMOOTH ? 12.0f : 1.0f;   // pieces per day
+  for (int pass = 0; pass < 2; ++pass)
+  {
+    for (int k = 1; k <= static_cast<int>((n - 1) * steps); ++k)
+    {
+      const float f0 = (k - 1) / steps, f1 = k / steps;
+      const float x0 = X(0) + f0 * cw, x1 = X(0) + f1 * cw;
+      stroke(x0, Yof(hiAt(f0)), x1, Yof(hiAt(f1)), pass ? 5 : 11, pass ? tempInk() : W);
+      stroke(x0, Yof(loAt(f0)), x1, Yof(loAt(f1)), pass ? 5 : 11, pass ? lowInk : W);
+    }
+  }
+  for (int i = 0; i < n; ++i)
+  {
+    const float yh = Yof(toUnitsF(daily[i].temp.max));
+    const float yl = Yof(toUnitsF(daily[i].temp.min));
+    if (!WEEK_BAND_SMOOTH)
+    {
+      disc(X(i), yh, 10, W); disc(X(i), yh, 7, tempInk());
+      disc(X(i), yl, 10, W); disc(X(i), yl, 7, lowInk);
+    }
+    drawText(static_cast<int>(X(i)) + 4, static_cast<int>(yh) - 14,
+             tempText(daily[i].temp.max), F_BITTER_42D, tempInk(), MD);
+    drawText(static_cast<int>(X(i)) + 4, static_cast<int>(yl) + 14,
+             tempText(daily[i].temp.min), F_BITTER_42D, lowInk, MA);
+  }
+}
+
 void drawForecast(const owm_daily_t *daily, tm timeInfo)
 {
   const int y0 = 84 + alertTop;
   drawText(RIGHT0, 28 + alertTop, TXT709_THIS_WEEK, F_BITTER_40, K, LA);
   const int days = std::min(std::max(FORECAST_DAYS, 5), OWM_NUM_DAILY);
   const float cw = (RIGHT1 - RIGHT0) / static_cast<float>(days);
+  if (WEEK_BAND)
+  {
+    drawWeekBand(daily, days, cw, y0);
+  }
   for (int i = 0; i < days; ++i)
   {
     const int cx = static_cast<int>(RIGHT0 + cw * (i + 0.5f));
@@ -1600,21 +1979,25 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
       continue;
     }
     drawIcon(conditionIcon(tellingId(daily[i]), true, 104), 104, cx - 52,
-             y0 + 70);
-    drawText(cx + 6, y0 + 196, tempText(daily[i].temp.max), F_BITTER_62D, K,
-             MA);
-    drawText(cx + 4, y0 + 274, tempText(daily[i].temp.min), F_BITTER_42D, K,
-             MA, true);
+             WEEK_BAND ? y0 + 58 : y0 + 70);
+    if (!WEEK_BAND)
+    {
+      drawText(cx + 6, y0 + 196, tempText(daily[i].temp.max), F_BITTER_62D, K,
+               MA);
+      drawText(cx + 4, y0 + 274, tempText(daily[i].temp.min), F_BITTER_42D, K,
+               MA, true);
+    }
 #if DISPLAY_DAILY_PRECIP
+    const int py = WEEK_BAND ? y0 + 366 : y0 + 350;   // just under the lowest low
     if (daily[i].pop >= 0.295f)
     {
-      drawText(cx, y0 + 350,
+      drawText(cx, py,
                String(static_cast<int>(lroundf(daily[i].pop * 100))) + "%",
                F_SANS_32, dewInk(), MA);
       const String amount = amountText(daily[i]);
       if (amount.length())
       {
-        drawText(cx, y0 + 388, amount, F_SANS_25, dewInk(), MA);   // solid: blue at half coverage vanished on the panel
+        drawText(cx, py + (WEEK_BAND ? 34 : 38), amount, F_SANS_25, dewInk(), MA);   // solid: blue at half coverage vanished on the panel
       }
     }
 #endif
@@ -1687,19 +2070,57 @@ static int spellsOf(const owm_hourly_t *hourly, int n, Spell *out)
       break;
     }
   }
-  int kept = 0;
-  for (int i = 0; i < count; ++i)
-  {
-    if (kept && out[kept - 1].kind == out[i].kind)
+  auto coalesce = [&]() {
+    int kept = 0;
+    for (int i = 0; i < count; ++i)
     {
-      out[kept - 1].b = out[i].b;
+      if (kept && out[kept - 1].kind == out[i].kind)
+      {
+        out[kept - 1].b = out[i].b;
+      }
+      else
+      {
+        out[kept++] = out[i];
+      }
     }
-    else
+    count = kept;
+  };
+  coalesce();
+  // Then the wet spells: a dry gap under 3 h between two of them goes to
+  // the longer, and a wet spell under 2 h beside a longer wet one joins it
+  // ("Showers 12am - 8am", not showers, a blank, and a sliver).
+  auto len = [&](int i) { return out[i].b - out[i].a; };
+  again = true;
+  while (again && count > 1)
+  {
+    again = false;
+    for (int i = 0; i < count; ++i)
     {
-      out[kept++] = out[i];
+      const bool wetL = i > 0 && isWet(out[i - 1].kind);
+      const bool wetR = i + 1 < count && isWet(out[i + 1].kind);
+      int into = -1;
+      if (!isWet(out[i].kind) && len(i) < 3.0f && wetL && wetR)
+      {
+        into = len(i - 1) >= len(i + 1) ? i - 1 : i + 1;
+      }
+      else if (isWet(out[i].kind) && len(i) < 2.0f && (wetL || wetR))
+      {
+        into = (wetL && (!wetR || len(i - 1) >= len(i + 1))) ? i - 1 : i + 1;
+        if (len(into) <= len(i))
+        {
+          into = -1;
+        }
+      }
+      if (into >= 0)
+      {
+        out[i].kind = out[into].kind;
+        coalesce();
+        again = true;
+        break;
+      }
     }
   }
-  return kept;
+  return count;
 }
 
 struct Ribbon
@@ -1726,7 +2147,9 @@ static const Ribbon RIBBON[13] = {
   /* mcloudy */ {{K, 0.21f, W, 1}, false, K, 1, K},
   /* cloudy  */ {{K, 0.33f, W, 1}, false, K, 1, K},
   /* fog     */ {{K, 0.16f, W, 1}, false, K, 1, K},
-  /* showers */ {{B, 0.75f, W, 1}, false, B, 2, K},
+  /* showers */ {{B, 1, B, 1}, true, B, 0, W_ABS}, // the blue ink itself, as
+                     // rain: 75 % left white words short of contrast and black
+                     // ones lost (2026-10-15); the words tell the two apart
   /* rain    */ {{B, 1, B, 1}, true, B, 0, W_ABS},
   /* storms  */ {{K_ABS, 0.50f, B, 1}, false, K, 1, Y},
   /* snow    */ {{W_ABS, 1, W_ABS, 1}, true, B, 2, B},
@@ -1820,21 +2243,211 @@ static Lines wording(const Spell &s, int hoursShown, int room, time_t start)
   return l;
 }
 
+/* Small weather glyphs, about 40 px, for the ribbon where its words do not
+ * fit (and test card 8).
+ */
+namespace tl
+{
+// ---- small glyphs, about 40 px, drawn by shape tests ----------------------
+static bool inCloud(float x, float y, float cx, float cy, float s)
+{
+  auto in = [&](float ox, float oy, float r) {
+    const float dx = x - (cx + ox * s), dy = y - (cy + oy * s);
+    return dx * dx + dy * dy <= r * r * s * s;
+  };
+  const bool base = (y <= cy + 0.42f * s) && (y >= cy - 0.05f * s)
+                    && (x >= cx - 0.78f * s) && (x <= cx + 0.78f * s);
+  return base || in(-0.45f, 0.12f, 0.32f) || in(0.0f, -0.12f, 0.46f)
+         || in(0.46f, 0.08f, 0.34f);
+}
+
+static void cloud(float cx, float cy, float s)
+{
+  const int r = static_cast<int>(s) + 4;
+  for (int y = static_cast<int>(cy) - r; y <= cy + r; ++y)
+  {
+    for (int x = static_cast<int>(cx) - r; x <= cx + r; ++x)
+    {
+      if (inCloud(x, y, cx, cy, s))
+      {
+        px(x, y, W_ABS);
+      }
+      else if (inCloud(x, y, cx, cy, s + 2.5f) || inCloud(x - 2, y, cx, cy, s)
+               || inCloud(x + 2, y, cx, cy, s) || inCloud(x, y - 2, cx, cy, s)
+               || inCloud(x, y + 2, cx, cy, s))
+      {
+        px(x, y, K);
+      }
+    }
+  }
+}
+
+static void sun(float cx, float cy, float r)
+{
+  for (int k = 0; k < 8; ++k)
+  {
+    const float a = k * 3.14159265f / 4;
+    stroke(cx + cosf(a) * (r + 3), cy + sinf(a) * (r + 3),
+           cx + cosf(a) * (r + 7), cy + sinf(a) * (r + 7), 2, K);
+  }
+  disc(cx, cy, r, K);
+  disc(cx, cy, r - 2, Y);
+}
+
+static void moon(float cx, float cy, float r, uint16_t ink)
+{
+  for (int y = static_cast<int>(cy - r) - 1; y <= cy + r + 1; ++y)
+  {
+    for (int x = static_cast<int>(cx - r) - 1; x <= cx + r + 1; ++x)
+    {
+      const float a = (x - cx) * (x - cx) + (y - cy) * (y - cy);
+      const float b = (x - cx - r * 0.55f) * (x - cx - r * 0.55f)
+                    + (y - cy + r * 0.35f) * (y - cy + r * 0.35f);
+      if (a <= r * r && b > r * r * 0.72f)
+      {
+        px(x, y, ink);
+      }
+    }
+  }
+}
+
+static void drop(float cx, float cy, uint16_t ink)
+{
+  triangle(cx, cy - 7, cx - 4, cy + 1, cx + 4, cy + 1, ink);
+  disc(cx, cy + 2, 4, ink);
+}
+
+static void bolt(float bx, float cy)
+{ // as drawRibbon's, with an outline so it reads on paper
+  for (int pass = 0; pass < 2; ++pass)
+  {
+    const float g = pass ? 0 : 1.6f;
+    const uint16_t ink = pass ? Y : R;
+    triangle(bx + 12, cy - 18 - g, bx + 1 - g, cy + 3 + g, bx + 9 + g, cy + 3 + g, ink);
+    triangle(bx + 12, cy - 18 - g, bx + 16 + g, cy - 18 - g, bx + 9, cy + 3, ink);
+    triangle(bx + 16 + g, cy - 18 - g, bx + 10, cy - 5, bx + 9, cy + 3, ink);
+    triangle(bx + 10 - g, cy - 5 - g, bx + 19 + g, cy - 5 - g, bx + 4 - g, cy + 18 + g, ink);
+    triangle(bx + 9, cy + 3, bx + 10, cy - 5, bx + 4 - g, cy + 18 + g, ink);
+  }
+}
+
+static void flake(float cx, float cy, uint16_t ink)
+{
+  for (int k = 0; k < 3; ++k)
+  {
+    const float a = k * 3.14159265f / 3 + 0.52f;
+    stroke(cx - cosf(a) * 7, cy - sinf(a) * 7, cx + cosf(a) * 7, cy + sinf(a) * 7, 2, ink);
+  }
+}
+
+// a glyph for a kind, centred on (cx, cy); `onBlue` when the ground is the
+// blue ink, so the drops go white
+static void glyph(Kind k, float cx, float cy, bool onBlue = false)
+{
+  const uint16_t dropInk = onBlue ? W_ABS : B;
+  switch (k)
+  {
+  case K_SUNNY:   sun(cx, cy, 9); break;
+  case K_MSUNNY:  sun(cx + 7, cy - 6, 7); cloud(cx - 3, cy + 4, 13); break;
+  case K_CLEAR:   moon(cx, cy, 11, W_ABS); break;
+  case K_MCLEAR:  moon(cx + 7, cy - 7, 8, W_ABS); cloud(cx - 3, cy + 4, 13); break;
+  case K_PARTLY:  sun(cx + 7, cy - 6, 7); cloud(cx - 3, cy + 5, 15); break;
+  case K_MCLOUDY: cloud(cx + 6, cy - 5, 11); cloud(cx - 3, cy + 4, 15); break;
+  case K_CLOUDY:  cloud(cx, cy, 18); break;
+  case K_FOG:
+    for (int j = -1; j <= 1; ++j)
+    {
+      fillBox(static_cast<int>(cx) - 14 + (j & 1) * 4, static_cast<int>(cy) + j * 8 - 1,
+              static_cast<int>(cx) + 14 - (j & 1) * 4, static_cast<int>(cy) + j * 8 + 1, 1, K);
+    }
+    break;
+  case K_SHOWERS:
+    cloud(cx, cy - 6, 15);
+    drop(cx - 6, cy + 14, dropInk); drop(cx + 7, cy + 14, dropInk);
+    break;
+  case K_RAIN:
+    cloud(cx, cy - 6, 15);
+    drop(cx - 10, cy + 14, dropInk); drop(cx, cy + 16, dropInk); drop(cx + 10, cy + 14, dropInk);
+    break;
+  case K_TSTORM:  bolt(cx - 10, cy); break;
+  case K_SNOW:    cloud(cx, cy - 6, 15); flake(cx - 6, cy + 15, dropInk); flake(cx + 8, cy + 15, dropInk); break;
+  case K_ICE:     cloud(cx, cy - 6, 15); drop(cx - 6, cy + 14, dropInk); flake(cx + 8, cy + 15, dropInk); break;
+  }
+}
+
+} // namespace tl
+
 static void drawRibbon(int x0, int x1, int y, const Spell *spells, int count,
                        int hoursShown, time_t start)
 {
   const int h = 56;
+  // edges in pixels; a segment narrower than a glyph borrows from its wider
+  // neighbour, so a lone wet hour still shows what falls (only the drawing
+  // moves, by a fraction of an hour)
+  int edge[OWM_NUM_HOURLY + 1];
+  for (int i = 0; i <= count; ++i)
+  {
+    edge[i] = static_cast<int>(x0 + (x1 - x0)
+                               * (i < count ? spells[i].a : spells[count - 1].b)
+                               / hoursShown);
+  }
+  const int minW = 52;
+  for (int i = 0; i < count; ++i)
+  {
+    const int need = minW - (edge[i + 1] - edge[i]);
+    if (need <= 0)
+    {
+      continue;
+    }
+    const int roomL = i > 0 ? (edge[i] - edge[i - 1]) - minW : -1;
+    const int roomR = i + 1 < count ? (edge[i + 2] - edge[i + 1]) - minW : -1;
+    if (roomR >= roomL && roomR >= need)
+    {
+      edge[i + 1] += need;
+    }
+    else if (roomL >= need)
+    {
+      edge[i] -= need;
+    }
+  }
   for (int i = 0; i < count; ++i)
   {
     const Spell &s = spells[i];
     const Ribbon &look = RIBBON[s.kind];
-    const int xa = static_cast<int>(x0 + (x1 - x0) * s.a / hoursShown) + 2;
-    const int xb = static_cast<int>(x0 + (x1 - x0) * s.b / hoursShown) - 2;
+    const int xa = edge[i] + 2;
+    const int xb = edge[i + 1] - 2;
     if (xb - xa < 4)
     {
       continue;
     }
-    if (look.solid)
+    // the grey spells on paper, their grey as a band along the bottom:
+    // black words on a grey screen read muddy on this panel (2026-10-15)
+    const bool plain = (s.kind == K_PARTLY || s.kind == K_MCLOUDY
+                        || s.kind == K_CLOUDY || s.kind == K_FOG);
+    if (s.kind == K_TSTORM)
+    { // on paper with a red edge: a navy or black box is a maroon block on
+      // this panel, and the bolt reads better outlined on white
+      fillBox(xa, y, xb, y + h, 8, W);
+      strokeBox(xa, y, xb, y + h, 8, 3, R);
+    }
+    else if (plain)
+    {
+      fillBox(xa, y, xb, y + h, 8, W);
+      // twice the fill's share, so the steps still tell apart in a band
+      const Tone band = {look.tone.top, std::min(1.0f, look.tone.share * 2),
+                         look.tone.under, look.tone.cover};
+      for (int yy = y + h - 10; yy <= y + h; ++yy)
+      {
+        for (int xx = xa; xx <= xb; ++xx)
+        {
+          if (inRound(xx, yy, xa, y, xb, y + h, 8))
+          {
+            px(xx, yy, toneAt(band, xx, yy));
+          }
+        }
+      }
+    }
+    else if (look.solid)
     {
       fillBox(xa, y, xb, y + h, 8, look.tone.top);
     }
@@ -1842,7 +2455,10 @@ static void drawRibbon(int x0, int x1, int y, const Spell *spells, int count,
     {
       fillTone(xa, y, xb, y + h, 8, look.tone);
     }
-    if (look.edgeWidth == 1)
+    if (s.kind == K_TSTORM)
+    {
+    }
+    else if (look.edgeWidth == 1)
     {
       display.setStipple(true);
       strokeBox(xa, y, xb, y + h, 8, 1, look.edge);
@@ -1853,14 +2469,14 @@ static void drawRibbon(int x0, int x1, int y, const Spell *spells, int count,
       strokeBox(xa, y, xb, y + h, 8, look.edgeWidth, look.edge);
     }
 
-    const int bolt = (s.kind == K_TSTORM) ? 30 : 0;
+    const int bolt = (s.kind == K_TSTORM) ? 34 : 0;
     const Lines l = wording(s, hoursShown, xb - xa - bolt, start);
     int tw = 0;
     for (int k = 0; k < l.n; ++k)
     {
       tw = std::max(tw, textWidth(l.text[k], *l.face[k]));
     }
-    const int cx = (xa + xb) / 2, cy = y + h / 2;
+    const int cx = (xa + xb) / 2, cy = plain ? y + (h - 10) / 2 : y + h / 2;
     const int gapA = l.n ? cx - tw / 2 - 10 - bolt / 2 : cx;
     const int gapB = l.n ? cx + tw / 2 + 10 + bolt / 2 : cx;
 
@@ -1868,7 +2484,7 @@ static void drawRibbon(int x0, int x1, int y, const Spell *spells, int count,
     if (s.kind == K_FOG)
     {
       display.setStipple(true);
-      for (int j = y + 9; j < y + h - 6; j += 7)
+      for (int j = y + 7; j < y + h - (plain ? 14 : 6); j += 7)
       {
         if (gapA - (xa + 8) > 6) {fillBox(xa + 8, j, gapA, j + 1, 0, K);}
         if ((xb - 8) - gapB > 6) {fillBox(gapB, j, xb - 8, j + 1, 0, K);}
@@ -1903,33 +2519,35 @@ static void drawRibbon(int x0, int x1, int y, const Spell *spells, int count,
         }
       }
     }
-    else if (s.kind == K_TSTORM && xb - xa >= 30)
+    else if (s.kind == K_TSTORM && l.n)
     {
-      const float bx = l.n ? gapA + 6 : cx - 9;
-      // a bolt, as two triangles and the bar between them
-      triangle(bx + 12, cy - 18, bx + 1, cy + 3, bx + 9, cy + 3, Y);
-      triangle(bx + 12, cy - 18, bx + 16, cy - 18, bx + 9, cy + 3, Y);
-      triangle(bx + 16, cy - 18, bx + 10, cy - 5, bx + 9, cy + 3, Y);
-      triangle(bx + 10, cy - 5, bx + 19, cy - 5, bx + 4, cy + 18, Y);
-      triangle(bx + 9, cy + 3, bx + 10, cy - 5, bx + 4, cy + 18, Y);
+      tl::bolt(gapA + 6, cy);
+    }
+    if (l.n == 0 && xb - xa >= 30)
+    { // no room for words: what the spell is, as a glyph
+      const Tone *keep = BLACK_AS;
+      BLACK_AS = nullptr;
+      tl::glyph(s.kind, cx, cy, look.solid && look.tone.top == B);
+      BLACK_AS = keep;
     }
 
     const int tx = cx + bolt / 2;
+    const uint16_t ink = (s.kind == K_TSTORM) ? K : look.text;
     if (l.n == 1)
     {
       // the words in the bare ink: a screened ink over a screened box
       // breaks the letters up
       const Tone *keep = BLACK_AS;
       BLACK_AS = nullptr;
-      drawText(tx, cy, l.text[0], *l.face[0], look.text, MM);
+      drawText(tx, cy, l.text[0], *l.face[0], ink, MM);
       BLACK_AS = keep;
     }
     else if (l.n == 2)
     {
       const Tone *keep = BLACK_AS;
       BLACK_AS = nullptr;
-      drawText(tx, cy - 12, l.text[0], *l.face[0], look.text, MM);
-      drawText(tx, cy + 13, l.text[1], *l.face[1], look.text, MM);
+      drawText(tx, cy - 12, l.text[0], *l.face[0], ink, MM);
+      drawText(tx, cy + 13, l.text[1], *l.face[1], ink, MM);
       BLACK_AS = keep;
     }
   }
@@ -1989,6 +2607,13 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
   {
     hi = lo + step;
   }
+  // the rain scale on the right shares these lines, 0 % at the bottom and
+  // 100 % at the top: 3 or 7 spaces would put them at thirds and sevenths,
+  // so one more step on top makes quarters or eighths
+  if ((hi - lo) / step == 3 || (hi - lo) / step == 7)
+  {
+    hi += step;
+  }
   auto X = [&](float h) { return x0 + (x1 - x0) * h / n; };
   auto Yt = [&](float t) { return y1 - (y1 - y0) * (t - lo) / (hi - lo); };
 
@@ -2010,15 +2635,27 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
                static_cast<int>(X(i + 1)) - 2, y1, 0, rainBarTone());
     }
   }
-  // the scale's lines and figures
+  // the scale's lines and figures: temperature on the left, the chance of
+  // rain on the right where the share is a round one (halves, quarters,
+  // fifths, tenths); no 0 %, which would crowd the last hour's time
+  const int spaces = (hi - lo) / step;
   for (int t = lo; t <= hi; t += step)
   {
     const int y = static_cast<int>(Yt(t));
     dashH(x0, x1, y, 1, 2, 8, K);
     drawText(x0 - 12, y, String(t) + "\xB0", F_SANS_30, K, RM, true);
+    const int j = (t - lo) / step;
+    const int share = 100 * j / spaces;
+    if (j > 0 && (100 * j) % spaces == 0 && (share % 10 == 0 || share % 25 == 0))
+    {
+      drawText(x1 + 10, y, String(share) + "%", F_SANS_30, K, LM, true);
+    }
   }
   fillBox(x0, y1, x1, y1 + 1, 0, K);
-  for (int h = 0; h <= n; h += 6)
+  // the hours: every 3 while there is room for them (a day or less), else
+  // every 6
+  const int every = (n <= 24) ? 3 : 6;
+  for (int h = 0; h <= n; h += every)
   {
     const int x = static_cast<int>(X(h));
     fillBox(x, y1, x + 1, y1 + 8, 0, K);
@@ -2047,34 +2684,53 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     }
   }
   // dew point under temperature, each on a halo of paper so that it reads
-  // across the rain
+  // across the rain; both as smooth curves through the hours that never
+  // overshoot them (smoothAt), so a labelled high or low is the curve's
+  // own; a run of hours with a gap in it is drawn in pieces
+  auto curve = [&](const float *v, int from, int to, int pass, uint16_t ink) {
+    const int m = to - from;
+    if (m < 2)
+    {
+      return;
+    }
+    const float steps = 6.0f;                 // pieces per hour
+    for (int k = 1; k <= static_cast<int>((m - 1) * steps); ++k)
+    {
+      const float f0 = (k - 1) / steps, f1 = k / steps;
+      stroke(X(from + f0), Yt(smoothAt(v + from, m, f0)), X(from + f1),
+             Yt(smoothAt(v + from, m, f1)), pass ? 6 : 12, pass ? ink : W);
+    }                                         // as wide as the temperature: at
+                                              // 282 ppi 4 px read as a hairline
+  };
+  float vt[OWM_NUM_HOURLY], vd[OWM_NUM_HOURLY];
+  for (int i = 0; i < n; ++i)
+  {
+    vt[i] = toUnitsF(hourly[i].temp);
+    vd[i] = std::isnan(hourly[i].dew_point) ? NAN : toUnitsF(hourly[i].dew_point);
+  }
   if (GRAPH_DEWPOINT)
   {
     for (int pass = 0; pass < 2; ++pass)
     {
-      for (int i = 1; i < n; ++i)
+      for (int i = 0; i < n;)
       {
-        if (std::isnan(hourly[i].dew_point)
-            || std::isnan(hourly[i - 1].dew_point))
-        {
-          continue;
-        }
-        stroke(X(i - 1), Yt(toUnitsF(hourly[i - 1].dew_point)), X(i),
-               Yt(toUnitsF(hourly[i].dew_point)), pass ? 6 : 12,
-               pass ? dewInk() : W);   // as wide as the temperature: at 282
-                                       // ppi 4 px read as a thin grey hairline
+        if (std::isnan(vd[i])) { ++i; continue; }
+        int j = i;
+        while (j < n && !std::isnan(vd[j])) { ++j; }
+        curve(vd, i, j, pass, dewInk());
+        i = j;
       }
     }
   }
   for (int pass = 0; pass < 2; ++pass)
   {
-    for (int i = 1; i < n; ++i)
-    {
-      stroke(X(i - 1), Yt(toUnitsF(hourly[i - 1].temp)), X(i),
-             Yt(toUnitsF(hourly[i].temp)), pass ? 6 : 12, pass ? tempInk() : W);
-    }
+    curve(vt, 0, n, pass, tempInk());
   }
-  // highs and lows: a dot on the curve and the figure beside it
+  // highs and lows: a dot on the curve and the figure beside it; their
+  // label boxes are kept so the rain label can stay off them
+  struct LabelBox { int x0, y0, x1, y1; };
+  LabelBox taken[16];
+  int nTaken = 0;
   for (int i = 2; i < n - 1; ++i)
   {
     const float t = toUnitsF(hourly[i].temp);
@@ -2106,8 +2762,14 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     disc(x, y, 7, tempInk());
     int ly2 = y + (high ? -36 : 38);
     ly2 = std::max(y0 + 20, std::min(y1 - 22, ly2));
-    labelOnPaper(x, ly2, String(static_cast<int>(lroundf(t))) + "\xB0",
-                 F_BITTER_36, K);
+    const String fig = String(static_cast<int>(lroundf(t))) + "\xB0";
+    labelOnPaper(x, ly2, fig, F_BITTER_36, K);
+    if (nTaken < 16)
+    {
+      const int hw = (textWidth(fig, F_BITTER_36) + 18) / 2;
+      const int hh = (F_BITTER_36.ascent + F_BITTER_36.descent + 2) / 2;
+      taken[nTaken++] = {x - hw, ly2 - hh, x + hw, ly2 + hh};
+    }
   }
   if (peak > 10)
   {
@@ -2145,7 +2807,29 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     const int cx = (anchor == LD) ? pxl + wide / 2
                  : (anchor == RD) ? pxl - wide / 2 : pxl;
     const int tall = F_SANS_28.ascent + F_SANS_28.descent;
-    labelOnPaper(cx, std::max(py, y0 + 30) - tall / 2, share, F_SANS_28, dewInk());
+    int cy = std::max(py, y0 + 30) - tall / 2;
+    // its paper patch must not land on a high or low figure: above it if
+    // there is room, else below
+    const int hw = (wide + 18) / 2, hh = (tall + 2) / 2;
+    for (int pass = 0; pass < 3; ++pass)
+    {
+      bool moved = false;
+      for (int k = 0; k < nTaken; ++k)
+      {
+        const LabelBox &b = taken[k];
+        if (cx + hw + 4 > b.x0 && cx - hw - 4 < b.x1
+            && cy + hh + 4 > b.y0 && cy - hh - 4 < b.y1)
+        {
+          cy = (b.y0 - hh - 6 >= y0 + hh) ? b.y0 - hh - 6 : b.y1 + hh + 6;
+          moved = true;
+        }
+      }
+      if (!moved)
+      {
+        break;
+      }
+    }
+    labelOnPaper(cx, cy, share, F_SANS_28, dewInk());
   }
 } // end drawOutlookGraph
 
@@ -2271,6 +2955,740 @@ void drawError(const uint8_t *bitmap_196x196, const String &errMsgLn1,
  * white reflects 34 % with a green cast and its black is a dark maroon, so
  * light screens vanish and red over black changes nothing.
  */
+/* The sixth card (-D EPD709_TEST_CARD_PAGE=6): does grouping a mix's dots
+ * into 2x2 cells (180 um, the E1002's pixel size) develop the inks better
+ * than single dots at 282 ppi, and do a white-lifted purple and a ringed
+ * hazardous chip read better than today's navy and black? For a flatbed
+ * scan beside white paper, like card 5. Drawn in the bare inks.
+ */
+struct ChipCand
+{
+  int kind;          // 0 tone, 1 tone in 2x2 cells, 2 B/R/W triad, 3 triad in 2x2
+  Tone tone;
+  uint16_t text;
+  int ring;          // ring width, 0 for none
+  uint16_t ringInk;
+  const char *label;
+};
+
+static uint16_t chipInk(const ChipCand &c, int x, int y)
+{
+  switch (c.kind)
+  {
+  case 1: return toneAt(c.tone, x >> 1, y >> 1);
+  case 2:
+  case 3:
+  {
+    const int xx = (c.kind == 3) ? (x >> 1) : x, yy = (c.kind == 3) ? (y >> 1) : y;
+    const uint8_t b = BAYER8[yy & 7][xx & 7];      // 0..63
+    return (b < 29) ? B : (b < 51) ? R : W_ABS;     // 45 % blue, 35 % red, 20 % white
+  }
+  default: return toneAt(c.tone, x, y);
+  }
+}
+
+static void chipCand(int x0, int y0, const ChipCand &c, const char *word)
+{
+  const int w = 230, h = 90;
+  for (int y = y0; y <= y0 + h; ++y)
+  {
+    for (int x = x0; x <= x0 + w; ++x)
+    {
+      if (inRound(x, y, x0, y0, x0 + w, y0 + h, 10))
+      {
+        px(x, y, chipInk(c, x, y));
+      }
+    }
+  }
+  if (c.ring)
+  {
+    strokeBox(x0, y0, x0 + w, y0 + h, 10, c.ring, c.ringInk);
+  }
+  drawText(x0 + w / 2, y0 + h / 2, word, F_SANSB_25, c.text, MM);
+  drawText(x0 + w / 2, y0 + h + 6, c.label, F_SANS_22, K_ABS, MA);
+}
+
+void drawTestCard709Chips2x()
+{
+  const Tone *keep = BLACK_AS;
+  BLACK_AS = nullptr;
+  drawText(DISP_WIDTH / 2, 8, "GDEB0709E01 chips: 1x1 or 2x2 dots (scan me)", F_BITTER_32, K_ABS, MA);
+  static const struct { Tone tone; const char *name; } REF[6] = {
+    {{K_ABS, 1, W_ABS, 1}, "black"}, {{W_ABS, 1, W_ABS, 1}, "white"},
+    {{Y, 1, W_ABS, 1}, "yellow"},    {{R, 1, W_ABS, 1}, "red"},
+    {{B, 1, W_ABS, 1}, "blue"},      {{G, 1, W_ABS, 1}, "green"}};
+  for (int i = 0; i < 6; ++i)
+  {
+    const int x = 30 + i * 260;
+    fillTone(x, 56, x + 230, 136, 0, REF[i].tone);
+    strokeBox(x, 56, x + 230, 136, 0, 1, K_ABS);
+    drawText(x + 115, 142, REF[i].name, F_SANS_22, K_ABS, MA);
+  }
+  static const char *const WORD[4] = {"High", "Very High", "Extreme", "Hazardous"};
+  static const ChipCand C[4][6] = {
+    { // High: orange
+      {0, {R, 0.35f, Y, 1}, K_ABS, 0, K_ABS, "35% red (now)"},
+      {1, {R, 0.35f, Y, 1}, K_ABS, 0, K_ABS, "35% red, 2x2"},
+      {0, {R, 0.50f, Y, 1}, K_ABS, 0, K_ABS, "50% red"},
+      {1, {R, 0.50f, Y, 1}, K_ABS, 0, K_ABS, "50% red, 2x2"},
+      {0, {R, 0.25f, Y, 1}, K_ABS, 0, K_ABS, "25% red"},
+      {1, {R, 0.25f, Y, 1}, K_ABS, 0, K_ABS, "25% red, 2x2"}},
+    { // Very High: red, for reference beside the others
+      {0, {R, 1, W_ABS, 1}, W_ABS, 0, K_ABS, "red (now)"},
+      {1, {R, 0.85f, K_ABS, 1}, W_ABS, 0, K_ABS, "15% black, 2x2"},
+      {1, {R, 0.85f, Y, 1}, W_ABS, 0, K_ABS, "15% yellow, 2x2"},
+      {0, {R, 0.85f, Y, 1}, W_ABS, 0, K_ABS, "15% yellow"},
+      {1, {R, 0.85f, B, 1}, W_ABS, 0, K_ABS, "15% blue, 2x2"},
+      {0, {R, 0.85f, B, 1}, W_ABS, 0, K_ABS, "15% blue"}},
+    { // Extreme: purple, as near as the inks get
+      {0, {K_ABS, 0.50f, B, 1}, W_ABS, 0, K_ABS, "navy (now)"},
+      {2, {R, 0, W_ABS, 1}, W_ABS, 0, K_ABS, "45B 35R 20W"},
+      {3, {R, 0, W_ABS, 1}, W_ABS, 0, K_ABS, "45B 35R 20W, 2x2"},
+      {1, {R, 0.50f, B, 1}, W_ABS, 0, K_ABS, "50% red/blue, 2x2"},
+      {1, {R, 0.40f, B, 1}, W_ABS, 0, K_ABS, "40% red/blue, 2x2"},
+      {1, {K_ABS, 0.50f, B, 1}, W_ABS, 0, K_ABS, "navy, 2x2"}},
+    { // Hazardous: maroon
+      {0, {K_ABS, 1, W_ABS, 1}, W_ABS, 0, K_ABS, "black (now)"},
+      {0, {K_ABS, 1, W_ABS, 1}, W_ABS, 2, R, "black, 2px red ring"},
+      {0, {K_ABS, 1, W_ABS, 1}, W_ABS, 6, R, "black, 6px red ring"},
+      {1, {K_ABS, 0.75f, R, 1}, W_ABS, 0, K_ABS, "25% red in black, 2x2"},
+      {0, {K_ABS, 1, W_ABS, 1}, R, 0, K_ABS, "black, red word"},
+      {1, {R, 0.50f, K_ABS, 1}, W_ABS, 0, K_ABS, "50% red/black, 2x2"}},
+  };
+  for (int lv = 0; lv < 4; ++lv)
+  {
+    const int y = 200 + lv * 245;
+    for (int j = 0; j < 6; ++j)
+    {
+      chipCand(30 + j * 260, y, C[lv][j], WORD[lv]);
+    }
+  }
+  BLACK_AS = keep;
+} // end drawTestCard709Chips2x
+
+/* The twelfth card (-D EPD709_TEST_CARD_PAGE=12): do the panel's two
+ * halves -- one controller each -- draw the same mix the same way? Twelve
+ * tones, each in a large patch on the left half and again exactly 800 px to
+ * the right, every half with its own white patch, for a flatbed scan.
+ */
+void drawTestCard709Halves()
+{
+  const Tone *keep = BLACK_AS;
+  BLACK_AS = nullptr;
+  drawText(DISP_WIDTH / 2, 8, "GDEB0709E01 left half vs right half (scan me)",
+           F_BITTER_32, K_ABS, MA);
+  struct Patch { Tone tone; const char *name; };
+  static const Patch P[12] = {
+    {{K_ABS, 1, W_ABS, 1}, "black"},       {{W_ABS, 1, W_ABS, 1}, "white"},
+    {{Y, 1, W_ABS, 1}, "yellow"},          {{R, 1, W_ABS, 1}, "red"},
+    {{B, 1, W_ABS, 1}, "blue"},            {{G, 1, W_ABS, 1}, "green"},
+    {{K_ABS, 0.50f, B, 1}, "50% black/blue"}, {{K_ABS, 0.70f, B, 1}, "70% black/blue"},
+    {{R, 0.50f, B, 1}, "50% red/blue"},    {{G, 0.50f, Y, 1}, "50% green/yellow"},
+    {{R, 0.35f, Y, 1}, "35% red/yellow"},  {{K_ABS, 0.50f, W_ABS, 1}, "50% black/white"}};
+  const int w = 220, h = 220, gx = 30, gy = 60, x0 = 40, y0 = 70;
+  for (int half = 0; half < 2; ++half)
+  {
+    for (int i = 0; i < 12; ++i)
+    {
+      const int x = x0 + half * 800 + (i % 3) * (w + gx);
+      const int y = y0 + (i / 3) * (h + gy);
+      fillTone(x, y, x + w, y + h, 0, P[i].tone);
+      strokeBox(x - 1, y - 1, x + w + 1, y + h + 1, 0, 1, K_ABS);
+      drawText(x + w / 2, y + h + 8, P[i].name, F_SANS_22, K_ABS, MA);
+    }
+  }
+  dashV(800, 60, DISP_HEIGHT - 20, 1, 6, 6, K_ABS);   // where the halves meet
+  BLACK_AS = keep;
+} // end drawTestCard709Halves
+
+/* The tenth and eleventh cards (-D EPD709_TEST_CARD_PAGE=10 / 11): every
+ * pair of the six inks at seven mixes, 12.5 % to 87.5 % of the first ink,
+ * in the layout's own 8x8 screen -- single dots on card 10, 2x2 cells on
+ * card 11 -- for an out-of-focus flatbed scan. Each row starts and ends with
+ * a white patch so uneven light along it can be taken out, and four corner
+ * marks locate the grid. The simulator's mixing table is built from these.
+ */
+static const int PAIR_X0 = 200, PAIR_Y0 = 90, PAIR_W = 130, PAIR_H = 62,
+                 PAIR_GX = 12, PAIR_GY = 10;
+
+static void drawPairCard(bool cells2x)
+{
+  const Tone *keep = BLACK_AS;
+  BLACK_AS = nullptr;
+  drawText(DISP_WIDTH / 2, 8,
+           cells2x ? "GDEB0709E01 ink pairs, 2x2 cells (scan me)"
+                   : "GDEB0709E01 ink pairs, single dots (scan me)",
+           F_BITTER_32, K_ABS, MA);
+  static const uint16_t INK[6] = {K_ABS, W_ABS, Y, R, B, G};
+  static const char *const NAME[6] = {"black", "white", "yellow", "red", "blue", "green"};
+  // the share of the first ink in each of the seven mixed columns; columns
+  // 0 and 8 are white references
+  static const float SHARE[7] = {0.125f, 0.25f, 0.375f, 0.5f, 0.625f, 0.75f, 0.875f};
+  for (int c = 0; c < 7; ++c)
+  {
+    drawText(PAIR_X0 + (c + 1) * (PAIR_W + PAIR_GX) + PAIR_W / 2, PAIR_Y0 - 30,
+             String(SHARE[c] * 100, 1) + "%", F_SANS_22, K_ABS, MA);
+  }
+  int row = 0;
+  for (int a = 0; a < 6; ++a)
+  {
+    for (int b = a + 1; b < 6; ++b, ++row)
+    {
+      const int y = PAIR_Y0 + row * (PAIR_H + PAIR_GY);
+      drawText(PAIR_X0 - 16, y + PAIR_H / 2,
+               String(NAME[a]) + " / " + NAME[b], F_SANS_22, K_ABS, RM);
+      for (int c = 0; c < 9; ++c)
+      {
+        const int x = PAIR_X0 + c * (PAIR_W + PAIR_GX);
+        if (c == 0 || c == 8)
+        {
+          fillBox(x, y, x + PAIR_W, y + PAIR_H, 0, W_ABS);
+        }
+        else
+        {
+          const Tone t = {INK[a], SHARE[c - 1], INK[b], 1};
+          if (cells2x) {fillTone2x(x, y, x + PAIR_W, y + PAIR_H, 0, t);}
+          else         {fillTone(x, y, x + PAIR_W, y + PAIR_H, 0, t);}
+        }
+      }
+    }
+  }
+  // corner marks: solid black squares just outside the grid
+  const int gx1 = PAIR_X0 + 9 * (PAIR_W + PAIR_GX) - PAIR_GX;
+  const int gy1 = PAIR_Y0 + 15 * (PAIR_H + PAIR_GY) - PAIR_GY;
+  const int m = 14;
+  fillBox(PAIR_X0 - 2 * m, PAIR_Y0 - 2 * m, PAIR_X0 - m, PAIR_Y0 - m, 0, K_ABS);
+  fillBox(gx1 + m, PAIR_Y0 - 2 * m, gx1 + 2 * m, PAIR_Y0 - m, 0, K_ABS);
+  fillBox(PAIR_X0 - 2 * m, gy1 + m, PAIR_X0 - m, gy1 + 2 * m, 0, K_ABS);
+  fillBox(gx1 + m, gy1 + m, gx1 + 2 * m, gy1 + 2 * m, 0, K_ABS);
+  BLACK_AS = keep;
+}
+
+void drawTestCard709Pairs()   {drawPairCard(false);}
+void drawTestCard709Pairs2x() {drawPairCard(true);}
+
+/* The ninth card (-D EPD709_TEST_CARD_PAGE=9): large patches for an
+ * out-of-focus flatbed scan beside white paper, to set the simulator's
+ * inks (row 1) and see how far real dot mixes drift from its prediction
+ * (rows 2 and 3). Drawn in the bare inks.
+ */
+void drawTestCard709InkScan()
+{
+  const Tone *keep = BLACK_AS;
+  BLACK_AS = nullptr;
+  drawText(DISP_WIDTH / 2, 8, "GDEB0709E01 inks and mixes (scan me beside white paper)",
+           F_BITTER_32, K_ABS, MA);
+  struct Patch { Tone tone; bool cells2x; bool checker; const char *name; };
+  static const Patch P[3][6] = {
+    {{{K_ABS, 1, W_ABS, 1}, false, false, "black"},
+     {{W_ABS, 1, W_ABS, 1}, false, false, "white"},
+     {{Y, 1, W_ABS, 1}, false, false, "yellow"},
+     {{R, 1, W_ABS, 1}, false, false, "red"},
+     {{B, 1, W_ABS, 1}, false, false, "blue"},
+     {{G, 1, W_ABS, 1}, false, false, "green"}},
+    {{{K_ABS, 0.50f, B, 1}, false, false, "navy ink: 50% black/blue"},
+     {{K_ABS, 0.70f, B, 1}, false, false, "70% black/blue"},
+     {{R, 0.35f, Y, 1}, false, false, "orange: 35% red/yellow"},
+     {{R, 0.50f, B, 1}, true, false, "mauve: red/blue, 2x2"},
+     {{R, 0.50f, B, 1}, false, false, "red/blue, single dots"},
+     {{G, 0.50f, Y, 1}, false, false, "50% green/yellow"}},
+    {{{K, 0.10f, W, 1}, false, false, "10% grey"},
+     {{K, 0.21f, W, 1}, false, false, "21% grey"},
+     {{K, 0.33f, W, 1}, false, false, "33% grey"},
+     {{Y, 0.55f, W_ABS, 1}, false, false, "55% yellow"},
+     {{B, 0.40f, W_ABS, 1}, false, false, "40% blue"},
+     {{K_ABS, 0.5f, W_ABS, 1}, false, true, "black/white checker"}},
+  };
+  const int w = 236, h = 290, gx = 26, x0 = 40, y0 = 70, gy = 80;
+  for (int r = 0; r < 3; ++r)
+  {
+    for (int c = 0; c < 6; ++c)
+    {
+      const Patch &p = P[r][c];
+      const int x = x0 + c * (w + gx), y = y0 + r * (h + gy);
+      if (p.checker)
+      {
+        for (int yy = y; yy <= y + h; ++yy)
+          for (int xx = x; xx <= x + w; ++xx)
+            px(xx, yy, ((xx + yy) & 1) ? K_ABS : W_ABS);
+      }
+      else if (p.cells2x)
+      {
+        fillTone2x(x, y, x + w, y + h, 0, p.tone);
+      }
+      else
+      {
+        fillTone(x, y, x + w, y + h, 0, p.tone);
+      }
+      strokeBox(x - 1, y - 1, x + w + 1, y + h + 1, 0, 1, K_ABS);
+      drawText(x + w / 2, y + h + 10, p.name, F_SANS_22, K_ABS, MA);
+    }
+  }
+  BLACK_AS = keep;
+} // end drawTestCard709InkScan
+
+/* The eighth card (-D EPD709_TEST_CARD_PAGE=8): ways to draw the timeline
+ * above the graph, each for two days -- one like the panel's of
+ * 2026-10-15 (showers broken by a short dry gap, a stray wet hour, storms
+ * at the end) and a dry one with fog and a lone shower. 1 is today's.
+ * 2 bridges short gaps between wet spells, folds a short wet spell into
+ * a wet neighbour, and puts a small glyph where the words do not fit.
+ * 3 is 2 on plain paper chips with the colour as a band along the bottom.
+ * 4 shows only the sky, and marks what falls above the rain bars.
+ * 5 is 3 with a day/night band above it.
+ */
+namespace tl
+{
+// ---- spells from a list of hourly kinds -----------------------------------
+static int runs(const Kind *kinds, int n, Spell *out)
+{
+  int count = 0;
+  for (int i = 0; i < n; ++i)
+  {
+    if (count && out[count - 1].kind == kinds[i])
+    {
+      out[count - 1].b = i + 1;
+    }
+    else
+    {
+      out[count++] = {kinds[i], static_cast<float>(i), static_cast<float>(i + 1)};
+    }
+  }
+  return count;
+}
+
+static int coalesce(Spell *s, int count)
+{
+  int kept = 0;
+  for (int i = 0; i < count; ++i)
+  {
+    if (kept && s[kept - 1].kind == s[i].kind)
+    {
+      s[kept - 1].b = s[i].b;
+    }
+    else
+    {
+      s[kept++] = s[i];
+    }
+  }
+  return kept;
+}
+
+static void removeAt(Spell *s, int &count, int i)
+{
+  for (int j = i; j + 1 < count; ++j)
+  {
+    s[j] = s[j + 1];
+  }
+  --count;
+}
+
+static float len(const Spell &s) { return s.b - s.a; }
+
+// today's rule: a dry spell under 3 h joins its longer dry neighbour
+static int mergeNow(Spell *s, int count)
+{
+  bool again = true;
+  while (again && count > 1)
+  {
+    again = false;
+    for (int i = 0; i < count; ++i)
+    {
+      if (isWet(s[i].kind) || len(s[i]) >= 3.0f)
+      {
+        continue;
+      }
+      const bool left = i > 0 && !isWet(s[i - 1].kind);
+      const bool right = i + 1 < count && !isWet(s[i + 1].kind);
+      if (!left && !right)
+      {
+        continue;
+      }
+      if (!right || (left && len(s[i - 1]) >= len(s[i + 1])))
+      {
+        s[i - 1].b = s[i].b;
+      }
+      else
+      {
+        s[i + 1].a = s[i].a;
+      }
+      removeAt(s, count, i);
+      again = true;
+      break;
+    }
+  }
+  return coalesce(s, count);
+}
+
+// and then: a dry gap under 3 h between two wet spells goes to the longer
+// of them; a wet spell under 2 h beside a longer wet one joins it
+static int mergeBridged(Spell *s, int count)
+{
+  count = mergeNow(s, count);
+  bool again = true;
+  while (again && count > 1)
+  {
+    again = false;
+    for (int i = 0; i < count; ++i)
+    {
+      const bool wetL = i > 0 && isWet(s[i - 1].kind);
+      const bool wetR = i + 1 < count && isWet(s[i + 1].kind);
+      if (!isWet(s[i].kind) && len(s[i]) < 3.0f && wetL && wetR)
+      {
+        const int into = len(s[i - 1]) >= len(s[i + 1]) ? i - 1 : i + 1;
+        s[i].kind = s[into].kind;
+      }
+      else if (isWet(s[i].kind) && len(s[i]) < 2.0f && (wetL || wetR))
+      {
+        const int into = (wetL && (!wetR || len(s[i - 1]) >= len(s[i + 1])))
+                         ? i - 1 : i + 1;
+        if (len(s[into]) <= len(s[i]))
+        {
+          continue;
+        }
+        s[i].kind = s[into].kind;
+      }
+      else
+      {
+        continue;
+      }
+      count = coalesce(s, count);
+      again = true;
+      break;
+    }
+  }
+  return count;
+}
+
+// the sky alone: what falls, by the cloud it falls from
+static Kind skyOf(Kind k)
+{
+  if (k == K_SHOWERS || k == K_SNOW) {return K_MCLOUDY;}
+  if (isWet(k)) {return K_CLOUDY;}
+  return k;
+}
+
+// ---- drawing --------------------------------------------------------------
+static const int H = 56;
+
+static void chip(int xa, int xb, int y, Kind k, bool plain, bool stormNew)
+{
+  const Ribbon &look = RIBBON[k];
+  if (plain)
+  {
+    fillBox(xa, y, xb, y + H, 8, W);
+    display.setStipple(true);
+    strokeBox(xa, y, xb, y + H, 8, 1, K);
+    display.setStipple(false);
+    // the colour, as a band along the bottom
+    const int by = y + H - 11;
+    for (int yy = by; yy <= y + H; ++yy)
+    {
+      for (int xx = xa; xx <= xb; ++xx)
+      {
+        if (inRound(xx, yy, xa, y, xb, y + H, 8))
+        {
+          if (k == K_TSTORM)
+          {
+            px(xx, yy, ((xx / 6) & 1) ? Y : K);
+          }
+          else
+          {
+            px(xx, yy, look.solid ? look.tone.top : toneAt(look.tone, xx, yy));
+          }
+        }
+      }
+    }
+    return;
+  }
+  if (k == K_TSTORM && stormNew)
+  {
+    fillBox(xa, y, xb, y + H, 8, W);
+    strokeBox(xa, y, xb, y + H, 8, 3, R);
+    return;
+  }
+  if (look.solid)
+  {
+    fillBox(xa, y, xb, y + H, 8, look.tone.top);
+  }
+  else
+  {
+    fillTone(xa, y, xb, y + H, 8, look.tone);
+  }
+  if (look.edgeWidth == 1)
+  {
+    display.setStipple(true);
+    strokeBox(xa, y, xb, y + H, 8, 1, look.edge);
+    display.setStipple(false);
+  }
+  else if (look.edgeWidth > 1)
+  {
+    strokeBox(xa, y, xb, y + H, 8, look.edgeWidth, look.edge);
+  }
+}
+
+// style 2: today's chips, glyphs where words do not fit, storms on paper
+// style 3: plain chips, a glyph before the words when there is room
+static void ribbon(int x0, int x1, int y, const Spell *spells, int count,
+                   int n, time_t start, int style)
+{
+  const bool plain = (style == 3);
+  // edges in pixels; a chip narrower than a glyph borrows from its wider
+  // neighbour, so a lone wet hour still shows what falls
+  int edge[25];
+  for (int i = 0; i <= count; ++i)
+  {
+    edge[i] = static_cast<int>(x0 + (x1 - x0) * (i < count ? spells[i].a : spells[count - 1].b) / n);
+  }
+  const int MINW = 52;
+  for (int i = 0; i < count; ++i)
+  {
+    const int need = MINW - (edge[i + 1] - edge[i]);
+    if (need <= 0)
+    {
+      continue;
+    }
+    const int roomL = i > 0 ? (edge[i] - edge[i - 1]) - MINW : -1;
+    const int roomR = i + 1 < count ? (edge[i + 2] - edge[i + 1]) - MINW : -1;
+    if (roomR >= roomL && roomR >= need)
+    {
+      edge[i + 1] += need;
+    }
+    else if (roomL >= need)
+    {
+      edge[i] -= need;
+    }
+  }
+  for (int i = 0; i < count; ++i)
+  {
+    const Spell &s = spells[i];
+    const int xa = edge[i] + 2;
+    const int xb = edge[i + 1] - 2;
+    if (xb - xa < 4)
+    {
+      continue;
+    }
+    chip(xa, xb, y, s.kind, plain, true);
+    const int cy = plain ? y + (H - 10) / 2 : y + H / 2;
+    const uint16_t ink = (plain || s.kind == K_TSTORM) ? K : RIBBON[s.kind].text;
+    const bool onBlue = !plain && RIBBON[s.kind].solid && RIBBON[s.kind].tone.top == B;
+    const int gw = 44;
+    // words first with room for a glyph beside them (style 3, or storms),
+    // then the words alone, then the glyph alone
+    const bool lead = plain || s.kind == K_TSTORM;
+    Lines l = wording(s, n, xb - xa - (lead ? gw : 0), start);
+    bool withGlyph = lead && l.n > 0;
+    if (l.n == 0 && lead)
+    {
+      l = wording(s, n, xb - xa, start);
+    }
+    int tw = 0;
+    for (int k = 0; k < l.n; ++k)
+    {
+      tw = std::max(tw, textWidth(l.text[k], *l.face[k]));
+    }
+    const Tone *keep = BLACK_AS;
+    BLACK_AS = nullptr;
+    if (l.n == 0)
+    {
+      if (xb - xa >= 30)
+      {
+        glyph(s.kind, (xa + xb) / 2.0f, cy, onBlue);
+      }
+    }
+    else
+    {
+      const int total = tw + (withGlyph ? gw : 0);
+      const int left = (xa + xb) / 2 - total / 2;
+      if (withGlyph)
+      {
+        glyph(s.kind, left + gw / 2.0f - 4, cy, onBlue);
+      }
+      const int tx = left + (withGlyph ? gw : 0) + tw / 2;
+      if (l.n == 1)
+      {
+        drawText(tx, cy, l.text[0], *l.face[0], ink, MM);
+      }
+      else
+      {
+        drawText(tx, cy - 12, l.text[0], *l.face[0], ink, MM);
+        drawText(tx, cy + 13, l.text[1], *l.face[1], ink, MM);
+      }
+    }
+    BLACK_AS = keep;
+  }
+}
+
+struct Day
+{
+  const char *name;
+  Kind kinds[24];
+  uint8_t pop[24];
+  uint8_t dayFrom, dayTo; // daylight hours [from, to) from the start
+  int startHour;
+};
+
+static const Day DAYS[2] = {
+  {"Showers, a dry gap, storms (as on the panel)",
+   {K_MCLOUDY, K_MCLOUDY, K_MCLOUDY, K_MCLOUDY, K_MCLOUDY,
+    K_SHOWERS, K_SHOWERS, K_SHOWERS, K_SHOWERS, K_SHOWERS,
+    K_PARTLY, K_PARTLY, K_SHOWERS,
+    K_CLOUDY, K_CLOUDY, K_CLOUDY, K_CLOUDY, K_CLOUDY,
+    K_MSUNNY, K_MSUNNY, K_MSUNNY, K_MSUNNY, K_TSTORM, K_TSTORM},
+   {40, 15, 20, 30, 35, 60, 75, 70, 55, 70, 35, 30, 45, 15, 15, 5, 5, 5,
+    0, 5, 10, 20, 55, 65},
+   12, 24, 19},
+  {"Dry: clear night, morning fog, a lone shower",
+   {K_SUNNY, K_SUNNY, K_SUNNY, K_SUNNY, K_CLEAR, K_CLEAR, K_CLEAR, K_CLEAR,
+    K_CLEAR, K_CLEAR, K_MCLEAR, K_MCLEAR, K_FOG, K_FOG, K_FOG, K_FOG,
+    K_PARTLY, K_PARTLY, K_MSUNNY, K_MSUNNY, K_MSUNNY, K_SHOWERS, K_MSUNNY,
+    K_MSUNNY},
+   {0, 0, 0, 5, 5, 0, 0, 0, 0, 5, 5, 10, 10, 10, 5, 5, 5, 10, 10, 20, 25,
+    40, 15, 5},
+   16, 24, 15},
+};
+
+static void bars(int x0, int x1, int yTop, int yBot, const Day &d, const Kind *kinds)
+{
+  const int n = 24;
+  for (int i = 0; i < n; ++i)
+  {
+    const int top = yBot - (yBot - yTop) * d.pop[i] / 100;
+    if (d.pop[i] > 2)
+    {
+      fillBox(x0 + (x1 - x0) * i / n + 2, top, x0 + (x1 - x0) * (i + 1) / n - 2,
+              yBot, 0, B);
+    }
+  }
+  fillBox(x0, yBot, x1, yBot + 1, 0, K);
+  // a mark above each wet run, over its tallest bar
+  for (int i = 0; i < n;)
+  {
+    if (!isWet(kinds[i]))
+    {
+      ++i;
+      continue;
+    }
+    int j = i, peak = i;
+    while (j < n && kinds[j] == kinds[i])
+    {
+      if (d.pop[j] > d.pop[peak]) {peak = j;}
+      ++j;
+    }
+    const float cx = x0 + (x1 - x0) * (i + j) / 2.0f / n;
+    const int top = yBot - (yBot - yTop) * d.pop[peak] / 100;
+    if (kinds[i] == K_TSTORM)
+    {
+      bolt(cx - 10, top - 26);
+    }
+    else
+    {
+      const uint16_t ink = B;
+      if (kinds[i] == K_SNOW) {flake(cx, top - 14, ink);}
+      else {drop(cx - 5, top - 14, ink); drop(cx + 6, top - 18, ink);}
+    }
+    i = j;
+  }
+}
+} // namespace tl
+
+void drawTestCard709Timeline()
+{
+  using namespace tl;
+  drawText(DISP_WIDTH / 2, 8, "Timeline options", F_BITTER_40, K, MA);
+  static const char *const ROW[5] = {
+    "1  As the layout draws it",
+    "2  Gaps bridged, glyphs where words don't fit",
+    "3  As 2, on plain chips with a colour band",
+    "4  Sky only; what falls marked above the rain bars",
+    "5  As 3, with a day/night band"};
+  const int colX[2] = {40, 830}, colW = 730;
+  // a start time at the right hour of the day, for the hours in the words
+  time_t base = 1792100000;
+  for (int c = 0; c < 2; ++c)
+  {
+    const Day &d = DAYS[c];
+    tm lt;
+    localtime_r(&base, &lt);
+    const time_t start = base - lt.tm_min * 60 - lt.tm_sec
+                         + ((d.startHour - lt.tm_hour + 24) % 24) * 3600L;
+    const int x0 = colX[c], x1 = colX[c] + colW;
+    drawText(x0, 66, d.name, F_SANSB_25, K, LA);
+    int y = 110;
+    for (int r = 0; r < 5; ++r)
+    {
+      drawText(x0, y, ROW[r], F_SANS_24, K, LA);
+      const int ry = y + 34;
+      static Spell sp[24];
+      Kind kinds[24];
+      for (int i = 0; i < 24; ++i)
+      {
+        kinds[i] = (r == 3) ? skyOf(d.kinds[i]) : d.kinds[i];
+      }
+      int count = runs(kinds, 24, sp);
+      count = (r == 0) ? mergeNow(sp, count) : mergeBridged(sp, count);
+      if (r == 0)
+      {
+        drawRibbon(x0, x1, ry, sp, count, 24, start);
+      }
+      else if (r == 4)
+      {
+        // day/night band: pale yellow by day, navy by night
+        for (int i = 0; i < 24; ++i)
+        {
+          const bool day = i >= d.dayFrom && i < d.dayTo;
+          const int xa = x0 + (x1 - x0) * i / 24, xb = x0 + (x1 - x0) * (i + 1) / 24;
+          if (day) {fillTone(xa, ry, xb, ry + 9, 0, {Y, 0.55f, W_ABS, 1});}
+          else     {fillTone(xa, ry, xb, ry + 9, 0, {K_ABS, 0.50f, B, 1});}
+        }
+        ribbon(x0, x1, ry + 14, sp, count, 24, start, 3);
+      }
+      else
+      {
+        ribbon(x0, x1, ry, sp, count, 24, start, r == 1 ? 2 : 3);
+      }
+      if (r == 3)
+      {
+        bars(x0, x1, ry + 70, ry + 160, d, d.kinds);
+        y += 100;
+      }
+      y += 34 + H + 40 + (r == 4 ? 14 : 0);
+    }
+  }
+} // end drawTestCard709Timeline
+
+/* The seventh card (-D EPD709_TEST_CARD_PAGE=7): candidate suns for the
+ * sunrise/sunset diagram, each up in the sky and rising on the horizon,
+ * at the size the layout draws them.
+ */
+void drawTestCard709Suns()
+{
+  drawText(DISP_WIDTH / 2, 10, "GDEB0709E01 suns for the sunrise diagram", F_BITTER_40, K, MA);
+  static const char *const NAME[14] = {
+    "0  now: gradient, rim, halo", "1  solid yellow", "2  yellow, ink outline",
+    "3  yellow, red rim", "4  yellow with halo", "5  yellow with rays",
+    "6  solid orange", "7  yellow, orange band", "8  ink outline + rays",
+    "9  3D: shaded sphere", "10  3D, with halo", "11  3D, deeper, red edge",
+    "12  InkyPi gradient", "13  InkyPi gradient, 2x2"};
+  for (int i = 0; i < 14; ++i)
+  {
+    const int col = i % 4, row = i / 4;
+    const int x = 20 + col * 395, y = 70 + row * 275;
+    // in the sky, with a stretch of the dotted arc
+    for (int k = 0; k < 9; ++k)
+    {
+      const float t = 3.4f + 0.11f * k;
+      const int dx = x + 120 + static_cast<int>(95 * cosf(t)), dy = y + 140 + static_cast<int>(95 * sinf(t));
+      fillBox(dx - 2, dy - 2, dx + 2, dy + 2, 2, K);
+    }
+    drawSunStyle(x + 120, y + 80, true, i);
+    // rising, on the horizon line
+    drawSunStyle(x + 300, y + 160, false, i);
+    fillBox(x + 240, y + 160, x + 360, y + 161, 0, K);
+    drawText(x + 190, y + 220, NAME[i], F_SANS_24, K, MA);
+  }
+} // end drawTestCard709Suns
+
 /* The fifth card (-D EPD709_TEST_CARD_PAGE=5): candidate chips for the
  * six air-quality levels, to be scanned on a flatbed with white paper beside
  * the panel. The top row is the bare inks and the layout's ink as reference
@@ -2413,13 +3831,13 @@ void drawTestCard709RawInks()
 void drawTestCard709Inks()
 {
   static const struct { Tone tone; const char *name; } INK[6] = {
-    {{K, 1.00f, W, 1}, "black"},        {{K, 0.70f, B, 1}, "70% black on blue"},
-    {{K, 0.50f, B, 1}, "navy"},         {{K, 0.30f, B, 1}, "slate"},
-    {{B, 1.00f, W, 1}, "blue"},         {{K, 0.50f, G, 1}, "black on green"}};
+    {{K, 1.00f, W, 1}, "black"},        {{K, 0.50f, B, 1}, "navy (now)"},
+    {{K, 0.50f, G, 1}, "K + G + B 2x2"}, {{K, 0.70f, B, 1}, "70% black on blue"},
+    {{K, 0.50f, G, 1}, "black on green"}, {{K, 0.30f, B, 1}, "slate"}};
   for (int i = 0; i < 6; ++i)
   {
     const int x = 20 + i * 262;
-    BLACK_AS = (i == 0) ? nullptr : &INK[i].tone;   // column 0: the bare ink
+    BLACK_AS = (i == 0) ? nullptr : (i == 2) ? &T_INK_KGB : &INK[i].tone;   // column 0: the bare ink
     drawText(x + 120, 10, INK[i].name, F_SANS_24, K, MA);
     drawText(x, 50, "Riverside", F_BITTER_52, K, LA);
     drawText(x, 120, "Wed, October 14", F_BITTER_32, K, LA);

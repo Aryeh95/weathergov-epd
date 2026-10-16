@@ -30,6 +30,31 @@ extern time_t hostNow;
 // ---------------------------------------------------------------- stand-ins
 // for the parts of display_utils.cpp and history.cpp the renderer calls;
 // those files themselves need the ESP32's headers.
+float heatStressIndex(float tempC, int humidity)
+{ // display_utils.cpp's, copied
+  if (std::isnan(tempC) || humidity <= 0)
+  {
+    return NAN;
+  }
+  const float t = tempC, rh = static_cast<float>(humidity);
+  const float tw = t * atanf(0.151977f * sqrtf(rh + 8.313659f))
+                 + atanf(t + rh) - atanf(rh - 1.676331f)
+                 + 0.00391838f * powf(rh, 1.5f) * atanf(0.023101f * rh)
+                 - 4.686035f;
+  return 0.5f * (t + tw);
+}
+
+int heatStressLevel(float index)
+{
+  if (std::isnan(index))
+  {
+    return -1;
+  }
+  const int r = static_cast<int>(std::floor(index + 0.4999f));
+  return (r <= 22) ? 0 : (r <= 24) ? 1 : (r <= 26) ? 2 : (r <= 28) ? 3
+       : (r <= 30) ? 4 : 5;
+}
+
 void toTitleCase(String &text)
 {
   text.setCharAt(0, toUpperCase(text.charAt(0)));
@@ -226,13 +251,45 @@ static std::vector<owm_alerts_t> alertsOf(int n)
 }
 
 // ---------------------------------------------------------------- the picture
-// the panel's inks as measured on a Spectra 6 (tools/generate_native_icons.py)
+// The GDEB0709E01's own inks as they look beside white paper (paper = screen
+// white), with Good Display's analog values, from test card 9 (2026-10-15):
+// how each ink stands to the panel's own white from an out-of-focus flatbed
+// scan (even light, no lens flare); the white itself from a raw photo beside
+// paper, 40 % of it (L* 69.5, E Ink quotes about 70 for Spectra 6 white;
+// processed JPEGs had said 69 %), its green tint (a* -6) the mean of the two.
+// Black is a maroon, blue a teal, white a grey-green -- as on the glass.
 static const uint8_t INK_RGB[8][3] = {
-  {31, 34, 38}, {185, 199, 201}, {193, 187, 30}, {98, 32, 30},
-  {255, 0, 255}, {35, 63, 142}, {53, 86, 58}, {255, 0, 255}};
+  {59, 20, 33}, {158, 173, 170}, {197, 161, 57}, {114, 16, 31},
+  {255, 0, 255}, {61, 95, 98}, {51, 76, 58}, {255, 0, 255}};
+
+// what each dot was drawn as (renderer709.cpp, host builds): written beside
+// each picture as <name>.tag, uint32 per pixel, so build.py can colour the
+// screens the panel was measured on with the measured colour
+static std::vector<uint32_t> g_tags(1600 * 1200, 0);
+void hostTag(int x, int y, uint32_t tag)
+{
+  if (x >= 0 && y >= 0 && x < 1600 && y < 1200)
+  {
+    g_tags[y * 1600 + x] = tag;
+  }
+}
+
+static void saveTags(const char *path)
+{
+  std::string t(path);
+  t = t.substr(0, t.size() - 4) + ".tag";
+  FILE *f = fopen(t.c_str(), "wb");
+  if (f)
+  {
+    fwrite(g_tags.data(), sizeof(uint32_t), g_tags.size(), f);
+    fclose(f);
+  }
+  std::fill(g_tags.begin(), g_tags.end(), 0u);
+}
 
 static void save(const char *path)
 {
+  saveTags(path);
   FILE *f = fopen(path, "wb");
   if (!f)
   {
@@ -337,7 +394,21 @@ int main(int argc, char **argv)
   LON = "-75.0";
 
   weather((out + "/sim_day.ppm").c_str(), false, 0);
+  HOURLY_GRAPH_MAX = 24;
+  weather((out + "/sim_day24.ppm").c_str(), false, 0);
+  HOURLY_GRAPH_MAX = 36;
+  weather((out + "/sim_day36.ppm").c_str(), false, 0);
+  HOURLY_GRAPH_MAX = 48;
   weather((out + "/sim_night.ppm").c_str(), true, 0);
+  {
+    const String keep[8] = {PANEL_SLOTS[0], PANEL_SLOTS[1], PANEL_SLOTS[2], PANEL_SLOTS[3],
+                            PANEL_SLOTS[4], PANEL_SLOTS[5], PANEL_SLOTS[6], PANEL_SLOTS[7]};
+    const char *const alt[8] = {"heat_stress", "humidity", "wind", "", "air_quality",
+                                "visibility", "uvi", "indoor"};
+    for (int i = 0; i < 8; ++i) PANEL_SLOTS[i] = alt[i];
+    weather((out + "/sim_cells.ppm").c_str(), false, 0);
+    for (int i = 0; i < 8; ++i) PANEL_SLOTS[i] = keep[i];
+  }
   DARK_MODE = true;
   weather((out + "/sim_dark.ppm").c_str(), false, 0);
   weather((out + "/sim_dark_night.ppm").c_str(), true, 0);
@@ -365,6 +436,27 @@ int main(int argc, char **argv)
   display.firstPage();
   drawTestCard709AirQuality();
   save((out + "/sim_testcard5.ppm").c_str());
+  display.firstPage();
+  drawTestCard709Chips2x();
+  save((out + "/sim_testcard6.ppm").c_str());
+  display.firstPage();
+  drawTestCard709Suns();
+  save((out + "/sim_testcard7.ppm").c_str());
+  display.firstPage();
+  drawTestCard709Timeline();
+  save((out + "/sim_testcard8.ppm").c_str());
+  display.firstPage();
+  drawTestCard709InkScan();
+  save((out + "/sim_testcard9.ppm").c_str());
+  display.firstPage();
+  drawTestCard709Pairs();
+  save((out + "/sim_testcard10.ppm").c_str());
+  display.firstPage();
+  drawTestCard709Pairs2x();
+  save((out + "/sim_testcard11.ppm").c_str());
+  display.firstPage();
+  drawTestCard709Halves();
+  save((out + "/sim_testcard12.ppm").c_str());
   initDisplay();
   drawError(wifi_x_196x196, TXT_WIFI_CONNECTION_FAILED, "'HomeNetwork'");
   save((out + "/sim_error.ppm").c_str());

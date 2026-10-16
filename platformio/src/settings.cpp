@@ -447,6 +447,25 @@ bool loadSettings()
   POS_INTEMP     = widgets["intemp"]      | POS_INTEMP;
   POS_INHUMIDITY = widgets["inhumidity"]  | POS_INHUMIDITY;
 
+#if defined(DISP_7C_709)
+  JsonArrayConst slots = doc["panel_slots"];
+  if (!slots.isNull())
+  {
+    for (int i = 0; i < 8; ++i)
+    {
+      PANEL_SLOTS[i] = (i < static_cast<int>(slots.size()))
+                     ? String(static_cast<const char *>(slots[i] | "")) : String();
+    }
+  }
+  else if (LC_PREFER_HEAT_STRESS)
+  { // as the widgets do in a Hebrew build: heat stress in the dew point's place
+    for (String &k : PANEL_SLOTS)
+    {
+      if (k == "dewpoint") k = "heat_stress";
+    }
+  }
+#endif
+
   Serial.println("[settings] Loaded /config.json");
   return true;
 } // end loadSettings

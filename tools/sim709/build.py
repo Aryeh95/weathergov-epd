@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import sys
 
+import numpy as np
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -64,10 +65,75 @@ def main():
         base = os.path.join(out, name[:-4])
         im.save(base + ".png")
         w, h = im.size
-        im.resize((w // 2, h // 2), Image.BOX).resize((w, h), Image.BICUBIC).save(base + "_blended.png")
+        # dots mix in the eye as light, so average them in linear light (in
+        # floating point: 8-bit linear loses the dark shades): an average of
+        # the screen values makes dithered mixes look too light
+        a = np.asarray(im, dtype=np.float64) / 255.0
+        a = np.where(a <= 0.04045, a / 12.92, ((a + 0.055) / 1.055) ** 2.4)
+        # ...but on this panel a mix of dots comes out darker than their
+        # average, by how much depending on the inks: where the renderer
+        # says which screen a dot belongs to (<name>.tag), use the colour
+        # measured on the panel for that screen (measured_mixes.json)
+        tagfile = os.path.join(out, name[:-4] + ".tag")
+        if os.path.exists(tagfile):
+            tags = np.fromfile(tagfile, dtype=np.uint32).reshape(1200, 1600)
+            if tags.shape == a.shape[:2]:
+                apply_measured(a, tags)
+            os.remove(tagfile)
+        a = a[:h // 2 * 2, :w // 2 * 2].reshape(h // 2, 2, w // 2, 2, 3).mean(axis=(1, 3))
+        a = np.where(a <= 0.0031308, 12.92 * a, 1.055 * a ** (1 / 2.4) - 0.055)
+        half = Image.fromarray(np.clip(a * 255 + 0.5, 0, 255).astype(np.uint8))
+        half.resize((w, h), Image.BICUBIC).save(base + "_blended.png")
         os.remove(os.path.join(out, name))
     print("pictures are in", out)
 
+
+
+MEASURED = None
+
+
+def _measured():
+    """(top, under, cells) -> [(share, linear rgb)], with the bare inks at
+    shares 0 and 1, from measured_mixes.json and INK_RGB in sim_main.cpp."""
+    global MEASURED
+    if MEASURED is None:
+        import json
+        import re
+        src = open(os.path.join(HERE, "sim_main.cpp"), encoding="utf-8").read()
+        body = re.search(r"INK_RGB\[8\]\[3\] = \{(.*?)\};", src, re.S).group(1)
+        rgb = np.array([int(v) for v in re.findall(r"\d+", body)], np.float64).reshape(8, 3) / 255.0
+        ink = np.where(rgb <= 0.04045, rgb / 12.92, ((rgb + 0.055) / 1.055) ** 2.4)
+        MEASURED = {}
+        for e in json.load(open(os.path.join(HERE, "measured_mixes.json")))["mixes"]:
+            k = (e["top"], e["under"], e["cells"])
+            if k not in MEASURED:
+                MEASURED[k] = [(0.0, ink[e["under"]]), (1.0, ink[e["top"]])]
+            MEASURED[k].append((e["share"], np.array(e["lin"])))
+        for k in MEASURED:
+            MEASURED[k].sort(key=lambda p: p[0])
+    return MEASURED
+
+
+def apply_measured(a, tags):
+    """Paint every tagged screen that has measurements in its measured
+    colour, interpolated along its pair's measured shares."""
+    table = _measured()
+    for tag in np.unique(tags):
+        tag = int(tag)
+        if not tag >> 31:
+            continue
+        top, under, cells = (tag >> 28) & 7, (tag >> 25) & 7, (tag >> 24) & 1
+        share, cover = ((tag >> 12) & 0xFFF) / 1000.0, (tag & 0xFFF) / 1000.0
+        if cover < 0.999:
+            continue
+        curve = table.get((top, under, cells))
+        if curve is None and (under, top, cells) in table:
+            curve, share = table[(under, top, cells)], 1.0 - share
+        if curve is None:
+            continue                     # never measured: the plain average stands
+        xs = np.array([p[0] for p in curve])
+        col = np.array([np.interp(share, xs, [p[1][c] for p in curve]) for c in range(3)])
+        a[tags == tag] = col
 
 if __name__ == "__main__":
     main()

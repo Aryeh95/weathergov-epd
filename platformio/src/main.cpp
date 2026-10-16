@@ -107,6 +107,65 @@ static void enableButtonWake()
 static void enableButtonWake() {}
 #endif
 
+/* Sleep until the next wake, which the caller has armed. On the EE02 with a
+ * computer on its USB port -- one sends a start-of-frame every millisecond;
+ * a charger or power bank sends none -- the board waits awake instead, so
+ * the port stays up: it can be flashed and its log read at any time
+ * without pressing reset. The wait ends in a one-second sleep, so the next
+ * wake starts exactly as a timed one would. Unplugged during the wait, it
+ * sleeps out the rest; a button pressed during the wait does what it would
+ * have done from sleep. `seconds` 0 is a sleep with no timer (a test card):
+ * the wait lasts as long as the computer is there.
+ */
+static void sleepOrWait(uint64_t seconds)
+{
+#if defined(BOARD_XIAO_EE02) && ARDUINO_USB_CDC_ON_BOOT
+  if ((seconds == 0 || seconds > 2) && HWCDC::isPlugged())
+  {
+    Serial.println("[usb] computer attached: waiting awake, not asleep");
+    Serial.flush();
+    pinMode(PIN_BTN_PORTAL, INPUT_PULLUP);
+    pinMode(PIN_BTN_REFRESH, INPUT_PULLUP);
+    const unsigned long t0 = millis();
+    const uint64_t waitMs = (seconds - 1) * 1000ULL;
+    uint64_t left = 1;
+    bool timed = (seconds != 0);
+    while (seconds == 0 || millis() - t0 < waitMs)
+    {
+      if (!HWCDC::isPlugged())
+      {
+        left = seconds ? (waitMs - (millis() - t0)) / 1000ULL + 1 : 0;
+        break;
+      }
+      if (digitalRead(PIN_BTN_PORTAL) == LOW)
+      { // as a double reset would: the portal on the next boot
+        Preferences prefs;
+        prefs.begin(NVS_NAMESPACE, false);
+        prefs.putBool("drd", true);
+        prefs.end();
+        delay(50);
+        esp_restart();
+      }
+      if (digitalRead(PIN_BTN_REFRESH) == LOW)
+      {
+        left = 1;                    // a refresh: wake in a second
+        timed = true;
+        break;
+      }
+      delay(100);
+    }
+    if (timed)
+    {
+      esp_sleep_enable_timer_wakeup(left * 1000000ULL);
+    }
+    enableButtonWake();
+  }
+#else
+  (void)seconds;
+#endif
+  esp_deep_sleep_start();
+}
+
 /* A wake that could not fetch the weather. True if the screen should be
  * left as it is: the weather is on it, and it has been there for less than
  * OUTAGE_GRACE minutes of failed attempts.
@@ -332,7 +391,7 @@ void beginDeepSleep(unsigned long startTime, tm *timeInfo)
   Serial.println(" "  + String((millis() - startTime) / 1000.0, 3) + "s");
   Serial.print(TXT_ENTERING_DEEP_SLEEP_FOR);
   Serial.println(" " + String(sleepDuration) + "s");
-  esp_deep_sleep_start();
+  sleepOrWait(sleepDuration);
 } // end beginDeepSleep
 
 /* Put esp32 into deep sleep for a fixed number of minutes.
@@ -355,7 +414,7 @@ void beginFixedSleep(unsigned long startTime, unsigned long minutes)
   Serial.println(" " + String((millis() - startTime) / 1000.0, 3) + "s");
   Serial.print(TXT_ENTERING_DEEP_SLEEP_FOR);
   Serial.println(" " + String(minutes) + "min");
-  esp_deep_sleep_start();
+  sleepOrWait(minutes * 60ULL);
 } // end beginFixedSleep
 
 /* Program entry point.
@@ -366,9 +425,14 @@ void setup()
   Serial.begin(115200);
 #if defined(BOARD_XIAO_EE02)
   // Serial is the USB port here (UART0's pins drive the panel). Without a
-  // computer listening, every print would wait out its timeout; on battery
-  // that is most of the time, so do not wait at all.
-  Serial.setTxTimeoutMs(0);
+  // computer listening, every print would wait out its timeout, so keep it
+  // short -- but not 0: this core's HWCDC::write counts its retries down
+  // from the timeout and tests for 0 after the decrement, so from 0 it wraps
+  // and waits for ever. That hung every wake after a flash (esptool reads
+  // the first lines, then lets go) until something opened the port again.
+  // At 20 ms one write gives up, the driver marks the host gone, and the
+  // rest are dropped at once.
+  Serial.setTxTimeoutMs(20);
 #endif
   Serial.println("[build] " GIT_REV " (" __DATE__ " " __TIME__ ")");
 #if defined(USE_HTTPS_NO_CERT_VERIF)
@@ -396,13 +460,27 @@ void setup()
     drawTestCard709RawInks();
 #elif defined(EPD709_TEST_CARD_PAGE) && EPD709_TEST_CARD_PAGE == 5
     drawTestCard709AirQuality();
+#elif defined(EPD709_TEST_CARD_PAGE) && EPD709_TEST_CARD_PAGE == 6
+    drawTestCard709Chips2x();
+#elif defined(EPD709_TEST_CARD_PAGE) && EPD709_TEST_CARD_PAGE == 7
+    drawTestCard709Suns();
+#elif defined(EPD709_TEST_CARD_PAGE) && EPD709_TEST_CARD_PAGE == 8
+    drawTestCard709Timeline();
+#elif defined(EPD709_TEST_CARD_PAGE) && EPD709_TEST_CARD_PAGE == 9
+    drawTestCard709InkScan();
+#elif defined(EPD709_TEST_CARD_PAGE) && EPD709_TEST_CARD_PAGE == 10
+    drawTestCard709Pairs();
+#elif defined(EPD709_TEST_CARD_PAGE) && EPD709_TEST_CARD_PAGE == 11
+    drawTestCard709Pairs2x();
+#elif defined(EPD709_TEST_CARD_PAGE) && EPD709_TEST_CARD_PAGE == 12
+    drawTestCard709Halves();
 #else
     drawTestCard709();
 #endif
   } while (display.nextPage());
   powerOffDisplay();
   Serial.println("[epd709] test card drawn, sleeping");
-  esp_deep_sleep_start();
+  sleepOrWait(0);
 #endif
 
   disableBuiltinLED();
@@ -1176,10 +1254,17 @@ void setup()
     sht4.setPrecision(SHT4X_HIGH_PRECISION);
     sht4.setHeater(SHT4X_NO_HEATER);
     sensors_event_t humEvent, tempEvent;
-    if (sht4.getEvent(&humEvent, &tempEvent))
+    // up to three tries: a sensor on long wires (the EE02's, soldered to
+    // spare pads) can miss one measurement now and then (2026-10-15)
+    for (int attempt = 0; attempt < 3; ++attempt)
     {
-      inTemp     = tempEvent.temperature;       // Celsius
-      inHumidity = humEvent.relative_humidity;  // %
+      if (sht4.getEvent(&humEvent, &tempEvent))
+      {
+        inTemp     = tempEvent.temperature;       // Celsius
+        inHumidity = humEvent.relative_humidity;  // %
+        break;
+      }
+      delay(50);
     }
 #else
     inTemp     = bme.readTemperature(); // Celsius

@@ -629,6 +629,12 @@ extern int POS_MOON_PHASE;
 extern int POS_POLLEN;
 extern int POS_INTEMP;
 extern int POS_INHUMIDITY;
+#if defined(DISP_7C_709)
+// The 1600x1200 layout's eight cells under the sun diagram, left to right
+// and top to bottom, by widget key (config.json "panel_slots"; an empty
+// string leaves a cell blank).
+extern String PANEL_SLOTS[8];
+#endif
 
 // CONFIG VALIDATION - DO NOT MODIFY
 #if !(  defined(DISP_BW_V2)  \

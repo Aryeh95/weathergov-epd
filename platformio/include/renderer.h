@@ -93,6 +93,13 @@
   void drawTestCard709Inks();
   void drawTestCard709RawInks();
   void drawTestCard709AirQuality();
+  void drawTestCard709Chips2x();
+  void drawTestCard709Suns();
+  void drawTestCard709Timeline();
+  void drawTestCard709InkScan();
+  void drawTestCard709Pairs();
+  void drawTestCard709Pairs2x();
+  void drawTestCard709Halves();
 #endif
 
 typedef enum alignment

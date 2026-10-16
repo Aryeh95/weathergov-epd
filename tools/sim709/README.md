@@ -35,9 +35,21 @@ is one. Otherwise point the `ZIG` environment variable at a Zig executable:
 | `sim_testcard.png` | The test card of the `_testcard` build |
 
 Each comes twice. The plain file has the dots exactly as the panel is told
-to set them, in the inks' measured colours. The `_blended` file averages
-them 2x2, which is closer to what the eye makes of 282 dots per inch from
-across a desk.
+to set them, in the GDEB0709E01's measured inks, shown as they look beside
+white paper: the panel's white reflects about 40 % as much light as paper
+and is a grey-green, its black a maroon and its blue a teal, so the
+pictures look dim and dull beside anything else on a screen -- that is the
+panel. Dot mixes on the glass come out darker than the average of their
+inks (most where black meets white, or red meets yellow), which the
+pictures show only where measured: the renderer tags every dot with the
+screen it was drawn with (host builds only), and the `_blended` picture
+paints each tagged screen in the colour measured on the panel for it
+(`measured_mixes.json`, from flatbed scans of test cards 9 and 12),
+interpolated along the measured shares of the same two inks. A screen of a
+pair never measured keeps the plain average; measure it on a test card and
+add it to the table. The `_blended` file averages them 2x2 in linear light,
+which is closer to what the eye makes of 282 dots per inch from across a
+desk.
 
 ## What it cannot tell you
 
