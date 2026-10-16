@@ -458,6 +458,33 @@ void setup()
   Serial.println("[e6] test card drawn, sleeping");
   esp_deep_sleep_start();
 #endif
+#if defined(DISP_7C_709) && defined(EPD709_CLEAN_CYCLE)
+  // Recovery for a panel left in a bad state (2026-10-16, after direct sun):
+  // every pixel to each ink in turn, ending white, 3 minutes apart (Good
+  // Display: at least 150 s between refreshes), then sleep until reset.
+  {
+    static const uint16_t SEQ[] = {GxEPD_BLACK, GxEPD_WHITE, GxEPD_RED,
+                                   GxEPD_YELLOW, GxEPD_BLUE, GxEPD_GREEN,
+                                   GxEPD_BLACK, GxEPD_WHITE};
+    const int n = sizeof(SEQ) / sizeof(SEQ[0]);
+    for (int i = 0; i < n; ++i)
+    {
+      Serial.printf("[clean] %d of %d\n", i + 1, n);
+      initDisplay();
+      do
+      {
+        display.fillScreen(SEQ[i]);
+      } while (display.nextPage());
+      powerOffDisplay();
+      if (i + 1 < n)
+      {
+        delay(180000);
+      }
+    }
+    Serial.println("[clean] done");
+    sleepOrWait(0);
+  }
+#endif
 #if defined(DISP_7C_709) && defined(EPD709_TEST_CARD)
   // Bring-up build: no WiFi, no settings, just the test card, then sleep
   // until the reset button is pressed.
@@ -492,6 +519,8 @@ void setup()
     drawTestCard709CloudChips();
 #elif defined(EPD709_TEST_CARD_PAGE) && EPD709_TEST_CARD_PAGE == 15
     drawTestCard709StormChips();
+#elif defined(EPD709_TEST_CARD_PAGE) && EPD709_TEST_CARD_PAGE == 16
+    display.fillScreen(GxEPD_WHITE);   // all white: clears the panel
 #else
     drawTestCard709();
 #endif
