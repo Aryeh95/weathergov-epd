@@ -2595,6 +2595,64 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
   return;
 } // end drawOutlookGraph
 
+
+#if defined(DISP_7C_E6)
+/* A test card for the 7.3in Spectra 6 panel (-D E6_TEST_CARD, the
+ * seeed_reterminal_e1002_testcard build): the six inks and the dot mixes
+ * the 800x480 layout draws, in large patches for a flatbed scan or a raw
+ * photo beside white paper, to set tools/sim480's ink colours.
+ */
+static uint16_t e6PatternInk(int x, int y, uint16_t a, uint16_t b, int level)
+{
+  // level: 0 all a, 1 a on a quarter of the dots (2x2 ordered), 2 checker,
+  // 3 a on three quarters
+  static const uint8_t B2[2][2] = {{0, 2}, {3, 1}};
+  const int v = B2[y & 1][x & 1];
+  switch (level)
+  {
+  case 1: return (v < 1) ? a : b;
+  case 2: return ((x + y) & 1) ? a : b;
+  case 3: return (v < 3) ? a : b;
+  default: return a;
+  }
+}
+
+void drawTestCardE6()
+{
+  display.setFont(&FONT_12pt8b);
+  drawString(DISP_WIDTH / 2, 26, "Spectra 6 inks and mixes (scan beside white paper)",
+             CENTER, GxEPD_BLACK);
+  struct P { uint16_t a, b; int level; const char *name; };
+  const uint16_t K = GxEPD_BLACK, W = GxEPD_WHITE, R = GxEPD_RED,
+                 Y = GxEPD_YELLOW, B = GxEPD_BLUE, G = GxEPD_GREEN;
+  const P rows[3][6] = {
+    {{K, W, 0, "black"}, {W, W, 0, "white"}, {Y, W, 0, "yellow"},
+     {R, W, 0, "red"}, {B, W, 0, "blue"}, {G, W, 0, "green"}},
+    {{R, Y, 2, "red/yellow"}, {R, B, 2, "red/blue"}, {R, K, 2, "red/black"},
+     {K, W, 2, "black/white"}, {Y, W, 2, "yellow/white"}, {B, W, 2, "blue/white"}},
+    {{K, W, 1, "25% black"}, {K, W, 3, "75% black"}, {G, W, 2, "green/white"},
+     {G, Y, 2, "green/yellow"}, {K, B, 2, "black/blue"}, {W, W, 0, "white"}}};
+  display.setFont(&FONT_7pt8b);
+  for (int r = 0; r < 3; ++r)
+  {
+    for (int c = 0; c < 6; ++c)
+    {
+      const P &p = rows[r][c];
+      const int x0 = 24 + c * 128, y0 = 44 + r * 146;
+      for (int y = y0; y < y0 + 116; ++y)
+      {
+        for (int x = x0; x < x0 + 116; ++x)
+        {
+          display.drawPixel(x, y, e6PatternInk(x, y, p.a, p.b, p.level));
+        }
+      }
+      display.drawRect(x0 - 1, y0 - 1, 118, 118, GxEPD_BLACK);
+      drawString(x0 + 58, y0 + 134, p.name, CENTER, GxEPD_BLACK);
+    }
+  }
+} // end drawTestCardE6
+#endif
+
 /* This function is responsible for drawing the status bar along the bottom of
  * the display.
  */
