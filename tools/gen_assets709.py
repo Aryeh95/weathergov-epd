@@ -62,8 +62,9 @@ FACES = [("BITTER_190D", "bitter", 190, DIGITS, False),
 FACES += [("BITTER_%d" % s, "bitter", s, None, s <= 40) for s in (52, 40, 36, 34, 32, 30, 27, 24, 22)]
 FACES += [("SANS_%d" % s, "sans", s, None, False) for s in (38, 32, 30, 28, 27, 26, 25, 24, 23, 22)]
 FACES += [("SANSB_25", "sansb", 25, None, False)]
-# Bitter at the sans sizes too, so the small text can be set in Bitter
-# (EPD709_ALL_BITTER), and Bitter semibold for the chips' words
+# Bitter at the sans sizes too, for the small text (the layout's default;
+# EPD709_SMALL_FREESANS uses the sans faces above), and Bitter semibold
+# for the chips' words
 FACES += [("BITTER_%d" % s, "bitter", s, None, True) for s in (38, 28, 26, 25, 23)]
 FACES += [("BITTERSB_25", "bittersb", 25, None, True)]
 

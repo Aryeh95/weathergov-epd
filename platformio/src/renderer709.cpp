@@ -50,11 +50,12 @@
 
 #include "assets709/fonts709.h"
 
-// EPD709_ALL_BITTER: all text in Bitter -- the small sizes the layout sets
-// in FreeSans drawn in Bitter at the same pixel size, the chips' bold words
-// in Bitter semibold. At 282 ppi Bitter's serifs hold at 22 px (on the
-// 800x480 panels' ~125 ppi they do not, hence FreeSans there).
-#if defined(EPD709_ALL_BITTER)
+// All text in Bitter (chosen on the panel, 2026-10-16): the small sizes
+// once set in FreeSans are drawn in Bitter at the same pixel size, the
+// chips' bold words in Bitter semibold. At 282 ppi Bitter's serifs hold at
+// 22 px (on the 800x480 panels' ~125 ppi they do not, hence FreeSans
+// there). -D EPD709_SMALL_FREESANS brings FreeSans back for small text.
+#if !defined(EPD709_SMALL_FREESANS)
 #define F_SANS_22  F_BITTER_22
 #define F_SANS_23  F_BITTER_23
 #define F_SANS_24  F_BITTER_24
@@ -2566,7 +2567,27 @@ static void drawRibbon(int x0, int x1, int y, const Spell *spells, int count,
       {
       case 1: fillTone(xa, y, xb, y + h, 8, {K, 0.33f, W, 1}); break;
       case 2: fillBox(xa, y, xb, y + h, 8, B); break;
-      case 3: fillTone(xa, y, xb, y + h, 8, {K, 0.65f, W, 1}); break;
+      case 3:
+        // the gradient in the fill itself: dots laid over a screen this
+        // dark barely showed on the panel (2026-10-16). Shaped as the white-
+        // word chips' is: lighter in a band at the top (45 %), darker near
+        // the bottom (to 88 %), an even 70 % where the words are
+        for (int yy = y; yy <= y + h; ++yy)
+        {
+          const float t = (yy - y) / static_cast<float>(h);
+          float share = 0.70f;
+          if (g_chip3d == 3 && t < 0.2f)   {share = 0.45f + 0.25f * t / 0.2f;}
+          if (g_chip3d == 3 && t > 0.65f)  {share = 0.70f + 0.18f * (t - 0.65f) / 0.35f;}
+          const Tone row = {K, share, W, 1};
+          for (int xx = xa; xx <= xb; ++xx)
+          {
+            if (inRound(xx, yy, xa, y, xb, y + h, 8))
+            {
+              px(xx, yy, toneAt(row, xx, yy));
+            }
+          }
+        }
+        break;
       case 4: fillBox(xa, y, xb, y + h, 8, Y); break;
       case 5: fillBox(xa, y, xb, y + h, 8, W);
               display.setStipple(true);
@@ -2622,7 +2643,8 @@ static void drawRibbon(int x0, int x1, int y, const Spell *spells, int count,
     {
       strokeBox(xa, y, xb, y + h, 8, look.edgeWidth, look.edge);
     }
-    if (g_chip3d == 1 || g_chip3d >= 3)
+    const bool ownGradient = s.kind == K_TSTORM && g_stormStyle == 3 && g_chip3d == 3;
+    if ((g_chip3d == 1 || g_chip3d >= 3) && !ownGradient)
     {
       const bool lightWords = look.text == W_ABS
                               || (s.kind == K_TSTORM && (g_stormStyle == 2 || g_stormStyle == 3))
