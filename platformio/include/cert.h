@@ -21,7 +21,7 @@
 ////////////////////////////////////////////////////////////
 // root CA bundle for api.weather.gov:443,
 // air-quality-api.open-meteo.com:443, www.airnowapi.org:443, pollen.googleapis.com:443,
-// weather.googleapis.com:443 (same GTS Root R1 as pollen.googleapis.com),
+// weather.googleapis.com:443 (the same Google roots as pollen.googleapis.com),
 // ims.gov.il:443 (Israel Meteorological Service), and air.sviva.gov.il /
 // air-papi.sviva.gov.il:443 (Israel Ministry of Environmental Protection)
 
@@ -41,6 +41,13 @@
 // CN: GTS Root R1 => name: GTS_Root_R1
 // not valid before: 2016-06-22 00:00:00+00:00
 // not valid after:  2036-06-22 00:00:00+00:00
+// https://pki.goog/repo/certs/gtsr4.pem
+// CN: GTS Root R4 => name: GTS_Root_R4
+// not valid before: 2016-06-22 00:00:00+00:00
+// not valid after:  2036-06-22 00:00:00+00:00
+// (By October 2026 pollen.googleapis.com and weather.googleapis.com served
+// an ECDSA chain, WE2 -> GTS Root R4, so with R1 alone every Google call
+// failed the certificate check. Both Google roots are pinned.)
 // https://crt.sectigo.com/USERTrustRSACertificationAuthority.crt
 // CN: USERTrust RSA Certification Authority => name: USERTrust_RSA_CA
 // not valid before: 2010-02-01 00:00:00 GMT
@@ -140,6 +147,19 @@ Z6tGn6D/Qqc6f1zLXbBwHSs09dR2CQzreExZBfMzQsNhFRAbd03OIozUhfJFfbdT
 0E6yove+7u7Y/9waLd64NnHi/Hm3lCXRSHNboTXns5lndcEZOitHTtNCjv0xyBZm
 2tIMPNuzjsmhDYAPexZ3FL//2wmUspO8IFgV6dtxQ/PeEMMA3KgqlbbC1j+Qa3bb
 bP6MvPJwNQzcmRk13NfIRmPVNnGuV/u3gm3c
+-----END CERTIFICATE-----
+-----BEGIN CERTIFICATE-----
+MIICCTCCAY6gAwIBAgINAgPlwGjvYxqccpBQUjAKBggqhkjOPQQDAzBHMQswCQYD
+VQQGEwJVUzEiMCAGA1UEChMZR29vZ2xlIFRydXN0IFNlcnZpY2VzIExMQzEUMBIG
+A1UEAxMLR1RTIFJvb3QgUjQwHhcNMTYwNjIyMDAwMDAwWhcNMzYwNjIyMDAwMDAw
+WjBHMQswCQYDVQQGEwJVUzEiMCAGA1UEChMZR29vZ2xlIFRydXN0IFNlcnZpY2Vz
+IExMQzEUMBIGA1UEAxMLR1RTIFJvb3QgUjQwdjAQBgcqhkjOPQIBBgUrgQQAIgNi
+AATzdHOnaItgrkO4NcWBMHtLSZ37wWHO5t5GvWvVYRg1rkDdc/eJkTBa6zzuhXyi
+QHY7qca4R9gq55KRanPpsXI5nymfopjTX15YhmUPoYRlBtHci8nHc8iMai/lxKvR
+HYqjQjBAMA4GA1UdDwEB/wQEAwIBhjAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQW
+BBSATNbrdP9JNqPV2Py1PsVq8JQdjDAKBggqhkjOPQQDAwNpADBmAjEA6ED/g94D
+9J+uHXqnLrmvT/aDHQ4thQEd0dlq7A/Cr8deVl5c1RxYIigL9zC2L7F8AjEA8GE8
+p/SgguMh1YQdc4acLa/KNJvxn7kjNuK8YAOdgLOaVsjh4rsUecrNIdSUtUlD
 -----END CERTIFICATE-----
 -----BEGIN CERTIFICATE-----
 MIIF3jCCA8agAwIBAgIQAf1tMPyjylGoG7xkDjUDLTANBgkqhkiG9w0BAQwFADCB
