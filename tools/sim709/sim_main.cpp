@@ -469,6 +469,15 @@ int main(int argc, char **argv)
   display.firstPage();
   drawTestCard709Halves();
   save((out + "/sim_testcard12.ppm").c_str());
+  display.firstPage();
+  drawTestCard709Chips3D();
+  save((out + "/sim_testcard13.ppm").c_str());
+  display.firstPage();
+  drawTestCard709CloudChips();
+  save((out + "/sim_testcard14.ppm").c_str());
+  display.firstPage();
+  drawTestCard709StormChips();
+  save((out + "/sim_testcard15.ppm").c_str());
   initDisplay();
   drawError(wifi_x_196x196, TXT_WIFI_CONNECTION_FAILED, "'HomeNetwork'");
   save((out + "/sim_error.ppm").c_str());

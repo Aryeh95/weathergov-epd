@@ -49,6 +49,24 @@
 #include "text709.h"
 
 #include "assets709/fonts709.h"
+
+// EPD709_ALL_BITTER: all text in Bitter -- the small sizes the layout sets
+// in FreeSans drawn in Bitter at the same pixel size, the chips' bold words
+// in Bitter semibold. At 282 ppi Bitter's serifs hold at 22 px (on the
+// 800x480 panels' ~125 ppi they do not, hence FreeSans there).
+#if defined(EPD709_ALL_BITTER)
+#define F_SANS_22  F_BITTER_22
+#define F_SANS_23  F_BITTER_23
+#define F_SANS_24  F_BITTER_24
+#define F_SANS_25  F_BITTER_25
+#define F_SANS_26  F_BITTER_26
+#define F_SANS_27  F_BITTER_27
+#define F_SANS_28  F_BITTER_28
+#define F_SANS_30  F_BITTER_30
+#define F_SANS_32  F_BITTER_32
+#define F_SANS_38  F_BITTER_38
+#define F_SANSB_25 F_BITTERSB_25
+#endif
 #include "assets709/icons709.h"
 #include "assets709/moon709.h"
 #include "icons/icons_196x196.h"
@@ -2317,12 +2335,12 @@ static void drop(float cx, float cy, uint16_t ink)
   disc(cx, cy + 2, 4, ink);
 }
 
-static void bolt(float bx, float cy)
+static void bolt(float bx, float cy, uint16_t outline = R, uint16_t fill = Y)
 { // as drawRibbon's, with an outline so it reads on paper
   for (int pass = 0; pass < 2; ++pass)
   {
     const float g = pass ? 0 : 1.6f;
-    const uint16_t ink = pass ? Y : R;
+    const uint16_t ink = pass ? fill : outline;
     triangle(bx + 12, cy - 18 - g, bx + 1 - g, cy + 3 + g, bx + 9 + g, cy + 3 + g, ink);
     triangle(bx + 12, cy - 18 - g, bx + 16 + g, cy - 18 - g, bx + 9, cy + 3, ink);
     triangle(bx + 16 + g, cy - 18 - g, bx + 10, cy - 5, bx + 9, cy + 3, ink);
@@ -2377,6 +2395,118 @@ static void glyph(Kind k, float cx, float cy, bool onBlue = false)
 
 } // namespace tl
 
+/* A 3D look for the timeline's chips, for test card 13 (2026-10-16):
+ * 0 flat (the layout's), 1 bevel, 2 drop shadow, 3 gradient, 4 gloss,
+ * 5 gradient and shadow. Light is white dots, shade black dots, so each is
+ * a screen laid over the chip's fill before its words.
+ */
+static int g_chip3d = 3;     // the layout's: the gradient (chosen 2026-10-16)
+
+/* How the cloud and fog chips are filled, for test card 14 (2026-10-16):
+ * 0 white with a grey band, 1 grey 10/21/33 % (fog 16), 2 lighter grey
+ * 6/13/21 % (fog 10), 3 grey with a paper patch behind the words, 4 grey
+ * in 2x2 cells, 5 dark grey 45/55/65 % (fog 40) with white words.
+ */
+static int g_cloudStyle = 1;   // the layout's: grey 10/21/33 %, black words (2026-10-16)
+
+/* How the storm chip is drawn, for test card 15 (2026-10-16): 0 white,
+ * red edge, outlined bolt; 1 grey (as cloudy) with a storm cloud, black
+ * words; 2 solid blue (as rain) with a yellow bolt, white words; 3 dark grey
+ * with a yellow bolt, white words; 4 yellow with a black bolt, black words;
+ * 5 white with a storm cloud like the forecast icons, black words.
+ */
+static int g_stormStyle = 3;   // the layout's: dark grey, yellow bolt, white words (2026-10-16)
+
+static float cloudShare(Kind k, int style)
+{
+  static const float S[6][4] = {   // partly, mostly cloudy, cloudy, fog
+    {0.10f, 0.21f, 0.33f, 0.16f}, {0.10f, 0.21f, 0.33f, 0.16f},
+    {0.06f, 0.13f, 0.21f, 0.10f}, {0.10f, 0.21f, 0.33f, 0.16f},
+    {0.10f, 0.21f, 0.33f, 0.16f}, {0.45f, 0.55f, 0.65f, 0.40f}};
+  const int i = (k == K_PARTLY) ? 0 : (k == K_MCLOUDY) ? 1 : (k == K_CLOUDY) ? 2 : 3;
+  return S[style][i];
+}
+
+static void chipShadow(int xa, int y, int xb, int yb)
+{
+  for (int yy = y + 4; yy <= yb + 5; ++yy)
+  {
+    for (int xx = xa + 4; xx <= xb + 5; ++xx)
+    {
+      if (inRound(xx, yy, xa + 4, y + 4, xb + 5, yb + 5, 8)
+          && !inRound(xx, yy, xa, y, xb, yb, 8) && screen(xx, yy, 0.45f))
+      {
+        px(xx, yy, K);
+      }
+    }
+  }
+}
+
+static void chipLight(int xa, int y, int xb, int yb, int style, bool lightWords = false)
+{
+  const int h = yb - y;
+  for (int yy = y; yy <= yb; ++yy)
+  {
+    const float t = (yy - y) / static_cast<float>(h);   // 0 top .. 1 bottom
+    for (int xx = xa; xx <= xb; ++xx)
+    {
+      if (!inRound(xx, yy, xa, y, xb, yb, 8))
+      {
+        continue;
+      }
+      const bool inner = inRound(xx, yy, xa + 3, y + 3, xb - 3, yb - 3, 6);
+      if (style == 1)
+      { // a raised edge: lit above, shaded below
+        if (!inner && screen(xx, yy, 0.75f))
+        {
+          px(xx, yy, (yy < y + h / 2) ? W_ABS : K);
+        }
+      }
+      else if (style == 3 || style == 5)
+      { // lighter at the top, darker at the bottom
+        // under white words the light stays in a band at the top and the
+        // shade near the bottom: white dots behind white letters wash
+        // them out (2026-10-16)
+        const float lite = lightWords ? std::max(0.0f, 0.45f * (1 - t / 0.2f))
+                                      : std::max(0.0f, 0.45f * (1 - t * 2));
+        const float dark = lightWords ? std::max(0.0f, 0.35f * (t - 0.65f) / 0.35f)
+                                      : std::max(0.0f, 0.35f * (t * 2 - 1));
+        if (lite > 0 && screen(xx + 2, yy + 3, lite))
+        {
+          px(xx, yy, W_ABS);
+        }
+        else if (dark > 0 && screen(xx + 5, yy + 1, dark))
+        {
+          px(xx, yy, K);
+        }
+      }
+      else if (style == 4 && inner && t > 0.08f && t < 0.45f)
+      { // a soft highlight across the upper part
+        const float g = 0.5f * sinf((t - 0.08f) / 0.37f * 3.14159265f);
+        if (screen(xx + 1, yy + 2, g))
+        {
+          px(xx, yy, W_ABS);
+        }
+      }
+    }
+  }
+}
+
+// the storm's mark, centred on (cx, cy), in the chip's style
+static void stormMark(float cx, float cy)
+{
+  switch (g_stormStyle)
+  {
+  case 1: case 5:                       // a storm cloud: grey cloud, bolt below
+    tl::cloud(cx, cy - 8, 13);
+    tl::bolt(cx - 10, cy + 8, K, Y);
+    break;
+  case 2: case 3: tl::bolt(cx - 10, cy, Y, Y); break;   // plain yellow
+  case 4: tl::bolt(cx - 10, cy, K, K); break;           // black on yellow
+  default: tl::bolt(cx - 10, cy); break;                // yellow, red edge
+  }
+}
+
 static void drawRibbon(int x0, int x1, int y, const Spell *spells, int count,
                        int hoursShown, time_t start)
 {
@@ -2422,13 +2552,31 @@ static void drawRibbon(int x0, int x1, int y, const Spell *spells, int count,
     }
     // the grey spells on paper, their grey as a band along the bottom:
     // black words on a grey screen read muddy on this panel (2026-10-15)
-    const bool plain = (s.kind == K_PARTLY || s.kind == K_MCLOUDY
-                        || s.kind == K_CLOUDY || s.kind == K_FOG);
+    const bool cloudy = (s.kind == K_PARTLY || s.kind == K_MCLOUDY
+                         || s.kind == K_CLOUDY || s.kind == K_FOG);
+    const bool plain = cloudy && g_cloudStyle == 0;
+    if (g_chip3d == 2 || g_chip3d == 5)
+    {
+      chipShadow(xa, y, xb, y + h);
+    }
     if (s.kind == K_TSTORM)
-    { // on paper with a red edge: a navy or black box is a maroon block on
-      // this panel, and the bolt reads better outlined on white
-      fillBox(xa, y, xb, y + h, 8, W);
-      strokeBox(xa, y, xb, y + h, 8, 3, R);
+    { // style 0: on paper with a red edge -- a navy or black box was a
+      // maroon block on this panel, and the bolt reads better on white
+      switch (g_stormStyle)
+      {
+      case 1: fillTone(xa, y, xb, y + h, 8, {K, 0.33f, W, 1}); break;
+      case 2: fillBox(xa, y, xb, y + h, 8, B); break;
+      case 3: fillTone(xa, y, xb, y + h, 8, {K, 0.65f, W, 1}); break;
+      case 4: fillBox(xa, y, xb, y + h, 8, Y); break;
+      case 5: fillBox(xa, y, xb, y + h, 8, W);
+              display.setStipple(true);
+              strokeBox(xa, y, xb, y + h, 8, 1, K);
+              display.setStipple(false);
+              break;
+      default: fillBox(xa, y, xb, y + h, 8, W);
+               strokeBox(xa, y, xb, y + h, 8, 3, R);
+               break;
+      }
     }
     else if (plain)
     {
@@ -2446,6 +2594,12 @@ static void drawRibbon(int x0, int x1, int y, const Spell *spells, int count,
           }
         }
       }
+    }
+    else if (cloudy)
+    {
+      const Tone t = {K, cloudShare(s.kind, g_cloudStyle), W, 1};
+      if (g_cloudStyle == 4) {fillTone2x(xa, y, xb, y + h, 8, t);}
+      else                   {fillTone(xa, y, xb, y + h, 8, t);}
     }
     else if (look.solid)
     {
@@ -2467,6 +2621,13 @@ static void drawRibbon(int x0, int x1, int y, const Spell *spells, int count,
     else if (look.edgeWidth > 1)
     {
       strokeBox(xa, y, xb, y + h, 8, look.edgeWidth, look.edge);
+    }
+    if (g_chip3d == 1 || g_chip3d >= 3)
+    {
+      const bool lightWords = look.text == W_ABS
+                              || (s.kind == K_TSTORM && (g_stormStyle == 2 || g_stormStyle == 3))
+                              || (cloudy && g_cloudStyle == 5);
+      chipLight(xa, y, xb, y + h, g_chip3d, lightWords);
     }
 
     const int bolt = (s.kind == K_TSTORM) ? 34 : 0;
@@ -2521,18 +2682,36 @@ static void drawRibbon(int x0, int x1, int y, const Spell *spells, int count,
     }
     else if (s.kind == K_TSTORM && l.n)
     {
-      tl::bolt(gapA + 6, cy);
+      stormMark(gapA + 16, cy);
     }
     if (l.n == 0 && xb - xa >= 30)
     { // no room for words: what the spell is, as a glyph
       const Tone *keep = BLACK_AS;
       BLACK_AS = nullptr;
-      tl::glyph(s.kind, cx, cy, look.solid && look.tone.top == B);
+      if (s.kind == K_TSTORM) {stormMark(cx, cy);}
+      else {tl::glyph(s.kind, cx, cy, look.solid && look.tone.top == B);}
       BLACK_AS = keep;
     }
 
     const int tx = cx + bolt / 2;
-    const uint16_t ink = (s.kind == K_TSTORM) ? K : look.text;
+    uint16_t ink = (s.kind == K_TSTORM) ? K : look.text;
+    if (cloudy && g_cloudStyle == 5)
+    {
+      ink = W_ABS;
+    }
+    if (s.kind == K_TSTORM && (g_stormStyle == 2 || g_stormStyle == 3))
+    {
+      ink = W_ABS;
+    }
+    if (cloudy && g_cloudStyle == 3 && l.n)
+    { // a patch of paper behind the words
+      int th = 0;
+      for (int k = 0; k < l.n; ++k)
+      {
+        th += l.face[k]->ascent + l.face[k]->descent;
+      }
+      fillBox(tx - tw / 2 - 8, cy - th / 2 - 4, tx + tw / 2 + 8, cy + th / 2 + 4, 6, W);
+    }
     if (l.n == 1)
     {
       // the words in the bare ink: a screened ink over a screened box
@@ -3656,6 +3835,118 @@ void drawTestCard709Timeline()
     }
   }
 } // end drawTestCard709Timeline
+
+/* The thirteenth card (-D EPD709_TEST_CARD_PAGE=13): a 3D look for the
+ * timeline's chips -- the layout's own ribbon, drawn flat and five ways,
+ * for the two days of card 8.
+ */
+void drawTestCard709Chips3D()
+{
+  const int keep3d = g_chip3d;
+  using namespace tl;
+  drawText(DISP_WIDTH / 2, 8, "Timeline chips with a 3D look", F_BITTER_40, K, MA);
+  static const char *const ROW[6] = {"0  Flat (now)", "1  Bevel", "2  Drop shadow",
+                                     "3  Gradient", "4  Gloss", "5  Gradient + shadow"};
+  const int colX[2] = {40, 830}, colW = 730;
+  time_t base = 1792100000;
+  for (int c = 0; c < 2; ++c)
+  {
+    const Day &d = DAYS[c];
+    tm lt;
+    localtime_r(&base, &lt);
+    const time_t start = base - lt.tm_min * 60 - lt.tm_sec
+                         + ((d.startHour - lt.tm_hour + 24) % 24) * 3600L;
+    const int x0 = colX[c], x1 = colX[c] + colW;
+    static Spell sp[24];
+    Kind kinds[24];
+    for (int i = 0; i < 24; ++i)
+    {
+      kinds[i] = d.kinds[i];
+    }
+    int count = runs(kinds, 24, sp);
+    count = mergeBridged(sp, count);
+    for (int r = 0; r < 6; ++r)
+    {
+      const int y = 80 + r * 182;
+      drawText(x0, y, ROW[r], F_SANS_24, K, LA);
+      g_chip3d = r;
+      drawRibbon(x0, x1, y + 36, sp, count, 24, start);
+    }
+  }
+  g_chip3d = keep3d;
+} // end drawTestCard709Chips3D
+
+/* The fourteenth card (-D EPD709_TEST_CARD_PAGE=14): the cloud and fog
+ * chips, with the gradient, filled six ways, each row the four kinds in a
+ * row with their words.
+ */
+void drawTestCard709CloudChips()
+{
+  const int keep3d = g_cloudStyle;
+  using namespace tl;
+  drawText(DISP_WIDTH / 2, 8, "Cloud and fog chips, with the gradient", F_BITTER_40, K, MA);
+  static const char *const ROW[6] = {
+    "0  White with a grey band (now)", "1  Grey 10 / 21 / 33 %, black words",
+    "2  Lighter grey 6 / 13 / 21 %", "3  Grey, paper behind the words",
+    "4  Grey in 2x2 cells", "5  Dark grey 45 / 55 / 65 %, white words"};
+  static const Kind K4[4] = {K_PARTLY, K_MCLOUDY, K_CLOUDY, K_FOG};
+  const time_t start = 1792100000;
+  for (int r = 0; r < 6; ++r)
+  {
+    const int col = r % 2, row = r / 2;
+    const int x0 = 40 + col * 790, y = 80 + row * 360;
+    drawText(x0, y, ROW[r], F_SANS_24, K, LA);
+    g_cloudStyle = r;
+    Spell sp[4];
+    for (int i = 0; i < 4; ++i)
+    {
+      sp[i] = {K4[i], static_cast<float>(i * 4), static_cast<float>(i * 4 + 4)};
+    }
+    drawRibbon(x0, x0 + 720, y + 40, sp, 4, 16, start);
+    // and narrow, as they come between other spells
+    Spell sp2[4];
+    for (int i = 0; i < 4; ++i)
+    {
+      sp2[i] = {K4[i], static_cast<float>(i * 2), static_cast<float>(i * 2 + 2)};
+    }
+    drawRibbon(x0, x0 + 720, y + 120, sp2, 4, 16, start);
+    // beside the other colours
+    Spell sp3[5] = {{K_SHOWERS, 0, 4}, {K_MCLOUDY, 4, 8}, {K_SUNNY, 8, 11},
+                    {K_CLOUDY, 11, 14}, {K_TSTORM, 14, 16}};
+    drawRibbon(x0, x0 + 720, y + 200, sp3, 5, 16, start);
+  }
+  g_cloudStyle = keep3d;
+} // end drawTestCard709CloudChips
+
+/* The fifteenth card (-D EPD709_TEST_CARD_PAGE=15): the storm chip six
+ * ways, wide with its words and narrow as a mark, among other spells.
+ */
+void drawTestCard709StormChips()
+{
+  const int keep3d = g_stormStyle;
+  using namespace tl;
+  drawText(DISP_WIDTH / 2, 8, "Storm chips", F_BITTER_40, K, MA);
+  static const char *const ROW[6] = {
+    "0  White, red edge, outlined bolt (now)", "1  Grey, storm cloud",
+    "2  Blue (as rain), yellow bolt", "3  Dark grey, yellow bolt",
+    "4  Yellow, black bolt", "5  White, storm cloud (as the forecast icons)"};
+  const time_t start = 1792100000;
+  for (int r = 0; r < 6; ++r)
+  {
+    const int col = r % 2, row = r / 2;
+    const int x0 = 40 + col * 790, y = 80 + row * 360;
+    drawText(x0, y, ROW[r], F_SANS_24, K, LA);
+    g_stormStyle = r;
+    Spell wide[4] = {{K_SHOWERS, 0, 4}, {K_TSTORM, 4, 10}, {K_CLOUDY, 10, 13}, {K_MSUNNY, 13, 16}};
+    drawRibbon(x0, x0 + 720, y + 40, wide, 4, 16, start);
+    Spell narrow[5] = {{K_MCLOUDY, 0, 5}, {K_TSTORM, 5, 6}, {K_RAIN, 6, 10}, {K_TSTORM, 10, 11}, {K_PARTLY, 11, 16}};
+    drawRibbon(x0, x0 + 720, y + 120, narrow, 5, 16, start);
+    Spell late[3] = {{K_SUNNY, 0, 8}, {K_MSUNNY, 8, 13}, {K_TSTORM, 13, 16}};
+    drawRibbon(x0, x0 + 720, y + 200, late, 3, 16, start);
+  }
+  g_stormStyle = keep3d;
+} // end drawTestCard709StormChips
+
 
 /* The seventh card (-D EPD709_TEST_CARD_PAGE=7): candidate suns for the
  * sunrise/sunset diagram, each up in the sky and rising on the horizon,

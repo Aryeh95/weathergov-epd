@@ -474,6 +474,12 @@ void setup()
     drawTestCard709Pairs2x();
 #elif defined(EPD709_TEST_CARD_PAGE) && EPD709_TEST_CARD_PAGE == 12
     drawTestCard709Halves();
+#elif defined(EPD709_TEST_CARD_PAGE) && EPD709_TEST_CARD_PAGE == 13
+    drawTestCard709Chips3D();
+#elif defined(EPD709_TEST_CARD_PAGE) && EPD709_TEST_CARD_PAGE == 14
+    drawTestCard709CloudChips();
+#elif defined(EPD709_TEST_CARD_PAGE) && EPD709_TEST_CARD_PAGE == 15
+    drawTestCard709StormChips();
 #else
     drawTestCard709();
 #endif

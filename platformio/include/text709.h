@@ -31,7 +31,7 @@
 // the weather, by spell. Order: enum Kind in renderer709.cpp
 static const char *const TXT709_KIND[13] = {
   "Sunny", "Mostly sunny", "Clear", "Mostly clear", "Partly cloudy",
-  "Mostly cloudy", "Cloudy", "Fog", "Showers", "Rain", "Storms", "Snow",
+  "Mostly cloudy", "Cloudy", "Fog", "Showers", "Rain", "T-storms", "Snow",
   "Ice"};
 
 #define TXT709_THIS_WEEK     "This week"
