@@ -17,7 +17,7 @@ replies in `data/`.
 ## Running it
 
 ```
-pip install pillow
+pip install pillow numpy
 pio run -e seeed_reterminal_e1002      # once, for .pio/libdeps (GFX, ArduinoJson)
 python tools/sim480/build.py [output folder] [data folder] [--panel=e6|bwv2|3c]
 ```
@@ -47,8 +47,15 @@ Spectra 6's.
 | `sim_netanya_shabbat.png` | Shabbat noon: when it ends |
 
 Each comes twice: the plain file has the dots exactly as the panel is told
-to set them; `_blended` averages them 2x2, closer to what the eye makes of
-the panel from across a desk.
+to set them; `_blended` shows them 2x2, closer to what the eye makes of
+the panel from across a desk. For the Spectra 6 the colours are the
+reTerminal E1002's own, measured on its ink card
+(`seeed_reterminal_e1002_testcard`; a flatbed scan, and a raw photo beside
+white paper for the panel's white, 41 % of the paper): `measured_e6.json`.
+On this panel two inks dot by dot come out darker than their average (a
+black/white checker is 29 % of white, not 51 %), so `_blended` takes the
+mixes the card measured, and for other patterns the dots after the dot
+gain fitted to them. Set `SIM480_TESTCARD=1` to draw the card itself.
 
 ## The data
 

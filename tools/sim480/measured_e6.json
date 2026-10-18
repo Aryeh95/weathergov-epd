@@ -1,0 +1,155 @@
+{
+ "_about": "The reTerminal E1002's GDEP073E01 Spectra 6 panel, measured on its ink card (seeed_reterminal_e1002_testcard) on 2026-10-17: a flatbed scan for each ink and dot mix against the panel's white, and a raw photo beside white paper for that white (41 % of the paper, a little cyan). Linear sRGB, white paper = 1. mixes: share = the first ink's share of the dots in a 2x2 cell (checkers 0.5, the 2x2 screens 0.25 / 0.75). gain: dot gain for patterns the card did not measure; each pixel moves toward each 4-neighbour's ink by gain[ink] / 4.",
+ "ink": {
+  "K": [
+   0.00736,
+   0.00636,
+   0.01071
+  ],
+  "W": [
+   0.38007,
+   0.4184,
+   0.41348
+  ],
+  "Y": [
+   0.55624,
+   0.39884,
+   0.03392
+  ],
+  "R": [
+   0.17805,
+   0.00561,
+   0.0127
+  ],
+  "B": [
+   0.01731,
+   0.07696,
+   0.26097
+  ],
+  "G": [
+   0.0455,
+   0.08596,
+   0.05719
+  ]
+ },
+ "gain": {
+  "K": 0.54,
+  "R": 0.25,
+  "Y": 0.0,
+  "B": 0.09,
+  "G": 0.03,
+  "W": 0.0
+ },
+ "mixes": [
+  {
+   "a": "R",
+   "b": "Y",
+   "share": 0.5,
+   "lin": [
+    0.35264,
+    0.15031,
+    0.02484
+   ]
+  },
+  {
+   "a": "R",
+   "b": "B",
+   "share": 0.5,
+   "lin": [
+    0.07566,
+    0.05096,
+    0.08223
+   ]
+  },
+  {
+   "a": "R",
+   "b": "K",
+   "share": 0.5,
+   "lin": [
+    0.06197,
+    0.00559,
+    0.01221
+   ]
+  },
+  {
+   "a": "K",
+   "b": "W",
+   "share": 0.5,
+   "lin": [
+    0.1038,
+    0.11879,
+    0.13893
+   ]
+  },
+  {
+   "a": "Y",
+   "b": "W",
+   "share": 0.5,
+   "lin": [
+    0.45995,
+    0.42537,
+    0.21004
+   ]
+  },
+  {
+   "a": "B",
+   "b": "W",
+   "share": 0.5,
+   "lin": [
+    0.1325,
+    0.1875,
+    0.22969
+   ]
+  },
+  {
+   "a": "K",
+   "b": "W",
+   "share": 0.25,
+   "lin": [
+    0.21985,
+    0.24296,
+    0.24523
+   ]
+  },
+  {
+   "a": "K",
+   "b": "W",
+   "share": 0.75,
+   "lin": [
+    0.04759,
+    0.05158,
+    0.0587
+   ]
+  },
+  {
+   "a": "G",
+   "b": "W",
+   "share": 0.5,
+   "lin": [
+    0.20526,
+    0.26008,
+    0.21869
+   ]
+  },
+  {
+   "a": "G",
+   "b": "Y",
+   "share": 0.5,
+   "lin": [
+    0.27951,
+    0.26489,
+    0.05329
+   ]
+  },
+  {
+   "a": "K",
+   "b": "B",
+   "share": 0.5,
+   "lin": [
+    0.02204,
+    0.0334,
+    0.08246
+   ]
+  }
+ ]
+}
