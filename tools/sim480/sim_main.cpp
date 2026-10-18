@@ -82,12 +82,16 @@ static time_t local(int y, int mo, int d, int h, int mi)
 }
 
 // the panel's inks: index 0/2 paper, 1 black, 3 red, 4 yellow, 5 green,
-// 6 blue, 7 orange. The Spectra 6 values are measured
-// (tools/generate_native_icons.py); the monochrome and three-colour 7.5in
-// panels have a lighter paper and only use the first inks.
+// 6 blue, 7 orange. The Spectra 6 values are the reTerminal E1002's own,
+// measured on its ink card (2026-10-17, measured_e6.json): each ink against
+// the panel's white from a flatbed scan, and that white (41 % of white
+// paper, a little cyan) from a raw photo beside paper, so paper = 255.
+// Orange is the red/yellow checker the panel shows for it. The monochrome
+// and three-colour 7.5in panels have a lighter paper and only use the
+// first inks.
 static const uint8_t INK_RGB_E6[8][3] = {
-  {185, 199, 201}, {31, 34, 38}, {185, 199, 201}, {98, 32, 30},
-  {193, 187, 30},  {53, 86, 58}, {35, 63, 142},   {168, 112, 46}};
+  {166, 173, 172}, {21, 19, 27},  {166, 173, 172}, {117, 17, 30},
+  {197, 169, 52},  {60, 83, 68},  {36, 78, 140},   {160, 108, 44}};
 static const uint8_t INK_RGB_BW[8][3] = {
   {214, 216, 212}, {30, 32, 34}, {214, 216, 212}, {30, 32, 34},
   {30, 32, 34},    {30, 32, 34}, {30, 32, 34},    {30, 32, 34}};
@@ -108,6 +112,18 @@ static void savePpm(const char *path)
     fwrite(INK_RGB[frame[i] & 7], 1, 3, f);
   }
   fclose(f);
+  // and the ink of every dot beside it (<name>.idx, a byte a dot), so that
+  // build.py can colour dot mixes as they were measured on the panel
+  std::string idx(path);
+  idx = idx.substr(0, idx.size() - 4) + ".idx";
+  if (FILE *g = fopen(idx.c_str(), "wb"))
+  {
+    for (int i = 0; i < w * h; ++i)
+    {
+      fputc(frame[i] & 7, g);
+    }
+    fclose(g);
+  }
   printf("wrote %s\n", path);
 }
 
