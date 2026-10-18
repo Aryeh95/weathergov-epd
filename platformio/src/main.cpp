@@ -98,13 +98,34 @@ static void enableButtonWake()
   {
     rtc_gpio_pullup_en(static_cast<gpio_num_t>(PIN_BTN_REFRESH));
     rtc_gpio_pulldown_dis(static_cast<gpio_num_t>(PIN_BTN_REFRESH));
+#if defined(DISP_4G_426)
+    // KEY3 as well: on the ESP32-S3, EXT1 wakes when any of its pins is low
+    rtc_gpio_pullup_en(static_cast<gpio_num_t>(PIN_BTN_PAGE));
+    rtc_gpio_pulldown_dis(static_cast<gpio_num_t>(PIN_BTN_PAGE));
+    esp_sleep_enable_ext1_wakeup((1ULL << PIN_BTN_REFRESH)
+                                 | (1ULL << PIN_BTN_PAGE),
+                                 ESP_EXT1_WAKEUP_ANY_LOW);
+#else
     esp_sleep_enable_ext1_wakeup(1ULL << PIN_BTN_REFRESH,
                                  ESP_EXT1_WAKEUP_ALL_LOW);
+#endif
   }
 }
 #else
 // No EXT0/EXT1 wake on this SoC (ESP32-C3) or no wake buttons wired.
 static void enableButtonWake() {}
+#endif
+
+#if defined(DISP_4G_426)
+// The page on the panel (0 the home page, see renderer426.cpp) and when the
+// next update of the weather is due by the clock, both kept through deep
+// sleep. A press of KEY3 while the board waits awake on a computer's USB
+// port (sleepOrWait) is kept in s_turnAsked for the wake that follows.
+RTC_DATA_ATTR static uint8_t s_page = 0;
+RTC_DATA_ATTR static int64_t s_nextUpdate = 0;
+RTC_DATA_ATTR static bool s_turnAsked = false;
+// How long a turned page stays up before the home page comes back.
+static const uint32_t PAGE_HOLD_SECONDS = 5 * 60;
 #endif
 
 /* Sleep until the next wake, which the caller has armed. On the EE02 with a
@@ -120,7 +141,8 @@ static void enableButtonWake() {}
 #if defined(BOARD_XIAO_EPAPER) && ARDUINO_USB_CDC_ON_BOOT
 // How the last wait ended, kept through deep sleep and reported at the next
 // boot: the board is off the USB port by then, so it cannot say at the time.
-// 0 none, 1 the computer went, 2 the refresh button, 3 the time was up.
+// 0 none, 1 the computer went, 2 the refresh button, 3 the time was up,
+// 4 the page button.
 RTC_DATA_ATTR static uint8_t s_waitEnd = 0;
 RTC_DATA_ATTR static uint32_t s_waitSecs = 0;
 #endif
@@ -134,6 +156,9 @@ static void sleepOrWait(uint64_t seconds)
     Serial.flush();
     pinMode(PIN_BTN_PORTAL, INPUT_PULLUP);
     pinMode(PIN_BTN_REFRESH, INPUT_PULLUP);
+#if defined(DISP_4G_426)
+    pinMode(PIN_BTN_PAGE, INPUT_PULLUP);
+#endif
     const unsigned long t0 = millis();
     const uint64_t waitMs = (seconds - 1) * 1000ULL;
     uint64_t left = 1;
@@ -164,10 +189,10 @@ static void sleepOrWait(uint64_t seconds)
         quietSince = 0;
       }
       if (digitalRead(PIN_BTN_PORTAL) == LOW)
-      { // as a double reset would: the portal on the next boot
+      { // the portal, on the next boot (see portalBtn in setup())
         Preferences prefs;
         prefs.begin(NVS_NAMESPACE, false);
-        prefs.putBool("drd", true);
+        prefs.putBool("portalBtn", true);
         prefs.end();
         delay(50);
         esp_restart();
@@ -179,6 +204,16 @@ static void sleepOrWait(uint64_t seconds)
         s_waitEnd = 2;
         break;
       }
+#if defined(DISP_4G_426)
+      if (digitalRead(PIN_BTN_PAGE) == LOW)
+      {
+        left = 1;                    // the next page: wake in a second
+        timed = true;
+        s_turnAsked = true;
+        s_waitEnd = 4;
+        break;
+      }
+#endif
       delay(100);
     }
     s_waitSecs = (millis() - t0) / 1000;
@@ -256,6 +291,9 @@ static void drawWeatherPage(const tm &timeInfo, const String &dateStr,
                   historyBatteryDaysLeft(), stale);
   } while (display.nextPage());
   powerOffDisplay();
+#if defined(DISP_4G_426)
+  s_page = 0;
+#endif
 } // end drawWeatherPage
 
 /* The first failed wake of an outage: the last weather is drawn once more
@@ -413,6 +451,9 @@ void beginDeepSleep(unsigned long startTime, tm *timeInfo)
 
   countOutage(startTime, sleepDuration);
   diagSave(startTime, static_cast<uint32_t>(sleepDuration));
+#if defined(DISP_4G_426)
+  s_nextUpdate = static_cast<int64_t>(time(nullptr)) + sleepDuration;
+#endif
   esp_sleep_enable_timer_wakeup(sleepDuration * 1000000ULL);
   enableButtonWake();
   Serial.print(TXT_AWAKE_FOR);
@@ -436,6 +477,9 @@ void beginFixedSleep(unsigned long startTime, unsigned long minutes)
   disarmDoubleReset();
   countOutage(startTime, minutes * 60ULL);
   diagSave(startTime, static_cast<uint32_t>(minutes * 60UL));
+#if defined(DISP_4G_426)
+  s_nextUpdate = static_cast<int64_t>(time(nullptr)) + minutes * 60LL;
+#endif
   esp_sleep_enable_timer_wakeup(minutes * 60ULL * 1000000ULL);
   enableButtonWake();
   Serial.print(TXT_AWAKE_FOR);
@@ -444,6 +488,87 @@ void beginFixedSleep(unsigned long startTime, unsigned long minutes)
   Serial.println(" " + String(minutes) + "min");
   sleepOrWait(minutes * 60ULL);
 } // end beginFixedSleep
+
+#if defined(DISP_4G_426)
+/* A wake that only changes the page. KEY3 turns to the next page (after
+ * the last, the home page again); a turned page goes back to the home page
+ * after PAGE_HOLD_SECONDS, or with the next update, whichever is sooner.
+ * Drawn from the weather the last update kept, without the network.
+ * Returns, with nothing drawn, if nothing was kept: the wake then updates
+ * the weather as any other would.
+ */
+static void turnPage(bool next, unsigned long startTime,
+                     uint32_t batteryVoltage)
+{
+  snapshot_meta_t meta;
+  if (!snapshotLoad(current, hourly, daily, alerts, air_quality, meta))
+  {
+    Serial.println("[page] no saved weather to draw; updating instead");
+    return;
+  }
+  const uint8_t page = next ? (s_page + 1) % PAGES_426 : 0;
+  Serial.printf("[page] %s: page %u\n", next ? "turned" : "back home",
+                static_cast<unsigned>(page));
+  setenv("TZ", TIMEZONE, 1);
+  tzset();
+  const time_t when = static_cast<time_t>(meta.when);
+  setSunTimes(current.sunrise, current.sunset);
+  setPageTime(when);
+  const unsigned long drawStart = millis();
+  if (page == 0)
+  {
+    // as the last update drew it, marked as old if it was
+    Preferences store;
+    store.begin(NVS_NAMESPACE, true);
+    const bool stale = store.getBool("staleShown", false);
+    store.end();
+    tm timeInfo = {};
+    localtime_r(&when, &timeInfo);
+    drawWeatherPage(timeInfo, meta.date, meta.refreshTime, "", 0,
+                    batteryVoltage, meta.pollen, meta.inTemp,
+                    meta.inHumidity, stale);
+  }
+  else
+  {
+    setGreyMode426(false);
+    initDisplay();
+    do
+    {
+      drawPage426(page, current, hourly, daily, air_quality, meta.pollen,
+                  meta.inTemp, meta.inHumidity, CITY_STRING, meta.date,
+                  meta.refreshTime, batteryVoltage);
+    } while (display.nextPage());
+    powerOffDisplay();
+    setGreyMode426(true);
+  }
+  s_page = page;
+  Serial.printf("[page] drawn in %lu ms\n", millis() - drawStart);
+
+  // a key still held would wake the board again at once
+  pinMode(PIN_BTN_PAGE, INPUT_PULLUP);
+  const unsigned long held = millis();
+  while (digitalRead(PIN_BTN_PAGE) == LOW && millis() - held < 5000)
+  {
+    delay(10);
+  }
+  const int64_t now = static_cast<int64_t>(time(nullptr));
+  uint64_t seconds = (s_nextUpdate > now)
+                   ? static_cast<uint64_t>(s_nextUpdate - now)
+                   : PAGE_HOLD_SECONDS;
+  if (page != 0)
+  {
+    seconds = std::min<uint64_t>(seconds, PAGE_HOLD_SECONDS);
+  }
+  seconds = std::max<uint64_t>(seconds, 5);
+  esp_sleep_enable_timer_wakeup(seconds * 1000000ULL);
+  enableButtonWake();
+  Serial.print(TXT_AWAKE_FOR);
+  Serial.println(" " + String((millis() - startTime) / 1000.0, 3) + "s");
+  Serial.print(TXT_ENTERING_DEEP_SLEEP_FOR);
+  Serial.println(" " + String(static_cast<uint32_t>(seconds)) + "s");
+  sleepOrWait(seconds);
+} // end turnPage
+#endif
 
 /* Program entry point.
  */
@@ -467,7 +592,8 @@ void setup()
   if (s_waitEnd != 0)
   {
     static const char *const why[] = {"", "the computer went (3 s without "
-      "USB frames)", "the refresh button", "its time was up"};
+      "USB frames)", "the refresh button", "its time was up",
+      "the page button"};
     Serial.printf("[usb] the last wait ended after %u s: %s\n",
                   static_cast<unsigned>(s_waitSecs), why[s_waitEnd]);
     s_waitEnd = 0;
@@ -536,6 +662,18 @@ void setup()
   } while (display.nextPage());
   powerOffDisplay();
   Serial.println("[epd709] test card drawn, sleeping");
+  sleepOrWait(0);
+#endif
+#if defined(DISP_4G_426) && defined(EE05_TEST_CARD)
+  // The greys card: no WiFi, no settings; then it waits (on USB) or sleeps
+  // until reset.
+  initDisplay();
+  do
+  {
+    drawTestCard426();
+  } while (display.nextPage());
+  powerOffDisplay();
+  Serial.println("[ee05] test card drawn");
   sleepOrWait(0);
 #endif
 
@@ -686,7 +824,14 @@ void setup()
   // This board has a dedicated portal button, so the double-reset detector
   // is unnecessary -- and skipping it means an interrupted wake (a firmware
   // flash, most commonly) no longer drops the next boot into the portal.
-  bool portalRequested = false;
+  // The one request kept across a restart is the portal button pressed
+  // while the board waited awake on USB (sleepOrWait): a marker of its own,
+  // which nothing else sets.
+  bool portalRequested = prefs.getBool("portalBtn", false);
+  if (portalRequested)
+  {
+    prefs.putBool("portalBtn", false);
+  }
   prefs.putBool("drd", false);
 #else
   bool portalRequested = prefs.getBool("drd", false);
@@ -707,6 +852,13 @@ void setup()
   const bool buttonPortal = (wakeCause == ESP_SLEEP_WAKEUP_EXT0);
   if (wakeCause == ESP_SLEEP_WAKEUP_EXT1)
   {
+#if defined(DISP_4G_426)
+    if (esp_sleep_get_ext1_wakeup_status() & (1ULL << PIN_BTN_PAGE))
+    {
+      Serial.println("Woken by page button.");
+    }
+    else
+#endif
     Serial.println("Woken by refresh button.");
   }
   bool unconfigured = (strcmp(WIFI_SSID, "ssid") == 0);
@@ -725,7 +877,11 @@ void setup()
     }
     else
     {
+#if defined(BOARD_RETERMINAL_E1002) || defined(BOARD_XIAO_EPAPER)
+      Serial.println("Portal button pressed, starting configuration portal.");
+#else
       Serial.println("Double reset detected, starting configuration portal.");
+#endif
     }
     runConfigPortal(unconfigured); // never returns
   }
@@ -745,6 +901,22 @@ void setup()
 
   // All data should have been loaded from NVS. Close filesystem.
   prefs.end();
+
+#if defined(DISP_4G_426)
+  // KEY3, or a turned page whose time is up: a new page, not new weather
+  {
+    const bool byKey = (wakeCause == ESP_SLEEP_WAKEUP_EXT1)
+      && (esp_sleep_get_ext1_wakeup_status() & (1ULL << PIN_BTN_PAGE));
+    const bool asked = s_turnAsked;
+    s_turnAsked = false;
+    const bool backHome = (wakeCause == ESP_SLEEP_WAKEUP_TIMER) && s_page != 0
+      && static_cast<int64_t>(time(nullptr)) + 30 < s_nextUpdate;
+    if (byKey || asked || backHome)
+    {
+      turnPage(byKey || asked, startTime, batteryVoltage);
+    }
+  }
+#endif
 
   String statusStr = {};
   String tmpStr = {};
@@ -1063,7 +1235,7 @@ void setup()
   pollen_info_t pollen;
   pollen.tree = pollen.grass = pollen.weed = 0;
   pollen.max_upi = -1;
-#ifdef DISP_7C_709
+#if defined(DISP_7C_709) || defined(DISP_4G_426)
   // This layout always has a pollen cell; it has no widget slots to give
   // or withhold one.
   const bool wantPollen = true;

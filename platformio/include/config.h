@@ -31,6 +31,9 @@
 //   DISP_7C_709 - 7.09in spectra 6 e-Paper    1600x1200px 6-Color
 //                 (Good Display GDEB0709E01, 282 ppi; has a layout of its
 //                 own, see renderer709.cpp)
+//   DISP_4G_426 - 4.26in e-Paper              800x480px  4 greys
+//                 (Good Display GDEQ0426T82, 219 ppi; has a layout of its
+//                 own, see renderer426.cpp)
 // Uncomment the macro that identifies your physical panel.
 // (Building with -e seeed_reterminal_e1002 selects the panel automatically;
 //  the reTerminal E1002's built-in 7.3in Spectra 6 panel is a GDEP073E01,
@@ -41,14 +44,19 @@
 // (Building with -e seeed_xiao_ee02_709 selects the GDEB0709E01 on Seeed's
 //  XIAO ePaper Display Board EE02.)
 // (Building with -e seeed_xiao_ee05 selects Seeed's 4.26in monochrome panel
-//  on the XIAO ePaper Display Board EE05: 800x480 like the 7.5in, so it is
-//  DISP_BW_V2 and the same layout, drawn through GxEPD2's driver for Good
-//  Display's GDEQ0426T82 -- see PANEL_GDEQ0426T82 in renderer.h.)
+//  on the XIAO ePaper Display Board EE05 -- Good Display's GDEQ0426T82
+//  glass, 800x480 at 219 ppi -- with a layout of its own (renderer426.cpp):
+//  a home page in the panel's four greys and further pages in black and
+//  white, turned with KEY3. That is DISP_4G_426. -e seeed_xiao_ee05_classic
+//  draws the 7.5in page instead: DISP_BW_V2 through GxEPD2's driver for the
+//  same glass, see PANEL_GDEQ0426T82 in renderer.h.)
 #if defined(BOARD_XIAO_EE02)
   #define DISP_7C_709
-#elif defined(BOARD_XIAO_EE05)
+#elif defined(BOARD_XIAO_EE05) && defined(EE05_CLASSIC)
   #define DISP_BW_V2
   #define PANEL_GDEQ0426T82
+#elif defined(BOARD_XIAO_EE05)
+  #define DISP_4G_426
 #elif defined(BOARD_RETERMINAL_E1001)
   #define DISP_BW_V2
 #elif defined(BOARD_RETERMINAL_E1002)
@@ -515,6 +523,8 @@
   #define PANEL_NAME "DISP_BW_V1"
 #elif defined(DISP_7C_709)
   #define PANEL_NAME "DISP_7C_709"
+#elif defined(DISP_4G_426)
+  #define PANEL_NAME "DISP_4G_426"
 #else
   #define PANEL_NAME "unknown"
 #endif
@@ -553,6 +563,10 @@ extern const uint8_t PIN_BAT_EN;
 // REFRESH wakes into an immediate weather refresh.
 extern const uint8_t PIN_BTN_PORTAL;
 extern const uint8_t PIN_BTN_REFRESH;
+#if defined(BOARD_XIAO_EE05)
+// KEY3: turns the pages of the 4.26in layout (DISP_4G_426)
+extern const uint8_t PIN_BTN_PAGE;
+#endif
 extern const uint8_t PIN_EPD_BUSY;
 extern const uint8_t PIN_EPD_CS;
 // Second chip select, for panels with two controllers (GDEB0709E01: the
@@ -656,6 +670,11 @@ extern int POS_INHUMIDITY;
 // string leaves a cell blank).
 extern String PANEL_SLOTS[8];
 #endif
+#if defined(DISP_4G_426)
+// The 4.26in home page's three tiles, left to right, by widget key
+// (config.json "home_tiles"; an empty string leaves a tile out).
+extern String HOME_TILES[3];
+#endif
 
 // CONFIG VALIDATION - DO NOT MODIFY
 #if !(  defined(DISP_BW_V2)  \
@@ -664,7 +683,7 @@ extern String PANEL_SLOTS[8];
       ^ defined(DISP_7C_E6)  \
       ^ defined(DISP_BW_V1)  \
       ^ defined(DISP_BW_X3)  \
-      ^ defined(DISP_7C_709))
+      ^ defined(DISP_7C_709)       ^ defined(DISP_4G_426))
   #error Invalid configuration. Exactly one display panel must be selected.
 #endif
 #if !(  defined(DRIVER_WAVESHARE) \

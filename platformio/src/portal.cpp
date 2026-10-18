@@ -259,10 +259,15 @@ static void handleGetInfo()
 #else
   doc["board"] = "FireBeetle ESP32";
 #endif
-#ifdef DISP_7C_709
-  // The 1600x1200 layout is fixed: no widget slots, one pairing of fonts,
-  // no dark version. The page hides the settings that do not apply.
+#if defined(DISP_7C_709) || defined(DISP_4G_426)
+  // The 1600x1200 and 4.26in layouts are fixed: no widget slots, one
+  // pairing of fonts, no dark version. The page hides the settings that do
+  // not apply.
   doc["layout"] = "fixed";
+#endif
+#if defined(DISP_4G_426)
+  // its home page has three tiles to fill, not the 1600x1200's eight cells
+  doc["tiles"] = 3;
 #endif
   doc["target"] = ownTarget();
   diagToJson(doc);

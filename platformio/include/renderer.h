@@ -115,6 +115,43 @@
   void drawTestCard709StormChips();
 #endif
 
+#ifdef DISP_4G_426
+  // The EE05's 4.26in (GDEQ0426T82), through GxEPD2_4G: the home page in the
+  // panel's four greys, the other pages in black and white -- a quicker
+  // refresh, for pages turned by hand. `display` stands for whichever of
+  // the two drawing modes initDisplay() set up; drawing goes through the
+  // renderer's own functions.
+  #define DISP_WIDTH  800
+  #define DISP_HEIGHT 480
+  #include <GxEPD2_4G.h>
+  class Display426
+  {
+  public:
+    bool nextPage();
+  };
+  extern Display426 display;
+  // Pages of this layout: 0 is the home page, in greys; the rest are turned
+  // to with KEY3 and drawn in black and white.
+  #define PAGES_426 3
+  // The mode the next initDisplay() sets up: greys (the default) or black
+  // and white.
+  void setGreyMode426(bool grey);
+  // The home page's tones (renderer426.cpp PALETTES_426); 0 the default.
+  extern int PALETTE_426;
+  // The hours page's layout: 0 the cells, 1 tables, 2 graphs, 3 graph + cells.
+  extern int HOURS_LAYOUT_426;
+  // The four greys, their mixes and text on each: the _testcard build.
+  void drawTestCard426();
+  // One of the black-and-white pages (1 .. PAGES_426 - 1), drawn whole.
+  void drawPage426(int page, const owm_current_t &current,
+                   const owm_hourly_t *hourly, const owm_daily_t *daily,
+                   const owm_resp_air_pollution_t &air,
+                   const pollen_info_t &pollen, float inTemp,
+                   float inHumidity, const String &city,
+                   const String &date, const String &refreshTime,
+                   uint32_t batVoltage);
+#endif
+
 typedef enum alignment
 {
   LEFT,

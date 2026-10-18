@@ -241,7 +241,7 @@
       Pick which widget fills each slot; leave a slot empty to show nothing there. Slots 10-11 appear when Widget rows (in Schedule) is 6.</div>
     <div class="row" id="widgets"></div>
     <div id="panelbox" style="display:none">
-      <div class="hint" style="margin-bottom:0.4rem">The eight readings under the
+      <div class="hint" id="panelhint" style="margin-bottom:0.4rem">The eight readings under the
         sunrise diagram, two to a row. Without an indoor sensor the Indoor cell
         shows visibility.</div>
       <div class="row" id="panelslots"></div>
@@ -485,6 +485,18 @@ const PANEL_WIDGETS = [['humidity','Humidity'],['dewpoint','Dew point'],
   ['visibility','Visibility'],['indoor','Indoor (temperature and humidity)']];
 const PANEL_DEFAULT = ['humidity','dewpoint','wind','pressure','uvi','air_quality','pollen','indoor'];
 let fixedLayout = false;
+// the 4.26in layout's home page tiles (config "home_tiles"; the firmware's
+// HOME_TILES has the same default): every widget the other layouts have
+const HOME_WIDGETS = [['wind','Wind'],['air_quality','Air quality'],
+  ['indoor','Indoor (temperature and humidity)'],['intemp','Indoor temp'],
+  ['inhumidity','Indoor humidity'],['humidity','Humidity'],['dewpoint','Dew point'],
+  ['heat_stress','Heat stress'],['pressure','Pressure'],['uvi','UV index'],
+  ['pollen','Pollen'],['visibility','Visibility'],['sun','Sunrise and sunset'],
+  ['moon_phase','Moon phase']];
+const HOME_DEFAULT = ['wind','air_quality','indoor'];
+let homeTiles = 0; // 3 on the 4.26in layout: its tiles replace the eight cells
+const slotCount = () => homeTiles || 8;
+const slotWidgets = () => homeTiles ? HOME_WIDGETS : PANEL_WIDGETS;
 
 const WIDGETS = [
   ['sunrise','Sunrise'],['sunset','Sunset'],['humidity','Humidity'],
@@ -722,24 +734,28 @@ function buildWidgetSelects() {
 function buildPanelSlots() {
   const box = el('panelslots');
   box.replaceChildren();
-  const ROW = ['top', 'second', 'third', 'bottom'];
-  for (let i = 0; i < 8; i++) {
+  const TILE = ['left', 'middle', 'right'];
+  for (let i = 0; i < slotCount(); i++) {
     const d = document.createElement('div');
     const l = document.createElement('label');
-    l.textContent = t('Row') + ' ' + (Math.floor(i / 2) + 1) + ', ' + (i % 2 ? t('right') : t('left'));
+    l.textContent = homeTiles
+      ? t('Tile') + ' ' + (i + 1) + ', ' + t(TILE[i])
+      : t('Row') + ' ' + (Math.floor(i / 2) + 1) + ', ' + (i % 2 ? t('right') : t('left'));
     const sel = document.createElement('select'); sel.id = 'pslot_' + i;
     sel.add(new Option(t('— Empty —'), ''));
-    for (const [key, label] of PANEL_WIDGETS) sel.add(new Option(t(label), key));
+    for (const [key, label] of slotWidgets()) sel.add(new Option(t(label), key));
     d.append(l, sel); box.append(d);
   }
 }
 
 function populatePanelSlots() {
-  let slots = Array.isArray(cfg?.panel_slots) ? cfg.panel_slots : null;
+  const saved = homeTiles ? cfg?.home_tiles : cfg?.panel_slots;
+  let slots = Array.isArray(saved) ? saved : null;
   if (!slots) {
-    slots = PANEL_DEFAULT.map(k => (k === 'dewpoint' && LANG === 'he') ? 'heat_stress' : k);
+    slots = (homeTiles ? HOME_DEFAULT : PANEL_DEFAULT)
+      .map(k => (k === 'dewpoint' && LANG === 'he') ? 'heat_stress' : k);
   }
-  for (let i = 0; i < 8; i++) el('pslot_' + i).value = slots[i] ?? '';
+  for (let i = 0; i < slotCount(); i++) el('pslot_' + i).value = slots[i] ?? '';
 }
 
 // slots 10-11 only exist in the 6-row layout
@@ -853,18 +869,19 @@ function collect() {
     if (key) cfg.widget_positions[key] = slot;
   }
   if (fixedLayout) {
-    cfg.panel_slots = [...Array(8).keys()].map(i => el('pslot_' + i).value);
+    const chosen = [...Array(slotCount()).keys()].map(i => el('pslot_' + i).value);
+    if (homeTiles) cfg.home_tiles = chosen; else cfg.panel_slots = chosen;
   }
 }
 
 function validateWidgets() {
   if (fixedLayout) {
     const seen = new Map();
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < slotCount(); i++) {
       const key = el('pslot_' + i).value;
       if (!key) continue;
       if (seen.has(key)) return t('"%1" is in both slot %2 and slot %3 — a widget can only appear once.')
-        .replace('%1', t(PANEL_WIDGETS.find(w => w[0] === key)[1]))
+        .replace('%1', t(slotWidgets().find(w => w[0] === key)[1]))
         .replace('%2', seen.get(key) + 1).replace('%3', i + 1);
       seen.set(key, i);
     }
@@ -1110,6 +1127,12 @@ function hideLayoutSettings() {
   el('widgets').style.display = 'none';
   el('widgets').previousElementSibling.style.display = 'none';
   el('panelbox').style.display = 'block';
+  if (homeTiles) {
+    el('panelhint').textContent = t('The three tiles on the home page, left to right. ' +
+      'Without an indoor sensor the Indoor tile shows the humidity.');
+    el('fixednote').textContent = t('This panel has a layout of its own, with its own ' +
+      'fonts; choose its home page tiles under Widgets below.');
+  }
   buildPanelSlots();
   if (cfg) populatePanelSlots();
   el('fixednote').style.display = 'block';
@@ -1249,7 +1272,7 @@ function showConnInfo(i) {
     .replace('%1', i.timeout_minutes ?? 10));
   box.style.display = 'block';
   if (i.build) { el('fwbuild').textContent = i.build + (i.board ? ' for ' + i.board : ''); }
-  if (i.layout === 'fixed') { hideLayoutSettings(); }
+  if (i.layout === 'fixed') { homeTiles = i.tiles ?? 0; hideLayoutSettings(); }
   if (i.target) { el('fwtarget').textContent = i.target; }
   showDiagnostics(i);
   if (i.fonts) { setFontOptions(i.fonts); }

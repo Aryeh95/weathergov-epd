@@ -51,5 +51,8 @@ bool calcSunriseSunset(int year, int month, int day, double lat, double lon,
  */
 #define MOON_PHASE_STEPS 16
 int calcMoonPhase(int64_t t, int *illumPct);
+// Where the moon is in its cycle at that moment: 0 new, 0.5 full, toward 1
+// the next new moon. calcMoonPhase()'s step is this, rounded.
+double moonPhaseFraction(int64_t t);
 
 #endif

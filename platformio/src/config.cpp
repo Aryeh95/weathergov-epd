@@ -86,9 +86,11 @@ const uint8_t PIN_EPD_PWR  = 43; // panel supply load switch (the UART0 TX pin)
 const uint8_t PIN_SD_EN    = PIN_UNUSED; // no microSD slot
 const uint8_t PIN_SD_CS    = PIN_UNUSED;
 // Three buttons, active low. KEY1 wakes into the configuration portal,
-// KEY2 into an immediate refresh; KEY3 (GPIO8) is unassigned.
+// KEY2 into an immediate refresh; KEY3 turns the pages of the 4.26in
+// layout (unused by the classic build).
 const uint8_t PIN_BTN_PORTAL  = 2;
 const uint8_t PIN_BTN_REFRESH = 3;
+const uint8_t PIN_BTN_PAGE    = 8;
 // No sensor on the board. An SHT4x goes on the extension port, the two
 // 7-pin 2.54 mm footprints J2 and J4 (not fitted):
 //   J2 pin 1  SDA   GPIO5
@@ -424,6 +426,9 @@ uint32_t MIN_BATTERY_VOLTAGE = 3000; // (millivolts)
 #if defined(DISP_7C_709)
 String PANEL_SLOTS[8] = {"humidity", "dewpoint", "wind", "pressure",
                          "uvi", "air_quality", "pollen", "indoor"};
+#endif
+#if defined(DISP_4G_426)
+String HOME_TILES[3] = {"wind", "air_quality", "indoor"};
 #endif
 int POS_SUNRISE     = 0;
 int POS_SUNSET      = 1;

@@ -77,6 +77,50 @@ static int64_t parseISO8601(const String &s)
 /* Parses a weather.gov windSpeed string, ex. "10 mph" or "5 to 10 mph", and
  * returns the (higher, if a range) speed converted to meters/second.
  */
+/* The temperature it feels like, as weather.gov works it out: the wind
+ * chill at or below 50 F with a wind of 3 mph or more, the heat index at or
+ * above 80 F, otherwise the temperature itself. For the hours of a source
+ * that does not give it. Kelvin, % and m/s in, kelvin out.
+ */
+static float apparentTemperatureK(float tempK, int rh, float windMs)
+{
+  if (std::isnan(tempK))
+  {
+    return NAN;
+  }
+  const float t = kelvin_to_fahrenheit(tempK);
+  const float v = meterspersecond_to_milesperhour(windMs);
+  if (t <= 50.0f && v >= 3.0f)
+  {
+    const float p = std::pow(v, 0.16f);
+    return fahrenheit_to_kelvin(35.74f + 0.6215f * t - 35.75f * p
+                                + 0.4275f * t * p);
+  }
+  if (t >= 80.0f && rh > 0)
+  {
+    const float r = static_cast<float>(rh);
+    float hi = 0.5f * (t + 61.0f + (t - 68.0f) * 1.2f + r * 0.094f);
+    if ((hi + t) / 2.0f >= 80.0f)
+    {
+      hi = -42.379f + 2.04901523f * t + 10.14333127f * r
+         - 0.22475541f * t * r - 0.00683783f * t * t
+         - 0.05481717f * r * r + 0.00122874f * t * t * r
+         + 0.00085282f * t * r * r - 0.00000199f * t * t * r * r;
+      if (r < 13.0f && t <= 112.0f)
+      {
+        hi -= (13.0f - r) / 4.0f
+              * std::sqrt((17.0f - std::fabs(t - 95.0f)) / 17.0f);
+      }
+      else if (r > 85.0f && t <= 87.0f)
+      {
+        hi += (r - 85.0f) / 10.0f * (87.0f - t) / 5.0f;
+      }
+    }
+    return fahrenheit_to_kelvin(hi);
+  }
+  return tempK;
+}
+
 static float parseWindSpeedMph(const String &s)
 {
   int firstNum = -1, secondNum = -1;
@@ -436,6 +480,9 @@ DeserializationError deserializeNWSForecastHourly(WiFiClient &json,
     hourly[i].wind_speed = parseWindSpeedMph(p["windSpeed"].as<const char *>());
     hourly[i].wind_gust  = hourly[i].wind_speed;
     hourly[i].wind_deg   = compassToDegrees(p["windDirection"].as<const char *>());
+    hourly[i].feels_like = apparentTemperatureK(hourly[i].temp,
+                                                hourly[i].humidity,
+                                                hourly[i].wind_speed);
 
     if (i == OWM_NUM_HOURLY - 1)
     {

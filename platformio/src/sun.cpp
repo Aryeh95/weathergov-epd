@@ -104,7 +104,7 @@ bool calcSunriseSunset(int year, int month, int day, double lat, double lon,
 /* Moon phase from the mean synodic month. Reference new moon: 2000-01-06
  * 18:14 UTC. See sun.h for the index/illumination contract.
  */
-int calcMoonPhase(int64_t t, int *illumPct)
+double moonPhaseFraction(int64_t t)
 {
   const double SYNODIC_DAYS = 29.530588853;
   const int64_t NEW_MOON_EPOCH = 947182440LL; // 2000-01-06 18:14:00 UTC
@@ -114,7 +114,12 @@ int calcMoonPhase(int64_t t, int *illumPct)
   {
     age += SYNODIC_DAYS;
   }
-  const double frac = age / SYNODIC_DAYS; // 0 = new, 0.5 = full
+  return age / SYNODIC_DAYS;
+}
+
+int calcMoonPhase(int64_t t, int *illumPct)
+{
+  const double frac = moonPhaseFraction(t); // 0 = new, 0.5 = full
   if (illumPct)
   {
     *illumPct = static_cast<int>(
