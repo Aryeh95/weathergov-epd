@@ -171,12 +171,15 @@
       time marked as old (in red, or with a warning sign on black and
       white panels); 0 shows errors at once. Pressing a button always
       shows the error.</div>
+    <div class="hint" id="fixednote" style="display:none">This panel has a layout of
+      its own, with its own fonts; choose its home page tiles under Widgets
+      below.</div>
     <div id="fontprev" class="fontprev">
       <div class="fp-big">72&deg;</div>
       <div class="fp-mid">Partly Cloudy</div>
       <div class="fp-small">Humidity &nbsp; Dew Point &nbsp; Air Quality (EPA) &nbsp; 12am 3am 6am 9am &nbsp; 0.1in</div>
     </div>
-    <div class="hint">Only fonts compiled into this firmware are listed
+    <div class="hint" id="fonthint">Only fonts compiled into this firmware are listed
       (see FONT_INCLUDE_ in config.h). The small text font covers everything
       under 11 pt: widget labels, the graph axis, source tags. A sans like
       FreeSans stays crisper there than a serif. The preview uses the web
@@ -237,6 +240,12 @@
       0&nbsp;1 / 2&nbsp;3 / 4&nbsp;5 / 6&nbsp;7 / 8&nbsp;9 (top to bottom).
       Pick which widget fills each slot; leave a slot empty to show nothing there. Slots 10-11 appear when Widget rows (in Schedule) is 6.</div>
     <div class="row" id="widgets"></div>
+    <div id="panelbox" style="display:none">
+      <div class="hint" id="panelhint" style="margin-bottom:0.4rem">The three tiles on the
+        home page, left to right. Without an indoor sensor the Indoor tile
+        shows the humidity.</div>
+      <div class="row" id="panelslots"></div>
+    </div>
   </fieldset>
 
   <button id="save" type="submit">Save &amp; Restart</button>
@@ -387,6 +396,8 @@ const I18N_HE = {
   'Slot layout on the display: 0 1 / 2 3 / 4 5 / 6 7 / 8 9 (top to bottom). Pick which widget fills each slot; leave a slot empty to show nothing there. Slots 10-11 appear when Widget rows (in Schedule) is 6.':
     'פריסת המשבצות על המסך (משמאל לימין, מלמעלה למטה): 0 1 / 2 3 / 4 5 / 6 7 / 8 9. בחרו איזה ווידג\'ט ממלא כל משבצת; משבצת ריקה לא מציגה דבר. משבצות 10–11 מופיעות כששורות הווידג\'טים (בלוח הזמנים) הן 6.',
   'Slot': 'משבצת', '(left)': '(שמאל)', '(right)': '(ימין)', '— Empty —': '— ריק —',
+  'left': 'שמאל', 'right': 'ימין',
+  'Indoor (temperature and humidity)': 'בבית (טמפרטורה ולחות)',
   'Sunrise': 'זריחה', 'Sunset': 'שקיעה', 'Humidity': 'לחות', 'Dew point': 'נקודת טל', 'Wind': 'רוח',
   'UV index': 'מדד UV', 'Pressure': 'לחץ ברומטרי', 'Air quality': 'איכות אוויר', 'Visibility': 'ראות',
   'Indoor temp': 'טמפרטורה בבית', 'Indoor humidity': 'לחות בבית', 'Moon phase': 'מופע הירח', 'Pollen': 'אבקנים',
@@ -461,6 +472,20 @@ const I18N_HE = {
   'Battery low; did not update': 'סוללה חלשה; לא עודכן',
   'Could not update; the last weather was drawn again, marked as old': 'העדכון נכשל; מזג האוויר האחרון צויר שוב ומסומן כישן',
 };
+
+let fixedLayout = false;
+// the 4.26in layout's home page tiles (config "home_tiles"; the firmware's
+// HOME_TILES has the same default): every widget the other layouts have
+const HOME_WIDGETS = [['wind','Wind'],['air_quality','Air quality'],
+  ['indoor','Indoor (temperature and humidity)'],['intemp','Indoor temp'],
+  ['inhumidity','Indoor humidity'],['humidity','Humidity'],['dewpoint','Dew point'],
+  ['heat_stress','Heat stress'],['pressure','Pressure'],['uvi','UV index'],
+  ['pollen','Pollen'],['visibility','Visibility'],['sun','Sunrise and sunset'],
+  ['moon_phase','Moon phase']];
+const HOME_DEFAULT = ['wind','air_quality','indoor'];
+let homeTiles = 0; // 3 on the 4.26in layout: its tiles replace the widget slots
+const slotCount = () => homeTiles;
+const slotWidgets = () => HOME_WIDGETS;
 
 const WIDGETS = [
   ['sunrise','Sunrise'],['sunset','Sunset'],['humidity','Humidity'],
@@ -695,6 +720,29 @@ function buildWidgetSelects() {
   }
 }
 
+function buildPanelSlots() {
+  const box = el('panelslots');
+  box.replaceChildren();
+  const TILE = ['left', 'middle', 'right'];
+  for (let i = 0; i < slotCount(); i++) {
+    const d = document.createElement('div');
+    const l = document.createElement('label');
+    l.textContent = t('Tile') + ' ' + (i + 1) + ', ' + t(TILE[i]);
+    const sel = document.createElement('select'); sel.id = 'pslot_' + i;
+    sel.add(new Option(t('— Empty —'), ''));
+    for (const [key, label] of slotWidgets()) sel.add(new Option(t(label), key));
+    d.append(l, sel); box.append(d);
+  }
+}
+
+function populatePanelSlots() {
+  let slots = Array.isArray(cfg?.home_tiles) ? cfg.home_tiles : null;
+  if (!slots) {
+    slots = HOME_DEFAULT.map(k => (k === 'dewpoint' && LANG === 'he') ? 'heat_stress' : k);
+  }
+  for (let i = 0; i < slotCount(); i++) el('pslot_' + i).value = slots[i] ?? '';
+}
+
 // slots 10-11 only exist in the 6-row layout
 function updateSlotVisibility() {
   const rows = +el('s_wrows').value;
@@ -729,6 +777,7 @@ function populate() {
   el('s_wrows').value = String(cfg.widget_rows ?? 5);
   el('s_dark').value = cfg.dark_mode ? '1' : '0';
   el('s_dew').value = cfg.graph_dewpoint ? '1' : '0';
+  if (fixedLayout) populatePanelSlots();
   selectFont(cfg.font, cfg.font_small);
   el('a_ua').value = cfg.api?.nws_user_agent ?? '';
   el('a_airnow').value = cfg.api?.airnow_api_key ?? '';
@@ -804,9 +853,25 @@ function collect() {
     const key = el('slot_' + slot).value;
     if (key) cfg.widget_positions[key] = slot;
   }
+  if (fixedLayout) {
+    const chosen = [...Array(slotCount()).keys()].map(i => el('pslot_' + i).value);
+    cfg.home_tiles = chosen;
+  }
 }
 
 function validateWidgets() {
+  if (fixedLayout) {
+    const seen = new Map();
+    for (let i = 0; i < slotCount(); i++) {
+      const key = el('pslot_' + i).value;
+      if (!key) continue;
+      if (seen.has(key)) return t('"%1" is in both slot %2 and slot %3 — a widget can only appear once.')
+        .replace('%1', t(slotWidgets().find(w => w[0] === key)[1]))
+        .replace('%2', seen.get(key) + 1).replace('%3', i + 1);
+      seen.set(key, i);
+    }
+    return null;
+  }
   const rows = +el('s_wrows').value;
   const used = new Map();
   for (let slot = 0; slot < rows * 2; slot++) {
@@ -1033,6 +1098,25 @@ el('rawsave').addEventListener('click', () => {
   save(el('raw').value);
 });
 
+// The 4.26in layout has no widget slots or fonts to choose. The
+// controls are hidden, not removed: their values still travel with the
+// rest of the configuration, so a backup restores on any board.
+function hideLayoutSettings() {
+  fixedLayout = true;
+  for (const id of ['s_wrows', 's_font', 's_font_small']) {
+    el(id).parentElement.style.display = 'none';
+  }
+  el('fontprev').style.display = 'none';
+  el('fonthint').style.display = 'none';
+  // its own tiles instead of the slot grid
+  el('widgets').style.display = 'none';
+  el('widgets').previousElementSibling.style.display = 'none';
+  el('panelbox').style.display = 'block';
+  buildPanelSlots();
+  if (cfg) populatePanelSlots();
+  el('fixednote').style.display = 'block';
+}
+
 // The IMS location and the Ministry station only matter when those sources
 // are in use; their fields (and their hints) show only then.
 function updateSourceFields() {
@@ -1167,6 +1251,7 @@ function showConnInfo(i) {
     .replace('%1', i.timeout_minutes ?? 10));
   box.style.display = 'block';
   if (i.build) { el('fwbuild').textContent = i.build + (i.board ? ' for ' + i.board : ''); }
+  if (i.layout === 'fixed') { homeTiles = i.tiles ?? 0; hideLayoutSettings(); }
   if (i.target) { el('fwtarget').textContent = i.target; }
   showDiagnostics(i);
   if (i.fonts) { setFontOptions(i.fonts); }

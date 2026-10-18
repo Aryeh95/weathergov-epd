@@ -15,6 +15,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
+// The EE05's 4.26in in four greys has a layout and a renderer of its own,
+// in renderer426.cpp; nothing in this file is built for it.
+#ifndef DISP_4G_426
+
 #include <algorithm>
 #include "_locale.h"
 #include "_strftime.h"
@@ -2858,4 +2863,6 @@ void drawError(const uint8_t *bitmap_196x196,
                              mono ? GxEPD_BLACK : DM_GFX(ACCENT_COLOR));
   return;
 } // end drawError
+
+#endif // !DISP_4G_426
 

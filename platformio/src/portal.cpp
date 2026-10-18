@@ -257,6 +257,16 @@ static void handleGetInfo()
 #else
   doc["board"] = "FireBeetle ESP32";
 #endif
+#if defined(DISP_4G_426)
+  // The 4.26in layout is fixed: no widget slots, one
+  // pairing of fonts, no dark version. The page hides the settings that do
+  // not apply.
+  doc["layout"] = "fixed";
+#endif
+#if defined(DISP_4G_426)
+  // its home page has three tiles to fill
+  doc["tiles"] = 3;
+#endif
   doc["target"] = ownTarget();
   diagToJson(doc);
   // the locale compiled in, so the page can show its defaults (a Hebrew

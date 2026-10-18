@@ -446,6 +446,18 @@ bool loadSettings()
   POS_INTEMP     = widgets["intemp"]      | POS_INTEMP;
   POS_INHUMIDITY = widgets["inhumidity"]  | POS_INHUMIDITY;
 
+#if defined(DISP_4G_426)
+  JsonArrayConst tiles = doc["home_tiles"];
+  if (!tiles.isNull())
+  {
+    for (int i = 0; i < 3; ++i)
+    {
+      HOME_TILES[i] = (i < static_cast<int>(tiles.size()))
+                    ? String(static_cast<const char *>(tiles[i] | "")) : String();
+    }
+  }
+#endif
+
   Serial.println("[settings] Loaded /config.json");
   return true;
 } // end loadSettings

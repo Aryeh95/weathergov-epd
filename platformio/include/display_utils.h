@@ -76,6 +76,8 @@ const uint8_t *getHourlyForecastBitmap32(const owm_hourly_t &hourly,
                                          const owm_daily_t  &today);
 const uint8_t *getDailyForecastBitmap64(const owm_daily_t &daily);
 const uint8_t *getDailyForecastBitmap48(const owm_daily_t &daily);
+const uint8_t *getCurrentConditionsBitmap128(const owm_current_t &current);
+const uint8_t *getHourlyForecastBitmap48(const owm_hourly_t &hourly);
 uint16_t getConditionsColor(int id, bool day, bool moon, bool cloudy,
                             bool windy);
 #ifdef MULTICOLOR_DISPLAY

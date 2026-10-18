@@ -22,7 +22,12 @@
 #include <esp_adc_cal.h>
 
 #include <aqi.h>
-#include <GxEPD2.h> // GxEPD_* color defines, used by the semantic palette
+#include "config.h"
+#if defined(DISP_4G_426)
+  #include <GxEPD2_4G.h> // the same GxEPD_* names, from the greys' library
+#else
+  #include <GxEPD2.h> // GxEPD_* color defines, used by the semantic palette
+#endif
 
 #include "_locale.h"
 #include "_strftime.h"
@@ -778,6 +783,29 @@ const uint8_t *getCurrentConditionsBitmap196(const owm_current_t &current,
   const bool windy = isWindy(current.wind_speed, current.wind_gust);
   return getConditionsBitmap<196>(id, day, moon, cloudy, windy);
 } // end getCurrentConditionsBitmap196
+
+/* The same icons at the 4.26in layout's sizes: the current conditions at
+ * 128px, an hour of the forecast at 48px.
+ */
+const uint8_t *getCurrentConditionsBitmap128(const owm_current_t &current)
+{
+  return getConditionsBitmap<128>(current.weather.id,
+                                  isDaytimeAt(pageTime(),
+                                              isDay(current.weather.icon)),
+                                  false, isCloudy(current.clouds),
+                                  isWindy(current.wind_speed,
+                                          current.wind_gust));
+}
+
+const uint8_t *getHourlyForecastBitmap48(const owm_hourly_t &hourly)
+{
+  return getConditionsBitmap<48>(hourly.weather.id,
+                                 isDaytimeAt(hourly.dt,
+                                             isDay(hourly.weather.icon)),
+                                 false, isCloudy(hourly.clouds),
+                                 isWindy(hourly.wind_speed,
+                                         hourly.wind_gust));
+}
 
 /* Returns the color a weather condition icon should be drawn in, mirroring
  * the icon selection logic of getConditionsBitmap. On black/white and
