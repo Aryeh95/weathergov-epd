@@ -9,7 +9,7 @@
 > - **More widgets, flexible layout**: a moon phase widget (computed on-device, dithered grayscale icons on every panel type), 5–7 day forecast row, and a 5- or 6-row widget grid (10 or 12 slots) — all selectable at runtime.
 > - **Sunrise/sunset are computed on-device** (NOAA solar algorithm in `platformio/src/sun.cpp`), and day/night icon selection follows those real sun times instead of NWS's fixed 6am/6pm icon boundary.
 > - **Robust WiFi**: connects to the strongest access point on multi-AP (mesh) networks, the error screen explains *why* a connection failed (wrong password, network not found, no response...), and the device retries every 15 minutes (configurable) instead of requiring a manual reset. A short outage does not cost you the forecast: the last weather stays on the screen for up to 3 hours (`sleep.outage_grace_minutes`) before an error screen replaces it, redrawn once with its update time marked as old -- in red on colour panels, with a warning sign on black and white.
-> - **Supported boards**: the FireBeetle 2 ESP32-E wiring from upstream, plus native support for the [Seeed reTerminal E1002](https://www.seeedstudio.com/reTerminal-E1002-p-6533.html) — an all-in-one ESP32-S3 device with a built-in 7.3" Spectra 6 panel, battery, and buttons (`pio run -e seeed_reterminal_e1002`; its middle button opens the portal, the green button forces a refresh), and Seeed's [XIAO ePaper Display Board EE02](https://www.seeedstudio.com/XIAO-ePaper-Display-Board-EE02-p-6639.html) with Good Display's 7.09" 1600x1200 Spectra 6 panel, which has a layout of its own (see [GDEB0709E01](#high-resolution-panel-gdeb0709e01)).
+> - **Supported boards**: the FireBeetle 2 ESP32-E wiring from upstream, plus native support for the [Seeed reTerminal E1002](https://www.seeedstudio.com/reTerminal-E1002-p-6533.html) — an all-in-one ESP32-S3 device with a built-in 7.3" Spectra 6 panel, battery, and buttons (`pio run -e seeed_reterminal_e1002`; its middle button opens the portal, the green button forces a refresh), and Seeed's [XIAO ePaper Display Board EE02](https://www.seeedstudio.com/XIAO-ePaper-Display-Board-EE02-p-6639.html) with Good Display's 7.09" 1600x1200 Spectra 6 panel, which has a layout of its own (see [GDEB0709E01](#high-resolution-panel-gdeb0709e01)), and the [XIAO ePaper Display Board EE05](https://wiki.seeedstudio.com/epaper_ee05) with Seeed's 4.26" 800x480 panel, drawn in four greys with pages turned by a button (see [EE05](#xiao-ee05-and-the-426in-panel)).
 > - **Precipitation**: the hourly graph shows probability (PoP %) — NWS's hourly forecast has no amounts. The daily row shows **amounts in inches** (`UNITS_DAILY_PRECIP_INCHES`, compile-time): weather.gov's gridpoint QPF for the ~3 days it reaches, Open-Meteo's daily total for the days beyond. Dry days show nothing; a forecast trace under 0.1 in shows as `<0.1 in`. Set `UNITS_DAILY_PRECIP_POP` in `config.h` for probability there too.
 > - HTTPS is required (all APIs are HTTPS-only), and the servers' certificates are verified against the root CAs in `cert.h` (valid until 2035). To build without verification, create `platformio/include/config_local.h` containing `#define USE_HTTPS_NO_CERT_VERIF`; git ignores that file.
 >
@@ -48,6 +48,8 @@ Here are two (slightly outdated) examples utilizing various configuration option
 
 - [Required Components](#required-components)
   - [Panel Support](#panel-support)
+  - [High-Resolution Panel: GDEB0709E01](#high-resolution-panel-gdeb0709e01)
+  - [XIAO EE05 and the 4.26in Panel](#xiao-ee05-and-the-426in-panel)
   - [Enclosure Options](#enclosure-options)
   - [Solder-Free Component Selection](#solder-free-component-selection-optional)
 - [Setup Guide](#setup-guide)
@@ -101,6 +103,7 @@ Other items needed:
   | Good Display 7.3in e-paper (GDEP073E01) | 800x480px  | 7-Color         | Available [here](https://www.good-display.com/blank7.html?productId=533). Spectra 6. Full-color icons. This is also the panel built into the reTerminal E1002. |
   | Waveshare 7.5in e-paper (v1)            | 640x384px  | Black/White     | Limited support. Some information not displayed, see [image](showcase/demo-waveshare75-version1.jpg).                 |
   | Good Display 7.09in e-paper (GDEB0709E01) | 1600x1200px | 6-Color       | Spectra 6, 282 ppi, on the Seeed EE02 board, with a layout of its own: see [below](#high-resolution-panel-gdeb0709e01). |
+  | Seeed / Good Display 4.26in e-paper (GDEQ0426T82) | 800x480px | 4 greys  | 219 ppi, on the Seeed EE05 board, with a layout of its own in four greys: see [below](#xiao-ee05-and-the-426in-panel). |
   | Good Display 7.5in e-paper (GDEW075T8)  | 640x384px  | Black/White     | Limited support. Some information not displayed, see [image](showcase/demo-waveshare75-version1.jpg).                 |
 
   On the 7-color panels this fork renders full-color condition and widget icons plus a semantic color palette (red highs / blue lows, color-coded UV and AQI); the 3-color panels use a single red accent; B/W panels use line art. Panels with additional colors have much longer refresh times (~12s for 3-color, ~28s for 7-color), which reduces battery life.
@@ -152,6 +155,41 @@ Other items needed:
   - **English only** for this layout so far. Settings that belong to the 800x480 layouts (`font`, `font_small`, `widget_rows`, widget positions) are ignored; the portal shows the eight cells (`panel_slots`) in their place.
 
   To see the layout without the hardware, or to change it: `python tools/sim709/build.py` builds the firmware's own drawing code for your computer and writes what it draws as PNGs, in the panel's measured colours, with the dot mixes the layout uses shown as measured on the panel (see [tools/sim709](tools/sim709/README.md)). Fonts, icons and moon images are generated by `tools/gen_assets709.py`.
+
+### XIAO EE05 and the 4.26in Panel
+
+  <p float="left">
+    <img src="showcase/preview-ee05-426-home.png" width="49%" />
+    <img src="showcase/preview-ee05-426-hours.png" width="49%" />
+  </p>
+
+  *(The home page and the hours page, rendered on a PC in the panel's measured greys, set against white paper: the panel's white reflects about 68 % as much light as paper. Sample weather, with a made-up afternoon of showers.)*
+
+  Seeed's [XIAO ePaper Display Board EE05](https://wiki.seeedstudio.com/epaper_ee05) (XIAO ESP32-S3 Plus, battery charger, three buttons) with Seeed's 4.26in panel, which is Good Display's GDEQ0426T82 glass: 800x480 at 219 ppi, black and white, with a waveform for four greys. It has a layout of its own, in pages:
+
+  - **Home**, drawn by every scheduled update in the four greys (a full refresh, about 4 s): the current conditions; three tiles chosen in the portal, each a title over its reading with no icons, from wind (its speed, direction and gusts), air quality, indoor (the temperature with an arrow for its trend over the last three hours, and the humidity), humidity, dew point, heat stress, pressure, UV, pollen, visibility, sunrise and sunset, and the moon (NASA's map of its surface, lit for its real phase and drawn in the greys, with the share of it lit); the next 24 hours as a graph of temperature and dew point, with the chance of rain as bars on their own 0-100 % scale; five days.
+  - **Hours** and **Week**, turned to with **KEY3** and drawn in black and white (about 1.7 s): the next 24 hours in two tables, every hour with its sky, temperature, what it feels like, chance of rain and wind; seven days with rain, wind, and each day's range against the week's. They are drawn from the weather the last update kept, without the network, and the home page comes back five minutes after the last press, or with the next update if that is sooner.
+
+  The greys were measured on the panel with a test card: black, dark grey, light grey and white come out at L\* 16, 69, 81 and 100, so "dark grey" is really a mid grey. The layout also uses checkers of two levels, dot by dot, which at this density read as tones of their own (black and light grey: L\* 47).
+
+  Build and flash:
+
+  ```
+  pio run -e seeed_xiao_ee05 -t upload            # the weather display
+  pio run -e seeed_xiao_ee05 -t uploadfs          # config.json, as for the other boards
+  pio run -e seeed_xiao_ee05_testcard -t upload   # the greys card, no WiFi needed
+  pio run -e seeed_xiao_ee05_classic -t upload    # or: the 7.5in black-and-white page instead
+  ```
+
+  Things to know:
+
+  - **Buttons:** KEY1 opens the configuration portal, KEY2 forces a refresh, KEY3 turns the page. A press while the board is busy (drawing, or fetching the weather) is kept and acted on when it is free. RST restarts the board.
+  - **Serial output is on the USB port**, and with a computer attached the board waits awake between refreshes, as on the EE02.
+  - **Indoor sensor: optional.** An SHT4x on the extension port (the unfitted J2/J4 footprints: J2 pin 1 SDA on GPIO5, J2 pin 2 SCL on GPIO6, J4 pin 5 3.3 V switched with the panel, J4 pin 6 ground) is found by itself; without one the indoor tile shows the humidity.
+  - **Refreshing to the home page** uses the grey waveform, which flashes the panel several times; the black-and-white pages refresh with a single flash.
+  - **English only** so far. As on the EE02, the 800x480 layouts' settings (`font`, `font_small`, `widget_rows`, widget positions) are ignored; the portal shows the three home tiles (`home_tiles`) in their place.
+
+  To see the layout without the hardware: `python tools/sim480/build.py --panel=4g426 --locale=en_US` draws the home, hours and week pages in the measured greys, from a device's own config.json and the replies `tools/sim480/fetch_us.py` saves for its location (see [tools/sim480](tools/sim480/README.md)).
 
 ### Enclosure Options
 
@@ -253,13 +291,13 @@ PlatformIO for VSCode is used for managing dependencies, code compilation, and u
    - **Indoor sensor** (`SENSOR_BME280` or `SENSOR_BME680`).
    - **Units** (temperature, wind speed, pressure, distance) and **locale/language**.
 
-   *(reTerminal E1002 owners skip this step — building with the `seeed_reterminal_e1002` environment selects the panel, sensor, and pins automatically. Likewise the `seeed_xiao_ee02_709` environment for the EE02 with the GDEB0709E01.)*
+   *(reTerminal E1002 owners skip this step — building with the `seeed_reterminal_e1002` environment selects the panel, sensor, and pins automatically. Likewise the `seeed_xiao_ee02_709` environment for the EE02 with the GDEB0709E01, and `seeed_xiao_ee05` for the EE05 with the 4.26in panel.)*
 
 6. Build and Upload.
 
    a. Connect the ESP32 to your computer via USB.
 
-   b. Upload the **firmware**: click the upload arrow along the bottom of the VSCode window ("PlatformIO: Upload"). For the reTerminal E1002, select the `seeed_reterminal_e1002` environment first (or run `pio run -e seeed_reterminal_e1002 -t upload`); for the EE02, `seeed_xiao_ee02_709`.
+   b. Upload the **firmware**: click the upload arrow along the bottom of the VSCode window ("PlatformIO: Upload"). For the reTerminal E1002, select the `seeed_reterminal_e1002` environment first (or run `pio run -e seeed_reterminal_e1002 -t upload`); for the EE02, `seeed_xiao_ee02_709`; for the EE05, `seeed_xiao_ee05`.
 
    c. Upload the **filesystem** (the settings file and the portal web page): run "PlatformIO: Upload Filesystem Image" from the task list (or `pio run -t uploadfs`).
 
@@ -286,14 +324,14 @@ If setup isn't completed within 10 minutes, the device shows a "Setup paused" sc
 
 The same page used for first-time setup remains available after the device is configured:
 
-- **Enter it** by pressing the RST button **twice, one to three seconds apart**, once the display has finished refreshing (on the reTerminal E1002, just press the **middle front button** once while it sleeps). The display shows where to reach it — `http://weatherepd.local/` or the device's IP — for the next 10 minutes (configurable).
+- **Enter it** by pressing the RST button **twice, one to three seconds apart**, once the display has finished refreshing (on the reTerminal E1002, just press the **middle front button** once while it sleeps; on the XIAO EE02 and EE05, **KEY1**). The display shows where to reach it — `http://weatherepd.local/` or the device's IP — for the next 10 minutes (configurable).
 - **Every setting** in `config.json` is editable: WiFi (with network scan), location (with phone-GPS detection), time zone and clock/date formats (dropdowns with live examples), refresh schedule and bedtime hours, forecast days (5–7), widget rows (5 = 10 slots, 6 = 12 slots — enough for every widget at once), and a per-slot widget picker that mirrors the physical layout.
-- On the EE02's 1600x1200 layout the widget picker gives way to the layout's eight cells (`panel_slots`), and the font and widget-row settings, which that layout does not use, are hidden.
+- On the EE02's 1600x1200 layout the widget picker gives way to the layout's eight cells (`panel_slots`), and on the EE05's 4.26in layout to the home page's three tiles (`home_tiles`); the font and widget-row settings, which those layouts do not use, are hidden.
 - An **advanced raw-JSON editor** exposes the settings not in the form (battery thresholds, NTP servers, portal options). Saves are validated on-device and keep a one-generation backup (`config.bak`).
 - A **Diagnostics** section shows what the display did the last time it woke and the last time something went wrong: the result, how long WiFi, the weather requests and the screen each took, the battery voltage and the WiFi signal. It answers "why did it not update?" without a USB cable. The record stays on the device.
 - The portal serves plain HTTP on your LAN while active.
 
-On the reTerminal E1002 the **green (right) front button** also wakes the device for an immediate weather refresh.
+On the reTerminal E1002 the **green (right) front button** also wakes the device for an immediate weather refresh; on the XIAO EE02 and EE05, **KEY2** does.
 
 ### Runtime Configuration: config.json
 

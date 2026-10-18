@@ -138,6 +138,8 @@
   void setGreyMode426(bool grey);
   // The home page's tones (renderer426.cpp PALETTES_426); 0 the default.
   extern int PALETTE_426;
+  // The indoor reading's trend for the home page (TREND_* in history.h).
+  extern int INDOOR_TREND_426;
   // The hours page's layout: 0 the cells, 1 tables, 2 graphs, 3 graph + cells.
   extern int HOURS_LAYOUT_426;
   // The four greys, their mixes and text on each: the _testcard build.
