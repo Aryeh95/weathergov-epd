@@ -69,7 +69,7 @@
 
 // Seeed's XIAO ePaper Display Board EE05: the XIAO ESP32-S3 Plus, its USB
 // port as Serial, its user LED and two wake buttons.
-#if defined(BOARD_XIAO_EE05)
+#ifdef BOARD_XIAO_EE05
   #define BOARD_XIAO_EPAPER
 #endif
 
@@ -78,10 +78,12 @@
 // (The reTerminal E1002 has an SHT4x temperature/humidity sensor onboard,
 //  selected automatically when building with -e seeed_reterminal_e1002.)
 #ifdef BOARD_XIAO_EE05
-  // none on the board either; an SHT4x on the extension port's I2C pins
-  // (GPIO5 SDA, GPIO6 SCL, 3V3, GND) is found by itself
+  // none on the board either; an SHT4x on the extension port (see
+  // config.cpp for the pins) is found by itself
   #define SENSOR_SHT4X
   #define SENSOR_OPTIONAL
+  // its supply is switched on just before it is read
+  #define SENSOR_INIT_DELAY_MS 10
 #elif defined(BOARD_RETERMINAL_E1002)
   #define SENSOR_SHT4X
 #else
