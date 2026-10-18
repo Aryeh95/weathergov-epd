@@ -95,10 +95,12 @@
   // its supply is switched on just before it is read
   #define SENSOR_INIT_DELAY_MS 10
 #elif defined(BOARD_XIAO_EE05)
-  // none on the board either; an SHT4x on the extension port's I2C pins
-  // (GPIO5 SDA, GPIO6 SCL, 3V3, GND) is found by itself
+  // none on the board either; an SHT4x on the extension port (see
+  // config.cpp for the pins) is found by itself
   #define SENSOR_SHT4X
   #define SENSOR_OPTIONAL
+  // its supply is switched on just before it is read
+  #define SENSOR_INIT_DELAY_MS 10
 #elif defined(BOARD_RETERMINAL_E1002)
   #define SENSOR_SHT4X
 #else

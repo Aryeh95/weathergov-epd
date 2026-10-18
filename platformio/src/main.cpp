@@ -117,6 +117,14 @@ static void enableButtonWake() {}
  * have done from sleep. `seconds` 0 is a sleep with no timer (a test card):
  * the wait lasts as long as the computer is there.
  */
+#if defined(BOARD_XIAO_EPAPER) && ARDUINO_USB_CDC_ON_BOOT
+// How the last wait ended, kept through deep sleep and reported at the next
+// boot: the board is off the USB port by then, so it cannot say at the time.
+// 0 none, 1 the computer went, 2 the refresh button, 3 the time was up.
+RTC_DATA_ATTR static uint8_t s_waitEnd = 0;
+RTC_DATA_ATTR static uint32_t s_waitSecs = 0;
+#endif
+
 static void sleepOrWait(uint64_t seconds)
 {
 #if defined(BOARD_XIAO_EPAPER) && ARDUINO_USB_CDC_ON_BOOT
@@ -130,12 +138,30 @@ static void sleepOrWait(uint64_t seconds)
     const uint64_t waitMs = (seconds - 1) * 1000ULL;
     uint64_t left = 1;
     bool timed = (seconds != 0);
+    // The core calls the computer gone when its 1 ms start-of-frame has
+    // been missing for 5 ms. Hold out for 3 s of silence before believing
+    // it: a glitch on the bus must not end the wait (it did, on the EE02
+    // and the EE05, both on a computer's port the whole time).
+    unsigned long quietSince = 0;
+    s_waitEnd = 3;
     while (seconds == 0 || millis() - t0 < waitMs)
     {
       if (!HWCDC::isPlugged())
       {
-        left = seconds ? (waitMs - (millis() - t0)) / 1000ULL + 1 : 0;
-        break;
+        if (quietSince == 0)
+        {
+          quietSince = millis() | 1;
+        }
+        else if (millis() - quietSince >= 3000)
+        {
+          left = seconds ? (waitMs - (millis() - t0)) / 1000ULL + 1 : 0;
+          s_waitEnd = 1;
+          break;
+        }
+      }
+      else
+      {
+        quietSince = 0;
       }
       if (digitalRead(PIN_BTN_PORTAL) == LOW)
       { // as a double reset would: the portal on the next boot
@@ -150,10 +176,12 @@ static void sleepOrWait(uint64_t seconds)
       {
         left = 1;                    // a refresh: wake in a second
         timed = true;
+        s_waitEnd = 2;
         break;
       }
       delay(100);
     }
+    s_waitSecs = (millis() - t0) / 1000;
     if (timed)
     {
       esp_sleep_enable_timer_wakeup(left * 1000000ULL);
@@ -435,6 +463,16 @@ void setup()
   Serial.setTxTimeoutMs(20);
 #endif
   Serial.println("[build] " GIT_REV " (" __DATE__ " " __TIME__ ")");
+#if defined(BOARD_XIAO_EPAPER) && ARDUINO_USB_CDC_ON_BOOT
+  if (s_waitEnd != 0)
+  {
+    static const char *const why[] = {"", "the computer went (3 s without "
+      "USB frames)", "the refresh button", "its time was up"};
+    Serial.printf("[usb] the last wait ended after %u s: %s\n",
+                  static_cast<unsigned>(s_waitSecs), why[s_waitEnd]);
+    s_waitEnd = 0;
+  }
+#endif
 #if defined(USE_HTTPS_NO_CERT_VERIF)
   Serial.println("[tls] certificates are NOT verified (config_local.h)");
 #endif

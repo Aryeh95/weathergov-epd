@@ -89,11 +89,16 @@ const uint8_t PIN_SD_CS    = PIN_UNUSED;
 // KEY2 into an immediate refresh; KEY3 (GPIO8) is unassigned.
 const uint8_t PIN_BTN_PORTAL  = 2;
 const uint8_t PIN_BTN_REFRESH = 3;
-// No sensor on the board; the extension port brings out I2C on the XIAO's
-// usual pins, with 3V3 always on.
+// No sensor on the board. An SHT4x goes on the extension port, the two
+// 7-pin 2.54 mm footprints J2 and J4 (not fitted):
+//   J2 pin 1  SDA   GPIO5
+//   J2 pin 2  SCL   GPIO6
+//   J4 pin 5  3V3   VCC_3V3, switched with the panel supply (GPIO43)
+//   J4 pin 6  GND
+// (or on the XIAO's own D4, D5, 3V3 and GND pins, where 3V3 is always on)
 const uint8_t PIN_BME_SDA = 5;
 const uint8_t PIN_BME_SCL = 6;
-const uint8_t PIN_BME_PWR = PIN_UNUSED;
+const uint8_t PIN_BME_PWR = PIN_EPD_PWR; // one load switch for both
 const uint8_t BME_ADDRESS = 0x44;
 #elif defined(BOARD_RETERMINAL_E1002)
 // Seeed reTerminal E1002 -- fixed internal wiring, do not change.
