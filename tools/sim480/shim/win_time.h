@@ -12,4 +12,19 @@ inline struct tm *localtime_r(const time_t *t, struct tm *out)
   return out;
 }
 #endif
+// ...nor strlcpy, which settings.cpp uses
+#ifdef __cplusplus
+#include <cstring>
+static inline size_t strlcpy(char *dst, const char *src, size_t size)
+{
+  const size_t n = strlen(src);
+  if (size)
+  {
+    const size_t k = n < size - 1 ? n : size - 1;
+    memcpy(dst, src, k);
+    dst[k] = '\0';
+  }
+  return n;
+}
+#endif
 #endif

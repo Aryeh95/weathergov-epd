@@ -10,6 +10,7 @@
  * Part of esp32-weather-epd; GNU General Public License v3 or later.
  */
 
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -26,7 +27,12 @@
 #include "renderer.h"
 #include "sun.h"
 #include "fonts/font_names.h"
+#include "precip.h"
+#include "settings.h"
 #include <WiFi.h>
+#if defined(DISP_4G_426)
+  #include "GxEPD2_4G_4G.h" // host426Frame()
+#endif
 #ifdef _WIN32
   #include <stdlib.h>
   static int setenv(const char *k, const char *v, int) { return _putenv_s(k, v); }
@@ -100,6 +106,35 @@ static const uint8_t INK_RGB_3C[8][3] = {
   {30, 32, 34},    {30, 32, 34}, {30, 32, 34},    {30, 32, 34}};
 static const uint8_t (*INK_RGB)[3] = INK_RGB_E6;
 
+#if defined(DISP_4G_426)
+// The 4.26in panel's greys, black .. white, as they look beside white paper
+// (255): measured on the seeed_xiao_ee05_testcard card (measured_426.json).
+// Dark grey is far lighter than its name: L* 69, against black's 16.
+static const uint8_t GREY_RGB_426[4][3] = {
+  {28, 32, 34}, {135, 144, 145}, {166, 172, 174}, {211, 217, 214}};
+
+static void savePpm(const char *path)
+{
+  FILE *f = fopen(path, "wb");
+  if (!f) { perror(path); return; }
+  fprintf(f, "P6\n800 480\n255\n");
+  const uint8_t *frame = host426Frame();
+  for (int i = 0; i < 800 * 480; ++i)
+  {
+    fwrite(GREY_RGB_426[frame[i] & 3], 1, 3, f);
+  }
+  fclose(f);
+  // and the level of every dot (<name>.idx), for build.py's measured mixes
+  std::string idx(path);
+  idx = idx.substr(0, idx.size() - 4) + ".idx";
+  if (FILE *g = fopen(idx.c_str(), "wb"))
+  {
+    fwrite(frame, 1, 800 * 480, g);
+    fclose(g);
+  }
+  printf("wrote %s\n", path);
+}
+#else
 static void savePpm(const char *path)
 {
   FILE *f = fopen(path, "wb");
@@ -126,6 +161,7 @@ static void savePpm(const char *path)
   }
   printf("wrote %s\n", path);
 }
+#endif
 
 static void loadWeather(time_t now, bool imsCurrent)
 {
@@ -299,6 +335,196 @@ static int mainKrakow(const std::string &outDir)
   return 0;
 }
 
+/* The US build (--locale=en_US): the device's own config.json, read by the
+ * firmware's loadSettings() from the folder SIM480_FS names, and replies
+ * saved for its location (tools/sim480/fetch_us.py): weather.gov's forecast,
+ * hourly forecast, gridpoint QPF and alerts, Open-Meteo's current conditions
+ * and air quality, AirNow and Google Pollen when config.json has their keys.
+ * Drawn for the moment the simulator runs (or SIM480_NOW, unix time), with
+ * the indoor reading from SIM480_INDOOR ("celsius,percent") if set.
+ */
+static int mainUS(const std::string &outDir)
+{
+  if (!loadSettings())
+  {
+    fprintf(stderr, "no config.json in SIM480_FS (%s)\n", getenv("SIM480_FS") ? getenv("SIM480_FS") : "fs");
+    return 1;
+  }
+  setenv("TZ", TIMEZONE, 1);
+  tzset();
+  // the PC's clock (time() is the simulated one, which starts at 0)
+  const time_t now = getenv("SIM480_NOW") ? static_cast<time_t>(atoll(getenv("SIM480_NOW")))
+                   : static_cast<time_t>(std::chrono::duration_cast<std::chrono::seconds>(
+                         std::chrono::system_clock::now().time_since_epoch()).count());
+  hostNow = now;
+  setPageTime(now);
+
+  if (!parse("nws_forecast.json", [](WiFiClient &c) { return deserializeNWSForecastDaily(c, daily); })
+      || !parse("nws_hourly.json", [](WiFiClient &c) { return deserializeNWSForecastHourly(c, hourly); }))
+  {
+    return 1;
+  }
+  int got = 0;
+  while (got < OWM_NUM_HOURLY && hourly[got].dt > 0) ++got;
+  if (got < HOURLY_GRAPH_MAX) HOURLY_GRAPH_MAX = got;
+
+  // as finishWeather: current conditions from CURRENT_SOURCE, daily amounts
+  // from weather.gov's QPF and Open-Meteo beyond it
+  std::vector<qpf_bucket_t> qpf;
+  parse("nws_gridpoint.json", [&](WiFiClient &c) { return deserializeNWSGridpointQPF(c, qpf); });
+  const bool useGoogle = (CURRENT_SOURCE == "google"), useNWS = (CURRENT_SOURCE == "nws");
+  om_daily_precip_t omDaily = {};
+  const bool omOk = parse("openmeteo_current.json", [&](WiFiClient &c) {
+    return deserializeOpenMeteoCurrent(c, hourly[0], current, omDaily, !useGoogle && !useNWS, nullptr); });
+  if (useGoogle)
+  {
+    if (!parse("google_current.json", [](WiFiClient &c) { return deserializeGoogleCurrent(c, hourly[0], current); }))
+      fillCurrentFromFallback(hourly[0], current);
+  }
+  else if (useNWS || !omOk)
+  {
+    fillCurrentFromFallback(hourly[0], current);
+  }
+  for (int i = 0; i < OWM_NUM_DAILY; ++i)
+  {
+    const daily_precip_pick_t pick = pickDailyPrecip(daily[i].dt, now, qpf, omDaily);
+    daily[i].rain = pick.mm;
+    daily[i].snow = 0.f;
+    daily[i].precip_src = pick.src;
+  }
+
+  tm lt;
+  localtime_r(&now, &lt);
+  if (!calcSunriseSunset(lt.tm_year + 1900, lt.tm_mon + 1, lt.tm_mday,
+                         LAT.toDouble(), LON.toDouble(), current.sunrise, current.sunset))
+  {
+    current.sunrise = current.sunset = 0;
+  }
+  setSunTimes(current.sunrise, current.sunset);
+  current.dt = now;
+
+  float uvi = NAN;
+  air.valid = false;
+  air.us_aqi = -1;
+  air.il_valid = false;
+  parse("openmeteo_air.json", [&](WiFiClient &c) { return deserializeAirQuality(c, air, uvi); });
+  current.uvi = uvi;
+  if (!AIRNOW_APIKEY.isEmpty())
+  {
+    parse("airnow.json", [](WiFiClient &c) { return deserializeAirNow(c, air.us_aqi); });
+  }
+  pollen.tree = pollen.grass = pollen.weed = 0;
+  pollen.max_upi = -1;
+  if (!POLLEN_APIKEY.isEmpty())
+  {
+    parse("google_pollen.json", [](WiFiClient &c) { return deserializePollen(c, pollen); });
+  }
+  alerts.clear();
+  parse("nws_alerts.json", [](WiFiClient &c) { return deserializeNWSAlerts(c, alerts); });
+
+  float inTemp = NAN, inHum = NAN;
+  if (const char *in = getenv("SIM480_INDOOR"))
+  {
+    sscanf(in, "%f,%f", &inTemp, &inHum);
+  }
+  tm timeInfo;
+  localtime_r(&hostNow, &timeInfo);
+  String dateStr, refreshTimeStr;
+  getDateStr(dateStr, &timeInfo);
+  getRefreshTimeStr(refreshTimeStr, true, &timeInfo);
+#if defined(DISP_4G_426)
+  // a made-up afternoon of showers, to see the rain bars on a dry day
+  if (getenv("SIM426_RAIN"))
+  {
+    static const int POP[] = {10, 15, 30, 55, 70, 75, 60, 45, 30, 20, 15, 10};
+    for (int i = 0; i < 12; ++i) hourly[6 + i].pop = POP[i] / 100.0f;
+  }
+  // the home tiles as config.json "home_tiles" would set them: "a,b,c"
+  if (const char *t = getenv("SIM426_TILES"))
+  {
+    String rest = t;
+    for (int i = 0; i < 3; ++i)
+    {
+      const int comma = rest.indexOf(",");
+      HOME_TILES[i] = comma < 0 ? rest : rest.substring(0, comma);
+      rest = comma < 0 ? String("") : rest.substring(comma + 1);
+    }
+  }
+  // the home page in each of its palettes (SIM426_PALETTES=1), else the default
+  const int palettes = getenv("SIM426_PALETTES") ? 6 : 1;
+  const int chosen = PALETTE_426;
+  for (int p = 0; p < palettes; ++p)
+  {
+    PALETTE_426 = p;
+#endif
+  initDisplay();
+  do
+  {
+    fillDisplayBackground();
+    drawCurrentConditions(current, daily[0], air, pollen, inTemp, inHum);
+    drawOutlookGraph(hourly, daily, timeInfo);
+    drawForecast(daily, timeInfo);
+    drawLocationDate(CITY_STRING, dateStr);
+    drawAlerts(alerts, CITY_STRING, dateStr);
+    drawStatusBar("", refreshTimeStr, -58, 4050, historyBatteryDaysLeft(), false);
+  } while (display.nextPage());
+#if defined(DISP_4G_426)
+    if (palettes > 1)
+    {
+      savePpm((outDir + "/sim_ee05_home_p" + std::to_string(p) + ".ppm").c_str());
+    }
+  }
+  PALETTE_426 = chosen;
+  initDisplay();
+  do
+  {
+    drawCurrentConditions(current, daily[0], air, pollen, inTemp, inHum);
+    drawOutlookGraph(hourly, daily, timeInfo);
+    drawForecast(daily, timeInfo);
+    drawLocationDate(CITY_STRING, dateStr);
+    drawAlerts(alerts, CITY_STRING, dateStr);
+    drawStatusBar("", refreshTimeStr, -58, 4050, historyBatteryDaysLeft(), false);
+  } while (display.nextPage());
+  // the home page, then the pages KEY3 turns to, in black and white
+  savePpm((outDir + "/sim_ee05_home.ppm").c_str());
+  static const char *const PAGE_FILE[] = {"", "sim_ee05_hours", "sim_ee05_week"};
+  for (int page = 1; page < PAGES_426; ++page)
+  {
+    setGreyMode426(false);
+    initDisplay();
+    do
+    {
+      drawPage426(page, current, hourly, daily, air, pollen, inTemp, inHum,
+                  CITY_STRING, dateStr, refreshTimeStr, 4050);
+    } while (display.nextPage());
+    setGreyMode426(true);
+    savePpm((outDir + "/" + PAGE_FILE[page] + ".ppm").c_str());
+  }
+  // the hours page in each of its layouts (SIM426_HOURS=1)
+  if (getenv("SIM426_HOURS"))
+  {
+    for (int l = 0; l < 4; ++l)
+    {
+      HOURS_LAYOUT_426 = l;
+      setGreyMode426(false);
+      initDisplay();
+      do
+      {
+        drawPage426(1, current, hourly, daily, air, pollen, inTemp, inHum,
+                    CITY_STRING, dateStr, refreshTimeStr, 4050);
+      } while (display.nextPage());
+      setGreyMode426(true);
+      savePpm((outDir + "/sim_ee05_hours_l" + std::to_string(l) + ".ppm").c_str());
+    }
+    HOURS_LAYOUT_426 = 0;
+  }
+#else
+  savePpm((outDir + "/sim_us_now.ppm").c_str());
+#endif
+  printf("  %d hourly, %d alerts, AQI %d, pollen %d\n", got, (int)alerts.size(), air.us_aqi, pollen.max_upi);
+  return 0;
+}
+
 int main(int argc, char **argv)
 {
   const std::string outDir = argc > 1 ? argv[1] : ".";
@@ -306,7 +532,21 @@ int main(int argc, char **argv)
   const std::string panel = argc > 3 ? argv[3] : "e6";
   if (panel == "bwv2") INK_RGB = INK_RGB_BW;
   else if (panel == "3c") INK_RGB = INK_RGB_3C;
+#if defined(DISP_4G_426)
+  printf("panel %s, 800x480 in four greys\n", panel.c_str());
+  if (getenv("SIM480_TESTCARD"))
+  { // the greys card (seeed_xiao_ee05_testcard), on its own
+    initDisplay();
+    do
+    {
+      drawTestCard426();
+    } while (display.nextPage());
+    savePpm((outDir + "/sim_ee05_testcard.ppm").c_str());
+    return 0;
+  }
+#else
   printf("panel %s, %dx%d\n", panel.c_str(), display.width(), display.height());
+#endif
 #if defined(DISP_7C_E6)
   if (getenv("SIM480_TESTCARD"))
   { // the ink card (seeed_reterminal_e1002_testcard), on its own
@@ -322,6 +562,10 @@ int main(int argc, char **argv)
   if (strcmp(LOCALE_STR(LOCALE), "pl_PL") == 0)
   {
     return mainKrakow(outDir);
+  }
+  if (strcmp(LOCALE_STR(LOCALE), "en_US") == 0)
+  {
+    return mainUS(outDir);
   }
 
   // Israel, as the device would be configured

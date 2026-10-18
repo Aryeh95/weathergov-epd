@@ -73,3 +73,43 @@ and coordinates).
 The sample has no indoor sensor, so the indoor cells show `--`; pressure
 and visibility show `--` because IMS reports neither (the Open-Meteo or
 Google current-conditions source fills them on the device).
+
+## Your own device's page (`--locale=en_US`)
+
+A US build draws the page a real device would show, from its own settings
+and the replies for its location:
+
+```
+python tools/sim480/fetch_us.py path/to/config.json us_data
+SIM480_FS=folder_with_config.json python tools/sim480/build.py out us_data --locale=en_US
+```
+
+`fetch_us.py` saves what the firmware would fetch: weather.gov's forecast,
+hourly forecast, gridpoint precipitation and alerts, Open-Meteo's current
+conditions and air quality, and AirNow and Google Pollen when config.json
+has their keys. Keys and coordinates come from config.json and are not
+written anywhere else -- but the replies name the place, so keep them out
+of the repository. The page is drawn for the moment the simulator runs
+(`SIM480_NOW`, a Unix time, to choose another); `SIM480_INDOOR="21.5,46"`
+gives the indoor sensor a reading (Celsius, %).
+
+## The XIAO EE05's 4.26in (`--panel=4g426`)
+
+The EE05 build has a layout of its own (`renderer426.cpp`): a home page in
+the panel's four greys and pages in black and white that KEY3 turns to.
+`--panel=4g426 --locale=en_US` draws all of them -- `sim_ee05_home`,
+`sim_ee05_hours`, `sim_ee05_week` -- in the greys measured on the
+`seeed_xiao_ee05_testcard` card (`measured_426.json`): black, dark grey,
+light grey and white are L* 16, 69, 81 and 100, the panel's white 68.5 %
+of white paper's. Dark grey is far lighter than its name; the black/dark
+grey and black/light grey checkers (L* 39 and 47) are the darker greys.
+`_blended` colours each 2x2 window by the measured checkers, as for the
+Spectra 6.
+
+| Setting | Draws |
+|---|---|
+| `SIM480_TESTCARD=1` | the greys card instead of the weather |
+| `SIM426_PALETTES=1` | the home page in each of its palettes, `sim_ee05_home_pN` |
+| `SIM426_HOURS=1` | the hours page in each of its layouts, `sim_ee05_hours_lN` |
+| `SIM426_RAIN=1` | a made-up afternoon of showers, to see the rain on a dry day |
+| `SIM426_TILES="wind,moon_phase,indoor"` | the home tiles, as config.json `home_tiles` |

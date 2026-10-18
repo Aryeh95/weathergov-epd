@@ -99,6 +99,12 @@ public:
     const size_t p = v.rfind(s.v);
     return p == std::string::npos ? -1 : static_cast<int>(p);
   }
+  int lastIndexOf(char c, int from) const
+  {
+    if (from < 0) return -1;
+    const size_t p = v.rfind(c, static_cast<size_t>(from));
+    return p == std::string::npos ? -1 : static_cast<int>(p);
+  }
   bool startsWith(const String &s) const { return v.rfind(s.v, 0) == 0; }
   bool endsWith(const String &s) const
   {
