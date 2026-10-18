@@ -85,7 +85,7 @@
 // Uncomment the macro that identifies your sensor.
 // (The reTerminal E1002 has an SHT4x temperature/humidity sensor onboard,
 //  selected automatically when building with -e seeed_reterminal_e1002.)
-#ifdef BOARD_XIAO_EE05
+#if defined(BOARD_XIAO_EE05)
   // none on the board either; an SHT4x on the extension port (see
   // config.cpp for the pins) is found by itself
   #define SENSOR_SHT4X
