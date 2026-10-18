@@ -250,6 +250,8 @@ static void handleGetInfo()
   doc["build"] = String(GIT_REV) + " (" __DATE__ " " __TIME__ ")";
 #if defined(BOARD_XIAO_EE02)
   doc["board"] = "Seeed XIAO EE02, GDEB0709E01 1600x1200";
+#elif defined(BOARD_XIAO_EE05)
+  doc["board"] = "Seeed XIAO EE05, 4.26in 800x480";
 #elif defined(BOARD_RETERMINAL_E1001)
   doc["board"] = "Seeed reTerminal E1001";
 #elif defined(BOARD_RETERMINAL_E1002)

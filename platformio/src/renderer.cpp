@@ -52,12 +52,12 @@
 #include "icons/icons_40x40.h" // 6-row widget layout (widget_rows = 6)
 
 #ifdef DISP_BW_V2
-  GxEPD2_BW<GxEPD2_750_GDEY075T7,
-            GxEPD2_750_GDEY075T7::HEIGHT> display(
-    GxEPD2_750_GDEY075T7(PIN_EPD_CS,
-                         PIN_EPD_DC,
-                         PIN_EPD_RST,
-                         PIN_EPD_BUSY));
+  GxEPD2_BW<GxEPD2_BW_V2_PANEL,
+            GxEPD2_BW_V2_PANEL::HEIGHT> display(
+    GxEPD2_BW_V2_PANEL(PIN_EPD_CS,
+                       PIN_EPD_DC,
+                       PIN_EPD_RST,
+                       PIN_EPD_BUSY));
 #endif
 #ifdef DISP_3C_B
   GxEPD2_3C<GxEPD2_750c_GDEY075Z08,
@@ -599,7 +599,13 @@ void initDisplay()
 #ifdef DRIVER_WAVESHARE
   display.init(115200, true, 2, false);
 #endif
-#ifdef DRIVER_DESPI_C02
+#if defined(DRIVER_DESPI_C02) && defined(PANEL_GDEQ0426T82)
+  // not "initial": GxEPD2 would first wipe the panel white with a full
+  // refresh of its own, and then draw the page with a second -- on every
+  // wake, since the panel loses its power while the board sleeps. A full
+  // refresh does not depend on what the panel showed before.
+  display.init(115200, false, 10, false);
+#elif defined(DRIVER_DESPI_C02)
   display.init(115200, true, 10, false);
 #endif
   // remap spi
@@ -609,7 +615,13 @@ void initDisplay()
             PIN_EPD_MOSI,
             PIN_EPD_CS);
 
+#if defined(BOARD_XIAO_EE05)
+  // the EE05's 24-pin connector puts the 4.26in glass's first row at the
+  // bottom of the page as the board sits (seen on the panel, 2026-10-17)
+  display.setRotation(2);
+#else
   display.setRotation(0);
+#endif
   display.setTextSize(1);
   display.setTextColor(DM_FG);
   display.setTextWrap(false);

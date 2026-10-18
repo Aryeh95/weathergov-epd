@@ -65,6 +65,36 @@ const uint8_t PIN_BME_SDA = 13;
 const uint8_t PIN_BME_SCL = 11;
 const uint8_t PIN_BME_PWR = PIN_EPD_PWR; // one load switch for both
 const uint8_t BME_ADDRESS = 0x76;
+#elif defined(BOARD_XIAO_EE05)
+// Seeed XIAO ePaper Display Board EE05 (XIAO ESP32-S3 Plus soldered on) --
+// fixed wiring, do not change. From Seeed's EE05 schematic (V1.0), which
+// agrees with the pin table of their Seeed_GFX2 driver.
+// Battery: GPIO1 through a 10k:10k divider behind a load switch that ADC_EN
+// (GPIO39) turns on.
+const uint8_t PIN_BAT_ADC  = 1;
+const uint8_t PIN_BAT_EN   = 39;
+// 24-pin panel connector
+const uint8_t PIN_EPD_BUSY = 4;
+const uint8_t PIN_EPD_CS   = 44; // the UART0 RX pin
+const uint8_t PIN_EPD_CS2  = PIN_UNUSED;
+const uint8_t PIN_EPD_RST  = 38;
+const uint8_t PIN_EPD_DC   = 10;
+const uint8_t PIN_EPD_SCK  = 7;
+const uint8_t PIN_EPD_MISO = PIN_UNUSED; // GPIO8 is KEY3 on this board
+const uint8_t PIN_EPD_MOSI = 9;
+const uint8_t PIN_EPD_PWR  = 43; // panel supply load switch (the UART0 TX pin)
+const uint8_t PIN_SD_EN    = PIN_UNUSED; // no microSD slot
+const uint8_t PIN_SD_CS    = PIN_UNUSED;
+// Three buttons, active low. KEY1 wakes into the configuration portal,
+// KEY2 into an immediate refresh; KEY3 (GPIO8) is unassigned.
+const uint8_t PIN_BTN_PORTAL  = 2;
+const uint8_t PIN_BTN_REFRESH = 3;
+// No sensor on the board; the extension port brings out I2C on the XIAO's
+// usual pins, with 3V3 always on.
+const uint8_t PIN_BME_SDA = 5;
+const uint8_t PIN_BME_SCL = 6;
+const uint8_t PIN_BME_PWR = PIN_UNUSED;
+const uint8_t BME_ADDRESS = 0x44;
 #elif defined(BOARD_RETERMINAL_E1002)
 // Seeed reTerminal E1002 -- fixed internal wiring, do not change.
 // (Sources: Seeed wiki "Arduino Cookbook" pages for the reTerminal E Series.)

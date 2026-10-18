@@ -29,8 +29,15 @@
   #define DISP_WIDTH  800
   #define DISP_HEIGHT 480
   #include <GxEPD2_BW.h>
-  extern GxEPD2_BW<GxEPD2_750_GDEY075T7,
-                   GxEPD2_750_GDEY075T7::HEIGHT> display;
+  // The same 800x480 page on another black-and-white panel: Seeed's 4.26in
+  // (XIAO EE05) is Good Display's GDEQ0426T82 glass, an SSD1677.
+  #if defined(PANEL_GDEQ0426T82)
+    #define GxEPD2_BW_V2_PANEL GxEPD2_426_GDEQ0426T82
+  #else
+    #define GxEPD2_BW_V2_PANEL GxEPD2_750_GDEY075T7
+  #endif
+  extern GxEPD2_BW<GxEPD2_BW_V2_PANEL,
+                   GxEPD2_BW_V2_PANEL::HEIGHT> display;
 #endif
 #ifdef DISP_3C_B
   #define DISP_WIDTH  800

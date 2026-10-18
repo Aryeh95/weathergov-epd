@@ -1904,7 +1904,7 @@ void idleSDCard()
  */
 void disableBuiltinLED()
 {
-#if defined(BOARD_XIAO_EE02)
+#if defined(BOARD_XIAO_EPAPER)
   // The XIAO's user LED is on GPIO21 and lights when the pin is LOW, so off
   // means holding it HIGH.
   pinMode(21, OUTPUT);

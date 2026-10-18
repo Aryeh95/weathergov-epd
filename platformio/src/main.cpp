@@ -119,7 +119,7 @@ static void enableButtonWake() {}
  */
 static void sleepOrWait(uint64_t seconds)
 {
-#if defined(BOARD_XIAO_EE02) && ARDUINO_USB_CDC_ON_BOOT
+#if defined(BOARD_XIAO_EPAPER) && ARDUINO_USB_CDC_ON_BOOT
   if ((seconds == 0 || seconds > 2) && HWCDC::isPlugged())
   {
     Serial.println("[usb] computer attached: waiting awake, not asleep");
@@ -423,7 +423,7 @@ void setup()
 {
   unsigned long startTime = millis();
   Serial.begin(115200);
-#if defined(BOARD_XIAO_EE02)
+#if defined(BOARD_XIAO_EPAPER)
   // Serial is the USB port here (UART0's pins drive the panel). Without a
   // computer listening, every print would wait out its timeout, so keep it
   // short -- but not 0: this core's HWCDC::write counts its retries down
@@ -644,7 +644,7 @@ void setup()
   // automatically when the device has no WiFi configured (fresh flash).
   // Arming happens after the low-battery check above so a battery-protection
   // wake can neither trigger nor be interrupted into the portal.
-#if defined(BOARD_RETERMINAL_E1002) || defined(BOARD_XIAO_EE02)
+#if defined(BOARD_RETERMINAL_E1002) || defined(BOARD_XIAO_EPAPER)
   // This board has a dedicated portal button, so the double-reset detector
   // is unnecessary -- and skipping it means an interrupted wake (a firmware
   // flash, most commonly) no longer drops the next boot into the portal.
