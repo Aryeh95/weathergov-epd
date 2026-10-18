@@ -35,7 +35,14 @@
 // (The reTerminal E1001 build defines both board flags: the E1002 flag for
 //  the shared E-series mainboard quirks, plus E1001 to swap the panel for
 //  its 7.5in monochrome one -- a GDEY075T7-class panel, i.e. DISP_BW_V2.)
-#if defined(BOARD_RETERMINAL_E1001)
+// (Building with -e seeed_xiao_ee05 selects Seeed's 4.26in monochrome panel
+//  on the XIAO ePaper Display Board EE05: 800x480 like the 7.5in, so it is
+//  DISP_BW_V2 and the same layout, drawn through GxEPD2's driver for Good
+//  Display's GDEQ0426T82 -- see PANEL_GDEQ0426T82 in renderer.h.)
+#ifdef BOARD_XIAO_EE05
+  #define DISP_BW_V2
+  #define PANEL_GDEQ0426T82
+#elif defined(BOARD_RETERMINAL_E1001)
   #define DISP_BW_V2
 #elif defined(BOARD_RETERMINAL_E1002)
   #define DISP_7C_E6
@@ -60,11 +67,22 @@
 #define DRIVER_DESPI_C02
 // #define DRIVER_WAVESHARE
 
+// Seeed's XIAO ePaper Display Board EE05: the XIAO ESP32-S3 Plus, its USB
+// port as Serial, its user LED and two wake buttons.
+#if defined(BOARD_XIAO_EE05)
+  #define BOARD_XIAO_EPAPER
+#endif
+
 // INDOOR ENVIRONMENT SENSOR
 // Uncomment the macro that identifies your sensor.
 // (The reTerminal E1002 has an SHT4x temperature/humidity sensor onboard,
 //  selected automatically when building with -e seeed_reterminal_e1002.)
-#ifdef BOARD_RETERMINAL_E1002
+#ifdef BOARD_XIAO_EE05
+  // none on the board either; an SHT4x on the extension port's I2C pins
+  // (GPIO5 SDA, GPIO6 SCL, 3V3, GND) is found by itself
+  #define SENSOR_SHT4X
+  #define SENSOR_OPTIONAL
+#elif defined(BOARD_RETERMINAL_E1002)
   #define SENSOR_SHT4X
 #else
 #define SENSOR_BME280
@@ -403,7 +421,8 @@
 // configured one has none. The he_IL locale's defaults file switches Heebo
 // on; for another build:
 // #define FONT_INCLUDE_Heebo 1
-#if defined(BOARD_RETERMINAL_E1002) && !defined(FONT_INCLUDE_Bitter)
+#if (defined(BOARD_RETERMINAL_E1002) || defined(BOARD_XIAO_EE05)) \
+    && !defined(FONT_INCLUDE_Bitter)
   #define FONT_INCLUDE_Bitter 1
 #endif
 
