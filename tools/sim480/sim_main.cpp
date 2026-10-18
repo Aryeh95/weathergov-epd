@@ -439,6 +439,17 @@ static int mainUS(const std::string &outDir)
     static const int POP[] = {10, 15, 30, 55, 70, 75, 60, 45, 30, 20, 15, 10};
     for (int i = 0; i < 12; ++i) hourly[6 + i].pop = POP[i] / 100.0f;
   }
+  // the day's warmest hours moved to hour SIM426_PEAK (0 = now): a bump of
+  // warmth there, to see where the high's label and the legend go
+  if (const char *pk = getenv("SIM426_PEAK"))
+  {
+    const int k = atoi(pk);
+    for (int i = 0; i < 24; ++i)
+    {
+      const float d = (i - k) / 3.0f;
+      hourly[i].temp += 12.0f * std::exp(-d * d);
+    }
+  }
   // the home tiles as config.json "home_tiles" would set them: "a,b,c"
   if (const char *t = getenv("SIM426_TILES"))
   {
@@ -450,6 +461,8 @@ static int mainUS(const std::string &outDir)
       rest = comma < 0 ? String("") : rest.substring(comma + 1);
     }
   }
+  // the indoor trend the firmware hands the renderer (the history stub's)
+  INDOOR_TREND_426 = historyIndoorTrend();
   // the home page in each of its palettes (SIM426_PALETTES=1), else the default
   const int palettes = getenv("SIM426_PALETTES") ? 6 : 1;
   const int chosen = PALETTE_426;

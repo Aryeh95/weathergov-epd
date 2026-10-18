@@ -55,6 +55,8 @@
 #include "conversions.h"
 #include "display_utils.h"
 #include "rtl.h"
+#include "history.h"
+#include "text426.h"
 #include "sun.h"
 
 #include "fonts/Bitter/Bitter_8pt8b.h"
@@ -72,8 +74,7 @@
 #include "icons/icons_24x24.h"
 #include "icons/icons_48x48.h"
 #include "icons/icons_196x196.h"
-#include "icons/icons_moon.h"
-#include "icons/icons_pollen.h"
+#include "assets426/moon426.h"
 
 typedef GxEPD2_426_GDEQ0426T82 Panel426;
 // The greys in four bands of 120 rows: with a buffer for the whole page
@@ -283,88 +284,79 @@ static void drawIcon(int16_t x, int16_t y, const uint8_t *bmp, int16_t w,
   }
 }
 
-/* A dithered icon (icons_moon.h format: 4 bits a dot, 0 nothing, 1 black,
- * 2 white), both inks drawn so it keeps its contrast on a grey tile.
+/* The moon as it is tonight: NASA's map of its near side (moon426.h), lit
+ * for the phase and error-diffused into the panel's four levels by their
+ * measured brightness. The night side is black; a dark grey ring keeps the bright limb
+ * apart from a light tile. `frac` is moonPhaseFraction(); `south` turns the
+ * moon over, as it looks from the southern hemisphere.
  */
-static void drawDithered(int16_t x, int16_t y, const uint8_t *data,
-                         int16_t size)
+static void drawPhotoMoon(int16_t cx, int16_t cy, double frac, bool south)
 {
-  for (int32_t n = 0; n < static_cast<int32_t>(size) * size; ++n)
+  const int N = MOON426_PX;
+  // the levels' brightness relative to white, measured on the test card
+  static const float REFL[4] = {0.020f, 0.395f, 0.590f, 1.0f};
+  static const uint16_t INK[4] = {K, DG, LG, W};
+  static float tone[MOON426_PX * MOON426_PX];
+  // outside the disc (diffused error can take a dark dot below 0)
+  const float OUTSIDE = -1000.0f;
+  const float e = static_cast<float>(2.0 * M_PI * frac);
+  const float se = std::sin(e), ce = std::cos(e);
+  for (int j = 0; j < N; ++j)
   {
-    const uint8_t b = pgm_read_byte(&data[n >> 1]);
-    const uint8_t v = (n & 1) ? (b & 0x0F) : (b >> 4);
-    if (v == 1 || v == 2)
+    for (int i = 0; i < N; ++i)
     {
-      g->drawPixel(x + n % size, y + n / size, (v == 1) ? K : W);
+      const float x = (i + 0.5f) / N * 2 - 1, y = (j + 0.5f) / N * 2 - 1;
+      const float r2 = x * x + y * y;
+      if (r2 > 1.0f)
+      {
+        tone[j * N + i] = OUTSIDE;
+        continue;
+      }
+      const float z = std::sqrt(1.0f - r2);
+      const float ndl = x * se - z * ce;
+      const float lit = std::max(0.0f, std::min(1.0f, ndl * 6))
+                      * (0.72f + 0.28f * std::max(0.0f, ndl));
+      const float alb = pgm_read_byte(&MOON426_ALBEDO[j * N + i]) / 255.0f;
+      tone[j * N + i] = (0.30f + 0.70f * alb) * lit;
     }
   }
-}
-
-/* The moon as it is tonight, in the panel's greys: the lit side white with
- * its seas light grey, the night side dark grey (earthshine), the limb
- * black. `frac` is moonPhaseFraction(); `south` turns it over, as it looks
- * from the southern hemisphere.
- */
-static void drawGreyMoon(int16_t cx, int16_t cy, int16_t r, double frac,
-                         bool south)
-{
-  // the near side's seas: centre and radii in moon radii, x toward Mare
-  // Crisium, y down, as seen from the northern hemisphere
-  static const float MARIA[][4] = {
-    { 0.62f, -0.30f, 0.14f, 0.11f},   // Crisium
-    { 0.47f,  0.10f, 0.13f, 0.20f},   // Fecunditatis
-    { 0.28f, -0.06f, 0.20f, 0.15f},   // Tranquillitatis
-    { 0.17f, -0.38f, 0.15f, 0.14f},   // Serenitatis
-    { 0.30f,  0.33f, 0.09f, 0.08f},   // Nectaris
-    {-0.22f, -0.44f, 0.26f, 0.19f},   // Imbrium
-    {-0.55f, -0.02f, 0.22f, 0.40f},   // Procellarum
-    {-0.10f,  0.40f, 0.17f, 0.12f},   // Nubium
-    {-0.40f,  0.38f, 0.10f, 0.09f},   // Humorum
-    { 0.00f, -0.72f, 0.32f, 0.06f}};  // Frigoris
-  const float c = static_cast<float>(std::cos(2.0 * M_PI * frac));
-  const float rr = static_cast<float>(r) * r;
-  const float limb = (r - 1.2f) * (r - 1.2f);
-  for (int16_t j = -r; j < r; ++j)
+  // Floyd-Steinberg, in light (the panel's checkers come out a little
+  // darker than their average, which keeps the craters' contrast)
+  const float rr = (N / 2.0f) * (N / 2.0f), limb = (N / 2.0f - 1.0f) * (N / 2.0f - 1.0f);
+  for (int j = 0; j < N; ++j)
   {
-    for (int16_t i = -r; i < r; ++i)
+    for (int i = 0; i < N; ++i)
     {
-      const float d2 = (i + 0.5f) * (i + 0.5f) + (j + 0.5f) * (j + 0.5f);
-      if (d2 > rr)
+      const float v = tone[j * N + i];
+      if (v <= OUTSIDE)
       {
         continue;
       }
-      float x = (i + 0.5f) / r, y = (j + 0.5f) / r;
-      if (south)
+      int k = 0;
+      for (int l = 1; l < 4; ++l)
       {
-        x = -x;
-        y = -y;
+        if (std::fabs(REFL[l] - v) < std::fabs(REFL[k] - v)) {k = l;}
       }
-      const float w = std::sqrt(std::max(0.0f, 1.0f - y * y));
-      // waxing, lit from the right; waning, from the left
-      const bool lit = (frac <= 0.5) ? (x > w * c) : (x < -w * c);
-      uint16_t v;
-      if (d2 > limb)
-      {
-        v = K;
-      }
-      else if (!lit)
-      {
-        v = DG;
-      }
-      else
-      {
-        v = W;
-        for (const auto &m : MARIA)
+      const float err = v - REFL[k];
+      auto spread = [&](int ii, int jj, float w) {
+        if (ii >= 0 && ii < N && jj < N && tone[jj * N + ii] > OUTSIDE)
         {
-          const float u = (x - m[0]) / m[2], t = (y - m[1]) / m[3];
-          if (u * u + t * t <= 1.0f)
-          {
-            v = LG;
-            break;
-          }
+          tone[jj * N + ii] += err * w;
         }
+      };
+      spread(i + 1, j, 7 / 16.0f);
+      spread(i - 1, j + 1, 3 / 16.0f);
+      spread(i, j + 1, 5 / 16.0f);
+      spread(i + 1, j + 1, 1 / 16.0f);
+      const float dx = i + 0.5f - N / 2.0f, dy = j + 0.5f - N / 2.0f;
+      const float d2 = dx * dx + dy * dy;
+      uint16_t c = INK[k];
+      if (d2 > limb && d2 <= rr && k > 1)
+      {
+        c = DG;                    // the ring, where the limb is lit
       }
-      g->drawPixel(cx + i, cy + j, v);
+      const int px = south ? N - 1 - i : i, py = south ? N - 1 - j : j;
+      g->drawPixel(cx - N / 2 + px, cy - N / 2 + py, c);
     }
   }
 }
@@ -756,23 +748,74 @@ void drawStatusBar(const String &statusStr, const String &refreshTimeStr,
   drawStatus(statusStr, refreshTimeStr, batVoltage, stale);
 }
 
-/* One of the home page's three tiles: an icon, a value, a line under it. */
-static void homeTile(int16_t x, int16_t y, const uint8_t *icon48,
-                     const String &value, const String &sub)
+/* An arrow 20 dots long from (x, y): up and right for a rising trend, right
+ * for a steady one, down and right for a falling one.
+ */
+static void drawTrendArrow(int16_t x, int16_t y, int trend)
 {
-  const int w = 124, h = 128;
-  tile(x, y, w, h);
-  drawIcon(x + (w - 48) / 2, y + 10, icon48, 48, 48, K);
-  g->setFont(&Bitter_16pt8b);
-  drawString(x + w / 2, y + 94, fitted(value, w - 10), CENTER, K);
-  g->setFont(&Bitter_8pt8b);
-  drawString(x + w / 2, y + 116, fitted(sub, w - 10), CENTER, K);
+  const float a = (trend == TREND_RISING) ? -0.785f
+                : (trend == TREND_FALLING) ? 0.785f : 0.0f;
+  const float c = std::cos(a), sn = std::sin(a);
+  auto at = [&](float u, float v, int16_t &px, int16_t &py) {
+    px = static_cast<int16_t>(std::lround(x + 10 * (1 - c) + u * c - v * sn));
+    py = static_cast<int16_t>(std::lround(y + u * sn + v * c));
+  };
+  int16_t x0, y0, x1, y1, x2, y2;
+  for (int t = -1; t <= 1; ++t)
+  {   // the shaft, three dots thick
+    at(0, t, x0, y0);
+    at(12, t, x1, y1);
+    g->drawLine(x0, y0, x1, y1, K);
+  }
+  at(20, 0, x0, y0);
+  at(10, -7, x1, y1);
+  at(10, 7, x2, y2);
+  g->fillTriangle(x0, y0, x1, y1, x2, y2, K);
 }
+
+/* One of the home page's three tiles: a title, a value (with an arrow for
+ * its trend, if one is given), and two lines under it.
+ */
+static void homeTile(int16_t x, int16_t y, const String &title,
+                     const String &value, const String &sub1,
+                     const String &sub2 = "", int trend = TREND_UNKNOWN)
+{
+  const int w = 124, h = 128, cx = x + w / 2;
+  tile(x, y, w, h);
+  g->setFont(&Bitter_10pt8b);
+  drawString(cx, y + 25, fitted(title, w - 10), CENTER, K);
+  g->setFont(&Bitter_20pt8b);
+  if (trend == TREND_RISING || trend == TREND_STEADY || trend == TREND_FALLING)
+  {
+    const String v = fitted(value, w - 36);
+    const int vw = getStringWidth(v), x0 = cx - (vw + 26) / 2;
+    drawString(x0, y + 72, v, LEFT, K);
+    drawTrendArrow(x0 + vw + 6, y + 58, trend);
+  }
+  else
+  {
+    drawString(cx, y + 72, fitted(value, w - 10), CENTER, K);
+  }
+  // the lines under it at 9 pt, or 8 pt where that is too wide
+  for (int k = 0; k < 2; ++k)
+  {
+    const String &t = k ? sub2 : sub1;
+    g->setFont(&Bitter_9pt8b);
+    if (getStringWidth(t) > w - 10)
+    {
+      g->setFont(&Bitter_8pt8b);
+    }
+    drawString(cx, y + (k ? 117 : 97), fitted(t, w - 10), CENTER, K);
+  }
+}
+
+int INDOOR_TREND_426 = TREND_UNKNOWN;
 
 /* The home page tile in place `slot` (0 to 2, left to right), showing the
  * widget `key` (config.json "home_tiles"). The keys are the other layouts'
- * widgets; "indoor" (the temperature over the humidity) and "sun" (sunrise
- * over sunset) put two readings in one tile.
+ * widgets; "indoor" (the temperature, its trend and the humidity) and "sun"
+ * (sunrise over sunset) put more than one reading in a tile. No icons: a
+ * title says what the tile is, and the room goes to the reading.
  */
 static void drawHomeTile(int slot, const String &key,
                          const owm_current_t &current,
@@ -785,73 +828,73 @@ static void drawHomeTile(int slot, const String &key,
     return;
   }
   const int16_t x = 404 + slot * 132, y = HEADER_H + 8;
-  const uint8_t *icon = nullptr;
-  const uint8_t *dithered = nullptr;
-  String value = "--", sub;
+  auto pct = [](float v) { return String(static_cast<int>(std::lround(v))) + "%"; };
+  String title, value = "--", sub1, sub2;
+  int trend = TREND_UNKNOWN;
   if (key == "wind")
   {
-    icon = wi_strong_wind_48x48;
+    title = TXT_WIND;
     value = speed(current.wind_speed);
-    sub = getCompassPointNotation(current.wind_deg);
+    sub1 = getCompassPointNotation(current.wind_deg);
+    if (current.wind_gust > current.wind_speed + 0.5f)
+    {
+      sub2 = String(TXT426_GUSTS) + " " + speed(current.wind_gust);
+    }
   }
   else if (key == "air_quality")
   {
-    icon = air_filter_48x48;
-    airQuality(air, value, sub);
-    if (sub.isEmpty())
-    {
-      sub = TXT_AIR_QUALITY;
-    }
+    title = TXT_AIR_QUALITY;
+    airQuality(air, value, sub1);
   }
   else if (key == "indoor" && std::isnan(inTemp))
   { // no sensor: the humidity outside
-    icon = wi_humidity_48x48;
+    title = TXT_HUMIDITY;
     value = String(current.humidity) + "%";
-    sub = String(TXT_DEWPOINT) + " " + deg(current.dew_point);
+    sub1 = String(TXT_DEWPOINT) + " " + deg(current.dew_point);
   }
   else if (key == "indoor")
   {
-    icon = house_thermometer_48x48;
+    title = TXT426_INDOOR;
     value = deg(celsius_to_kelvin(inTemp));
+    trend = INDOOR_TREND_426;
     if (!std::isnan(inHumidity))
     {
-      sub = String(static_cast<int>(std::lround(inHumidity))) + "% "
-            + TXT_HUMIDITY;
+      sub1 = pct(inHumidity) + " " + TXT_HUMIDITY;
     }
   }
   else if (key == "intemp")
   {
-    icon = house_thermometer_48x48;
+    title = TXT426_INDOOR;
     if (!std::isnan(inTemp))
     {
       value = deg(celsius_to_kelvin(inTemp));
+      trend = INDOOR_TREND_426;
     }
-    sub = TXT_INDOOR_TEMPERATURE;
+    sub1 = TXT_INDOOR_TEMPERATURE;
   }
   else if (key == "inhumidity")
   {
-    icon = house_humidity_48x48;
+    title = TXT426_INDOOR;
     if (!std::isnan(inHumidity))
     {
-      value = String(static_cast<int>(std::lround(inHumidity))) + "%";
+      value = pct(inHumidity);
     }
-    sub = TXT_INDOOR_HUMIDITY;
+    sub1 = TXT_INDOOR_HUMIDITY;
   }
   else if (key == "humidity")
   {
-    icon = wi_humidity_48x48;
+    title = TXT_HUMIDITY;
     value = String(current.humidity) + "%";
-    sub = TXT_HUMIDITY;
+    sub1 = String(TXT_DEWPOINT) + " " + deg(current.dew_point);
   }
   else if (key == "dewpoint")
   {
-    icon = wi_raindrops_48x48;
+    title = TXT_DEWPOINT;
     value = deg(current.dew_point);
-    sub = TXT_DEWPOINT;
   }
   else if (key == "heat_stress")
   {
-    icon = wi_hot_48x48;
+    title = TXT_HEAT_STRESS;
     float index;
     int level;
     if (current.heat_stress > 0.f && current.heat_stress_level >= 0)
@@ -865,85 +908,75 @@ static void drawHomeTile(int slot, const String &key,
                               current.humidity);
       level = heatStressLevel(index);
     }
-    sub = TXT_HEAT_STRESS;
     if (level >= 0)
     {
       value = String(static_cast<int>(std::floor(index + 0.4999f)));
-      sub = TXT_HEAT_STRESS_LEVEL[level];
+      sub1 = TXT_HEAT_STRESS_LEVEL[level];
     }
   }
   else if (key == "pressure")
   {
-    icon = wi_barometer_48x48;
-    pressure(current.pressure, value, sub);
-    if (sub.isEmpty())
-    {
-      sub = TXT_PRESSURE;
-    }
+    title = TXT_PRESSURE;
+    pressure(current.pressure, value, sub1);
   }
   else if (key == "uvi")
   {
-    icon = wi_day_sunny_48x48;
-    sub = TXT_UV_INDEX;
+    title = TXT_UV_INDEX;
     if (!std::isnan(current.uvi))
     {
       const unsigned int uvi = static_cast<unsigned int>(
                                std::max(0.0f, std::round(current.uvi)));
       value = String(uvi);
-      sub = String(TXT_UV_INDEX) + " " + getUVIdesc(uvi);
+      sub1 = getUVIdesc(uvi);
     }
   }
   else if (key == "pollen")
   {
-    dithered = pollen_line_48;
-    sub = TXT_POLLEN;
+    title = TXT_POLLEN;
     if (pollen.max_upi >= 0)
     {
       value = String(pollen.max_upi);
-      sub = pollenLine(pollen);
+      sub1 = pollenLine(pollen);
     }
   }
   else if (key == "visibility")
   {
-    icon = visibility_icon_48x48;
+    title = TXT_VISIBILITY;
     String unit;
     distance(current.visibility, value, unit);
     if (!unit.isEmpty())
     {
       value += " " + unit;
     }
-    sub = TXT_VISIBILITY;
   }
   else if (key == "sun")
   {
-    icon = wi_sunrise_48x48;
+    title = TXT_SUNRISE;
     value = clockTime(current.sunrise, TIME_FORMAT);
-    sub = String(TXT_SUNSET) + " " + clockTime(current.sunset, TIME_FORMAT);
+    sub1 = String(TXT_SUNSET) + " " + clockTime(current.sunset, TIME_FORMAT);
   }
   else if (key == "moon_phase")
   {
     int illum = 0;
     const int phase = calcMoonPhase(static_cast<int64_t>(pageTime()), &illum);
     value = String(illum) + "%";
-    sub = getMoonPhaseDesc(phase);
     if (s_grey)
-    { // drawn in the greys over the tile, in the icon's place
-      homeTile(x, y, nullptr, value, sub);
-      drawGreyMoon(x + 62, y + 34, 24, moonPhaseFraction(
-                   static_cast<int64_t>(pageTime())), LAT.toFloat() < 0);
+    { // the moon itself, filling the tile, and how much of it is lit
+      tile(x, y, 124, 128);
+      drawPhotoMoon(x + 62, y + 50, moonPhaseFraction(
+                    static_cast<int64_t>(pageTime())), LAT.toFloat() < 0);
+      g->setFont(&Bitter_16pt8b);
+      drawString(x + 62, y + 121, value, CENTER, K);
       return;
     }
-    dithered = getMoonPhaseDithered(phase, 48);
+    title = TXT_MOONPHASE;
+    sub1 = getMoonPhaseDesc(phase);
   }
   else
   { // a key this layout does not know
     return;
   }
-  homeTile(x, y, icon, value, sub);
-  if (dithered)
-  {
-    drawDithered(x + (124 - 48) / 2, y + 10, dithered, 48);
-  }
+  homeTile(x, y, title, value, sub1, sub2, trend);
 }
 
 void drawCurrentConditions(const owm_current_t &current,
@@ -1038,6 +1071,44 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
   };
   const int n = GX1 - GX0 + 1;
   const float perHour = (GX1 - GX0) / static_cast<float>(hours);
+  // the day's highest and lowest
+  int iHi = 0, iLo = 0;
+  for (int i = 1; i < hours; ++i)
+  {
+    if (hourly[i].temp > hourly[iHi].temp) {iHi = i;}
+    if (hourly[i].temp < hourly[iLo].temp) {iLo = i;}
+  }
+  // The legend sits above the graph's top left, and the high's label above
+  // its dot, which is never far below the top. Where the two would meet the
+  // legend goes to the top right instead, and where the high is in the way
+  // there too, the scale gains a step at the top to bring the dot down.
+  g->setFont(&Bitter_9pt8b);
+  const int legendW = 34 + getStringWidth(TXT_TEMPERATURE) + 22 + 34
+                    + getStringWidth(TXT_DEWPOINT) + 22 + 40;
+  g->setFont(&Bitter_11pt8b);
+  const int hiW = getStringWidth(deg(hourly[iHi].temp));
+  const int hiX = std::max(GX0 + 22, std::min(GX1 - 22,
+                  GX0 + static_cast<int>((iHi + 0.5f) * perHour)));
+  auto clash = [&](int x0) {
+    const int top = Y(toTempUnit(hourly[iHi].temp)) - 12 - 18;
+    return top < GY0 - 2 && hiX + hiW / 2 + 8 > x0
+           && hiX - hiW / 2 - 8 < x0 + legendW;
+  };
+  int legendX = GX0;
+  for (int tries = 0; tries < 3; ++tries)
+  {
+    if (!clash(GX0))
+    {
+      legendX = GX0;
+      break;
+    }
+    if (!clash(GX1 - legendW))
+    {
+      legendX = GX1 - legendW;
+      break;
+    }
+    yHi += step;
+  }
   // the samples sit mid-hour; between them the line is straight
   auto sample = [&](int col, bool dew) -> float {
     const float h = col / perHour - 0.5f;
@@ -1114,12 +1185,6 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
   g->drawFastHLine(GX0, GY1, n, K);
   g->drawFastHLine(GX0, GY1 + 1, n, K);
   // the day's highest and lowest
-  int iHi = 0, iLo = 0;
-  for (int i = 1; i < hours; ++i)
-  {
-    if (hourly[i].temp > hourly[iHi].temp) {iHi = i;}
-    if (hourly[i].temp < hourly[iLo].temp) {iLo = i;}
-  }
   g->setFont(&Bitter_11pt8b);
   for (int k = 0; k < 2; ++k)
   {
@@ -1147,7 +1212,7 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
   }
   // what the lines are (an alert, if there is one, is drawn over this)
   g->setFont(&Bitter_9pt8b);
-  int lx = GX0;
+  int lx = legendX;
   g->fillRect(lx, GY0 - 18, 28, 4, K);
   drawString(lx + 34, GY0 - 10, TXT_TEMPERATURE, LEFT, K);
   lx = g->getCursorX() + 22;

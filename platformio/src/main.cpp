@@ -124,6 +124,52 @@ static void enableButtonWake() {}
 RTC_DATA_ATTR static uint8_t s_page = 0;
 RTC_DATA_ATTR static int64_t s_nextUpdate = 0;
 RTC_DATA_ATTR static bool s_turnAsked = false;
+// The indoor trend of the last update, for a home page drawn again from the
+// snapshot (a page turned back home), which does not read the history.
+RTC_DATA_ATTR static int8_t s_inTrend = TREND_UNKNOWN;
+static bool s_historyRead = false;   // this wake updated the history
+
+// KEY3, watched every 10 ms by a task of its own from the start of each
+// wake. A press is a release of 30 ms then a press of 30 ms, so the press
+// that woke the board, still held at boot, is not counted again. While the
+// board is busy -- drawing a page, fetching the weather -- a press is kept
+// here, and the page turns once it is free; and on USB a quick tap is not
+// lost between the wait loop's looks at the keys.
+static volatile bool s_pageKeyPressed = false;
+
+static void pageKeyTask(void *)
+{
+  pinMode(PIN_BTN_PAGE, INPUT_PULLUP);
+  int low = 0, high = 0;
+  bool armed = false, down = false;
+  for (;;)
+  {
+    if (digitalRead(PIN_BTN_PAGE) == LOW)
+    {
+      high = 0;
+      if (++low >= 3 && armed && !down)
+      {
+        down = true;
+        s_pageKeyPressed = true;
+      }
+    }
+    else
+    {
+      low = 0;
+      if (++high >= 3)
+      {
+        armed = true;
+        down = false;
+      }
+    }
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
+}
+
+static void watchPageKey()
+{
+  xTaskCreate(pageKeyTask, "key3", 2048, nullptr, 2, nullptr);
+}
 // How long a turned page stays up before the home page comes back.
 static const uint32_t PAGE_HOLD_SECONDS = 5 * 60;
 #endif
@@ -149,6 +195,17 @@ RTC_DATA_ATTR static uint32_t s_waitSecs = 0;
 
 static void sleepOrWait(uint64_t seconds)
 {
+#if defined(DISP_4G_426)
+  if (s_pageKeyPressed)
+  { // KEY3 was pressed while the board was busy: the next page, now
+    s_pageKeyPressed = false;
+    s_turnAsked = true;
+    Serial.println("[page] KEY3 pressed while busy: turning the page");
+    Serial.flush();
+    esp_sleep_enable_timer_wakeup(100000ULL);
+    esp_deep_sleep_start();
+  }
+#endif
 #if defined(BOARD_XIAO_EPAPER) && ARDUINO_USB_CDC_ON_BOOT
   if ((seconds == 0 || seconds > 2) && HWCDC::isPlugged())
   {
@@ -205,8 +262,9 @@ static void sleepOrWait(uint64_t seconds)
         break;
       }
 #if defined(DISP_4G_426)
-      if (digitalRead(PIN_BTN_PAGE) == LOW)
+      if (s_pageKeyPressed)
       {
+        s_pageKeyPressed = false;
         left = 1;                    // the next page: wake in a second
         timed = true;
         s_turnAsked = true;
@@ -214,7 +272,7 @@ static void sleepOrWait(uint64_t seconds)
         break;
       }
 #endif
-      delay(100);
+      delay(20);
     }
     s_waitSecs = (millis() - t0) / 1000;
     if (timed)
@@ -272,6 +330,14 @@ static void drawWeatherPage(const tm &timeInfo, const String &dateStr,
                             const pollen_info_t &pollen, float inTemp,
                             float inHumidity, bool stale)
 {
+#if defined(DISP_4G_426)
+  // this wake's trend if it read the history, else the last update's
+  if (s_historyRead)
+  {
+    s_inTrend = static_cast<int8_t>(historyIndoorTrend());
+  }
+  INDOOR_TREND_426 = s_inTrend;
+#endif
   initDisplay();
   do
   {
@@ -342,6 +408,9 @@ static bool markStale(const String &reason, int rssi, uint32_t batteryVoltage)
     historyUpdate(time(nullptr), NAN, NAN, batteryVoltage, prefs);
 #else
     historyUpdate(time(nullptr), NAN, NAN, 0, prefs);
+#endif
+#if defined(DISP_4G_426)
+    s_historyRead = true;
 #endif
     prefs.end();
   }
@@ -583,6 +652,9 @@ void setup()
   // At 20 ms one write gives up, the driver marks the host gone, and the
   // rest are dropped at once.
   Serial.setTxTimeoutMs(20);
+#endif
+#if defined(DISP_4G_426)
+  watchPageKey();
 #endif
   Serial.println("[build] " GIT_REV " (" __DATE__ " " __TIME__ ")");
 #if defined(BOARD_XIAO_EPAPER) && ARDUINO_USB_CDC_ON_BOOT
@@ -1529,6 +1601,9 @@ void setup()
                 prefs);
 #else
   historyUpdate(time(nullptr), pressureSample, inTemp, 0, prefs);
+#endif
+#if defined(DISP_4G_426)
+  s_historyRead = true;
 #endif
   prefs.end();
   Serial.println("[history] pressure trend " + String(historyPressureTrend())
