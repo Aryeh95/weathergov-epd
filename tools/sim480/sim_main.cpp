@@ -432,16 +432,16 @@ static int mainUS(const std::string &outDir)
   String dateStr, refreshTimeStr;
   getDateStr(dateStr, &timeInfo);
   getRefreshTimeStr(refreshTimeStr, true, &timeInfo);
-#if defined(DISP_4G_426)
-  // a made-up afternoon of showers, to see the rain bars on a dry day
-  if (getenv("SIM426_RAIN"))
+  // a made-up afternoon of showers (SIM480_RAIN=1), to see the rain on a
+  // dry day, on any panel
+  if (getenv("SIM480_RAIN"))
   {
     static const int POP[] = {10, 15, 30, 55, 70, 75, 60, 45, 30, 20, 15, 10};
     for (int i = 0; i < 12; ++i) hourly[6 + i].pop = POP[i] / 100.0f;
   }
-  // the day's warmest hours moved to hour SIM426_PEAK (0 = now): a bump of
+  // the day's warmest hours moved to hour SIM480_PEAK (0 = now): a bump of
   // warmth there, to see where the high's label and the legend go
-  if (const char *pk = getenv("SIM426_PEAK"))
+  if (const char *pk = getenv("SIM480_PEAK"))
   {
     const int k = atoi(pk);
     for (int i = 0; i < 24; ++i)
@@ -450,6 +450,7 @@ static int mainUS(const std::string &outDir)
       hourly[i].temp += 12.0f * std::exp(-d * d);
     }
   }
+#if defined(DISP_4G_426)
   // the home tiles as config.json "home_tiles" would set them: "a,b,c"
   if (const char *t = getenv("SIM426_TILES"))
   {

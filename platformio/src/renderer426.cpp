@@ -774,6 +774,49 @@ static void drawTrendArrow(int16_t x, int16_t y, int trend)
   g->fillTriangle(x0, y0, x1, y1, x2, y2, K);
 }
 
+/* A tile's value with its left end at x, on the baseline y, at most maxW
+ * wide; returns its width, and draws it only when `draw` is set. A value
+ * with a unit after a space ("12 mph", "> 15 mi") keeps its number at 20 pt
+ * and sets the unit at 12 pt, as the big temperature does its degree sign:
+ * the tile then reads the same at 8 mph and at 18. One that is still too
+ * wide drops to 16 pt, and only then is it cut short.
+ */
+static int tileValue(int16_t x, int16_t y, const String &value, int maxW,
+                     bool draw)
+{
+  const int gap = 4, sp = value.lastIndexOf(' ');
+  if (sp > 0)
+  {
+    const String num = value.substring(0, sp), unit = value.substring(sp + 1);
+    g->setFont(&Bitter_20pt8b);
+    const int nw = getStringWidth(num);
+    g->setFont(&Bitter_12pt8b);
+    const int uw = getStringWidth(unit);
+    if (nw + gap + uw <= maxW)
+    {
+      if (draw)
+      {
+        g->setFont(&Bitter_20pt8b);
+        drawString(x, y, num, LEFT, K);
+        g->setFont(&Bitter_12pt8b);
+        drawString(x + nw + gap, y, unit, LEFT, K);
+      }
+      return nw + gap + uw;
+    }
+  }
+  g->setFont(&Bitter_20pt8b);
+  if (getStringWidth(value) > maxW)
+  {
+    g->setFont(&Bitter_16pt8b);
+  }
+  const String v = fitted(value, maxW);
+  if (draw)
+  {
+    drawString(x, y, v, LEFT, K);
+  }
+  return getStringWidth(v);
+}
+
 /* One of the home page's three tiles: a title, a value (with an arrow for
  * its trend, if one is given), and two lines under it.
  */
@@ -785,17 +828,15 @@ static void homeTile(int16_t x, int16_t y, const String &title,
   tile(x, y, w, h);
   g->setFont(&Bitter_10pt8b);
   drawString(cx, y + 25, fitted(title, w - 10), CENTER, K);
-  g->setFont(&Bitter_20pt8b);
-  if (trend == TREND_RISING || trend == TREND_STEADY || trend == TREND_FALLING)
+  const bool arrow = trend == TREND_RISING || trend == TREND_STEADY
+                     || trend == TREND_FALLING;
+  const int maxW = arrow ? w - 36 : w - 10;
+  const int vw = tileValue(0, 0, value, maxW, false);
+  const int x0 = arrow ? cx - (vw + 26) / 2 : cx - vw / 2;
+  tileValue(x0, y + 72, value, maxW, true);
+  if (arrow)
   {
-    const String v = fitted(value, w - 36);
-    const int vw = getStringWidth(v), x0 = cx - (vw + 26) / 2;
-    drawString(x0, y + 72, v, LEFT, K);
     drawTrendArrow(x0 + vw + 6, y + 58, trend);
-  }
-  else
-  {
-    drawString(cx, y + 72, fitted(value, w - 10), CENTER, K);
   }
   // the lines under it at 9 pt, or 8 pt where that is too wide
   for (int k = 0; k < 2; ++k)

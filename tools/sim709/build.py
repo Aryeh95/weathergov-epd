@@ -46,7 +46,9 @@ def compiler():
 
 
 def main():
-    out = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "out"))
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    balance = "--balance" in sys.argv[1:]
+    out = os.path.abspath(args[0] if args else os.path.join(HERE, "out"))
     os.makedirs(out, exist_ok=True)
     cxx, cc = compiler()
     flags = ["-O2", "-w"] + ["-I" + i for i in INCLUDES] + ["-D" + d for d in DEFINES]
@@ -84,8 +86,35 @@ def main():
         a = np.where(a <= 0.0031308, 12.92 * a, 1.055 * a ** (1 / 2.4) - 0.055)
         half = Image.fromarray(np.clip(a * 255 + 0.5, 0, 255).astype(np.uint8))
         half.resize((w, h), Image.BICUBIC).save(base + "_blended.png")
+        if balance:
+            white_balance(base + ".png")
+            white_balance(base + "_blended.png")
         os.remove(os.path.join(out, name))
     print("pictures are in", out)
+
+
+# --balance: the 7.5in black-and-white preview's white, which every panel's
+# own white is scaled to
+BALANCE_WHITE = (214, 216, 212)
+
+
+def white_balance(path):
+    """The picture at `path` white-balanced to BALANCE_WHITE: each channel of
+    the image in linear light is scaled so the panel's own white -- the
+    picture's most common colour, its background -- comes out as that white,
+    as the eye adjusts to the panel in front of it. The inks keep their
+    measured relation to the panel's white; only the comparison with paper
+    (a Spectra 6 panel reflects about 40 % as much light as paper, a
+    black-and-white one nearer 70 %) is given up, so that pictures of
+    different panels side by side compare their inks, not their whites."""
+    a = np.asarray(Image.open(path).convert("RGB"))
+    colours, counts = np.unique(a.reshape(-1, 3), axis=0, return_counts=True)
+    white = colours[np.argmax(counts)] / 255.0
+    lin = lambda c: np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
+    gain = lin(np.array(BALANCE_WHITE) / 255.0) / np.maximum(lin(white), 1e-6)
+    v = np.clip(lin(a / 255.0) * gain, 0, 1)
+    v = np.where(v <= 0.0031308, 12.92 * v, 1.055 * v ** (1 / 2.4) - 0.055)
+    Image.fromarray(np.round(v * 255).astype(np.uint8)).save(path)
 
 
 

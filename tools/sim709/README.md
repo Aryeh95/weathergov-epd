@@ -13,9 +13,13 @@ headers the code mentions (`shim/`).
 ## Running it
 
 ```
-pip install pillow
-python tools/sim709/build.py [output folder]
+pip install pillow numpy
+python tools/sim709/build.py [output folder] [--balance]
 ```
+
+`--balance` white-balances the pictures to the same white as sim480's
+(see its README): the panel's own white becomes that white and the inks
+keep their measured relation to it. The README's preview is made with it.
 
 It needs a C++17 compiler. `clang++` or `g++` on the path is used if there
 is one. Otherwise point the `ZIG` environment variable at a Zig executable:

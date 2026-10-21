@@ -75,6 +75,9 @@
 
 // E-PAPER DRIVER BOARD
 // The DESPI-C02 is the only officially supported driver board.
+// The 7.3in colour panels have a 50-pin ribbon instead of the 7.5in panels'
+// 24-pin one, so they need a DESPI-C73; keep DRIVER_DESPI_C02 for it (the
+// setting only picks the length of the reset pulse).
 // Support for the Waveshare rev2.2 and rev2.3 is deprecated.
 // The Waveshare rev2.2 is no longer in production.
 // Users of the Waveshare rev2.3 have reported experiencing low contrast issues.
@@ -111,14 +114,24 @@
   #define SENSOR_INIT_DELAY_MS 10
 #elif defined(BOARD_RETERMINAL_E1002)
   #define SENSOR_SHT4X
-#else
+#elif !defined(SENSOR_BME680) && !defined(SENSOR_SHT4X) && !defined(SENSOR_NONE)
+// The DIY build: a BME280, a BME680 or an SHT40/41/45, all on the same four
+// wires. Pick one here, or pass -D SENSOR_SHT4X (etc.) at build time.
 #define SENSOR_BME280
 // #define SENSOR_BME680
+// #define SENSOR_SHT4X
 #endif
 
 // If you encounter issues with the BME280 sensor showing no data, uncomment and
 // add a small delay before reading it's value. 300ms seems to work for most people
 // #define SENSOR_INIT_DELAY_MS 300
+
+// An SHT4x needs up to a millisecond to wake once its supply comes on, and the
+// DIY build switches that on (PIN_BME_PWR) just before reading it.
+#if defined(SENSOR_SHT4X) && !defined(SENSOR_INIT_DELAY_MS) \
+ && !defined(BOARD_RETERMINAL_E1002)
+  #define SENSOR_INIT_DELAY_MS 10
+#endif
 
 // 3 COLOR E-INK ACCENT COLOR
 // Defines the 3rd color to be used when a 3+ color display is selected.
