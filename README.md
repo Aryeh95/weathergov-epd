@@ -1,386 +1,485 @@
-# weathergov-epd — ESP32 E-Paper Weather Display
+# weathergov-epd — e-paper weather display for ESP32
 
-> [!NOTE]
-> **This fork replaces OpenWeatherMap with the free, keyless [weather.gov (NWS) API](https://www.weather.gov/documentation/services-web-api).** US locations only. Major differences from upstream:
->
-> - **No API keys or accounts required.** [weather.gov (NWS)](https://www.weather.gov/documentation/services-web-api) provides hourly/daily forecasts and weather alerts (`api.forecast_source` can switch these to [Open-Meteo](https://open-meteo.com/) for anywhere in the world, or to the [Israel Meteorological Service](https://ims.gov.il/en) for a Hebrew or English display in Israel). [Open-Meteo](https://open-meteo.com/) (also free/keyless) provides current conditions, UV index and air-pollutant concentrations; current conditions can alternatively come from the Google Weather API or weather.gov's hourly forecast (`api.current_source`). Optionally, a free [AirNow](https://docs.airnowapi.org/) API key upgrades the Air Quality widget to the EPA's official US AQI from certified monitoring stations, with automatic fallback to Open-Meteo.
-> - **Phone-based setup, no code editing.** A fresh device boots into a WiFi hotspot with a captive setup page — see [First-Time Setup](#first-time-setup-hotspot). Every runtime setting lives in [`platformio/data/config.json`](platformio/data/config.json) and can be changed from the [configuration web portal](#the-configuration-web-portal) afterwards, including **over-the-air firmware updates** — the only time a device needs a USB cable is its very first flash.
-> - **Full-color weather icons on 7-color panels** (ACeP and Spectra 6): condition and widget icons derived from the [InkyPi](https://github.com/fatihak/InkyPi) icon set, quantized to the panels' native inks (gray dithered clouds, blue rain, yellow suns), plus a semantic color palette — red highs/blue lows, color-coded UV and AQI values. Black/white and 3-color panels keep the original line art.
-> - **More widgets, flexible layout**: a moon phase widget (computed on-device, dithered grayscale icons on every panel type), 5–7 day forecast row, and a 5- or 6-row widget grid (10 or 12 slots) — all selectable at runtime.
-> - **Sunrise/sunset are computed on-device** (NOAA solar algorithm in `platformio/src/sun.cpp`), and day/night icon selection follows those real sun times instead of NWS's fixed 6am/6pm icon boundary.
-> - **Robust WiFi**: connects to the strongest access point on multi-AP (mesh) networks, the error screen explains *why* a connection failed (wrong password, network not found, no response...), and the device retries every 15 minutes (configurable) instead of requiring a manual reset. A short outage does not cost you the forecast: the last weather stays on the screen for up to 3 hours (`sleep.outage_grace_minutes`) before an error screen replaces it, redrawn once with its update time marked as old -- in red on colour panels, with a warning sign on black and white.
-> - **Supported boards**: the FireBeetle 2 ESP32-E wiring from upstream, plus native support for the [Seeed reTerminal E1002](https://www.seeedstudio.com/reTerminal-E1002-p-6533.html) — an all-in-one ESP32-S3 device with a built-in 7.3" Spectra 6 panel, battery, and buttons (`pio run -e seeed_reterminal_e1002`; its middle button opens the portal, the green button forces a refresh), and Seeed's [XIAO ePaper Display Board EE05](https://wiki.seeedstudio.com/epaper_ee05) with Seeed's 4.26" 800x480 panel, drawn in four greys with pages turned by a button (see [EE05](#xiao-ee05-and-the-426in-panel)).
-> - **Precipitation**: the hourly graph shows probability (PoP %) — NWS's hourly forecast has no amounts. The daily row shows **amounts in inches** (`UNITS_DAILY_PRECIP_INCHES`, compile-time): weather.gov's gridpoint QPF for the ~3 days it reaches, Open-Meteo's daily total for the days beyond. Dry days show nothing; a forecast trace under 0.1 in shows as `<0.1 in`. Set `UNITS_DAILY_PRECIP_POP` in `config.h` for probability there too.
-> - HTTPS is required (all APIs are HTTPS-only), and the servers' certificates are verified against the root CAs in `cert.h` (valid until 2035). To build without verification, create `platformio/include/config_local.h` containing `#define USE_HTTPS_NO_CERT_VERIF`; git ignores that file.
->
-> The [Setup Guide](#setup-guide) below has been rewritten for this fork; hardware, wiring, and assembly are unchanged from upstream.
+A low-power weather display for e-paper panels driven by an ESP32. It shows the current conditions, a graph of the next hours, the coming days and weather alerts. It wakes on a schedule, fetches the forecast over WiFi, redraws the panel and goes back to sleep, so a battery lasts months.
 
-A low-power weather display using a wifi-enabled ESP32 microcontroller and a 7.5" E-Paper display. Weather data is fetched from the weather.gov (NWS) API, and an onboard sensor provides indoor temperature and humidity.
+This is a fork of [lmarzen/esp32-weather-epd](https://github.com/lmarzen/esp32-weather-epd). Forecasts come from the free, keyless [weather.gov](https://www.weather.gov/documentation/services-web-api) API instead of OpenWeatherMap, everything is set up from a phone, and it runs on several ready-made Seeed devices as well as the original DIY build.
 
-<p float="left">
-  <img src="showcase/demo-reterminal-e1002-front.jpg" />
-  <img src="showcase/assembled-demo-raleigh-side.jpg" width="49%" />
-  <img src="showcase/assembled-demo-raleigh-back.jpg" width="49%" />
-  <img src="showcase/assembled-demo-bottom-cover.jpg" width="49%" />
-  <img src="showcase/assembled-demo-bottom-cover-removed.jpg" width="49%" />
-</p>
+<img src="showcase/preview-e1002.png" />
 
-## Features
+| | | |
+|:---:|:---:|:---:|
+| [<img src="showcase/preview-75-bw.png" />](#75-black-and-white) | [<img src="showcase/preview-75-3c.png" />](#75-three-colour-blackwhitered) | [<img src="showcase/preview-e1002.png" />](#73-full-colour-reterminal-e1002) |
+| 7.5" black and white | 7.5" three-colour | 7.3" full colour (reTerminal E1002) |
+| [<img src="showcase/preview-ee05-426-home.png" />](#426-four-greys-xiao-ee05) | [<img src="showcase/preview-ee05-426-hours.png" />](#426-four-greys-xiao-ee05) | [<img src="showcase/preview-ee05-426-week.png" />](#426-four-greys-xiao-ee05) |
+| 4.26" four greys (XIAO EE05) | 4.26" hours page | 4.26" week page |
 
-- Ultra-low power consumption: ~14μA in sleep, ~83mA during refresh (~1.5s on the B/W panel; color panels take longer).
-
-- Long battery life: 6-12 months on a 5000mAh battery with 30-minute update frequency.
-
-- Customizable display: multiple languages, units, time/date formats, AQI scales, 5-7 day forecast, 10 or 12 widget slots, and much more — most of it reconfigurable from your phone.
-
-- Easy recharging: USB-C charging with battery monitoring.
-
-The hourly outlook graph (bottom right) shows a line indicating temperature and shaded bars indicating probability of precipitation.
-
-Here are two (slightly outdated) examples utilizing various configuration options:
-
-<p float="left">
-  <img src="showcase/demo-new-york.jpg" width="49%" />
-  <img src="showcase/demo-london.jpg" width="49%" />
-</p>
+*The previews are drawn by the firmware's own rendering code on a PC (see [Previewing layouts on a PC](#previewing-layouts-on-a-pc)), with sample weather and a made-up afternoon of showers. They use each panel's measured inks, white-balanced to one common white, the way your eye adjusts to a panel in a room. Side by side, the colour panels look darker than the black-and-white ones: they reflect less light.*
 
 ## Contents
 
-- [Required Components](#required-components)
-  - [Panel Support](#panel-support)
-  - [XIAO EE05 and the 4.26in Panel](#xiao-ee05-and-the-426in-panel)
-  - [Enclosure Options](#enclosure-options)
-  - [Solder-Free Component Selection](#solder-free-component-selection-optional)
-- [Setup Guide](#setup-guide)
-  - [Wiring](#wiring)
-  - [Compilation and First Flash](#compilation-and-first-flash)
-  - [First-Time Setup (Hotspot)](#first-time-setup-hotspot)
-  - [The Configuration Web Portal](#the-configuration-web-portal)
-  - [Runtime Configuration: config.json](#runtime-configuration-configjson)
-  - [Over-the-Air Firmware Updates](#over-the-air-firmware-updates)
-- [Error Messages and Troubleshooting](#error-messages-and-troubleshooting)
-  - [Low Battery](#low-battery)
-  - [WiFi Connection](#wifi-connection)
-  - [API Error](#api-error)
-  - [Time Server Error](#time-server-error)
-- [Licensing](#licensing)
+- [Highlights](#highlights)
+- [Supported hardware](#supported-hardware)
+- [Layouts](#layouts)
+- [Building and flashing](#building-and-flashing)
+  - [Build targets](#build-targets)
+  - [Compile-time settings](#compile-time-settings)
+  - [Flashing over USB](#flashing-over-usb)
+  - [Updates over WiFi](#updates-over-wifi)
+- [Setup from your phone](#setup-from-your-phone)
+- [Configuration reference (config.json)](#configuration-reference-configjson)
+- [Assembly](#assembly)
+  - [DIY: FireBeetle ESP32 and a 7.5" or 7.3" panel](#diy-firebeetle-esp32-and-a-75-or-73-panel)
+  - [Seeed reTerminal E1001 / E1002](#seeed-reterminal-e1001--e1002)
+  - [Seeed XIAO EE05 with the 4.26" panel](#seeed-xiao-ee05-with-the-426-panel)
+- [Previewing layouts on a PC](#previewing-layouts-on-a-pc)
+- [Troubleshooting](#troubleshooting)
+- [Licensing and credits](#licensing-and-credits)
 
+## Highlights
 
-## Required Components
+- **No API keys or accounts.** weather.gov supplies the hourly and daily forecasts and the alerts (US only). [Open-Meteo](https://open-meteo.com/), also free and keyless, supplies the current conditions, UV and air quality. The forecast can come from Open-Meteo instead, for anywhere in the world, or from the [Israel Meteorological Service](https://ims.gov.il/en). Optional keys add official US air quality ([AirNow](https://docs.airnowapi.org/)) and pollen ([Google](https://developers.google.com/maps/documentation/pollen)).
+- **Phone setup, no code editing.** A fresh device opens a WiFi hotspot with a setup page. Every runtime setting can be changed later from a web portal, including firmware updates over WiFi. A USB cable is needed only for the first flash.
+- **Layouts for each panel.** The 800×480 layout runs on black-and-white, three-colour and full-colour panels, with colour icons and colour-coded readings where the panel has the inks. The 4.26" panel has a layout of its own.
+- **14 widgets.** Sunrise and sunset (computed on the device), humidity, dew point, heat stress, wind, UV, pressure with its trend, air quality, visibility, moon phase, pollen, and indoor temperature and humidity from an optional sensor.
+- **It copes with outages.** The device connects to the strongest access point on mesh networks, and its error screens say why WiFi failed. It retries every 15 minutes. During a short outage the last forecast stays on screen, marked as old, before an error replaces it.
+- **Long battery life.** About 14 µA asleep and a few seconds awake per update on the FireBeetle build. The battery level and its estimated days left are on screen, and a low-battery page protects the cell.
+- **12 locales,** including Hebrew (right to left, with the Hebrew calendar and Shabbat times) and Polish.
 
-  Some links below are affiliate links. Using them helps support the project at no extra cost to you—thanks for your support!
+## Supported hardware
 
-  | Component Type  | Component                                    | Notes                                                     | Link                                                                         |
-  |-----------------|----------------------------------------------|-----------------------------------------------------------|------------------------------------------------------------------------------|
-  | ESP32           | FireBeetle 2 ESP32-E                         | Features low-power design, USB-C, and battery management. | Available [here](https://www.dfrobot.com/product-2195.html?tracking=PfSxQ8). |
-  | E-Paper Display | See [Panel Support](#panel-support).         | See [Panel Support](#panel-support).                      | See [Panel Support](#panel-support).                                         |
-  | Adapter Board   | DESPI-C02                                    | Waveshare HATs (rev 2.2/2.3) are not recommended.         | Available [here](https://www.aliexpress.us/item/3256804446769469.html).      |
-  | Sensor          | BME280 (optional)                            | Indoor temperature/humidity widgets. 3.3V/5V compatible.  | Available from multiple vendors.                                             |
-  | Battery         | 3.7V LiPo w/ JST-PH2.0 connector             | Any capacity (e.g., 5000mAh for 6+ months runtime)        | Available from multiple vendors.                                             |
-  | Enclosure       | See [Enclosure Options](#enclosure-options). | See [Enclosure Options](#enclosure-options).              | See [Enclosure Options](#enclosure-options).                                 |
+| Device | Panel | Layout | Assembly | Build target |
+|---|---|---|---|---|
+| DFRobot FireBeetle 2 ESP32-E + DESPI-C02 adapter | 7.5" 800×480 black and white (Waveshare v2, Good Display GDEY075T7) | [7.5" black and white](#75-black-and-white) | [Wiring](#diy-firebeetle-esp32-and-a-75-or-73-panel) | `dfrobot_firebeetle2_esp32e` |
+| the same | 7.5" 800×480 black/white/red (Waveshare B, Good Display GDEY075Z08) | [7.5" three-colour](#75-three-colour-blackwhitered) | Wiring | `dfrobot_firebeetle2_esp32e` |
+| the same | 7.5" 640×384 black and white (v1, GDEW075T8) | reduced 800×480 layout | Wiring | `dfrobot_firebeetle2_esp32e` |
+| FireBeetle 2 ESP32-E + **DESPI-C73** adapter | 7.3" 800×480 seven-colour (Waveshare F / GDEY073D46, Spectra 6 GDEP073E01) | [7.3" full colour](#73-full-colour-reterminal-e1002) | Wiring | `dfrobot_firebeetle2_esp32e` |
+| [Seeed reTerminal E1002](https://www.seeedstudio.com/reTerminal-E1002-p-6533.html) | built-in 7.3" Spectra 6 | [7.3" full colour](#73-full-colour-reterminal-e1002) | none | `seeed_reterminal_e1002` |
+| Seeed reTerminal E1001 | built-in 7.5" black and white | [7.5" black and white](#75-black-and-white) | none | `seeed_reterminal_e1001` |
+| [Seeed XIAO ePaper Display Board EE05](https://wiki.seeedstudio.com/epaper_ee05) | [Seeed 4.26" 800×480 monochrome](https://www.seeedstudio.com/4-26-Monochrome-SPI-ePaper-Display-p-6398.html) (Good Display GDEQ0426T82) | [4.26" four greys](#426-four-greys-xiao-ee05) | [Printed case](#seeed-xiao-ee05-with-the-426-panel) | `seeed_xiao_ee05` |
 
-  **All-in-one alternative:** the [Seeed reTerminal E1002](https://www.seeedstudio.com/reTerminal-E1002-p-6533.html) packs an ESP32-S3, a 7.3" Spectra 6 full-color panel, a battery, an enclosure, front buttons, and an SHT4x indoor sensor into one device — no wiring, soldering, or enclosure needed. Build for it with `pio run -e seeed_reterminal_e1002` and everything (panel, sensor, pins, buttons) is selected automatically. Note its full refresh takes ~28s, so battery life is shorter than the B/W FireBeetle build.
+The DIY build takes an optional BME280, BME680 or SHT40/41/45 indoor sensor. The reTerminals have an SHT4x built in, and the XIAO EE05 takes an optional SHT40/41/45.
 
-Other items needed:
-- Wires ("Jumper Wires" if looking to minimize/avoid soldering).
-- Solder Iron + Solder (unless following [Solder-Free Component Selection](#solder-free-component-selection-optional)).
-- Linux, Windows, or MacOS computer (used for the first firmware flash).
-- Push Button (optional, if you want a reset button mounted on your enclosure, else you can use the on-board reset button).
+## Layouts
 
-### Panel Support
+### 7.5" black and white
 
-  Waveshare and Good Display make equivalent panels. Either variant will work.
+<img src="showcase/preview-75-bw.png" width="80%" />
 
-  | Panel                                   | Resolution | Colors          | Notes                                                                                                                 |
-  |-----------------------------------------|------------|-----------------|-----------------------------------------------------------------------------------------------------------------------|
-  | Waveshare 7.5in e-paper (v2)            | 800x480px  | Black/White     | Available [here](https://www.waveshare.com/product/7.5inch-e-paper.htm). (recommended)                                |
-  | Good Display 7.5in e-paper (GDEY075T7)  | 800x480px  | Black/White     | Available [here](https://www.aliexpress.com/item/3256802683908868.html).             |
-  | Waveshare 7.5in e-Paper (B)             | 800x480px  | Red/Black/White | Available [here](https://www.waveshare.com/product/7.5inch-e-paper-b.htm).                                            |
-  | Good Display 7.5in e-paper (GDEY075Z08) | 800x480px  | Red/Black/White | Available [here](https://www.aliexpress.com/item/3256803540460035.html).                                              |
-  | Waveshare 7.3in ACeP e-Paper (F)        | 800x480px  | 7-Color         | Available [here](https://www.waveshare.com/product/displays/e-paper/epaper-1/7.3inch-e-paper-f.htm). Full-color icons. |
-  | Good Display 7.3in e-paper (GDEY073D46) | 800x480px  | 7-Color         | Available [here](https://www.aliexpress.com/item/3256805485098421.html). Full-color icons.                            |
-  | Good Display 7.3in e-paper (GDEP073E01) | 800x480px  | 7-Color         | Available [here](https://www.good-display.com/blank7.html?productId=533). Spectra 6. Full-color icons. This is also the panel built into the reTerminal E1002. |
-  | Waveshare 7.5in e-paper (v1)            | 640x384px  | Black/White     | Limited support. Some information not displayed, see [image](showcase/demo-waveshare75-version1.jpg).                 |
-  | Seeed / Good Display 4.26in e-paper (GDEQ0426T82) | 800x480px | 4 greys  | 219 ppi, on the Seeed EE05 board, with a layout of its own in four greys: see [below](#xiao-ee05-and-the-426in-panel). |
-  | Good Display 7.5in e-paper (GDEW075T8)  | 640x384px  | Black/White     | Limited support. Some information not displayed, see [image](showcase/demo-waveshare75-version1.jpg).                 |
+The original 800×480 layout, drawn in line art. Top left: the current conditions. Below them: up to 12 widgets in a two-column grid, chosen and ordered in the portal. Along the top: a 5- to 7-day forecast. Bottom right: a graph of the next 24 to 48 hours, with temperature (and optionally the dew point) as lines, the chance of rain as bars and the weather as icons along the line. Up to two weather alerts appear at the top, beside the city and date. The status bar shows the update time, WiFi and battery.
 
-  On the 7-color panels this fork renders full-color condition and widget icons plus a semantic color palette (red highs / blue lows, color-coded UV and AQI); the 3-color panels use a single red accent; B/W panels use line art. Panels with additional colors have much longer refresh times (~12s for 3-color, ~28s for 7-color), which reduces battery life.
+It runs on the FireBeetle build with a 7.5" v2 panel, on the reTerminal E1001, and on the EE05 with the `seeed_xiao_ee05_classic` target. A dark mode (white on black) is available on the colour panels.
 
-### XIAO EE05 and the 4.26in Panel
+### 7.5" three-colour (black/white/red)
 
-  <p float="left">
-    <img src="showcase/preview-ee05-426-home.png" width="49%" />
-    <img src="showcase/preview-ee05-426-hours.png" width="49%" />
-  </p>
+<img src="showcase/preview-75-3c.png" width="80%" />
 
-  *(The home page and the hours page, rendered on a PC in the panel's measured greys, set against white paper: the panel's white reflects about 68 % as much light as paper. Sample weather, with a made-up afternoon of showers.)*
+The same layout with one accent colour, red by default (`ACCENT_COLOR` in config.h): the city name, the temperature line and its scale, and alerts. A full refresh takes about 12 seconds.
 
-  Seeed's [XIAO ePaper Display Board EE05](https://wiki.seeedstudio.com/epaper_ee05) (XIAO ESP32-S3 Plus, battery charger, three buttons) with Seeed's 4.26in panel, which is Good Display's GDEQ0426T82 glass: 800x480 at 219 ppi, black and white, with a waveform for four greys. It has a layout of its own, in pages:
+### 7.3" full colour (reTerminal E1002)
 
-  - **Home**, drawn by every scheduled update in the four greys (a full refresh, about 4 s): the current conditions; three tiles chosen in the portal, each a title over its reading with no icons, from wind (its speed, direction and gusts), air quality, indoor (the temperature with an arrow for its trend over the last three hours, and the humidity), humidity, dew point, heat stress, pressure, UV, pollen, visibility, sunrise and sunset, and the moon (NASA's map of its surface, lit for its real phase and drawn in the greys, with the share of it lit); the next 24 hours as a graph of temperature and dew point, with the chance of rain as bars on their own 0-100 % scale; five days.
-  - **Hours** and **Week**, turned to with **KEY3** and drawn in black and white (about 1.7 s): the next 24 hours in two tables, every hour with its sky, temperature, what it feels like, chance of rain and wind; seven days with rain, wind, and each day's range against the week's. They are drawn from the weather the last update kept, without the network, and the home page comes back five minutes after the last press, or with the next update if that is sooner.
+<img src="showcase/preview-e1002.png" width="80%" />
 
-  The greys were measured on the panel with a test card: black, dark grey, light grey and white come out at L\* 16, 69, 81 and 100, so "dark grey" is really a mid grey. The layout also uses checkers of two levels, dot by dot, which at this density read as tones of their own (black and light grey: L\* 47).
+On the seven-colour and Spectra 6 panels the same layout uses full-colour weather and widget icons. The icons are drawn from the [InkyPi](https://github.com/fatihak/InkyPi) set and reduced to the panel's inks. Highs are red and lows blue, the dew point is a blue curve, and UV, air quality and pollen sit on colour-coded chips. A full refresh takes about 28 seconds. Its white reflects about 40 % as much light as paper, against about 70 % for a black-and-white panel, so next to one it looks greyer than the preview.
 
-  Build and flash:
+### 4.26" four greys (XIAO EE05)
+
+| Home (four greys) | Hours (black and white) | Week (black and white) |
+|:---:|:---:|:---:|
+| <img src="showcase/preview-ee05-426-home.png" /> | <img src="showcase/preview-ee05-426-hours.png" /> | <img src="showcase/preview-ee05-426-week.png" /> |
+
+Seeed's 4.26" panel (219 ppi) is black and white with a waveform for four greys. Its layout comes in pages:
+
+- **Home**, drawn in the four greys on every scheduled update (a full refresh of about 4 s):
+  - the current conditions;
+  - three tiles chosen in the portal (`home_tiles`), each a title over its reading: wind with gusts; indoor temperature with its trend arrow; air quality; the moon, from NASA's map, lit for its real phase; and others;
+  - the next 24 hours as a graph, with the chance of rain on its own 0–100 % scale;
+  - five days.
+- **Hours** and **Week**, turned to with **KEY3** and drawn in black and white in about 2 s from the weather the last update saved, without the network:
+  - Hours: every hour of the next 24, with sky, temperature, feels like, rain chance and wind.
+  - Week: seven days with rain, wind and each day's range against the week's.
+
+  The home page comes back five minutes after the last press.
+
+The greys were measured on the panel. Black, dark grey, light grey and white come out at L\* 16, 69, 81 and 100, so the layout also uses checkers of two levels, which at this density read as tones of their own. English only so far.
+
+## Building and flashing
+
+The firmware is built with [PlatformIO](https://platformio.org/): either the [VS Code extension](https://platformio.org/install/ide?install=vscode) or the command line (`pip install platformio`). Clone or download this repository and open the `platformio` folder.
+
+### Build targets
+
+Each target selects its board, panel, sensor and pins by itself. Only the DIY build needs [compile-time settings](#compile-time-settings) for its panel.
+
+| Target | Hardware |
+|---|---|
+| `dfrobot_firebeetle2_esp32e` | FireBeetle 2 ESP32-E (USB-C) with a 7.5" panel on a DESPI-C02, or a 7.3" colour panel on a DESPI-C73. The default target; select the panel in config.h. |
+| `firebeetle32` | The older micro-USB FireBeetle ESP32. Change `PIN_BAT_ADC` to `A0` and `PIN_EPD_BUSY` to `5` in config.cpp. |
+| `seeed_reterminal_e1002` | reTerminal E1002 |
+| `seeed_reterminal_e1001` | reTerminal E1001 |
+| `seeed_xiao_ee05` | XIAO EE05 with the 4.26" panel (four-grey layout with pages) |
+| `seeed_xiao_ee05_classic` | XIAO EE05 drawing the 7.5" black-and-white layout instead |
+| `seeed_reterminal_e1002_testcard`, `seeed_xiao_ee05_testcard` | A test card instead of the weather (inks, greys, type sizes, orientation marks); no WiFi needed. Useful to check a new panel first. |
+
+### Compile-time settings
+
+WiFi, location, time zone, formats, schedule, battery thresholds, weather sources, API keys, fonts and the widget layout are all **runtime settings**. They live in `config.json` and the portal, and need no rebuild ([reference](#configuration-reference-configjson)). Everything in `platformio/src/config.cpp` except the pin assignments has a `config.json` key, so config.cpp only provides the defaults.
+
+What is **compiled in**, and so needs a rebuild to change, is in [`platformio/include/config.h`](platformio/include/config.h):
+
+| Setting | Default | Options and notes |
+|---|---|---|
+| Panel: `DISP_BW_V2`, `DISP_3C_B`, `DISP_7C_F`, `DISP_7C_E6`, `DISP_BW_V1` | `DISP_BW_V2` | DIY build only; the Seeed targets set their own. |
+| Driver board: `DRIVER_DESPI_C02`, `DRIVER_WAVESHARE` | `DRIVER_DESPI_C02` | Keep `DRIVER_DESPI_C02` for a DESPI-C73 too: the setting only sets the length of the reset pulse. Waveshare's HATs (rev 2.2/2.3) are deprecated. |
+| Indoor sensor: `SENSOR_BME280`, `SENSOR_BME680`, `SENSOR_SHT4X`, `SENSOR_NONE` | `SENSOR_BME280` | DIY build only; the Seeed targets set their own. `SENSOR_INIT_DELAY_MS 300` if the BME280 reads nothing. |
+| `LOCALE` | `en_US` | `de_DE`, `en_GB`, `es_ES`, `et_EE`, `fi_FI`, `fr_FR`, `he_IL`, `it_IT`, `nl_BE`, `pl_PL`, `pt_BR`. A locale can bring its own unit and font defaults (`include/locales/locale_<code>.defaults.h`). |
+| Temperature: `UNITS_TEMP_FAHRENHEIT`, `_CELSIUS`, `_KELVIN` | Fahrenheit | |
+| Wind: `UNITS_SPEED_MILESPERHOUR`, `_KILOMETERSPERHOUR`, `_METERSPERSECOND`, `_FEETPERSECOND`, `_KNOTS`, `_BEAUFORT` | mph | |
+| Pressure: `UNITS_PRES_MILLIBARS`, `_HECTOPASCALS`, `_INCHESOFMERCURY`, `_MILLIMETERSOFMERCURY`, `_PASCALS`, `_ATMOSPHERES`, … | mbar | |
+| Visibility: `UNITS_DIST_MILES`, `_KILOMETERS` | miles | |
+| Daily precipitation: `UNITS_DAILY_PRECIP_INCHES`, `_MILLIMETERS`, `_CENTIMETERS`, `_POP` | inches | Amounts come from weather.gov's gridpoint forecast for about 3 days, then Open-Meteo. `_POP` shows the chance instead (and saves one large request per update). |
+| Fonts: `FONT_INCLUDE_<Family> 1` | FreeSans (+ Bitter on the reTerminals and EE05) | Each family costs 150–250 KB of flash; the families compiled in are offered in the portal. Add a TTF with `tools/fontconvert.py` and `tools/gen_font_table.py`. |
+| `ACCENT_COLOR` | `GxEPD_RED` | The three-colour panel's accent. |
+| `COLOR_SUN`, `COLOR_PRECIP`, `COLOR_TEMP_HI`, … | yellow, blue, red, … | The full-colour panels' palette, by meaning. |
+| `WIND_INDICATOR_*`, `WIND_ICONS_*` | arrow, 16 directions | Arrow, degrees or compass points; the arrow's precision. |
+| `TEMP_ORDER_HL` / `TEMP_ORDER_LH` | high first | |
+| `DISPLAY_DAILY_PRECIP` | `2` (only when forecast) | `0` never, `1` always. |
+| `DISPLAY_HOURLY_ICONS`, `DISPLAY_ALERTS` | `1` | `0` hides them. |
+| `STATUS_BAR_EXTRAS_*` | battery %, WiFi strength | Battery voltage and RSSI can be added. |
+| `BATTERY_MONITORING` | `1` | `0` for a display without a battery. |
+| `DEBUG_LEVEL` | `0` | `1` more serial output, `2` also the API replies. |
+| `SIMULATE_OUTAGE`, `FORCE_PORTAL` | off | For testing only. |
+
+Ways to set them:
+
+- **Edit config.h**.
+- **Pass them on the command line, which leaves the file alone:**
 
   ```
-  pio run -e seeed_xiao_ee05 -t upload            # the weather display
-  pio run -e seeed_xiao_ee05 -t uploadfs          # config.json, as for the other boards
-  pio run -e seeed_xiao_ee05_testcard -t upload   # the greys card, no WiFi needed
-  pio run -e seeed_xiao_ee05_classic -t upload    # or: the 7.5in black-and-white page instead
+  PLATFORMIO_BUILD_FLAGS="-D LOCALE=he_IL" pio run -e seeed_reterminal_e1002
+  PLATFORMIO_BUILD_FLAGS="-D DISP_3C_B -D SENSOR_SHT4X" pio run
   ```
 
-  Things to know:
+  With `-D LOCALE=he_IL`, Hebrew's defaults file switches to metric units, Israel's time zone and the Heebo font.
+- **Pins:** set them in `platformio/src/config.cpp`. Only the DIY build has a choice; the defaults match the wiring diagram, and the Seeed boards' pins are fixed.
+- **Certificates:** the servers' certificates are checked against the root CAs in `cert.h`, valid until 2035. To build without verification, create `platformio/include/config_local.h` containing `#define USE_HTTPS_NO_CERT_VERIF`. Git ignores that file.
 
-  - **Buttons:** KEY1 opens the configuration portal, KEY2 forces a refresh, KEY3 turns the page. A press while the board is busy (drawing, or fetching the weather) is kept and acted on when it is free. RST restarts the board.
-  - **Serial output is on the USB port.** The board uses the UART pins for the panel. While a computer is attached it waits awake between refreshes instead of sleeping, so the port stays up and the board can be flashed or its log read without pressing reset.
-  - **Indoor sensor: optional.** An SHT4x on the extension port (the unfitted J2/J4 footprints: J2 pin 1 SDA on GPIO5, J2 pin 2 SCL on GPIO6, J4 pin 5 3.3 V switched with the panel, J4 pin 6 ground) is found by itself; without one the indoor tile shows the humidity.
-  - **Refreshing to the home page** uses the grey waveform, which flashes the panel several times; the black-and-white pages refresh with a single flash.
-  - **English only** so far. The 800x480 layouts' settings (`font`, `font_small`, `widget_rows`, widget positions) are ignored; the portal shows the three home tiles (`home_tiles`) in their place.
+### Flashing over USB
 
-  To see the layout without the hardware: `python tools/sim480/build.py --panel=4g426 --locale=en_US` draws the home, hours and week pages in the measured greys, from a device's own config.json and the replies `tools/sim480/fetch_us.py` saves for its location (see [tools/sim480](tools/sim480/README.md)).
+```
+pio run -e <target> -t upload             # build and flash the firmware
+pio run -e <target> -t upload --upload-port COM5   # if more than one port is attached
+pio run -e <target> -t uploadfs           # optional: write data/config.json to the device
+```
 
-### Enclosure Options
+In VS Code, pick the target in the status bar and use **PlatformIO: Upload**.
 
-You'll want a nice way to show off your project. Here are a few popular choices.
+A freshly flashed device needs no filesystem upload. It formats its storage, finds no WiFi settings and opens the setup hotspot ([Setup from your phone](#setup-from-your-phone)). `uploadfs` is only for preloading a prepared `data/config.json`, and it replaces the one on the device.
 
-- DIY Wooden
-  - I made a small stand by hollowing out a piece of wood from the bottom. On the back, I used a short USB extension cable so that I can charge the battery without needing to remove the components from the stand. I also wired a small reset button to refresh the display manually. Additionally, I 3d printed a cover for the bottom, which is held on by magnets. The E-paper screen is very thin, so I used a thin piece of acrylic to support it.
-  - Measurements:
-    - depth = 63mm <br>
-      height = 49mm <br>
-      width = 170.2mm (= width of the screen) <br>
-      screen angle = 80deg <br>
-      screen is 15mm from the front
-- 3D Printable
-  - Here is a list of community designs.
-  
-    | Contributor                                                          | Link                                                                                                      |
-    |----------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|
-    | [Kingfisher](https://www.printables.com/@Kingfisher_32821)           | [Printables](https://www.printables.com/model/1139047-weather-station-e-ink-frame)                        |
-    | [Francois Allard](https://www.printables.com/@FrAllard_1585397)      | [Printables](https://www.printables.com/model/791477-weather-station-using-a-esp32)                       |
-    | [3D Nate](https://www.printables.com/@3DNate_451157)                 | [Printables](https://www.printables.com/model/661183-e-ink-weather-station-frame)                         |
-    | [Sven F.](https://github.com/Spanholz)                               | [Printables](https://www.printables.com/model/657756-case-for-esp32-weather-station)                      |
-    | [Layers Studio](https://www.printables.com/@LayersStudio)            | [Printables](https://www.printables.com/model/655768-esp32-e-paper-weather-display-stand)                 |
-    | [PJ Veltri](https://www.printables.com/@PJVeltri_1590999)            | [Printables](https://www.printables.com/model/692944-base-and-display-holder-for-esp-32-e-paper-weather)  |
-    | [TheMeanCanEHdian](https://www.printables.com/@TheMeanCanEH_1207348) | [Printables](https://www.printables.com/model/841458-weather-display-enclosure)                           |
-    | [MPHarms](https://www.thingiverse.com/mpharms/designs)               | [Thingiverse](https://www.thingiverse.com/thing:6666148)                                                  |
-    | [Plaste-Metz](https://www.printables.com/@PlasteMetz_576567)         | [Printables](https://www.printables.com/model/1160924-weather-station-case)                               |
-    | [kenwch92](https://github.com/kenwch92)                              | [Printables](https://www.printables.com/model/1505838-over-engineered-display-stand-for-esp32-e-paper-we) |
-    | [Eckerput](https://github.com/Eckerput)                              | [Thingiverse](https://www.thingiverse.com/thing:7112836)                                                  |
-    | [Thomax ](https://www.printables.com/@Thomax_386720)                 | [Printables](https://www.printables.com/model/1363448-esp32-e-paper-weather-display) |
+Notes per board:
 
-  - If you want to share your own 3D printable designs, your contributions are highly encouraged and welcome!
-- Picture Frame
+- **FireBeetle 2 ESP32-E:** if the upload stops with `Wrong boot mode detected (0x13)`, unplug the board, connect GPIO0 (labelled 0/D5) to GND, and plug it back in. Other upload errors usually mean a missing USB-serial driver.
+- **reTerminal E1001 / E1002:** they flash through their own USB-serial chip (a CH340). If the upload cannot connect while the display sleeps, press the reset button and try again.
+- **XIAO EE05:** the USB port is the ESP32-S3's own, and serial output appears there. While a computer is attached, the board waits awake between updates instead of sleeping, so it can be flashed and its log read at any time. If no port appears (the board was asleep), press RST once. Some power banks switch themselves off at the tiny current the board draws asleep.
+- **Test cards:** flash a test card target before the weather on a new panel. It shows the inks or greys, a ladder of type sizes and named corners, so one look tells you whether the picture is the right way up.
 
-### Solder-Free Component Selection (Optional)
+### Updates over WiFi
 
-This project can be completed without any soldering, if you choose your component selection carefully.
-- Buy "Jumper Wires" to connect your components.
-- Buy the [FireBeetle 2 ESP32-E w/ Headers](https://www.dfrobot.com/product-2231.html?tracking=PfSxQ8).
-- Buy a BME280 with headers soldered from the factory.
-- Buy a reset switch that is compatible with jumper wires.
+After the first flash, updates go through the portal:
 
+1. Build: `pio run -e <target>`.
+2. In the portal, under **Firmware update**, choose `.pio/build/<target>/firmware.bin` and tap **Upload & Install**. The portal shows the running build's commit and date.
 
-## Setup Guide
+The new image goes into a spare flash slot and takes effect only once it has been received and verified, so an interrupted upload leaves the running firmware alone. Every build records its target and panel, and the portal refuses a file built for another board or panel unless you tick **Install even if...**. The settings page is part of the firmware, so an update brings its own page and leaves the device's `config.json` as it is.
 
-The short version: wire it up, flash it once over USB, then join the hotspot it creates and finish setup from your phone. After that, settings changes *and firmware updates* happen over WiFi.
+## Setup from your phone
 
-### Wiring
+A device without WiFi settings starts its own hotspot and shows how to reach it on the panel:
 
-*(Skip this section entirely for the reTerminal E1002 — everything is built in.)*
-
-The battery can be charged by plugging the FireBeetle ESP32 into the wall via the USB-C connector while the battery is plugged into the ESP32's JST connector.
-
-  > **Warning**
-  > The polarity of JST-PH2.0 connectors is not standardized! You may need to swap the order of the wires in the connector.
-
-NOTE: Waveshare now ships revision 2.3 of their e-paper HAT (no longer rev 2.2 ). Rev 2.3 has an additional `PWR` pin (not depicted in the wiring diagrams below); connect this pin to 3.3V.
-
-IMPORTANT: The DESPI-C02 adapter has one physical switch that MUST be set correctly for the display to work.
-
-- RESE: Set switch to position 0.47.
-
-IMPORTANT: The Waveshare E-Paper Driver HAT has two physical switches that MUST be set correctly for the display to work.
-
-- Display Config: Set switch to position B.
-
-- Interface Config: Set switch to position 0.
-
-Cut the low power pad for even longer battery life.
-
-- From <https://wiki.dfrobot.com/FireBeetle_Board_ESP32_E_SKU_DFR0654>
-
-  > Low Power Pad: This pad is specially designed for low power consumption. It is connected by default. You can cut off the thin wire in the middle with a knife to disconnect it. After disconnection, the static power consumption can be reduced by 500 μA. The power consumption can be reduced to 13 μA after controlling the maincontroller enter the sleep mode through the program. Note: when the pad is disconnected, you can only drive RGB LED light via the USB Power supply.
-
-![Wiring diagram with DESPI-C02 driver board.](showcase/wiring_diagram_despi-c02.png)
-
-
-### Compilation and First Flash
-
-PlatformIO for VSCode is used for managing dependencies, code compilation, and uploading to the ESP32. The first flash is the only step that requires a computer and USB cable.
-
-1. Clone this repository or download and extract the .zip.
-
-2. Install VSCode.
-
-3. Follow these instructions to install the PlatformIO extension for VSCode: <https://platformio.org/install/ide?install=vscode>
-
-4. Open the project in VSCode.
-
-   a. File > Open Folder...
-
-   b. Navigate to this project and select the folder called "platformio".
-
-5. Configure hardware options in [config.h](platformio/include/config.h).
-
-   Only *hardware* choices are compiled in; everything else (WiFi, location, schedule, layout) is configured later from your phone. In config.h, select exactly one of each:
-
-   - **E-Paper panel** (`DISP_BW_V2`, `DISP_3C_B`, `DISP_7C_F`, `DISP_7C_E6`, or `DISP_BW_V1`).
-   - **Indoor sensor** (`SENSOR_BME280` or `SENSOR_BME680`).
-   - **Units** (temperature, wind speed, pressure, distance) and **locale/language**.
-
-   *(reTerminal E1002 owners skip this step — building with the `seeed_reterminal_e1002` environment selects the panel, sensor, and pins automatically. Likewise the `seeed_xiao_ee05` environment for the EE05 with the 4.26in panel.)*
-
-6. Build and Upload.
-
-   a. Connect the ESP32 to your computer via USB.
-
-   b. Upload the **firmware**: click the upload arrow along the bottom of the VSCode window ("PlatformIO: Upload"). For the reTerminal E1002, select the `seeed_reterminal_e1002` environment first (or run `pio run -e seeed_reterminal_e1002 -t upload`); for the EE05, `seeed_xiao_ee05`.
-
-   c. Upload the **filesystem** (the settings file and the portal web page): run "PlatformIO: Upload Filesystem Image" from the task list (or `pio run -t uploadfs`).
-
-      - If using a FireBeetle 2 ESP32-E and you receive the error `Wrong boot mode detected (0x13)! The chip needs to be in download mode.` unplug the power from the board, connect GPIO0 ([labeled 0/D5](https://wiki.dfrobot.com/FireBeetle_Board_ESP32_E_SKU_DFR0654#target_5)) to GND, and power it back up to put the board in download mode.
-
-      - If you are getting other errors during the upload process, you may need to install drivers to allow you to upload code to the ESP32.
-
-### First-Time Setup (Hotspot)
-
-A freshly flashed device has no WiFi credentials, so on boot it starts its own hotspot and shows the connection details on the e-paper screen:
-
-1. On your phone, join the WiFi network **`WeatherEPD-Setup`** (password: **`weatherepd`**).
-2. The setup page should pop up automatically (captive portal). If it doesn't, open **http://192.168.4.1/** in a browser.
+1. On your phone, join **`WeatherEPD-Setup`** (password **`weatherepd`**).
+2. The setup page should open by itself. If it doesn't, browse to **http://192.168.4.1/**.
 3. Fill in the page:
-   - **WiFi** — tap **🔍 Scan** to list nearby networks (strongest first) and tap yours, then enter its password. 2.4 GHz networks only.
-   - **Location** — tap **📍 Detect my location**, or enter latitude/longitude manually (long-press your spot in a maps app to copy coordinates). weather.gov covers US locations only.
-   - **Time zone** and formats — dropdowns with live previews.
-   - Everything else (schedule, forecast days, widget layout, AirNow key) can be set now or changed later.
-4. Tap **Save & Restart**. The device joins your WiFi and shows the weather within a minute or two.
+   - **WiFi:** tap **Scan** to list networks, strongest first. 2.4 GHz only.
+   - **Location:** tap **Detect my location**, or enter latitude and longitude.
+   - **Time zone and formats:** dropdowns with live examples.
+   - The rest (schedule, forecast days, widgets, API keys) can be set now or later.
+4. Tap **Save & Restart**. The weather appears within a minute or two.
 
-If setup isn't completed within 10 minutes, the device shows a "Setup paused" screen and deep-sleeps to protect the battery — press the reset (RST) button to start the setup hotspot again. This means an unconfigured device can safely sit on battery power (in a gift box, say) without draining itself.
+If setup isn't finished within 10 minutes, the device shows "Setup paused" and sleeps to save the battery; press reset to start again.
 
-### The Configuration Web Portal
+**Opening the portal later.** Once configured, the portal is reachable at `http://weatherepd.local/` or the device's IP for 10 minutes (adjustable) after you open it:
 
-The same page used for first-time setup remains available after the device is configured:
+| Device | Open the portal | Refresh now | Other buttons |
+|---|---|---|---|
+| FireBeetle DIY build | Press RST **twice**, one to three seconds apart, after the panel has finished refreshing | RST once | |
+| reTerminal E1001 / E1002 | Middle button | Green (right) button | |
+| XIAO EE05 | KEY1 | KEY2 | KEY3 turns the page; RST restarts |
 
-- **Enter it** by pressing the RST button **twice, one to three seconds apart**, once the display has finished refreshing (on the reTerminal E1002, just press the **middle front button** once while it sleeps; on the XIAO EE05, **KEY1**). The display shows where to reach it — `http://weatherepd.local/` or the device's IP — for the next 10 minutes (configurable).
-- **Every setting** in `config.json` is editable: WiFi (with network scan), location (with phone-GPS detection), time zone and clock/date formats (dropdowns with live examples), refresh schedule and bedtime hours, forecast days (5–7), widget rows (5 = 10 slots, 6 = 12 slots — enough for every widget at once), and a per-slot widget picker that mirrors the physical layout.
-- On the EE05's 4.26in layout the widget picker gives way to the home page's three tiles (`home_tiles`), and the font and widget-row settings, which that layout does not use, are hidden.
-- An **advanced raw-JSON editor** exposes the settings not in the form (battery thresholds, NTP servers, portal options). Saves are validated on-device and keep a one-generation backup (`config.bak`).
-- A **Diagnostics** section shows what the display did the last time it woke and the last time something went wrong: the result, how long WiFi, the weather requests and the screen each took, the battery voltage and the WiFi signal. It answers "why did it not update?" without a USB cable. The record stays on the device.
-- The portal serves plain HTTP on your LAN while active.
+What the portal offers:
 
-On the reTerminal E1002 the **green (right) front button** also wakes the device for an immediate weather refresh; on the XIAO EE05, **KEY2** does.
+- **Every setting**, in a form: WiFi with a scan, location with phone GPS, time zone and formats, schedule and bedtime, forecast days, and the widget layout as a picture of the panel.
+- **A raw JSON editor** for the rest (battery thresholds, NTP servers, portal options). Saves are checked on the device and keep a backup (`config.bak`).
+- **Diagnostics:** what the display did on its last wake and on the last one that failed: the result, how long WiFi, the weather requests and the screen took, the battery voltage and the WiFi signal.
+- **Firmware update** ([above](#updates-over-wifi)).
 
-### Runtime Configuration: config.json
+## Configuration reference (config.json)
 
-All non-hardware settings live in [`platformio/data/config.json`](platformio/data/config.json) on the device's flash filesystem, with `//` comments documenting every option: WiFi, location, timezone and formats, sleep schedule and bedtime, WiFi retry interval, battery thresholds, API options, forecast days, widget rows, and widget positions.
+All runtime settings live in [`platformio/data/config.json`](platformio/data/config.json) on the device, with `//` comments explaining every option. You can change them three ways:
 
-Three ways to change it, in order of convenience:
+- in the portal;
+- by editing the file and running `pio run -t uploadfs`;
+- by deleting a key, which falls back to the default compiled into `config.cpp`.
 
-1. **The web portal** (above) — from any phone or computer on your network.
-2. **Edit the file and run `pio run -t uploadfs`** — useful when the device is already on USB.
-3. Delete a key to fall back to the compiled-in default in `config.cpp`.
+<details>
+<summary><b>Weather sources and API keys</b></summary>
 
-Notes on specific settings:
+- `api.forecast_source`: where the forecasts, condition icons and alerts come from.
+  - `"nws"` (default) is weather.gov, US only.
+  - `"open-meteo"` is worldwide and keyless, with a 7-day forecast, hourly temperature, humidity, rain chance, wind and condition codes, and daily rain totals. It has no alerts.
+  - `"ims"` is the Israel Meteorological Service: hourly forecasts and regional warnings, Israel only. Replies follow the firmware's language. `api.ims_location_id` picks one of IMS's ~160 locations ([list](https://ims.gov.il/en/locations_info)); `0` takes the nearest. IMS times are Israel time, so set `timezone` to match.
+- `api.current_source`: where the current conditions come from.
+  - `"open-meteo"` (default) is Open-Meteo's model at your coordinates, updated about every 15 minutes.
+  - `"google"` is the [Google Weather API](https://developers.google.com/maps/documentation/weather)'s station-blended nowcast, using `pollen_api_key`.
+  - `"nws"` is weather.gov's forecast for the current hour: no extra request, but no pressure or visibility.
 
-- `sleep.outage_grace_minutes` — when the weather cannot be fetched (no WiFi, no time, no answer from weather.gov), the last weather stays on the screen for this long before an error screen replaces it. On the first failed wake the page is drawn once more from the forecast kept on the flash filesystem (`/last.bin`, a few kilobytes, rewritten every successful wake), with the update time in the accent colour, or a warning sign beside it on black-and-white panels and in dark mode, and the reason in the status bar; later wakes of the same outage leave the screen alone. Default 180, `0` shows errors at once. Only wakes by the timer hold the screen: after a button press or a reset the error is shown straight away, since someone is waiting for a response. Also in the portal.
-- `api.nws_user_agent` — weather.gov requests a contact email in the User-Agent so they can reach you if your device misbehaves. Please set one.
-- `api.airnow_api_key` — optional; a free [AirNow key](https://docs.airnowapi.org/) upgrades the AQI widget to the EPA's official measured US AQI. Leave empty to use Open-Meteo's modeled values.
-- `api.pollen_api_key` — optional; a [Google Maps Platform](https://developers.google.com/maps/documentation/pollen) key with the Pollen API enabled turns on the pollen widget. The same key serves the Google current-conditions source below when the Weather API is also enabled on its project.
-- `api.forecast_source` — where the forecasts, condition icons and alerts come from. `"nws"` (default) is weather.gov, US only. `"open-meteo"` is [Open-Meteo](https://open-meteo.com/), worldwide and keyless: a 7-day forecast with hourly temperature, humidity, rain chance, wind and WMO condition codes (mapped to the same icons), daily rain totals and UV; it has no alert feed, so the alert bar stays empty. The condition description under the feels-like temperature comes in English, Hebrew or Polish. `"ims"` is the [Israel Meteorological Service](https://ims.gov.il/en) (the public JSON feeds behind its site and app: 7-day hourly forecast with humidity, rain, wind and UV per hour, plus regional warnings), Israel only, no key. Replies follow the firmware's locale, so a build with `LOCALE he_IL` shows Hebrew. With IMS, `"current_source": "nws"` means IMS's own current conditions. IMS times are Israel local time, so set `timezone` to Israel's. `api.ims_location_id` picks one of IMS's ~160 locations ([list](https://ims.gov.il/en/locations_info)); 0 takes the nearest to the coordinates. Also in the portal.
-- **Polish** (`LOCALE pl_PL`): the locale's strings are UTF-8 and the renderer transcodes them to an ISO-8859-2 font family, so ą ć ę ł ń ó ś ź ż draw correctly. The locale switches on `Lato_CE` (Lato, by Łukasz Dziedzic, generated with `fontconvert.py --encoding=iso-8859-2`) and metric units; Open-Meteo is the forecast source to use with it. The same mechanism (`LOCALE_FONT_ENCODING` in a locale's defaults file plus a family with the matching `ENCODING`) serves any other Latin-2 language. Preview of a Kraków build on the E1002, drawn by the PC simulator from live Open-Meteo replies: [morning](showcase/preview-krakow-pl.png), [afternoon](showcase/preview-krakow-pl-afternoon.png).
-- **Hebrew** (`#define LOCALE he_IL` in config.h, or `-D LOCALE=he_IL` on the command line) needs a font family whose high slots carry the Hebrew alphabet: switch on `FONT_INCLUDE_Heebo` (Heebo, Oded Ezer's Hebrew companion to Roboto, generated with `tools/fontconvert.py --encoding=iso-8859-8`). The renderer transcodes the UTF-8 strings and lays each line out right to left (`shapeText` in renderer.cpp); numbers and Latin words inside Hebrew text keep their own order. The forecast row runs right to left too, today in the rightmost column, with the day names spelt out in the longest form that fits the columns (יום שני in the 5-day row, שני in the 7-day row, [preview](showcase/preview-netanya-he-5day.png)) instead of the one-letter abbreviations; the widget grid and the hourly graph's time axis keep their places. The alert block is mirrored too: icon at the right, text running leftwards from it ([preview](showcase/preview-netanya-he-alert.png)). The portal screen drawn on the panel (how to reach the setup page) and the Air Quality source tags are locale strings as well. The portal switches both font settings to Heebo when the configured family has no Hebrew. `tools/sim480` draws the page on a PC with the firmware's own renderer and parsers over saved IMS replies; [this](showcase/preview-netanya-he.png) is Netanya on the reTerminal E1002's panel, and [this](showcase/preview-netanya-he-bw.png) the same on the 7.5in black-and-white panel (`--panel=bwv2`).
-- Each locale carries its own build defaults in `platformio/include/locales/locale_<code>.defaults.h`: `he_IL` selects metric units (°C, km/h, hPa, km, mm), Israel's time zone as the default (`DEFAULT_TIMEZONE`; Israel has one) and switches on `FONT_INCLUDE_Heebo`, so `PLATFORMIO_BUILD_FLAGS="-D LOCALE=he_IL" pio run -e seeed_reterminal_e1002` builds the Israel variant without editing config.h. Any `UNITS_*` or `FONT_INCLUDE_*` given on the command line or in config.h still wins.
-- With a Hebrew firmware the setup portal itself comes up in Hebrew, right to left ([screenshot](showcase/portal-he.png)); the device tells the page its locale over `/info`. Technical fields (coordinates, keys, the JSON editor) stay left to right. The time zone list includes Israel.
-- **Shabbat and holidays**: on Friday and on the eve of a holiday the sunset widget shows the candle lighting time (sunset less `shabbat.candle_lighting_minutes`, default 18); on Shabbat and holidays it shows when they end (sunset plus `shabbat.havdalah_minutes`, default 42). Holidays follow the Israeli calendar (one day of Yom Tov; Rosh Hashana two). `shabbat.show` forces it on or off; left out, a Hebrew build has it on. `%Q` in `date_format` adds the holiday's name on the day (ראש השנה, סוכות, חנוכה...), and is empty otherwise; the separator next to it is dropped with it, so `"%A, %e ב%B, %K, %Q"` reads normally on an ordinary day. All in the portal. Previews: [Friday afternoon](showcase/preview-netanya-he-friday.png), [Shabbat](showcase/preview-netanya-he-shabbat.png).
-- The Hebrew locale uses the Israeli unit abbreviations (קמ"ש, ק"מ, מ"מ; pressure stays hPa, as Israeli forecasts write it) and widgets put the unit on the number's left, the way Hebrew lays out "19 קמ"ש"; "above the scale" is written מעל rather than ">" (`TXT_MORE_THAN`, per locale).
-- With IMS as the forecast source the current conditions carry a short description (בהיר, מעונן חלקית, גשום...) under the feels-like temperature, in the firmware's language; the wind direction, where it is spelt out, uses the Hebrew compass names (צפון-מערבית); and since IMS's own current conditions have no pressure or visibility, those two come from Open-Meteo on the same request that already fetches the daily rain totals. IMS warnings are shown as IMS words them, in Hebrew.
-- `date_format` can use `%K` for the Hebrew calendar date (day and month, turning over at sunset) and `%J` for the same with the year: Hebrew letters in a Hebrew build (כ"ד תשרי תשפ"ז), "24 Tishrei 5787" otherwise. `%L` and `%N` are the same with the month's preposition (כ"ד בתשרי), the form of running text and holiday names, where calendars and datelines use the bare form. The portal's date dropdown offers both. `tools/hebcal_test` checks the calendar on a PC.
-- `api.aqi_source` — where the Air Quality widget's index comes from: `"auto"` (default: the Israel Ministry of Environmental Protection when the forecast source is IMS, else AirNow when its key is set, else the model), `"airnow"`, `"israel"` or `"model"`. The Israeli option reads the measured index from the Ministry's national monitoring network ([air.sviva.gov.il](https://air.sviva.gov.il/), ~230 active stations) using the site's own guest login, no key. It shows the worst current index among the stations within 15 km (one station rarely measures everything: Netanya's nearest has no ozone monitor, and ozone is what turns a summer afternoon "medium"), which is how the Ministry's own regional forecast reads; on Israel's scale, 100 is best and negative values are poor, with the Ministry's bands and colours on the chip (good green, medium yellow, low red, very low brown) and a "(MoEP)" tag. `api.il_aq_station_id` pins a single station by id; 0 finds the nearby ones once and remembers them. Cached per clock hour like AirNow.
-- `heat_stress` widget — the Israel Meteorological Service's discomfort index for the current temperature and humidity, with its level (none, light, mild, moderate, heavy, extreme) on a colour chip. It is what Israeli forecasts report where American ones give the dew point, and works with any forecast source. Hidden by default, except in a Hebrew build, where it takes the dew point's slot unless `widget_positions.heat_stress` places it; the portal shows the slot the panel will come up with.
-- `api.current_source` — where the current conditions (big temperature, humidity, dew point, pressure, wind, visibility) come from. Forecasts and alerts always come from weather.gov. `"open-meteo"` (default) is Open-Meteo's model at your coordinates, refreshed every ~15 minutes, no key. `"google"` is the [Google Weather API](https://developers.google.com/maps/documentation/weather)'s station-blended nowcast, using `pollen_api_key` (falls back to Open-Meteo without a key). `"nws"` uses weather.gov's hourly forecast period for the current hour: no key and no extra request, but no pressure or visibility. If the chosen source fails, the display falls back to the hourly forecast plus the last cached values. Also a dropdown in the portal.
-- Risk badges (UV, air quality, pollen) are drawn as colored chips on the full-color panels. Orange, plum and maroon have no native ink, so those three are painted as a two-ink dither; they share the solid chips' rounded outline via `include/roundrect.h` (verified pixel-identical by `tools/chip_test`).
-- `graph_dewpoint` — optional second curve on the hourly graph: the forecast dew point, blue and the same weight as the temperature line on full-color panels, thinner on black-and-white panels where the thickness is the only cue, with a small legend above the graph. The temperature axis rescales to include it. Handy for judging mugginess and overnight fog/frost risk (dew point closing on the temperature). Off by default; also a toggle in the portal.
-- `font` — typeface for all text on the display, by family name (`"FreeSans"` by default). Only families compiled into the firmware are available: `FONT_INCLUDE_<Family>` in config.h, each costing 150–250 KB of flash, so the stock FireBeetle build carries FreeSans alone and the reTerminal E1002 build adds Bitter. The portal lists the compiled-in families in a dropdown with a live preview. Add any TTF/OTF with `tools/fontconvert.py` followed by `tools/gen_font_table.py`.
-- `font_small` — a separate family for the small text: widget labels, the graph axis, source tags, everything under 11 pt. Empty follows `font`. On the panel's ~125 ppi with 1-bit rendering, a sans like FreeSans keeps even strokes at those sizes where a serif such as Bitter looks ragged, so Bitter above with FreeSans below is the intended pairing. Also in the portal, with the preview.
-- `widget_positions` — there are 14 widgets (sunrise, sunset, humidity, dewpoint, heat stress, wind, UV, pressure, air quality, visibility, moon phase, pollen, indoor temp, indoor humidity) for 10 or 12 slots depending on `widget_rows`. Set a widget to -1 to hide it.
+  If the source fails, the display falls back to the hourly forecast and the last cached values.
+- `api.aqi_source`: where the air quality index comes from.
+  - `"auto"` (default): Israel's Ministry of Environmental Protection with IMS, else AirNow when its key is set, else Open-Meteo's model.
+  - `"airnow"`, `"israel"` or `"model"` force one.
 
-### Over-the-Air Firmware Updates
+  The Israeli index is the worst current value among stations within 15 km; `api.il_aq_station_id` pins a single station.
+- `api.nws_user_agent`: weather.gov asks for a contact email in the User-Agent, so they can reach you if your device misbehaves. Please set one.
+- `api.airnow_api_key`: optional. A free [AirNow key](https://docs.airnowapi.org/) gives the EPA's official measured US AQI.
+- `api.pollen_api_key`: optional. A Google Maps Platform key with the Pollen API enabled turns on the pollen widget. The same key serves `current_source: "google"` when the Weather API is enabled on its project.
 
-After the first USB flash, firmware updates can be installed through the portal:
+</details>
 
-1. Build the new firmware (`pio run`, for your board's environment) and locate `.pio/build/<board>/firmware.bin`.
-2. Open the portal, scroll to **Firmware update** (it shows the currently installed build's commit hash and compile time — compare it after the restart to confirm the update took), choose the `.bin`, and tap **Upload & Install**.
-3. The image installs to a spare flash slot and only takes effect once it completes and verifies — a failed or interrupted upload leaves the running firmware untouched. The device restarts on the new firmware.
+<details>
+<summary><b>What the display shows</b></summary>
 
-Every build names the build target and the panel it was compiled for (the portal shows the device's own as **This device**), and a file built for anything else is refused before it takes effect, as is a file that does not say. Two cases need the **Install even if...** checkbox: going back to a build from before this check existed, and deliberately changing the panel. The settings page is part of the firmware, so an update brings its own page with it and the device's `config.json` is left as it is; settings that are new in an update start at their defaults. A cable is only needed for the very first flash. (`uploadfs` still exists for writing a prepared `config.json` to a device over USB; it replaces the one on the device.)
+- `widget_positions`: the 800×480 layouts' 14 widgets: sunrise, sunset, humidity, dewpoint, heat_stress, wind, uvi, pressure, air_quality, visibility, moon_phase, pollen, intemp, inhumidity. Each gets a slot number (0, 1 in the top row, 2, 3 in the next…), or `-1` to hide it.
+- `widget_rows`: `5` (10 slots) or `6` (12 slots).
+- `forecast_days`: 5 to 7 days in the forecast row.
+- `sleep.hourly_graph_max`: hours on the graph, 8 to 48.
+- `graph_dewpoint`: adds the dew point as a second curve on the graph.
+- `font`, `font_small`: the typeface for the text, and a separate one for the small text (labels, axis, tags). Only families compiled in are available. On ~125 ppi panels, Bitter with FreeSans below is the intended pairing.
+- `dark_mode`: white on black, on the colour panels.
+- `home_tiles` (4.26" layout): its three home tiles, from wind, air_quality, indoor, intemp, inhumidity, humidity, dewpoint, heat_stress, pressure, uvi, pollen, visibility, sun and moon_phase.
+- `time.time_format`, `hour_format`, `date_format`, `refresh_time_format`: strftime formats, with dropdowns in the portal. `%K` / `%J` add the Hebrew calendar date, and `%Q` the holiday's name on the day.
+- `heat_stress` widget: the Israel Meteorological Service's discomfort index, with its level on a colour chip. Hidden by default, except in a Hebrew build, where it takes the dew point's slot.
 
-## Error Messages and Troubleshooting
+</details>
 
-The WiFi, API and time server screens below appear once an outage has lasted longer than `sleep.outage_grace_minutes` (default 3 hours), or at once after a button press or reset; until then the last weather stays up, marked as old. To see what your display does in an outage without unplugging the router, build once with `SIMULATE_OUTAGE` defined (config.h). The portal's **Diagnostics** section has the detail of the last failure either way.
+<details>
+<summary><b>Schedule, power and network</b></summary>
 
-### Low Battery
-<img src="showcase/demo-error-low-battery.jpg" align="left" width="25%" />
-This error screen appears once the battery voltage has fallen below <code>low_voltage_mv</code> (default = 3.462v, ~10%). It stays up until the battery is charged, as an e-reader's does, drawn in black on white only and redrawn once a day while the device still wakes, since colour inks ghost more easily when one image stays for long. While between <code>low_voltage_mv</code> and <code>very_low_voltage_mv</code> (default = 3.442v) the esp32 deep-sleeps for <code>low_sleep_interval_minutes</code> (default = 30min) between voltage checks; below that, for <code>very_low_sleep_interval_minutes</code> (default = 120min). If the voltage falls below <code>crit_low_voltage_mv</code> (default = 3.404v), the esp32 hibernates and requires a manual press of the reset (RST) button once charged. All thresholds are configurable in the portal's raw-JSON editor.
+- `sleep.sleep_duration_minutes`: time between updates (default 15).
+- `sleep.bed_time_hour`, `sleep.wake_time_hour`: no updates between these hours (default midnight to 5 am).
+- `sleep.wifi_retry_interval_minutes`: how soon to retry after a failed connection (default 15).
+- `sleep.outage_grace_minutes`: how long the last weather stays on screen, marked as old, before an error screen replaces it (default 180; `0` shows errors at once). Only timer wakes hold the screen; after a button press or reset an error is shown straight away.
+- `battery.*`: the low-battery thresholds, in millivolts (warn 3535, low 3462, very low 3442, critical 3404), and the sleep intervals while low (30 and 120 minutes).
+- `wifi.static_ip`, `gateway`, `subnet`, `dns`: a static address skips DHCP, saving 2–4 s per wake.
+- `wifi.timeout_ms`, `time.ntp_server_1`/`_2`, `time.ntp_timeout_ms`, `api.http_client_tcp_timeout_ms`: network timeouts and time servers.
+- `portal.ap_password`, `portal.timeout_minutes`: the setup hotspot's password, and how long the portal stays open.
+
+</details>
+
+<details>
+<summary><b>Languages: Hebrew, Polish and the rest</b></summary>
+
+- **Choosing the language:** set `LOCALE` at build time ([compile-time settings](#compile-time-settings)). Each locale can bring its own defaults: units, time zone and font.
+- **Hebrew (`he_IL`):**
+  - It switches on the Heebo family, and lays each line out right to left, numbers and Latin words keeping their order.
+  - The forecast row runs right to left, with day names spelt out where they fit. Units use the Israeli abbreviations.
+  - With IMS as the source, the current conditions get a short description, and IMS's warnings are shown as IMS words them.
+  - The setup portal comes up in Hebrew too ([screenshot](showcase/portal-he.png)).
+  - Previews: [Netanya](showcase/preview-netanya-he.png), [an alert](showcase/preview-netanya-he-alert.png), [black and white](showcase/preview-netanya-he-bw.png).
+- **Shabbat and holidays:**
+  - On Friday and on the eve of a holiday, the sunset widget shows candle lighting (sunset less `shabbat.candle_lighting_minutes`, default 18).
+  - On Shabbat and holidays it shows when they end (sunset plus `shabbat.havdalah_minutes`, default 42).
+  - Holidays follow the Israeli calendar. `shabbat.show` forces it on or off; a Hebrew build has it on.
+  - Previews: [Friday](showcase/preview-netanya-he-friday.png), [Shabbat](showcase/preview-netanya-he-shabbat.png).
+- **Polish (`pl_PL`):** it draws through a Latin-2 font family (Lato CE), so every Polish letter shows, and it switches to metric units. Use Open-Meteo as the forecast source. Previews: [Kraków](showcase/preview-krakow-pl.png), [afternoon](showcase/preview-krakow-pl-afternoon.png).
+
+</details>
+
+## Assembly
+
+### DIY: FireBeetle ESP32 and a 7.5" or 7.3" panel
+
+<p float="left">
+  <img src="showcase/assembled-demo-raleigh-side.jpg" width="49%" />
+  <img src="showcase/assembled-demo-raleigh-back.jpg" width="49%" />
+</p>
+
+**Parts** (some links are the upstream author's affiliate links):
+
+| Part | Notes |
+|---|---|
+| [FireBeetle 2 ESP32-E](https://www.dfrobot.com/product-2195.html?tracking=PfSxQ8) | Low-power board with USB-C and battery charging. A [version with headers](https://www.dfrobot.com/product-2231.html?tracking=PfSxQ8) allows a solder-free build. |
+| An e-paper panel | See [Supported hardware](#supported-hardware). Waveshare and Good Display panels are equivalent. |
+| Adapter: [DESPI-C02](https://www.aliexpress.us/item/3256804446769469.html) for a 7.5" panel, DESPI-C73 for a 7.3" colour panel | The 7.5" panels have a 24-pin ribbon. The 7.3" colour panels have a 50-pin one, which only the DESPI-C73 takes. Waveshare's HATs (rev 2.2/2.3) are not recommended. |
+| Indoor sensor (optional): BME280, BME680 or SHT40/41/45 | Temperature and humidity. The BME280 is the default; for another, set `SENSOR_BME680` or `SENSOR_SHT4X` ([compile-time settings](#compile-time-settings)). Buy one with headers for a solder-free build. |
+| 3.7 V LiPo with a JST-PH 2.0 plug | Any capacity; 5000 mAh lasts about 6–12 months at a 30-minute interval. |
+| Wires, a soldering iron, optionally a reset button for the enclosure | |
+
+**Wiring:**
+
+![Wiring diagram with the DESPI-C02 driver board](showcase/wiring_diagram_despi-c02.png)
+
+The DESPI-C02 and the DESPI-C73 have the same eight header pins, and the three sensors the same four, so the diagram holds for all of them:
+
+| DESPI-C02 or DESPI-C73 | FireBeetle 2 ESP32-E |
+|---|---|
+| BUSY | 14 |
+| RES | 21 |
+| D/C | 22 |
+| CS | 13 |
+| SCK | 18 |
+| SDI | 23 |
+| GND | GND |
+| 3.3V | 3V3 |
+
+| BME280, BME680 or SHT4x | FireBeetle 2 ESP32-E |
+|---|---|
+| VIN | 4 (powers the sensor only while it's read) |
+| GND | GND |
+| SCL | 16 |
+| SDA | 17 |
+
+- **Adapter switch:** set the DESPI-C02's RESE switch to **0.47**. The DESPI-C73 has none. For a Waveshare HAT, set Display Config to **B** and Interface Config to **0**. Rev 2.3 has an extra PWR pin, which goes to 3.3 V.
+- **The DESPI-C73's ribbon connector:** lift its black lever before sliding the panel's 50-pin ribbon in, then press the lever down firmly. A ribbon that isn't fully seated can leave the panel blank.
+- **Battery polarity:** JST-PH 2.0 plugs aren't standardised, so check yours, and swap the wires in the plug if needed. The battery charges whenever the board has USB-C power.
+- **Low-power pad:** for longer battery life, cut the FireBeetle's low-power pad (see [DFRobot's wiki](https://wiki.dfrobot.com/FireBeetle_Board_ESP32_E_SKU_DFR0654)). That saves about 500 µA, and sleep current falls to about 13 µA.
+- **Pins:** the diagram's pins are the defaults in `config.cpp`. If you wire differently, change them there.
+
+**Enclosures:** the community has designed many 3D-printed cases for this build:
+
+- [Kingfisher](https://www.printables.com/model/1139047-weather-station-e-ink-frame)
+- [Francois Allard](https://www.printables.com/model/791477-weather-station-using-a-esp32)
+- [3D Nate](https://www.printables.com/model/661183-e-ink-weather-station-frame)
+- [Sven F.](https://www.printables.com/model/657756-case-for-esp32-weather-station)
+- [Layers Studio](https://www.printables.com/model/655768-esp32-e-paper-weather-display-stand)
+- [PJ Veltri](https://www.printables.com/model/692944-base-and-display-holder-for-esp-32-e-paper-weather)
+- [TheMeanCanEHdian](https://www.printables.com/model/841458-weather-display-enclosure)
+- [MPHarms](https://www.thingiverse.com/thing:6666148)
+- [Plaste-Metz](https://www.printables.com/model/1160924-weather-station-case)
+- [kenwch92](https://www.printables.com/model/1505838-over-engineered-display-stand-for-esp32-e-paper-we)
+- [Eckerput](https://www.thingiverse.com/thing:7112836)
+- [Thomax](https://www.printables.com/model/1363448-esp32-e-paper-weather-display)
+
+Upstream's own case is a wooden stand: 63 mm deep, 49 mm high and 170.2 mm wide (the screen's width), with the screen at 80° and 15 mm from the front. It has a USB extension for charging, a reset button and a magnetic printed bottom cover. A thin acrylic sheet supports the panel.
+
+### Seeed reTerminal E1001 / E1002
+
+No assembly: the panel, battery, buttons, SHT4x sensor and case are built in. Flash `seeed_reterminal_e1002` (or `_e1001`) and set it up from your phone.
+
+### Seeed XIAO EE05 with the 4.26" panel
+
+The EE05 fits a 3D-printed case: a remix of Seeed Studio's own enclosure for this kit ([original on GrabCAD](https://grabcad.com/library/opendisplay-4-2_6-in-mono-kit-xiao-en05-epaper-board-4-2_6-in-epaper-display-1)). The remix adds:
+
+- heat-set inserts;
+- a vented chamber for an SHT41;
+- ribs that hold a 654060 2000 mAh battery;
+- a pocket for the antenna;
+- a slightly wider screen window;
+- button labels engraved in the back.
+
+The STL files and a print guide are on Printables.
+
+**Parts:**
+
+| Qty | Part | Notes |
+|---|---|---|
+| 1 | Seeed XIAO ePaper Display Board EE05 | Includes the XIAO ESP32-S3 Plus and its FPC antenna. |
+| 1 | Seeed 4.26" monochrome SPI ePaper display | Comes with the 24-pin FPC adapter and flat cable. |
+| 1 | LiPo 654060, 3.7 V, ~2000 mAh, JST-PH 2.0 (optional) | **Check the polarity** against the + mark on the board's BAT connector; many cells are wired the other way. |
+| 1 | SHT40/41/45 breakout with one M2 hole (optional) | Up to about 17 × 13 mm. |
+| 4 | 28 AWG silicone wire, ~13 cm | For the sensor. |
+| 4 + 4 | M3 heat-set inserts (4.4 mm hole) and M3 × 8 screws | Frame corners, through the back cover. |
+| 5 + 5 | M2 heat-set inserts (3.4 mm hole) and M2 × 4 screws | The board's four standoffs and the sensor post. |
+
+**Print settings:** PLA or PETG, 0.2 mm layers, 3 walls, 15–20 % infill, no supports. The files are already oriented for the bed. The lid's engraved labels print best with a 0.25 mm nozzle.
+
+**Assembly:**
+
+1. **Inserts:** heat-set the M3 inserts into the frame's corner posts. Heat-set the M2 inserts into the support plate's four board standoffs and its sensor post.
+2. **Firmware:** flash `seeed_xiao_ee05` before closing the case.
+3. **Panel:** lay the frame face down and drop the panel in, with its ribbon toward the board's display connector.
+4. **Support plate:** lay it on the panel. Fold the ribbon gently around its edge into the FPC adapter, and run the 24-pin cable to the board.
+5. **Board:** screw the EE05 to the standoffs, components facing away from the panel. Connect and lock the flat cable.
+6. **Antenna:** stick the FPC antenna in the pocket inside the back cover. Route its cable through the corner notch to the XIAO's u.FL socket.
+7. **Sensor (optional):**
+   - Screw it to the chamber's post, chip facing the vents.
+   - Run its wires through the chamber notch, under the battery and through the notch above the battery connector.
+   - Solder them: SDA to the XIAO's D4 (GPIO5), SCL to D5 (GPIO6), 3V3 to 3V3, GND to GND. The extension pads work too: J2 pin 1 SDA, J2 pin 2 SCL, J4 pin 5 3.3 V, J4 pin 6 GND.
+8. **Battery (optional):** seat it between the support plate's ribs. Check the polarity and plug it in.
+9. **Back cover:** fit it so the plungers line up with the four side buttons, and fasten it with the M3 screws.
+10. **Switch and lid:** put the switch cap on the slide switch, then press the lid onto the board box (a friction fit).
+11. **Stand:** clip the stand into its holder, or hang the case on a screw by its keyhole.
+
+The lid's labels are the buttons: **SETUP** (KEY1, portal), **REFRESH** (KEY2), **PAGE** (KEY3) and **RESET**.
+
+## Previewing layouts on a PC
+
+[tools/sim480](tools/sim480/README.md) builds the firmware's own drawing code for a computer and saves what it draws as pictures, in each panel's measured inks. That's how the previews above were made, with `--balance`, which white-balances every panel to the same white. It draws the 800×480 layouts and the 4.26" pages:
+
+- `--panel=` picks the panel: `e6` (Spectra 6), `bwv2` (black and white), `3c` (three-colour) or `4g426` (EE05).
+- `--locale=en_US` draws a real device's page from its own config.json and replies saved by `fetch_us.py`. Other locales draw saved sample data for Israel or Kraków.
+- `SIM480_RAIN=1` adds made-up showers.
+
+It needs Python with Pillow and numpy, and a C++17 compiler: g++ or clang++, or MinGW-w64 on Windows.
+
+## Troubleshooting
+
+During an outage, the last weather stays on screen, marked as old, for `sleep.outage_grace_minutes` (default 3 hours). Only then do the error screens below replace it. After a button press or reset, an error shows at once. The portal's **Diagnostics** section has the details of the last failure. To see the outage behaviour without unplugging your router, build once with `SIMULATE_OUTAGE` defined.
+
+<img src="showcase/demo-error-low-battery.jpg" align="left" width="22%" />
+
+**Low battery.**
+
+- **When:** below `low_voltage_mv` (default 3.462 V, about 10 %).
+- **What happens:** the low-battery page stays until the battery is charged, drawn in black on white and redrawn once a day. While low, the device checks every 30 minutes, or every 120 minutes below `very_low_voltage_mv`.
+- **Critical:** below `crit_low_voltage_mv` (3.404 V) it hibernates until reset.
 
 <br clear="left"/>
 
-### WiFi Connection
-<img src="showcase/demo-error-wifi.jpg" align="left" width="25%" />
-This error screen appears when the ESP32 fails to connect to WiFi, with a second line explaining the likely cause: authentication failure (wrong password), network not found (mistyped SSID or out of range), no response from the access point, and so on. The device automatically retries every <code>wifi_retry_interval_minutes</code> (default = 15min) and recovers on its own once the network is reachable — no reset needed. To save battery, the error screen is only drawn once per outage. On mesh networks the device connects to the strongest access point broadcasting your SSID (logged over serial with its MAC and signal strength).
+<img src="showcase/demo-error-wifi.jpg" align="left" width="22%" />
+
+**WiFi connection.** The second line says why: wrong password, network not found, no response, and so on. The device retries every `wifi_retry_interval_minutes` (default 15) and recovers by itself. On mesh networks it picks the strongest access point.
 
 <br clear="left"/>
 
-### API Error
-<img src="showcase/demo-error-api.jpg" align="left" width="25%" />
-This error screen appears if an error (client or server) occurs when making an API request to weather.gov or Open-Meteo. The second line gives the error code followed by a descriptor phrase. Positive error codes correspond to HTTP response status codes, while error codes <= 0 indicate a client (esp32) error. The esp32 will retry at the next scheduled refresh (default = every 15min). AirNow errors never show here — the AQI widget silently falls back to Open-Meteo (a note appears in the serial log).
+<img src="showcase/demo-error-api.jpg" align="left" width="22%" />
+
+**API error.** A request to weather.gov or Open-Meteo failed. The code is the HTTP status, or a client error if it's 0 or less. The device retries at the next update. AirNow failures never show here: the air quality falls back to Open-Meteo.
 
 <br clear="left"/>
 
-### Time Server Error
-<img src="showcase/demo-error-time.jpg" align="left" width="25%" />
-This error screen appears when the esp32 fails to fetch the time from <code>ntp_server_1</code>/<code>ntp_server_2</code>. This error sometimes occurs immediately after uploading to the esp32; in this case, just hit the reset button or wait for the automatic retry (every <code>wifi_retry_interval_minutes</code>, default = 15min). If the error persists, try selecting closer/lower latency time servers or increasing <code>ntp_timeout_ms</code> in the portal's raw-JSON editor.
+<img src="showcase/demo-error-time.jpg" align="left" width="22%" />
+
+**Time server error.** The time couldn't be fetched from `ntp_server_1`/`_2`. This sometimes happens right after a flash; press reset or wait for the retry. If it persists, choose closer time servers or raise `ntp_timeout_ms`.
 
 <br clear="left"/>
 
-## Licensing
+## Licensing and credits
 
-esp32-weather-epd is licensed under the [GNU General Public License v3.0](LICENSE) with tools, fonts, and icons whose licenses are as follows:
+weathergov-epd is a fork of [esp32-weather-epd](https://github.com/lmarzen/esp32-weather-epd) by Luke Marzen, and like it is licensed under the [GNU General Public License v3.0](LICENSE). The EE05 case is a remix of Seeed Studio's enclosure. Bundled tools, fonts and icons:
 
 | Name | License | Description |
-|---------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|
-| [Adafruit-GFX-Library: fontconvert](https://github.com/adafruit/Adafruit-GFX-Library/tree/master/fontconvert) | [BSD License](fonts/fontconvert/license.txt) | CLI tool for preprocessing fonts to be used with the Adafruit_GFX Arduino library. |
-| [pollutant-concentration-to-aqi](https://github.com/lmarzen/pollutant-concentration-to-aqi) | [GNU Lesser General Public License v2.1](platformio/lib/pollutant-concentration-to-aqi/LICENSE) | C library that converts pollutant concentrations to Air Quality Index(AQI). |
-| [InkyPi weather icons](https://github.com/fatihak/InkyPi) | [GNU General Public License v3.0](https://github.com/fatihak/InkyPi/blob/main/LICENSE) | (tools/inkypi_icons) Full-color weather icon artwork by Faith Akici, quantized for 7-color e-paper panels by tools/generate_color_icons.py. |
-| [Bitter](https://fonts.google.com/specimen/Bitter) | [SIL OFL v1.1](http://scripts.sil.org/OFL) | Font Family |
-| [GNU FreeFont](https://www.gnu.org/software/freefont/) | [GNU General Public License v3.0](https://www.gnu.org/software/freefont/license.html) | Font Family |
-| [Lato](https://fonts.google.com/specimen/Lato) | [SIL OFL v1.1](http://scripts.sil.org/OFL) | Font Family |
-| [Montserrat](https://fonts.google.com/specimen/Montserrat) | [SIL OFL v1.1](http://scripts.sil.org/OFL) | Font Family |
-| [Open Sans](https://fonts.google.com/specimen/Open+Sans) | [SIL OFL v1.1](http://scripts.sil.org/OFL) | Font Family |
-| [Poppins](https://fonts.google.com/specimen/Poppins) | [SIL OFL v1.1](http://scripts.sil.org/OFL) | Font Family |
-| [Quicksand](https://fonts.google.com/specimen/Quicksand) | [SIL OFL v1.1](http://scripts.sil.org/OFL) | Font Family |
-| [Raleway](https://fonts.google.com/specimen/Raleway) | [SIL OFL v1.1](http://scripts.sil.org/OFL) | Font Family |
-| [Roboto](https://fonts.google.com/specimen/Roboto) | [Apache License v2.0](https://www.apache.org/licenses/LICENSE-2.0) | Font Family |
-| [Roboto Mono](https://fonts.google.com/specimen/Roboto+Mono) | [Apache License v2.0](https://www.apache.org/licenses/LICENSE-2.0) | Font Family |
-| [Roboto Slab](https://fonts.google.com/specimen/Roboto+Slab) | [Apache License v2.0](https://www.apache.org/licenses/LICENSE-2.0) | Font Family |
-| [Ubuntu font](https://design.ubuntu.com/font) | [Ubuntu Font Licence v1.0](https://ubuntu.com/legal/font-licence) | Font Family |
-| [Weather Themed Icons](https://github.com/erikflowers/weather-icons) | [SIL OFL v1.1](http://scripts.sil.org/OFL) | (wi-**.svg) Weather icon family by Lukas Bischoff/Erik Flowers. |
-| [Google Icons](https://fonts.google.com/icons) | [Apache License v2.0](https://www.apache.org/licenses/LICENSE-2.0) | (battery**.svg, visibility_icon.svg) Battery and visibility icons from Google Icons. |
-| [Biological Hazard Symbol](https://svgsilh.com/image/37775.html) | [CC0 v1.0](https://en.wikipedia.org/wiki/Public_domain) | (biological_hazard_symbol.svg) Biohazard icon. |
-| [House Icon](https://seekicon.com/free-icon/house_16) | [MIT License](http://opensource.org/licenses/mit-license.html) | (house.svg) House icon. |
-| [Indoor Temerature/Humidity Icons](icons/svg) | [SIL OFL v1.1](http://scripts.sil.org/OFL) | (house_**.svg) Indoor temerature/humidity icons. |
-| [Ionizing Radiation Symbol](https://svgsilh.com/image/309911.html) | [CC0 v1.0](https://creativecommons.org/publicdomain/zero/1.0/) | (ionizing_radiation_symbol.svg) Ionizing radiation icons. |
-| [Phosphor Icons](https://github.com/phosphor-icons/homepage) | [MIT License](http://opensource.org/licenses/mit-license.html) | (wifi**.svg, warning_icon.svg, error_icon.svg) WiFi, Warning, and Error icons from Phosphor Icons. |
-| [Wind Direction Icon](https://www.onlinewebfonts.com/icon/251550) | [CC BY v3.0](http://creativecommons.org/licenses/by/3.0) | (meteorological_wind_direction_**deg.svg) Meteorological wind direction icon from Online Web Fonts. |
+|---|---|---|
+| [Adafruit-GFX-Library: fontconvert](https://github.com/adafruit/Adafruit-GFX-Library/tree/master/fontconvert) | [BSD License](fonts/fontconvert/license.txt) | Preprocesses fonts for the Adafruit_GFX library. |
+| [pollutant-concentration-to-aqi](https://github.com/lmarzen/pollutant-concentration-to-aqi) | [GNU LGPL v2.1](platformio/lib/pollutant-concentration-to-aqi/LICENSE) | Converts pollutant concentrations to an AQI. |
+| [InkyPi weather icons](https://github.com/fatihak/InkyPi) | [GNU GPL v3.0](https://github.com/fatihak/InkyPi/blob/main/LICENSE) | Full-colour icon artwork by Faith Akici, reduced to e-paper inks by tools/generate_color_icons.py. |
+| [NASA LRO lunar map](https://svs.gsfc.nasa.gov/4720) | Public domain | The moon on the 4.26" layout (tools/moon). |
+| [Bitter](https://fonts.google.com/specimen/Bitter), [Lato](https://fonts.google.com/specimen/Lato), [Montserrat](https://fonts.google.com/specimen/Montserrat), [Open Sans](https://fonts.google.com/specimen/Open+Sans), [Poppins](https://fonts.google.com/specimen/Poppins), [Quicksand](https://fonts.google.com/specimen/Quicksand), [Raleway](https://fonts.google.com/specimen/Raleway), [Heebo](https://fonts.google.com/specimen/Heebo) | [SIL OFL v1.1](http://scripts.sil.org/OFL) | Font families |
+| [GNU FreeFont](https://www.gnu.org/software/freefont/) | [GNU GPL v3.0](https://www.gnu.org/software/freefont/license.html) | Font family |
+| [Roboto](https://fonts.google.com/specimen/Roboto), [Roboto Mono](https://fonts.google.com/specimen/Roboto+Mono), [Roboto Slab](https://fonts.google.com/specimen/Roboto+Slab) | [Apache License v2.0](https://www.apache.org/licenses/LICENSE-2.0) | Font families |
+| [Ubuntu font](https://design.ubuntu.com/font) | [Ubuntu Font Licence v1.0](https://ubuntu.com/legal/font-licence) | Font family |
+| [Weather Themed Icons](https://github.com/erikflowers/weather-icons) | [SIL OFL v1.1](http://scripts.sil.org/OFL) | (wi-**.svg) Weather icons by Lukas Bischoff/Erik Flowers. |
+| [Google Icons](https://fonts.google.com/icons) | [Apache License v2.0](https://www.apache.org/licenses/LICENSE-2.0) | (battery**.svg, visibility_icon.svg) Battery and visibility icons. |
+| [Biological Hazard Symbol](https://svgsilh.com/image/37775.html) | [CC0 v1.0](https://en.wikipedia.org/wiki/Public_domain) | (biological_hazard_symbol.svg) |
+| [House Icon](https://seekicon.com/free-icon/house_16) | [MIT License](http://opensource.org/licenses/mit-license.html) | (house.svg) |
+| [Indoor temperature/humidity icons](icons/svg) | [SIL OFL v1.1](http://scripts.sil.org/OFL) | (house_**.svg) |
+| [Ionizing Radiation Symbol](https://svgsilh.com/image/309911.html) | [CC0 v1.0](https://creativecommons.org/publicdomain/zero/1.0/) | (ionizing_radiation_symbol.svg) |
+| [Phosphor Icons](https://github.com/phosphor-icons/homepage) | [MIT License](http://opensource.org/licenses/mit-license.html) | (wifi**.svg, warning_icon.svg, error_icon.svg) |
+| [Wind Direction Icon](https://www.onlinewebfonts.com/icon/251550) | [CC BY v3.0](http://creativecommons.org/licenses/by/3.0) | (meteorological_wind_direction_**deg.svg) |

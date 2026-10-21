@@ -19,7 +19,7 @@ replies in `data/`.
 ```
 pip install pillow numpy
 pio run -e seeed_reterminal_e1002      # once, for .pio/libdeps (GFX, ArduinoJson)
-python tools/sim480/build.py [output folder] [data folder] [--panel=e6|bwv2|3c]
+python tools/sim480/build.py [output folder] [data folder] [--panel=e6|bwv2|3c] [--balance]
 ```
 
 Needs a C++17 compiler (clang++ or g++ on the path).
@@ -32,6 +32,14 @@ dividers in the forecast row), `3c` the red/black/white 7.5in (B) panel
 (`DISP_3C_B`). The other panels' pictures go into a subfolder named after
 the panel. Their paper and ink colours are nominal, not measured like the
 Spectra 6's.
+
+`--balance` white-balances the pictures to one common white, the
+black-and-white preview's: each panel's own white becomes that white, and
+its inks keep their measured relation to it, as the eye adjusts to a panel
+in a room. Pictures of different panels then compare their inks rather than
+their whites. Without it the Spectra 6 pictures show the panel's white as it
+compares with paper (41 %), much greyer than the eye sees it. The README's
+previews are made with it.
 
 ## What it writes
 
@@ -111,5 +119,6 @@ Spectra 6.
 | `SIM480_TESTCARD=1` | the greys card instead of the weather |
 | `SIM426_PALETTES=1` | the home page in each of its palettes, `sim_ee05_home_pN` |
 | `SIM426_HOURS=1` | the hours page in each of its layouts, `sim_ee05_hours_lN` |
-| `SIM426_RAIN=1` | a made-up afternoon of showers, to see the rain on a dry day |
+| `SIM480_RAIN=1` | a made-up afternoon of showers, to see the rain on a dry day (any panel) |
+| `SIM480_PEAK=<hour>` | the day's warmest hours moved to that hour, to see where the high's label goes (any panel) |
 | `SIM426_TILES="wind,moon_phase,indoor"` | the home tiles, as config.json `home_tiles` |
