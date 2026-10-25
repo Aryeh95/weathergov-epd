@@ -16,9 +16,10 @@
  */
 
 #include "config.h"
-// The EE05's 4.26in in four greys has a layout and a renderer of its own,
-// in renderer426.cpp; nothing in this file is built for it.
-#ifndef DISP_4G_426
+// The GDEB0709E01 (1600x1200) and the EE05's 4.26in in four greys have a
+// layout and a renderer of their own, in renderer709.cpp and
+// renderer426.cpp; nothing in this file is built for them.
+#if !defined(DISP_7C_709) && !defined(DISP_4G_426)
 
 #include <algorithm>
 #include "_locale.h"
@@ -2864,5 +2865,5 @@ void drawError(const uint8_t *bitmap_196x196,
   return;
 } // end drawError
 
-#endif // !DISP_4G_426
+#endif // !DISP_7C_709 && !DISP_4G_426
 

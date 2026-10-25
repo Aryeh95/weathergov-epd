@@ -446,6 +446,39 @@ bool loadSettings()
   POS_INTEMP     = widgets["intemp"]      | POS_INTEMP;
   POS_INHUMIDITY = widgets["inhumidity"]  | POS_INHUMIDITY;
 
+#if defined(DISP_7C_709)
+  JsonArrayConst slots = doc["panel_slots"];
+  if (!slots.isNull())
+  {
+    for (int i = 0; i < 8; ++i)
+    {
+      PANEL_SLOTS[i] = (i < static_cast<int>(slots.size()))
+                     ? String(static_cast<const char *>(slots[i] | "")) : String();
+    }
+  }
+  else if (LC_PREFER_HEAT_STRESS)
+  { // as the widgets do in a Hebrew build: heat stress in the dew point's place
+    for (String &k : PANEL_SLOTS)
+    {
+      if (k == "dewpoint") k = "heat_stress";
+    }
+  }
+  if (!doc["graph_layout"].isNull())
+  {
+    GRAPH_LAYOUT = (String(doc["graph_layout"] | "") == "stacked") ? 1 : 0;
+  }
+  GRAPH_STRIP = doc["graph_strip"] | GRAPH_STRIP;
+  JsonArrayConst graphs = doc["graph_slots"];
+  if (!graphs.isNull())
+  {
+    for (int i = 0; i < 4; ++i)
+    {
+      GRAPH_SLOTS[i] = (i < static_cast<int>(graphs.size()))
+                     ? String(static_cast<const char *>(graphs[i] | "")) : String();
+    }
+  }
+#endif
+
 #if defined(DISP_4G_426)
   JsonArrayConst tiles = doc["home_tiles"];
   if (!tiles.isNull())

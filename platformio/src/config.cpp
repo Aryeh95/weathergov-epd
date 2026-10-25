@@ -26,7 +26,45 @@
 //       board's pinout to ensure you avoid using a pin with this shared 
 //       functionality.
 //
-#ifdef BOARD_XIAO_EE05
+#if defined(BOARD_XIAO_EE02)
+// Seeed XIAO ePaper Display Board EE02 (XIAO ESP32-S3 Plus soldered on) --
+// fixed wiring, do not change. Read from Seeed's schematic and confirmed
+// against the pin table of their Seeed_GFX2 driver.
+// Battery: GPIO1 through a divider that ADC_EN (GPIO6) connects.
+// The divider is taken to be 1:2 like the E1002's -- CHECK against a meter
+// on the first board; readBatteryVoltage() doubles the reading.
+const uint8_t PIN_BAT_ADC  = 1;
+const uint8_t PIN_BAT_EN   = 6;
+// 60-pin panel connector, two controllers behind two chip selects
+const uint8_t PIN_EPD_BUSY = 4;
+const uint8_t PIN_EPD_CS   = 44; // master, left half (the UART0 RX pin)
+const uint8_t PIN_EPD_CS2  = 41; // slave, right half
+const uint8_t PIN_EPD_RST  = 38;
+const uint8_t PIN_EPD_DC   = 10;
+const uint8_t PIN_EPD_SCK  = 7;
+const uint8_t PIN_EPD_MISO = 8;  // wired to the panel's SI1, never read
+const uint8_t PIN_EPD_MOSI = 9;
+const uint8_t PIN_EPD_PWR  = 43; // panel supply load switch (the UART0 TX pin)
+const uint8_t PIN_SD_EN    = PIN_UNUSED; // no microSD slot
+const uint8_t PIN_SD_CS    = PIN_UNUSED;
+// Three buttons, active low. KEY1 wakes into the configuration portal,
+// KEY2 into an immediate refresh; KEY3 (GPIO5) is unassigned.
+const uint8_t PIN_BTN_PORTAL  = 2;
+const uint8_t PIN_BTN_REFRESH = 3;
+// No sensor on the board, and every XIAO pin is taken. An SHT4x goes on
+// the pads of U6, a font chip that is not fitted: they carry the second
+// SPI bus of the on-board flash chip, which this firmware never uses and
+// which ignores the bus while its chip select (GPIO40, pulled up on the
+// board) is high.
+//   U6 pad 8  3V3   (switched together with the panel supply)
+//   U6 pad 6  SCL   GPIO11
+//   U6 pad 5  SDA   GPIO13
+//   U6 pad 4  GND
+const uint8_t PIN_BME_SDA = 13;
+const uint8_t PIN_BME_SCL = 11;
+const uint8_t PIN_BME_PWR = PIN_EPD_PWR; // one load switch for both
+const uint8_t BME_ADDRESS = 0x76;
+#elif defined(BOARD_XIAO_EE05)
 // Seeed XIAO ePaper Display Board EE05 (XIAO ESP32-S3 Plus soldered on) --
 // fixed wiring, do not change. From Seeed's EE05 schematic (V1.0), which
 // agrees with the pin table of their Seeed_GFX2 driver.
@@ -37,6 +75,7 @@ const uint8_t PIN_BAT_EN   = 39;
 // 24-pin panel connector
 const uint8_t PIN_EPD_BUSY = 4;
 const uint8_t PIN_EPD_CS   = 44; // the UART0 RX pin
+const uint8_t PIN_EPD_CS2  = PIN_UNUSED;
 const uint8_t PIN_EPD_RST  = 38;
 const uint8_t PIN_EPD_DC   = 10;
 const uint8_t PIN_EPD_SCK  = 7;
@@ -72,6 +111,7 @@ const uint8_t PIN_BAT_EN   = 21;
 // Built-in 7.3in Spectra 6 panel (GDEP073E01)
 const uint8_t PIN_EPD_BUSY = 13;
 const uint8_t PIN_EPD_CS   = 10;
+const uint8_t PIN_EPD_CS2  = PIN_UNUSED;
 const uint8_t PIN_EPD_RST  = 12;
 const uint8_t PIN_EPD_DC   = 11;
 const uint8_t PIN_EPD_SCK  = 7;  // SPI bus shared with the microSD slot
@@ -102,6 +142,7 @@ const uint8_t PIN_BTN_REFRESH = PIN_UNUSED;
 // Pins for E-Paper Driver Board
 const uint8_t PIN_EPD_BUSY = 14; // 5 for micro-usb firebeetle
 const uint8_t PIN_EPD_CS   = 13;
+const uint8_t PIN_EPD_CS2  = PIN_UNUSED;
 const uint8_t PIN_EPD_RST  = 21;
 const uint8_t PIN_EPD_DC   = 22;
 const uint8_t PIN_EPD_SCK  = 18;
@@ -358,6 +399,17 @@ int HOURLY_GRAPH_MAX = 24;
 // line on an already busy graph, and only earns its place for people who
 // read dew point (mugginess, fog and frost risk) rather than humidity.
 bool GRAPH_DEWPOINT = false;
+// The 7.09in layout's hourly graphs (config.json "graph_layout"): 0, one
+// graph of temperature and rain; 1, a strip of the weather by spell and the
+// graphs of GRAPH_SLOTS stacked under it on one time scale
+// ("graph_slots"). Other layouts always draw their one graph.
+int GRAPH_LAYOUT = 0;
+#if defined(DISP_7C_709)
+String GRAPH_SLOTS[4] = {"temp_dew", "wind", "rain_both", ""};
+// The strip of named weather above the hourly graph(s) ("Showers 12am -
+// 8am"), config.json "graph_strip". Off, the graphs take its room.
+bool GRAPH_STRIP = true;
+#endif
 
 // BATTERY
 // To protect the battery upon LOW_BATTERY_VOLTAGE, the display will cease to
@@ -381,6 +433,10 @@ uint32_t MIN_BATTERY_VOLTAGE = 3000; // (millivolts)
 // WIDGET POSITIONS comment in config.h for the grid layout. -1 disables a
 // widget. air_quality and visibility default to sharing a slot (visibility
 // disabled) since there usually isn't room to show both.
+#if defined(DISP_7C_709)
+String PANEL_SLOTS[8] = {"humidity", "dewpoint", "wind", "pressure",
+                         "uvi", "air_quality", "pollen", "indoor"};
+#endif
 #if defined(DISP_4G_426)
 String HOME_TILES[3] = {"wind", "air_quality", "indoor"};
 #endif

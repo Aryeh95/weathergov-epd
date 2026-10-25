@@ -286,7 +286,8 @@ static void drawIcon(int16_t x, int16_t y, const uint8_t *bmp, int16_t w,
 
 /* The moon as it is tonight: NASA's map of its near side (moon426.h), lit
  * for the phase and error-diffused into the panel's four levels by their
- * measured brightness. The night side is black; a dark grey ring keeps the bright limb
+ * measured brightness, the way the 1600x1200 layout's moon is drawn in its
+ * inks. The night side is black; a dark grey ring keeps the bright limb
  * apart from a light tile. `frac` is moonPhaseFraction(); `south` turns the
  * moon over, as it looks from the southern hemisphere.
  */

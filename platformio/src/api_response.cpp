@@ -460,6 +460,8 @@ DeserializationError deserializeNWSForecastHourly(WiFiClient &json,
 
     JsonVariant popVar = p["probabilityOfPrecipitation"]["value"];
     hourly[i].pop = popVar.isNull() ? 0.f : (popVar.as<float>() / 100.f);
+    // amounts are only in the gridpoint; getNWSWeather spreads them in
+    hourly[i].precip = NAN;
 
     // Always degC on the hourly endpoint (unitCode wmoUnit:degC), whatever
     // temperatureUnit says about the integer temperature beside it. NaN when
@@ -530,30 +532,17 @@ void fillCurrentFromFallback(const owm_hourly_t &fallback, owm_current_t &curren
  * the document stays a few hundred bytes. Values are mm over each bucket;
  * the bucket is an ISO 8601 interval "start/duration", e.g.
  * "2026-09-04T18:00:00+00:00/PT6H".
+ *
+ * With `series` set, the windGust (km/h), skyCover (%) and
+ * apparentTemperature (degC) series too, which the hourly forecast lacks.
+ * Their buckets are an hour to a few hours long, so only the next two days
+ * are kept.
  */
-DeserializationError deserializeNWSGridpointQPF(WiFiClient &json,
-                                                std::vector<qpf_bucket_t> &qpf)
+static void readBuckets(JsonArrayConst values, std::vector<qpf_bucket_t> &out,
+                        int64_t until)
 {
-  JsonDocument filter;
-  JsonObject v = filter["properties"]["quantitativePrecipitation"]["values"][0]
-                   .to<JsonObject>();
-  v["validTime"] = true;
-  v["value"]     = true;
-
-  JsonDocument doc;
-  DeserializationError error = deserializeJson(doc, json,
-                                         DeserializationOption::Filter(filter));
-#if DEBUG_LEVEL >= 1
-  Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
-#endif
-  if (error)
-  {
-    return error;
-  }
-
-  qpf.clear();
-  for (JsonObject b : doc["properties"]["quantitativePrecipitation"]["values"]
-                        .as<JsonArray>())
+  out.clear();
+  for (JsonObjectConst b : values)
   {
     const char *vt = b["validTime"].as<const char *>();
     if (!vt)
@@ -569,16 +558,58 @@ DeserializationError deserializeNWSGridpointQPF(WiFiClient &json,
     qpf_bucket_t q;
     q.start   = parseISO8601(interval.substring(0, slash));
     q.seconds = parseIsoDurationSeconds(interval.c_str() + slash + 1);
-    JsonVariant val = b["value"];
+    JsonVariantConst val = b["value"];
     if (val.isNull())
     { // unknown is not dry: leave the interval uncovered
       continue;
     }
     q.mm = val.as<float>();
-    if (q.start > 0 && q.seconds > 0)
+    if (q.start > 0 && q.seconds > 0 && (until == 0 || q.start < until))
     {
-      qpf.push_back(q);
+      out.push_back(q);
     }
+  }
+}
+
+DeserializationError deserializeNWSGridpointQPF(WiFiClient &json,
+                                                std::vector<qpf_bucket_t> &qpf,
+                                                grid_series_t *series)
+{
+  JsonDocument filter;
+  JsonObject v = filter["properties"]["quantitativePrecipitation"]["values"][0]
+                   .to<JsonObject>();
+  v["validTime"] = true;
+  v["value"]     = true;
+  if (series)
+  {
+    for (const char *name : {"windGust", "skyCover", "apparentTemperature"})
+    {
+      JsonObject g = filter["properties"][name]["values"][0].to<JsonObject>();
+      g["validTime"] = true;
+      g["value"]     = true;
+    }
+  }
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, json,
+                                         DeserializationOption::Filter(filter));
+#if DEBUG_LEVEL >= 1
+  Serial.println("[debug] doc.overflowed() : " + String(doc.overflowed()));
+#endif
+  if (error)
+  {
+    return error;
+  }
+
+  readBuckets(doc["properties"]["quantitativePrecipitation"]["values"]
+                .as<JsonArrayConst>(), qpf, 0);
+  if (series)
+  {
+    const int64_t until = static_cast<int64_t>(time(nullptr)) + 50L * 3600L;
+    JsonObjectConst pr = doc["properties"];
+    readBuckets(pr["windGust"]["values"], series->gust, until);
+    readBuckets(pr["skyCover"]["values"], series->sky, until);
+    readBuckets(pr["apparentTemperature"]["values"], series->feel, until);
   }
   return error;
 } // end deserializeNWSGridpointQPF
@@ -833,6 +864,7 @@ DeserializationError deserializeOpenMeteoForecast(WiFiClient &json,
   h["relative_humidity_2m"]      = true;
   h["dew_point_2m"]              = true;
   h["precipitation_probability"] = true;
+  h["precipitation"]             = true;
   h["weather_code"]              = true;
   h["cloud_cover"]               = true;
   h["wind_speed_10m"]            = true;
@@ -901,6 +933,7 @@ DeserializationError deserializeOpenMeteoForecast(WiFiClient &json,
   JsonArrayConst hRh   = col("hourly", "relative_humidity_2m");
   JsonArrayConst hDew  = col("hourly", "dew_point_2m");
   JsonArrayConst hPop  = col("hourly", "precipitation_probability");
+  JsonArrayConst hPrec = col("hourly", "precipitation");
   JsonArrayConst hCode = col("hourly", "weather_code");
   JsonArrayConst hCld  = col("hourly", "cloud_cover");
   JsonArrayConst hWs   = col("hourly", "wind_speed_10m");
@@ -932,6 +965,7 @@ DeserializationError deserializeOpenMeteoForecast(WiFiClient &json,
     hh.humidity   = std::isnan(rh) ? 0 : static_cast<int>(std::round(rh));
     hh.dew_point  = std::isnan(dewC) ? NAN : celsius_to_kelvin(dewC);
     hh.pop        = std::isnan(pop) ? 0.f : pop / 100.f;
+    hh.precip     = num(hPrec, k);
     hh.wind_speed = std::isnan(ws) ? 0.f : ws;
     hh.wind_gust  = std::isnan(wg) ? hh.wind_speed : wg;
     hh.wind_deg   = std::isnan(wd) ? 0 : static_cast<int>(wd);
@@ -1491,6 +1525,7 @@ DeserializationError deserializeIMSForecast(WiFiClient &json,
       const float dp = dewPointC(tempC, rh);
       hh.dew_point  = std::isnan(dp) ? NAN : celsius_to_kelvin(dp);
       hh.pop        = pop;
+      hh.precip     = rain;
       hh.wind_speed = jnum(ho["wind_speed"], 0.f) * KMH_TO_MS;
       hh.wind_gust  = jnum(ho["gust_speed"], NAN);
       hh.wind_gust  = std::isnan(hh.wind_gust) ? hh.wind_speed

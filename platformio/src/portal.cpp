@@ -248,7 +248,9 @@ static void handleGetInfo()
   // commit the firmware was built from (scripts/git_rev.py), plus the
   // compile time, so an update can be confirmed from a phone
   doc["build"] = String(GIT_REV) + " (" __DATE__ " " __TIME__ ")";
-#ifdef BOARD_XIAO_EE05
+#if defined(BOARD_XIAO_EE02)
+  doc["board"] = "Seeed XIAO EE02, GDEB0709E01 1600x1200";
+#elif defined(BOARD_XIAO_EE05)
   doc["board"] = "Seeed XIAO EE05, 4.26in 800x480";
 #elif defined(BOARD_RETERMINAL_E1001)
   doc["board"] = "Seeed reTerminal E1001";
@@ -257,15 +259,19 @@ static void handleGetInfo()
 #else
   doc["board"] = "FireBeetle ESP32";
 #endif
-#if defined(DISP_4G_426)
-  // The 4.26in layout is fixed: no widget slots, one
+#if defined(DISP_7C_709) || defined(DISP_4G_426)
+  // The 1600x1200 and 4.26in layouts are fixed: no widget slots, one
   // pairing of fonts, no dark version. The page hides the settings that do
   // not apply.
   doc["layout"] = "fixed";
 #endif
 #if defined(DISP_4G_426)
-  // its home page has three tiles to fill
+  // its home page has three tiles to fill, not the 1600x1200's eight cells
   doc["tiles"] = 3;
+#endif
+#if defined(DISP_7C_709)
+  // its hourly graph can be one graph or several stacked (graph_layout)
+  doc["graphs"] = true;
 #endif
   doc["target"] = ownTarget();
   diagToJson(doc);

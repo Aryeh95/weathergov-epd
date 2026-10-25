@@ -222,8 +222,8 @@ static void sleepOrWait(uint64_t seconds)
     bool timed = (seconds != 0);
     // The core calls the computer gone when its 1 ms start-of-frame has
     // been missing for 5 ms. Hold out for 3 s of silence before believing
-    // it: a glitch on the bus must not end the wait (it did, on the EE05,
-    // on a computer's port the whole time).
+    // it: a glitch on the bus must not end the wait (it did, on the EE02
+    // and the EE05, both on a computer's port the whole time).
     unsigned long quietSince = 0;
     s_waitEnd = 3;
     while (seconds == 0 || millis() - t0 < waitMs)
@@ -330,6 +330,9 @@ static void drawWeatherPage(const tm &timeInfo, const String &dateStr,
                             const pollen_info_t &pollen, float inTemp,
                             float inHumidity, bool stale)
 {
+#ifdef DISP_7C_709
+  layout709Begin(alerts, hourly);
+#endif
 #if defined(DISP_4G_426)
   // this wake's trend if it read the history, else the last update's
   if (s_historyRead)
@@ -690,6 +693,22 @@ void setup()
   powerOffDisplay();
   Serial.println("[e6] test card drawn, sleeping");
   esp_deep_sleep_start();
+#endif
+#if defined(DISP_7C_709) && defined(EPD709_TEST_CARD)
+  // Bring-up build: no WiFi, no settings, just the test card, then sleep
+  // until the reset button is pressed.
+  initDisplay();
+  do
+  {
+#if defined(EPD709_TEST_CARD_PAGE) && EPD709_TEST_CARD_PAGE == 9
+    drawTestCard709InkScan();
+#else
+    drawTestCard709();
+#endif
+  } while (display.nextPage());
+  powerOffDisplay();
+  Serial.println("[epd709] test card drawn, sleeping");
+  sleepOrWait(0);
 #endif
 #if defined(DISP_4G_426) && defined(EE05_TEST_CARD)
   // The greys card: no WiFi, no settings; then it waits (on USB) or sleeps
@@ -1262,7 +1281,7 @@ void setup()
   pollen_info_t pollen;
   pollen.tree = pollen.grass = pollen.weed = 0;
   pollen.max_upi = -1;
-#if defined(DISP_4G_426)
+#if defined(DISP_7C_709) || defined(DISP_4G_426)
   // This layout always has a pollen cell; it has no widget slots to give
   // or withhold one.
   const bool wantPollen = true;
@@ -1509,8 +1528,8 @@ void setup()
     sht4.setPrecision(SHT4X_HIGH_PRECISION);
     sht4.setHeater(SHT4X_NO_HEATER);
     sensors_event_t humEvent, tempEvent;
-    // up to three tries: a sensor on long wires can miss one measurement
-    // now and then (2026-10-15)
+    // up to three tries: a sensor on long wires (the EE02's, soldered to
+    // spare pads) can miss one measurement now and then (2026-10-15)
     for (int attempt = 0; attempt < 3; ++attempt)
     {
       if (sht4.getEvent(&humEvent, &tempEvent))

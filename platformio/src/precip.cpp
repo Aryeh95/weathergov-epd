@@ -127,3 +127,64 @@ daily_precip_pick_t pickDailyPrecip(int64_t dayAnchor, int64_t now,
   }
   return out;
 } // end pickDailyPrecip
+
+float bucketAt(const std::vector<qpf_bucket_t> &b, int64_t t)
+{
+  for (const qpf_bucket_t &q : b)
+  {
+    if (t >= q.start && t < q.start + q.seconds)
+    {
+      return q.mm;
+    }
+  }
+  return NAN;
+}
+
+void spreadQpf(const std::vector<qpf_bucket_t> &qpf, const int64_t *hourStart,
+               const float *pop, int n, float *mm)
+{
+  // a little weight even at 0 %, so that a bucket whose hours all say 0 %
+  // still spreads evenly rather than divides by nothing
+  const double FLOOR = 0.05;
+  for (int i = 0; i < n; ++i)
+  {
+    mm[i] = NAN;
+  }
+  for (const qpf_bucket_t &b : qpf)
+  {
+    if (b.seconds <= 0)
+    {
+      continue;
+    }
+    const int64_t bEnd = b.start + b.seconds;
+    double inside = 0, popSum = 0;
+    for (int i = 0; i < n; ++i)
+    {
+      const int64_t s = std::max(b.start, hourStart[i]);
+      const int64_t e = std::min(bEnd, hourStart[i] + 3600);
+      if (e > s)
+      {
+        inside += static_cast<double>(e - s);
+        popSum += static_cast<double>(e - s) * pop[i];
+      }
+    }
+    if (inside <= 0)
+    {
+      continue;
+    }
+    const double meanPop = popSum / inside;
+    double total = (b.seconds - inside) * (meanPop + FLOOR);
+    total += popSum + inside * FLOOR;
+    for (int i = 0; i < n; ++i)
+    {
+      const int64_t s = std::max(b.start, hourStart[i]);
+      const int64_t e = std::min(bEnd, hourStart[i] + 3600);
+      if (e > s)
+      {
+        const double w = static_cast<double>(e - s) * (pop[i] + FLOOR);
+        mm[i] = (std::isnan(mm[i]) ? 0.f : mm[i])
+              + static_cast<float>(b.mm * w / total);
+      }
+    }
+  }
+}

@@ -28,6 +28,9 @@
 //   DISP_7C_F  - 7.3in ACeP e-Paper (F)       800x480px  7-Color
 //   DISP_7C_E6 - 7.3in spectra 6 e-Paper (E6) 800x480px  7-Color
 //   DISP_BW_V1 - 7.5in e-Paper (v1)           640x384px  Black/White
+//   DISP_7C_709 - 7.09in spectra 6 e-Paper    1600x1200px 6-Color
+//                 (Good Display GDEB0709E01, 282 ppi; has a layout of its
+//                 own, see renderer709.cpp)
 //   DISP_4G_426 - 4.26in e-Paper              800x480px  4 greys
 //                 (Good Display GDEQ0426T82, 219 ppi; has a layout of its
 //                 own, see renderer426.cpp)
@@ -38,6 +41,8 @@
 // (The reTerminal E1001 build defines both board flags: the E1002 flag for
 //  the shared E-series mainboard quirks, plus E1001 to swap the panel for
 //  its 7.5in monochrome one -- a GDEY075T7-class panel, i.e. DISP_BW_V2.)
+// (Building with -e seeed_xiao_ee02_709 selects the GDEB0709E01 on Seeed's
+//  XIAO ePaper Display Board EE02.)
 // (Building with -e seeed_xiao_ee05 selects Seeed's 4.26in monochrome panel
 //  on the XIAO ePaper Display Board EE05 -- Good Display's GDEQ0426T82
 //  glass, 800x480 at 219 ppi -- with a layout of its own (renderer426.cpp):
@@ -45,7 +50,9 @@
 //  white, turned with KEY3. That is DISP_4G_426. -e seeed_xiao_ee05_classic
 //  draws the 7.5in page instead: DISP_BW_V2 through GxEPD2's driver for the
 //  same glass, see PANEL_GDEQ0426T82 in renderer.h.)
-#if defined(BOARD_XIAO_EE05) && defined(EE05_CLASSIC)
+#if defined(BOARD_XIAO_EE02)
+  #define DISP_7C_709
+#elif defined(BOARD_XIAO_EE05) && defined(EE05_CLASSIC)
   #define DISP_BW_V2
   #define PANEL_GDEQ0426T82
 #elif defined(BOARD_XIAO_EE05)
@@ -78,9 +85,9 @@
 #define DRIVER_DESPI_C02
 // #define DRIVER_WAVESHARE
 
-// Seeed's XIAO ePaper Display Board EE05: the XIAO ESP32-S3 Plus, its USB
-// port as Serial, its user LED and two wake buttons.
-#if defined(BOARD_XIAO_EE05)
+// Seeed's XIAO ePaper Display Boards (EE02, EE05) share the XIAO ESP32-S3
+// Plus, its USB port as Serial, its user LED and their two wake buttons.
+#if defined(BOARD_XIAO_EE02) || defined(BOARD_XIAO_EE05)
   #define BOARD_XIAO_EPAPER
 #endif
 
@@ -88,7 +95,17 @@
 // Uncomment the macro that identifies your sensor.
 // (The reTerminal E1002 has an SHT4x temperature/humidity sensor onboard,
 //  selected automatically when building with -e seeed_reterminal_e1002.)
-#if defined(BOARD_XIAO_EE05)
+// (The EE02 has no sensor of its own. An SHT4x soldered to the pads of the
+//  font chip the board was never given is found by itself; without one the
+//  Indoor cell shows visibility. See the README for the four wires.)
+// SENSOR_OPTIONAL: a sensor that does not answer is taken to be absent
+// rather than broken, and is not reported in the status bar.
+#if defined(BOARD_XIAO_EE02)
+  #define SENSOR_SHT4X
+  #define SENSOR_OPTIONAL
+  // its supply is switched on just before it is read
+  #define SENSOR_INIT_DELAY_MS 10
+#elif defined(BOARD_XIAO_EE05)
   // none on the board either; an SHT4x on the extension port (see
   // config.cpp for the pins) is found by itself
   #define SENSOR_SHT4X
@@ -118,7 +135,8 @@
 
 // 3 COLOR E-INK ACCENT COLOR
 // Defines the 3rd color to be used when a 3+ color display is selected.
-#if defined(DISP_3C_B) || defined(DISP_7C_F) || defined(DISP_7C_E6)
+#if defined(DISP_3C_B) || defined(DISP_7C_F) || defined(DISP_7C_E6) \
+ || defined(DISP_7C_709)
   // #define ACCENT_COLOR GxEPD_BLACK
   #define ACCENT_COLOR GxEPD_RED
   // #define ACCENT_COLOR GxEPD_GREEN
@@ -147,7 +165,7 @@
 // Note: yellow line art on white e-paper has the least contrast of the
 // palette; if COLOR_SUN is hard to read on your panel, GxEPD_ORANGE (dithered
 // red/yellow) or GxEPD_RED are the usual substitutes.
-#if defined(DISP_7C_F) || defined(DISP_7C_E6)
+#if defined(DISP_7C_F) || defined(DISP_7C_E6) || defined(DISP_7C_709)
   #define MULTICOLOR_DISPLAY
   #define COLOR_SUN     GxEPD_YELLOW
   #define COLOR_PRECIP  GxEPD_BLUE
@@ -495,6 +513,13 @@
 // NON-VOLATILE STORAGE (NVS) NAMESPACE
 #define NVS_NAMESPACE "weather_epd"
 
+// GDEB0709E01 ORIENTATION (DISP_7C_709 only)
+//   The panel counts its pixels in portrait, flex cable at the bottom; the
+//   layout is landscape. 1 = the flex cable is on the viewer's right, which
+//   is how the enclosure in enclosure/gdeb0709e01 holds it. 3 = on the left.
+//   If the picture comes up upside down, this is the number to change.
+#define EPD709_ROTATION 1
+
 // WHAT THIS FIRMWARE WAS BUILT FOR
 //   The build target's name and the panel, compiled into the image as one
 //   line of text. The portal reads it out of a firmware file before
@@ -509,6 +534,8 @@
   #define PANEL_NAME "DISP_7C_E6"
 #elif defined(DISP_BW_V1)
   #define PANEL_NAME "DISP_BW_V1"
+#elif defined(DISP_7C_709)
+  #define PANEL_NAME "DISP_7C_709"
 #elif defined(DISP_4G_426)
   #define PANEL_NAME "DISP_4G_426"
 #else
@@ -555,6 +582,9 @@ extern const uint8_t PIN_BTN_PAGE;
 #endif
 extern const uint8_t PIN_EPD_BUSY;
 extern const uint8_t PIN_EPD_CS;
+// Second chip select, for panels with two controllers (GDEB0709E01: the
+// right half of the glass). PIN_UNUSED everywhere else.
+extern const uint8_t PIN_EPD_CS2;
 extern const uint8_t PIN_EPD_RST;
 extern const uint8_t PIN_EPD_DC;
 extern const uint8_t PIN_EPD_SCK;
@@ -617,6 +647,7 @@ extern int    BED_TIME;
 extern int    WAKE_TIME;
 extern int    HOURLY_GRAPH_MAX;
 extern bool   GRAPH_DEWPOINT;
+extern int    GRAPH_LAYOUT;
 extern int    FORECAST_DAYS;
 extern int    WIDGET_ROWS;
 extern bool   DARK_MODE;
@@ -647,6 +678,20 @@ extern int POS_MOON_PHASE;
 extern int POS_POLLEN;
 extern int POS_INTEMP;
 extern int POS_INHUMIDITY;
+#if defined(DISP_7C_709)
+// The 1600x1200 layout's eight cells under the sun diagram, left to right
+// and top to bottom, by widget key (config.json "panel_slots"; an empty
+// string leaves a cell blank).
+extern String PANEL_SLOTS[8];
+// The stacked hourly graphs, top to bottom, by key (config.json
+// "graph_slots"; an empty string leaves one out): temp, temp_dew,
+// temp_feels, feels, dew, wind, rain, amount, rain_both, rain_clouds,
+// humidity, clouds.
+extern String GRAPH_SLOTS[4];
+// The strip of named weather above the hourly graph(s) (config.json
+// "graph_strip").
+extern bool GRAPH_STRIP;
+#endif
 #if defined(DISP_4G_426)
 // The 4.26in home page's three tiles, left to right, by widget key
 // (config.json "home_tiles"; an empty string leaves a tile out).
@@ -659,7 +704,8 @@ extern String HOME_TILES[3];
       ^ defined(DISP_7C_F)   \
       ^ defined(DISP_7C_E6)  \
       ^ defined(DISP_BW_V1)  \
-      ^ defined(DISP_BW_X3)       ^ defined(DISP_4G_426))
+      ^ defined(DISP_BW_X3)  \
+      ^ defined(DISP_7C_709)       ^ defined(DISP_4G_426))
   #error Invalid configuration. Exactly one display panel must be selected.
 #endif
 #if !(  defined(DRIVER_WAVESHARE) \

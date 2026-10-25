@@ -55,7 +55,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        env: [dfrobot_firebeetle2_esp32e, seeed_reterminal_e1002, seeed_reterminal_e1001, firebeetle32]
+        env: [dfrobot_firebeetle2_esp32e, seeed_reterminal_e1002, seeed_reterminal_e1001, firebeetle32,
+              seeed_xiao_ee02_709, seeed_xiao_ee02_709_testcard]
 
     steps:
       - uses: actions/checkout@v4

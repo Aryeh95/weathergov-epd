@@ -1,0 +1,225 @@
+{
+ "_about": "Dot mixes measured on the GDEB0709E01 (flatbed scans of test cards 1 and 9, 2026-10-25, the panel on OSPTEK's EPD0709A02 adapter, which the EE02 matches within dE 1.7; card 9's large patches where both carry a mix), linear sRGB with white paper = 1, on the same white as INK_RGB in sim_main.cpp. ink codes: 0 black, 1 white, 2 yellow, 3 red, 5 blue, 6 green; share = the top ink's share of the dots; cells 1 = 2x2 cells.",
+ "mixes": [
+  {
+   "top": 0,
+   "under": 1,
+   "cells": 0,
+   "share": 0.06,
+   "lin": [
+    0.38201,
+    0.46796,
+    0.58505
+   ]
+  },
+  {
+   "top": 0,
+   "under": 1,
+   "cells": 0,
+   "share": 0.1,
+   "lin": [
+    0.36618,
+    0.45516,
+    0.55369
+   ]
+  },
+  {
+   "top": 0,
+   "under": 1,
+   "cells": 0,
+   "share": 0.16,
+   "lin": [
+    0.27859,
+    0.35275,
+    0.47838
+   ]
+  },
+  {
+   "top": 0,
+   "under": 1,
+   "cells": 0,
+   "share": 0.21,
+   "lin": [
+    0.25432,
+    0.32067,
+    0.43067
+   ]
+  },
+  {
+   "top": 0,
+   "under": 1,
+   "cells": 0,
+   "share": 0.26,
+   "lin": [
+    0.19791,
+    0.25604,
+    0.38402
+   ]
+  },
+  {
+   "top": 0,
+   "under": 1,
+   "cells": 0,
+   "share": 0.33,
+   "lin": [
+    0.16917,
+    0.21712,
+    0.31399
+   ]
+  },
+  {
+   "top": 0,
+   "under": 1,
+   "cells": 0,
+   "share": 0.5,
+   "lin": [
+    0.07005,
+    0.09134,
+    0.17411
+   ]
+  },
+  {
+   "top": 0,
+   "under": 1,
+   "cells": 0,
+   "share": 0.75,
+   "lin": [
+    0.03359,
+    0.03817,
+    0.06139
+   ]
+  },
+  {
+   "top": 0,
+   "under": 5,
+   "cells": 0,
+   "share": 0.5,
+   "lin": [
+    0.02796,
+    0.03871,
+    0.08163
+   ]
+  },
+  {
+   "top": 0,
+   "under": 5,
+   "cells": 0,
+   "share": 0.7,
+   "lin": [
+    0.01755,
+    0.0222,
+    0.04136
+   ]
+  },
+  {
+   "top": 2,
+   "under": 1,
+   "cells": 0,
+   "share": 0.55,
+   "lin": [
+    0.56868,
+    0.54778,
+    0.23198
+   ]
+  },
+  {
+   "top": 3,
+   "under": 0,
+   "cells": 0,
+   "share": 0.5,
+   "lin": [
+    0.1014,
+    0.00384,
+    0.01164
+   ]
+  },
+  {
+   "top": 3,
+   "under": 2,
+   "cells": 0,
+   "share": 0.19,
+   "lin": [
+    0.63977,
+    0.40161,
+    0.04731
+   ]
+  },
+  {
+   "top": 3,
+   "under": 2,
+   "cells": 0,
+   "share": 0.35,
+   "lin": [
+    0.57633,
+    0.3431,
+    0.04309
+   ]
+  },
+  {
+   "top": 3,
+   "under": 2,
+   "cells": 0,
+   "share": 0.5,
+   "lin": [
+    0.52738,
+    0.1889,
+    0.04547
+   ]
+  },
+  {
+   "top": 3,
+   "under": 5,
+   "cells": 0,
+   "share": 0.5,
+   "lin": [
+    0.1007,
+    0.04543,
+    0.05846
+   ]
+  },
+  {
+   "top": 3,
+   "under": 5,
+   "cells": 0,
+   "share": 0.6,
+   "lin": [
+    0.11649,
+    0.04671,
+    0.06582
+   ]
+  },
+  {
+   "top": 3,
+   "under": 5,
+   "cells": 1,
+   "share": 0.5,
+   "lin": [
+    0.1007,
+    0.04033,
+    0.08419
+   ]
+  },
+  {
+   "top": 5,
+   "under": 1,
+   "cells": 0,
+   "share": 0.4,
+   "lin": [
+    0.17296,
+    0.30443,
+    0.54595
+   ]
+  },
+  {
+   "top": 6,
+   "under": 2,
+   "cells": 0,
+   "share": 0.5,
+   "lin": [
+    0.31533,
+    0.3152,
+    0.04309
+   ]
+  }
+ ]
+}

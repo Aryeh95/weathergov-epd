@@ -14,3 +14,5 @@ independent Python implementation of the same rule.
 Expected: today through Sunday from NWS (0.21 / 0.04 / 0.00 in — today counts
 only what is still ahead of 15:27 UTC), Monday onward from Open-Meteo, the
 duration parser's edge cases, the no-QPF fallback and the no-source NaN.
+Then the hourly amounts for the 7.09" layout's stacked graphs: each 6-hour
+bucket shared among its hours by their chance of rain, with its total kept.

@@ -6,5 +6,8 @@ Scientific Visualization Studio: https://svs.gsfc.nasa.gov/4720
 
 NASA imagery is in the public domain.
 
+`tools/gen_assets709.py moon` wraps it on a sphere, lights it from the side
+for each of 32 phases, and writes the result as 72 px bitmaps in
+`platformio/lib/esp32-weather-epd-assets/assets709/moon709.h`.
 `tools/gen_moon426.py` wraps it on the near side of a sphere and writes its
 brightness to `platformio/lib/esp32-weather-epd-assets/assets426/moon426.h`.

@@ -41,6 +41,7 @@
 #include "aqi.h"
 #include "client_utils.h"
 #include "config.h"
+#include "conversions.h"
 #include "display_utils.h"
 #include "renderer.h"
 #ifndef USE_HTTP
@@ -915,20 +916,26 @@ int getNWSWeather(WiFiClient &client, owm_current_t &current,
   }
 
   std::vector<qpf_bucket_t> qpf;
-#if DAILY_PRECIP_AMOUNTS
-  // Daily precipitation AMOUNTS for the forecast row. weather.gov keeps these
-  // only in the raw gridpoint, which is the same URL as the hourly forecast
-  // minus "/forecast/hourly". It is a ~230 KB response for 13 numbers, so it
-  // is only fetched when a daily amount unit is compiled in, and never fatal:
-  // without it every day falls back to Open-Meteo (below).
-  //
-  // It is also the most expensive request of a wake (~3.6 s measured on the
-  // E1002, most of it streaming the body), and three-day rain totals do not
-  // change every 20 minutes, so the buckets are cached in NVS and refetched
-  // only every QPF_CACHE_HOURS. A copy up to QPF_STALE_OK_S old also stands
-  // in for a failed fetch: hours-old NWS totals beat losing the days it
-  // covers to the Open-Meteo fallback.
+  // The 7.09in layout's stacked graphs want the hours' amounts, gusts, sky
+  // cover and feels-like: the hourly forecast has only the chance of rain
+  // and the wind, and the rest is in the same raw gridpoint as the QPF.
+  grid_series_t series;
+  const bool wantSeries = (GRAPH_LAYOUT != 0);
+  if (DAILY_PRECIP_AMOUNTS || wantSeries)
   {
+    // Daily precipitation AMOUNTS for the forecast row. weather.gov keeps
+    // these only in the raw gridpoint, which is the same URL as the hourly
+    // forecast minus "/forecast/hourly". It is a ~230 KB response for 13
+    // numbers, so it is only fetched when a daily amount unit is compiled in
+    // (or the stacked graphs are on), and never fatal: without it every day
+    // falls back to Open-Meteo (below).
+    //
+    // It is also the most expensive request of a wake (~3.6 s measured on
+    // the E1002, most of it streaming the body), and three-day rain totals
+    // do not change every 20 minutes, so the buckets are cached in NVS and
+    // refetched only every QPF_CACHE_HOURS. A copy up to QPF_STALE_OK_S old
+    // also stands in for a failed fetch: hours-old NWS totals beat losing
+    // the days it covers to the Open-Meteo fallback.
     Preferences qp;
     qp.begin(NVS_NAMESPACE, false);
     const time_t qNow = time(nullptr);
@@ -937,16 +944,44 @@ int getNWSWeather(WiFiClient &client, owm_current_t &current,
     const int32_t qpfStamp = ((qTm.tm_year + 1900) * 10000
                               + (qTm.tm_mon + 1) * 100 + qTm.tm_mday) * 100
                              + qTm.tm_hour / QPF_CACHE_HOURS;
-    auto loadCached = [&]() -> bool
+    auto loadBlob = [&](const char *key, std::vector<qpf_bucket_t> &v) -> bool
     {
-      const size_t len = qp.getBytesLength("qpfBlob");
+      const size_t len = qp.getBytesLength(key);
       if (len == 0 || len % sizeof(qpf_bucket_t) != 0
           || len > sizeof(qpf_bucket_t) * QPF_CACHE_MAX)
       {
         return false;
       }
-      qpf.resize(len / sizeof(qpf_bucket_t));
-      return qp.getBytes("qpfBlob", qpf.data(), len) == len;
+      v.resize(len / sizeof(qpf_bucket_t));
+      return qp.getBytes(key, v.data(), len) == len;
+    };
+    auto saveBlob = [&](const char *key, const std::vector<qpf_bucket_t> &v)
+    {
+      const size_t n = (v.size() > QPF_CACHE_MAX) ? QPF_CACHE_MAX : v.size();
+      if (n)
+      {
+        qp.putBytes(key, v.data(), n * sizeof(qpf_bucket_t));
+      }
+      else
+      {
+        qp.remove(key);
+      }
+    };
+    // the series are kept only while the stacked graphs are on; a copy
+    // without them does not do for a wake that wants them
+    auto loadCached = [&]() -> bool
+    {
+      if (!loadBlob("qpfBlob", qpf))
+      {
+        return false;
+      }
+      if (!wantSeries)
+      {
+        return true;
+      }
+      return loadBlob("gustBlob", series.gust)
+          && loadBlob("skyBlob", series.sky)
+          && loadBlob("feelBlob", series.feel);
     };
 
     if (qp.getInt("qpfStamp", 0) == qpfStamp && loadCached())
@@ -964,14 +999,19 @@ int getNWSWeather(WiFiClient &client, owm_current_t &current,
         qpfUri = qpfUri.substring(0, cut);
       }
       qpf.clear();
+      series = grid_series_t();
       int qpfResponse = httpGetAndParse(client, qpfHost, HTTPS_PORT, qpfUri,
           NWS_USER_AGENT,
-          [&](WiFiClient &s) { return deserializeNWSGridpointQPF(s, qpf); });
+          [&](WiFiClient &s) {
+            return deserializeNWSGridpointQPF(s, qpf,
+                                              wantSeries ? &series : nullptr);
+          });
       if (qpfResponse == HTTP_CODE_OK && !qpf.empty())
       {
-        const size_t n = (qpf.size() > QPF_CACHE_MAX) ? QPF_CACHE_MAX
-                                                      : qpf.size();
-        qp.putBytes("qpfBlob", qpf.data(), n * sizeof(qpf_bucket_t));
+        saveBlob("qpfBlob", qpf);
+        saveBlob("gustBlob", series.gust);
+        saveBlob("skyBlob", series.sky);
+        saveBlob("feelBlob", series.feel);
         qp.putInt("qpfStamp", qpfStamp);
         qp.putLong("qpfTime", static_cast<long>(qNow));
       }
@@ -987,6 +1027,7 @@ int getNWSWeather(WiFiClient &client, owm_current_t &current,
         else
         {
           qpf.clear();
+          series = grid_series_t();
           Serial.println("[nws] gridpoint QPF unavailable ("
                          + String(qpfResponse, DEC)
                          + "), daily amounts fall back to Open-Meteo");
@@ -995,7 +1036,43 @@ int getNWSWeather(WiFiClient &client, owm_current_t &current,
     }
     qp.end();
   }
-#endif
+
+  if (wantSeries)
+  {
+    // the hours' amounts, shared out of the 6-hour buckets by the hours'
+    // chance of rain; gusts, sky cover and feels-like where the gridpoint
+    // has them
+    int64_t start[OWM_NUM_HOURLY];
+    float pop[OWM_NUM_HOURLY], mm[OWM_NUM_HOURLY];
+    int n = 0;
+    while (n < OWM_NUM_HOURLY && hourly[n].dt > 0)
+    {
+      start[n] = hourly[n].dt;
+      pop[n] = hourly[n].pop;
+      ++n;
+    }
+    spreadQpf(qpf, start, pop, n, mm);
+    for (int i = 0; i < n; ++i)
+    {
+      const int64_t mid = hourly[i].dt + 1800;
+      hourly[i].precip = mm[i];
+      const float gust = bucketAt(series.gust, mid);
+      if (!std::isnan(gust))
+      {
+        hourly[i].wind_gust = std::max(hourly[i].wind_speed, gust / 3.6f);
+      }
+      const float sky = bucketAt(series.sky, mid);
+      if (!std::isnan(sky))
+      {
+        hourly[i].clouds = static_cast<int>(std::round(sky));
+      }
+      const float feel = bucketAt(series.feel, mid);
+      if (!std::isnan(feel))
+      {
+        hourly[i].feels_like = celsius_to_kelvin(feel);
+      }
+    }
+  }
 
   return finishWeather(client, current, hourly, daily, qpf, false, nullptr);
 } // end getNWSWeather
@@ -1281,8 +1358,8 @@ int getOpenMeteoWeather(WiFiClient &client, owm_current_t &current,
 {
   const String uri = "/v1/forecast?latitude=" + LAT + "&longitude=" + LON
       + "&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,"
-        "dew_point_2m,precipitation_probability,weather_code,cloud_cover,"
-        "wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day"
+        "dew_point_2m,precipitation_probability,precipitation,weather_code,"
+        "cloud_cover,wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day"
       + "&daily=weather_code,temperature_2m_max,temperature_2m_min,"
         "precipitation_sum,precipitation_probability_max,wind_speed_10m_max,"
         "wind_gusts_10m_max,wind_direction_10m_dominant,uv_index_max,"

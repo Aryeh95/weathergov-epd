@@ -10,8 +10,8 @@ This is a fork of [lmarzen/esp32-weather-epd](https://github.com/lmarzen/esp32-w
 |:---:|:---:|:---:|
 | [<img src="showcase/preview-75-bw.png" />](#75-black-and-white) | [<img src="showcase/preview-75-3c.png" />](#75-three-colour-blackwhitered) | [<img src="showcase/preview-e1002.png" />](#73-full-colour-reterminal-e1002) |
 | 7.5" black and white | 7.5" three-colour | 7.3" full colour (reTerminal E1002) |
-| [<img src="showcase/preview-ee05-426-home.png" />](#426-four-greys-xiao-ee05) | [<img src="showcase/preview-ee05-426-hours.png" />](#426-four-greys-xiao-ee05) | [<img src="showcase/preview-ee05-426-week.png" />](#426-four-greys-xiao-ee05) |
-| 4.26" four greys (XIAO EE05) | 4.26" hours page | 4.26" week page |
+| [<img src="showcase/preview-gdeb0709e01.png" />](#709-high-resolution-colour-xiao-ee02) | [<img src="showcase/preview-ee05-426-home.png" />](#426-four-greys-xiao-ee05) | [<img src="showcase/preview-ee05-426-hours.png" />](#426-four-greys-xiao-ee05) |
+| 7.09" high-resolution colour (XIAO EE02) | 4.26" four greys (XIAO EE05) | 4.26" hours page |
 
 *The previews are drawn by the firmware's own rendering code on a PC (see [Previewing layouts on a PC](#previewing-layouts-on-a-pc)), with sample weather and a made-up afternoon of showers. They use each panel's measured inks, white-balanced to one common white, the way your eye adjusts to a panel in a room. Side by side, the colour panels look darker than the black-and-white ones: they reflect less light.*
 
@@ -30,6 +30,7 @@ This is a fork of [lmarzen/esp32-weather-epd](https://github.com/lmarzen/esp32-w
 - [Assembly](#assembly)
   - [DIY: FireBeetle ESP32 and a 7.5" or 7.3" panel](#diy-firebeetle-esp32-and-a-75-or-73-panel)
   - [Seeed reTerminal E1001 / E1002](#seeed-reterminal-e1001--e1002)
+  - [Seeed XIAO EE02 with the 7.09" panel](#seeed-xiao-ee02-with-the-709-panel)
   - [Seeed XIAO EE05 with the 4.26" panel](#seeed-xiao-ee05-with-the-426-panel)
 - [Previewing layouts on a PC](#previewing-layouts-on-a-pc)
 - [Troubleshooting](#troubleshooting)
@@ -39,7 +40,7 @@ This is a fork of [lmarzen/esp32-weather-epd](https://github.com/lmarzen/esp32-w
 
 - **No API keys or accounts.** weather.gov supplies the hourly and daily forecasts and the alerts (US only). [Open-Meteo](https://open-meteo.com/), also free and keyless, supplies the current conditions, UV and air quality. The forecast can come from Open-Meteo instead, for anywhere in the world, or from the [Israel Meteorological Service](https://ims.gov.il/en). Optional keys add official US air quality ([AirNow](https://docs.airnowapi.org/)) and pollen ([Google](https://developers.google.com/maps/documentation/pollen)).
 - **Phone setup, no code editing.** A fresh device opens a WiFi hotspot with a setup page. Every runtime setting can be changed later from a web portal, including firmware updates over WiFi. A USB cable is needed only for the first flash.
-- **Layouts for each panel.** The 800×480 layout runs on black-and-white, three-colour and full-colour panels, with colour icons and colour-coded readings where the panel has the inks. The 4.26" panel has a layout of its own.
+- **Layouts for each panel.** The 800×480 layout runs on black-and-white, three-colour and full-colour panels, with colour icons and colour-coded readings where the panel has the inks. The 7.09" and 4.26" panels each have a layout of their own.
 - **14 widgets.** Sunrise and sunset (computed on the device), humidity, dew point, heat stress, wind, UV, pressure with its trend, air quality, visibility, moon phase, pollen, and indoor temperature and humidity from an optional sensor.
 - **It copes with outages.** The device connects to the strongest access point on mesh networks, and its error screens say why WiFi failed. It retries every 15 minutes. During a short outage the last forecast stays on screen, marked as old, before an error replaces it.
 - **Long battery life.** About 14 µA asleep and a few seconds awake per update on the FireBeetle build. The battery level and its estimated days left are on screen, and a low-battery page protects the cell.
@@ -55,9 +56,10 @@ This is a fork of [lmarzen/esp32-weather-epd](https://github.com/lmarzen/esp32-w
 | FireBeetle 2 ESP32-E + **DESPI-C73** adapter | 7.3" 800×480 seven-colour (Waveshare F / GDEY073D46, Spectra 6 GDEP073E01) | [7.3" full colour](#73-full-colour-reterminal-e1002) | Wiring | `dfrobot_firebeetle2_esp32e` |
 | [Seeed reTerminal E1002](https://www.seeedstudio.com/reTerminal-E1002-p-6533.html) | built-in 7.3" Spectra 6 | [7.3" full colour](#73-full-colour-reterminal-e1002) | none | `seeed_reterminal_e1002` |
 | Seeed reTerminal E1001 | built-in 7.5" black and white | [7.5" black and white](#75-black-and-white) | none | `seeed_reterminal_e1001` |
+| [Seeed XIAO ePaper Display Board EE02](https://www.seeedstudio.com/XIAO-ePaper-Display-Board-EE02-p-6639.html) | Good Display GDEB0709E01, 7.09" 1600×1200 Spectra 6 | [7.09" high resolution](#709-high-resolution-colour-xiao-ee02) | [Panel, optional sensor](#seeed-xiao-ee02-with-the-709-panel) | `seeed_xiao_ee02_709` |
 | [Seeed XIAO ePaper Display Board EE05](https://wiki.seeedstudio.com/epaper_ee05) | [Seeed 4.26" 800×480 monochrome](https://www.seeedstudio.com/4-26-Monochrome-SPI-ePaper-Display-p-6398.html) (Good Display GDEQ0426T82) | [4.26" four greys](#426-four-greys-xiao-ee05) | [Printed case](#seeed-xiao-ee05-with-the-426-panel) | `seeed_xiao_ee05` |
 
-The DIY build takes an optional BME280, BME680 or SHT40/41/45 indoor sensor. The reTerminals have an SHT4x built in, and the XIAO EE05 takes an optional SHT40/41/45.
+The DIY build takes an optional BME280, BME680 or SHT40/41/45 indoor sensor. The reTerminals have an SHT4x built in, and the XIAO boards take an optional SHT40/41/45.
 
 ## Layouts
 
@@ -80,6 +82,18 @@ The same layout with one accent colour, red by default (`ACCENT_COLOR` in config
 <img src="showcase/preview-e1002.png" width="80%" />
 
 On the seven-colour and Spectra 6 panels the same layout uses full-colour weather and widget icons. The icons are drawn from the [InkyPi](https://github.com/fatihak/InkyPi) set and reduced to the panel's inks. Highs are red and lows blue, the dew point is a blue curve, and UV, air quality and pollen sit on colour-coded chips. A full refresh takes about 28 seconds. Its white reflects about 40 % as much light as paper, against about 70 % for a black-and-white panel, so next to one it looks greyer than the preview.
+
+### 7.09" high-resolution colour (XIAO EE02)
+
+<img src="showcase/preview-gdeb0709e01.png" width="80%" />
+
+Good Display's GDEB0709E01 has four times the dots of the 7.3" panels (1600×1200, 282 ppi), so it has a layout of its own:
+
+- **Left:** the city, date and current conditions. Then the sun's path through the day, with sunrise, sunset and the moon at its true phase, rendered from NASA's map of the lunar surface. Then eight readings chosen in the portal (`panel_slots`).
+- **Right:** alerts. The week, with each day's highs and lows drawn as one band of smooth curves. Then the next 24 to 48 hours as a timeline of named weather ("Showers 12am – 8am") over a graph of temperature, dew point and chance of rain. Or, chosen in the portal, up to four smaller graphs stacked under the timeline on one time scale: temperature with dew point or feels-like, wind and gusts, rain amount and chance, humidity, cloud cover.
+- **At night** the sun's arc shows tomorrow's path and counts down to sunrise.
+
+The layout keeps colour to flat areas, and its colours were measured from test cards scanned on a flatbed: the panel's black is a true black, its blue a royal blue and its white a cool white that reflects about half as much light as paper. A refresh takes about 30 seconds for a mostly white page and up to 50 for one with a lot of colour. English only so far.
 
 ### 4.26" four greys (XIAO EE05)
 
@@ -116,9 +130,10 @@ Each target selects its board, panel, sensor and pins by itself. Only the DIY bu
 | `firebeetle32` | The older micro-USB FireBeetle ESP32. Change `PIN_BAT_ADC` to `A0` and `PIN_EPD_BUSY` to `5` in config.cpp. |
 | `seeed_reterminal_e1002` | reTerminal E1002 |
 | `seeed_reterminal_e1001` | reTerminal E1001 |
+| `seeed_xiao_ee02_709` | XIAO EE02 with the GDEB0709E01 |
 | `seeed_xiao_ee05` | XIAO EE05 with the 4.26" panel (four-grey layout with pages) |
 | `seeed_xiao_ee05_classic` | XIAO EE05 drawing the 7.5" black-and-white layout instead |
-| `seeed_reterminal_e1002_testcard`, `seeed_xiao_ee05_testcard` | A test card instead of the weather (inks, greys, type sizes, orientation marks); no WiFi needed. Useful to check a new panel first. |
+| `seeed_reterminal_e1002_testcard`, `seeed_xiao_ee02_709_testcard`, `seeed_xiao_ee05_testcard` | A test card instead of the weather (inks, greys, type sizes, orientation marks); no WiFi needed. Useful to check a new panel first. |
 
 ### Compile-time settings
 
@@ -146,6 +161,7 @@ What is **compiled in**, and so needs a rebuild to change, is in [`platformio/in
 | `DISPLAY_HOURLY_ICONS`, `DISPLAY_ALERTS` | `1` | `0` hides them. |
 | `STATUS_BAR_EXTRAS_*` | battery %, WiFi strength | Battery voltage and RSSI can be added. |
 | `BATTERY_MONITORING` | `1` | `0` for a display without a battery. |
+| `EPD709_ROTATION` | `1` | GDEB0709E01 only: `3` if the picture is upside down. |
 | `DEBUG_LEVEL` | `0` | `1` more serial output, `2` also the API replies. |
 | `SIMULATE_OUTAGE`, `FORCE_PORTAL` | off | For testing only. |
 
@@ -179,7 +195,7 @@ Notes per board:
 
 - **FireBeetle 2 ESP32-E:** if the upload stops with `Wrong boot mode detected (0x13)`, unplug the board, connect GPIO0 (labelled 0/D5) to GND, and plug it back in. Other upload errors usually mean a missing USB-serial driver.
 - **reTerminal E1001 / E1002:** they flash through their own USB-serial chip (a CH340). If the upload cannot connect while the display sleeps, press the reset button and try again.
-- **XIAO EE05:** the USB port is the ESP32-S3's own, and serial output appears there. While a computer is attached, the board waits awake between updates instead of sleeping, so it can be flashed and its log read at any time. If no port appears (the board was asleep), press RST once. Some power banks switch themselves off at the tiny current the board draws asleep.
+- **XIAO EE02 / EE05:** the USB port is the ESP32-S3's own, and serial output appears there. While a computer is attached, the board waits awake between updates instead of sleeping, so it can be flashed and its log read at any time. If no port appears (the board was asleep), press RST once. Some power banks switch themselves off at the tiny current the board draws asleep.
 - **Test cards:** flash a test card target before the weather on a new panel. It shows the inks or greys, a ladder of type sizes and named corners, so one look tells you whether the picture is the right way up.
 
 ### Updates over WiFi
@@ -212,6 +228,7 @@ If setup isn't finished within 10 minutes, the device shows "Setup paused" and s
 |---|---|---|---|
 | FireBeetle DIY build | Press RST **twice**, one to three seconds apart, after the panel has finished refreshing | RST once | |
 | reTerminal E1001 / E1002 | Middle button | Green (right) button | |
+| XIAO EE02 | KEY1 | KEY2 | KEY3 unused |
 | XIAO EE05 | KEY1 | KEY2 | KEY3 turns the page; RST restarts |
 
 What the portal offers:
@@ -263,6 +280,8 @@ All runtime settings live in [`platformio/data/config.json`](platformio/data/con
 - `graph_dewpoint`: adds the dew point as a second curve on the graph.
 - `font`, `font_small`: the typeface for the text, and a separate one for the small text (labels, axis, tags). Only families compiled in are available. On ~125 ppi panels, Bitter with FreeSans below is the intended pairing.
 - `dark_mode`: white on black, on the colour panels.
+- `panel_slots` (7.09" layout): its eight readings.
+- `graph_layout` (7.09" layout): `one` for the one hourly graph, `stacked` for smaller graphs stacked under the timeline, chosen top to bottom in `graph_slots` from temp, temp_dew, temp_feels, feels, dew, wind, rain, amount, rain_both, rain_clouds (with cloud cover behind), humidity and clouds. `graph_strip`: `false` hides the strip of named weather, and the graph(s) take its room. weather.gov gives rain amounts only as 6-hour totals; each hour gets a share of its total by its chance of rain.
 - `home_tiles` (4.26" layout): its three home tiles, from wind, air_quality, indoor, intemp, inhumidity, humidity, dewpoint, heat_stress, pressure, uvi, pollen, visibility, sun and moon_phase.
 - `time.time_format`, `hour_format`, `date_format`, `refresh_time_format`: strftime formats, with dropdowns in the portal. `%K` / `%J` add the Hebrew calendar date, and `%Q` the holiday's name on the day.
 - `heat_stress` widget: the Israel Meteorological Service's discomfort index, with its level on a colour chip. Hidden by default, except in a Hebrew build, where it takes the dew point's slot.
@@ -373,6 +392,25 @@ Upstream's own case is a wooden stand: 63 mm deep, 49 mm high and 170.2 mm wide 
 
 No assembly: the panel, battery, buttons, SHT4x sensor and case are built in. Flash `seeed_reterminal_e1002` (or `_e1001`) and set it up from your phone.
 
+### Seeed XIAO EE02 with the 7.09" panel
+
+- **Panel:** the GDEB0709E01's 60-pin cable plugs straight into the EE02.
+- **Indoor sensor (optional, four wires):** the EE02 has no sensor and no free pins. Without one, the Indoor cell shows visibility. An SHT40, SHT41 or SHT45 breakout (3.3 V, with its own pull-ups) can be soldered to the pads of **U6**, an empty eight-pad footprint between the buttons and the flash chip. The firmware looks for it on every wake.
+
+  | Sensor | U6 pad | Signal |
+  |---|---|---|
+  | VIN / 3V3 | 8 | 3.3 V, switched with the panel supply (GPIO43) |
+  | SCL | 6 | GPIO11 |
+  | SDA | 5 | GPIO13 |
+  | GND | 4 | ground |
+
+  - **Finding the pads:** with the USB-C connector at the top right, the footprint's top row is pads 8, 7, 6, 5 from left to right, and its bottom row 1, 2, 3, 4.
+  - **Check ground first:** confirm with a meter that pad 4 is ground (the USB connector's shell).
+  - **Never 5 V:** the board's pins are 3.3 V.
+  - **Placement:** keep the sensor on a few centimetres of wire, away from the board's warmth.
+- **Battery:** the reading assumes a 1:2 divider; check it against a meter. With no battery, the charger's green LED blinks, which is normal.
+- **Panel care:** Good Display asks for a refresh at least once a day and at least 150 s between refreshes, with no outdoor or direct-sun use.
+
 ### Seeed XIAO EE05 with the 4.26" panel
 
 The EE05 fits a 3D-printed case: a remix of Seeed Studio's own enclosure for this kit ([original on GrabCAD](https://grabcad.com/library/opendisplay-4-2_6-in-mono-kit-xiao-en05-epaper-board-4-2_6-in-epaper-display-1)). The remix adds:
@@ -421,13 +459,15 @@ The lid's labels are the buttons: **SETUP** (KEY1, portal), **REFRESH** (KEY2), 
 
 ## Previewing layouts on a PC
 
-[tools/sim480](tools/sim480/README.md) builds the firmware's own drawing code for a computer and saves what it draws as pictures, in each panel's measured inks. That's how the previews above were made, with `--balance`, which white-balances every panel to the same white. It draws the 800×480 layouts and the 4.26" pages:
+Two tools build the firmware's own drawing code for a computer and save what it draws as pictures, in each panel's measured inks. That's how the previews above were made, with `--balance`, which white-balances every panel to the same white.
 
-- `--panel=` picks the panel: `e6` (Spectra 6), `bwv2` (black and white), `3c` (three-colour) or `4g426` (EE05).
-- `--locale=en_US` draws a real device's page from its own config.json and replies saved by `fetch_us.py`. Other locales draw saved sample data for Israel or Kraków.
-- `SIM480_RAIN=1` adds made-up showers.
+- **[tools/sim480](tools/sim480/README.md):** the 800×480 layouts, plus the 4.26" pages.
+  - `--panel=` picks the panel: `e6` (Spectra 6), `bwv2` (black and white), `3c` (three-colour) or `4g426` (EE05).
+  - `--locale=en_US` draws a real device's page from its own config.json and replies saved by `fetch_us.py`. Other locales draw saved sample data for Israel or Kraków.
+  - `SIM480_RAIN=1` adds made-up showers.
+- **[tools/sim709](tools/sim709/README.md):** the 7.09" layout, with sample weather: day, night, alerts, dark mode, errors.
 
-It needs Python with Pillow and numpy, and a C++17 compiler: g++ or clang++, or MinGW-w64 on Windows.
+Both need Python with Pillow (and numpy for sim480) and a C++17 compiler: g++ or clang++, or MinGW-w64 on Windows.
 
 ## Troubleshooting
 
@@ -470,7 +510,7 @@ weathergov-epd is a fork of [esp32-weather-epd](https://github.com/lmarzen/esp32
 | [Adafruit-GFX-Library: fontconvert](https://github.com/adafruit/Adafruit-GFX-Library/tree/master/fontconvert) | [BSD License](fonts/fontconvert/license.txt) | Preprocesses fonts for the Adafruit_GFX library. |
 | [pollutant-concentration-to-aqi](https://github.com/lmarzen/pollutant-concentration-to-aqi) | [GNU LGPL v2.1](platformio/lib/pollutant-concentration-to-aqi/LICENSE) | Converts pollutant concentrations to an AQI. |
 | [InkyPi weather icons](https://github.com/fatihak/InkyPi) | [GNU GPL v3.0](https://github.com/fatihak/InkyPi/blob/main/LICENSE) | Full-colour icon artwork by Faith Akici, reduced to e-paper inks by tools/generate_color_icons.py. |
-| [NASA LRO lunar map](https://svs.gsfc.nasa.gov/4720) | Public domain | The moon on the 4.26" layout (tools/moon). |
+| [NASA LRO lunar map](https://svs.gsfc.nasa.gov/4720) | Public domain | The moon on the 7.09" and 4.26" layouts (tools/moon). |
 | [Bitter](https://fonts.google.com/specimen/Bitter), [Lato](https://fonts.google.com/specimen/Lato), [Montserrat](https://fonts.google.com/specimen/Montserrat), [Open Sans](https://fonts.google.com/specimen/Open+Sans), [Poppins](https://fonts.google.com/specimen/Poppins), [Quicksand](https://fonts.google.com/specimen/Quicksand), [Raleway](https://fonts.google.com/specimen/Raleway), [Heebo](https://fonts.google.com/specimen/Heebo) | [SIL OFL v1.1](http://scripts.sil.org/OFL) | Font families |
 | [GNU FreeFont](https://www.gnu.org/software/freefont/) | [GNU GPL v3.0](https://www.gnu.org/software/freefont/license.html) | Font family |
 | [Roboto](https://fonts.google.com/specimen/Roboto), [Roboto Mono](https://fonts.google.com/specimen/Roboto+Mono), [Roboto Slab](https://fonts.google.com/specimen/Roboto+Slab) | [Apache License v2.0](https://www.apache.org/licenses/LICENSE-2.0) | Font families |

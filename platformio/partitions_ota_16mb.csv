@@ -1,8 +1,8 @@
 # OTA-capable partition table for 16MB flash (Seeed XIAO ESP32-S3 Plus on the
-# EE05 board). Two app slots so the config portal's firmware update writes
+# EE02 and EE05 boards). Two app slots so the config portal's firmware update writes
 # the new image to the inactive slot and only switches over on success.
-# The slots are larger than the 8MB table's, with room for a layout's own
-# fonts and icons.
+# The 1600x1200 layout carries its own fonts and icons (about 750 KB), so the
+# slots are larger than the 8MB table's.
 # Name,   Type, SubType, Offset,   Size,     Flags
 nvs,      data, nvs,     0x9000,   0x5000,
 otadata,  data, ota,     0xe000,   0x2000,

@@ -280,6 +280,19 @@
   // risk (dew point approaching the temperature overnight).
   "graph_dewpoint": false,
 
+  // 1600x1200 (7.09in) layout only: "one" draws the one hourly graph of
+  // temperature and rain; "stacked" draws a strip of the weather by spell
+  // with up to four smaller graphs under it, on one time scale, chosen in
+  // "graph_slots" from top to bottom ("" leaves one out):
+  //   temp, temp_dew (with dew point), temp_feels (with feels like), feels,
+  //   dew, wind (with gusts), rain (chance), amount, rain_both (amount as
+  //   bars, chance as a line), rain_clouds (rain_both with the cloud cover
+  //   as a grey band behind), humidity, clouds
+  "graph_layout": "one",
+  "graph_slots": ["temp_dew", "wind", "rain_both", ""],
+  // The strip of named weather above the graph(s): "Showers 12am - 8am".
+  "graph_strip": true,
+
   // Which of the ten slots in the left-hand panel each widget occupies:
   //
   //     0   1

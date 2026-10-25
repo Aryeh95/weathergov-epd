@@ -8,7 +8,8 @@ brightness, one byte a pixel:
 
 The phase is not in the picture: the firmware lights the sphere for the
 moment it draws and error-diffuses the result into the panel's greys, so
-the moon follows the sky at any phase.
+the moon follows the sky at any phase. The brightness is scaled as for the
+1600x1200 layout's moon (tools/gen_assets709.py), so the two look alike.
 
 Usage: python tools/gen_moon426.py      (needs pillow and numpy)
 """

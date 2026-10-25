@@ -64,4 +64,29 @@ daily_precip_pick_t pickDailyPrecip(int64_t dayAnchor, int64_t now,
                                     const std::vector<qpf_bucket_t> &qpf,
                                     const om_daily_precip_t &om);
 
+/* The gridpoint's hourly series that weather.gov's hourly forecast lacks,
+ * for the 7.09in layout's stacked graphs: wind gusts (km/h), sky cover (%)
+ * and apparent temperature (degC). Same bucket shape as the QPF, `mm`
+ * holding the value; the buckets are an hour long, or a few where the value
+ * holds.
+ */
+typedef struct grid_series
+{
+  std::vector<qpf_bucket_t> gust, sky, feel;
+} grid_series_t;
+
+/* The value of the bucket that holds `t`, NaN when none does. */
+float bucketAt(const std::vector<qpf_bucket_t> &b, int64_t t);
+
+/* Hourly amounts from the QPF buckets, for the hours starting at
+ * hourStart[0..n-1]. The buckets are six hours long, which would draw as
+ * flat steps, so each bucket's amount is shared among its hours by their
+ * chance of rain (pop, 0..1): the hours of a 6-hour bucket in which rain is
+ * likelier get more of it, and the bucket's total is kept. Hours of a
+ * bucket outside the list (already past, or beyond its end) are weighed at
+ * the mean chance of those inside. An hour no bucket covers comes out NaN.
+ */
+void spreadQpf(const std::vector<qpf_bucket_t> &qpf, const int64_t *hourStart,
+               const float *pop, int n, float *mm);
+
 #endif

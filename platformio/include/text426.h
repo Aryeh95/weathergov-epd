@@ -19,7 +19,7 @@
 #define __TEXT426_H__
 
 /* The words this layout adds to the ones the locale files already carry.
- * ENGLISH ONLY for now: kept
+ * ENGLISH ONLY for now, as for the 1600x1200 layout (text709.h): kept
  * together here so that they can move into locales/locale_*.inc in one
  * step once the layout has settled.
  */

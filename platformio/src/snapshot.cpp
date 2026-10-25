@@ -26,7 +26,7 @@ const char *const PATH = "/last.bin";
 const char *const PATH_TMP = "/last.tmp";
 const char *const PATH_OLD = "/last.old"; // the previous file, while the new one takes its place
 const uint32_t MAGIC = 0x31584557; // "WEX1"
-const uint16_t VERSION = 1;
+const uint16_t VERSION = 2;    // 2: the hours' rain amounts (2026-10-25)
 const size_t   MAX_TEXT = 200;     // longest string kept
 const size_t   MAX_BYTES = 32768;  // a file larger than this is not ours
 
@@ -169,6 +169,7 @@ void io(Archive &a, owm_hourly_t &h)
   a.pod(h.wind_gust);
   a.pod(h.wind_deg);
   a.pod(h.pop);
+  a.pod(h.precip);
   io(a, h.weather);
 }
 

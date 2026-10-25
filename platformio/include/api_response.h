@@ -106,7 +106,8 @@ typedef struct owm_hourly
   float   wind_speed;       // Wind speed. Units – default: metre/sec, metric: metre/sec, imperial: miles/hour.
   float   wind_gust;        // Wind gust. Units – default: metre/sec, metric: metre/sec, imperial: miles/hour.
   int     wind_deg;         // Wind direction, degrees (meteorological)
-  float   pop;              // Probability of precipitation. The values of the parameter vary between 0 and 1, where 0 is equal to 0%, 1 is equal to 100%
+  float   pop;             // Probability of precipitation. The values of the parameter vary between 0 and 1, where 0 is equal to 0%, 1 is equal to 100%
+  float   precip;           // Liquid-equivalent precipitation in the hour, mm; NAN when the source has no amount for it (weather.gov: its gridpoint buckets, spread over the hours)
   float   heat_stress;      // IMS discomfort index for the hour (IMS source only, else 0)
   int     heat_stress_level;// IMS level 0-5 (IMS source only, else 0)
   owm_weather_t         weather;
@@ -222,7 +223,8 @@ DeserializationError deserializeGoogleCurrent(WiFiClient &json,
                                               const owm_hourly_t &fallback,
                                               owm_current_t &current);
 DeserializationError deserializeNWSGridpointQPF(WiFiClient &json,
-                                                std::vector<qpf_bucket_t> &qpf);
+                                                std::vector<qpf_bucket_t> &qpf,
+                                                grid_series_t *series = nullptr);
 void fillCurrentFromFallback(const owm_hourly_t &fallback, owm_current_t &current);
 
 /* Israel Meteorological Service (ims.gov.il): the public JSON feeds behind

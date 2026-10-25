@@ -172,7 +172,7 @@
       white panels); 0 shows errors at once. Pressing a button always
       shows the error.</div>
     <div class="hint" id="fixednote" style="display:none">This panel has a layout of
-      its own, with its own fonts; choose its home page tiles under Widgets
+      its own, with its own fonts; choose its eight readings under Widgets
       below.</div>
     <div id="fontprev" class="fontprev">
       <div class="fp-big">72&deg;</div>
@@ -241,10 +241,20 @@
       Pick which widget fills each slot; leave a slot empty to show nothing there. Slots 10-11 appear when Widget rows (in Schedule) is 6.</div>
     <div class="row" id="widgets"></div>
     <div id="panelbox" style="display:none">
-      <div class="hint" id="panelhint" style="margin-bottom:0.4rem">The three tiles on the
-        home page, left to right. Without an indoor sensor the Indoor tile
-        shows the humidity.</div>
+      <div class="hint" id="panelhint" style="margin-bottom:0.4rem">The eight readings under the
+        sunrise diagram, two to a row. Without an indoor sensor the Indoor cell
+        shows visibility.</div>
       <div class="row" id="panelslots"></div>
+      <div id="graphbox" style="display:none">
+        <label>Hourly graph</label>
+        <select id="g_layout"><option value="one">One graph: temperature and rain</option><option value="stacked">Stacked graphs</option></select>
+        <label>Weather strip above the graph</label>
+        <select id="g_strip"><option value="1">On (named weather: Showers 12am – 8am)</option><option value="0">Off (more room for the graphs)</option></select>
+        <div class="hint">Stacked: up to four smaller graphs on one time scale,
+          top to bottom. With weather.gov, an hour's rain amount is its share
+          of weather.gov's 6-hour total, shared out by the hours' chance of rain.</div>
+        <div class="row" id="graphslots"></div>
+      </div>
     </div>
   </fieldset>
 
@@ -396,12 +406,27 @@ const I18N_HE = {
   'Slot layout on the display: 0 1 / 2 3 / 4 5 / 6 7 / 8 9 (top to bottom). Pick which widget fills each slot; leave a slot empty to show nothing there. Slots 10-11 appear when Widget rows (in Schedule) is 6.':
     'פריסת המשבצות על המסך (משמאל לימין, מלמעלה למטה): 0 1 / 2 3 / 4 5 / 6 7 / 8 9. בחרו איזה ווידג\'ט ממלא כל משבצת; משבצת ריקה לא מציגה דבר. משבצות 10–11 מופיעות כששורות הווידג\'טים (בלוח הזמנים) הן 6.',
   'Slot': 'משבצת', '(left)': '(שמאל)', '(right)': '(ימין)', '— Empty —': '— ריק —',
-  'left': 'שמאל', 'right': 'ימין',
+  'Row': 'שורה', 'left': 'שמאל', 'right': 'ימין',
   'Indoor (temperature and humidity)': 'בבית (טמפרטורה ולחות)',
+  'This panel has a layout of its own, with its own fonts; choose its eight readings under Widgets below.':
+    'לתצוגה זו פריסה וגופנים משלה; את שמונה הנתונים שהיא מציגה בוחרים למטה, תחת ווידג׳טים.',
+  'The eight readings under the sunrise diagram, two to a row. Without an indoor sensor the Indoor cell shows visibility.':
+    'שמונת הנתונים שמתחת לתרשים הזריחה, שניים בשורה. בלי חיישן פנימי, משבצת "בבית" מציגה ראות.',
   'Sunrise': 'זריחה', 'Sunset': 'שקיעה', 'Humidity': 'לחות', 'Dew point': 'נקודת טל', 'Wind': 'רוח',
   'UV index': 'מדד UV', 'Pressure': 'לחץ ברומטרי', 'Air quality': 'איכות אוויר', 'Visibility': 'ראות',
   'Indoor temp': 'טמפרטורה בבית', 'Indoor humidity': 'לחות בבית', 'Moon phase': 'מופע הירח', 'Pollen': 'אבקנים',
   'Heat stress': 'עומס חום',
+  'Hourly graph': 'גרף שעתי', 'One graph: temperature and rain': 'גרף אחד: טמפרטורה וגשם',
+  'Stacked graphs': 'גרפים זה מעל זה', 'Weather strip above the graph': 'רצועת מזג האוויר מעל הגרף',
+  'On (named weather: Showers 12am – 8am)': 'מופעלת (מזג אוויר במילים: ממטרים 00:00 – 08:00)',
+  'Off (more room for the graphs)': 'כבויה (יותר מקום לגרפים)',
+  'Rain amount and chance, with cloud cover': 'כמות גשם וסיכוי, עם כיסוי עננים',
+  'Stacked: up to four smaller graphs on one time scale, top to bottom. With weather.gov, an hour\'s rain amount is its share of weather.gov\'s 6-hour total, shared out by the hours\' chance of rain.':
+    'זה מעל זה: עד ארבעה גרפים קטנים על ציר זמן אחד, מלמעלה למטה. עם weather.gov, כמות הגשם בשעה היא חלקה מסך 6 השעות של weather.gov, לפי הסיכוי לגשם בכל שעה.',
+  'Graph': 'גרף', 'Temperature': 'טמפרטורה', 'Temperature and dew point': 'טמפרטורה ונקודת טל',
+  'Temperature and feels like': 'טמפרטורה ומורגשת', 'Feels like': 'מורגשת',
+  'Wind and gusts': 'רוח ומשבים', 'Chance of rain': 'סיכוי לגשם', 'Rain amount': 'כמות גשם',
+  'Rain amount and chance': 'כמות גשם וסיכוי', 'Cloud cover': 'כיסוי עננים',
   '"%1" is in both slot %2 and slot %3 — a widget can only appear once.': '"%1" נמצא גם במשבצת %2 וגם במשבצת %3 — ווידג\'ט יכול להופיע פעם אחת בלבד.',
   'Save & Restart': 'שמירה והפעלה מחדש',
   // Backup
@@ -473,6 +498,13 @@ const I18N_HE = {
   'Could not update; the last weather was drawn again, marked as old': 'העדכון נכשל; מזג האוויר האחרון צויר שוב ומסומן כישן',
 };
 
+// the 1600x1200 layout's cells (config "panel_slots"; the firmware's
+// PANEL_SLOTS has the same default)
+const PANEL_WIDGETS = [['humidity','Humidity'],['dewpoint','Dew point'],
+  ['heat_stress','Heat stress'],['wind','Wind'],['pressure','Pressure'],
+  ['uvi','UV index'],['air_quality','Air quality'],['pollen','Pollen'],
+  ['visibility','Visibility'],['indoor','Indoor (temperature and humidity)']];
+const PANEL_DEFAULT = ['humidity','dewpoint','wind','pressure','uvi','air_quality','pollen','indoor'];
 let fixedLayout = false;
 // the 4.26in layout's home page tiles (config "home_tiles"; the firmware's
 // HOME_TILES has the same default): every widget the other layouts have
@@ -483,9 +515,18 @@ const HOME_WIDGETS = [['wind','Wind'],['air_quality','Air quality'],
   ['pollen','Pollen'],['visibility','Visibility'],['sun','Sunrise and sunset'],
   ['moon_phase','Moon phase']];
 const HOME_DEFAULT = ['wind','air_quality','indoor'];
-let homeTiles = 0; // 3 on the 4.26in layout: its tiles replace the widget slots
-const slotCount = () => homeTiles;
-const slotWidgets = () => HOME_WIDGETS;
+// the 1600x1200 layout's stacked graphs (config "graph_layout" and
+// "graph_slots"; the firmware's GRAPH_SLOTS has the same default)
+const GRAPHS = [['temp','Temperature'],['temp_dew','Temperature and dew point'],
+  ['temp_feels','Temperature and feels like'],['feels','Feels like'],['dew','Dew point'],
+  ['wind','Wind and gusts'],['rain','Chance of rain'],['amount','Rain amount'],
+  ['rain_both','Rain amount and chance'],['rain_clouds','Rain amount and chance, with cloud cover'],
+  ['humidity','Humidity'],['clouds','Cloud cover']];
+const GRAPH_DEFAULT = ['temp_dew','wind','rain_both',''];
+let graphChoice = false; // /info says the layout has the stacked graphs
+let homeTiles = 0; // 3 on the 4.26in layout: its tiles replace the eight cells
+const slotCount = () => homeTiles || 8;
+const slotWidgets = () => homeTiles ? HOME_WIDGETS : PANEL_WIDGETS;
 
 const WIDGETS = [
   ['sunrise','Sunrise'],['sunset','Sunset'],['humidity','Humidity'],
@@ -727,7 +768,9 @@ function buildPanelSlots() {
   for (let i = 0; i < slotCount(); i++) {
     const d = document.createElement('div');
     const l = document.createElement('label');
-    l.textContent = t('Tile') + ' ' + (i + 1) + ', ' + t(TILE[i]);
+    l.textContent = homeTiles
+      ? t('Tile') + ' ' + (i + 1) + ', ' + t(TILE[i])
+      : t('Row') + ' ' + (Math.floor(i / 2) + 1) + ', ' + (i % 2 ? t('right') : t('left'));
     const sel = document.createElement('select'); sel.id = 'pslot_' + i;
     sel.add(new Option(t('— Empty —'), ''));
     for (const [key, label] of slotWidgets()) sel.add(new Option(t(label), key));
@@ -735,10 +778,40 @@ function buildPanelSlots() {
   }
 }
 
+function buildGraphSlots() {
+  const box = el('graphslots');
+  box.replaceChildren();
+  for (let i = 0; i < 4; i++) {
+    const d = document.createElement('div');
+    const l = document.createElement('label');
+    l.textContent = t('Graph') + ' ' + (i + 1);
+    const sel = document.createElement('select'); sel.id = 'gslot_' + i;
+    sel.add(new Option(t('— Empty —'), ''));
+    for (const [key, label] of GRAPHS) sel.add(new Option(t(label), key));
+    d.append(l, sel); box.append(d);
+  }
+  el('g_layout').addEventListener('change', showGraphSlots);
+}
+
+// the four choices only matter for the stacked graphs
+function showGraphSlots() {
+  el('graphslots').style.display = (el('g_layout').value === 'stacked') ? '' : 'none';
+}
+
+function populateGraphs() {
+  el('g_layout').value = (cfg?.graph_layout === 'stacked') ? 'stacked' : 'one';
+  el('g_strip').value = (cfg?.graph_strip === false) ? '0' : '1';
+  const g = Array.isArray(cfg?.graph_slots) ? cfg.graph_slots : GRAPH_DEFAULT;
+  for (let i = 0; i < 4; i++) el('gslot_' + i).value = g[i] ?? '';
+  showGraphSlots();
+}
+
 function populatePanelSlots() {
-  let slots = Array.isArray(cfg?.home_tiles) ? cfg.home_tiles : null;
+  const saved = homeTiles ? cfg?.home_tiles : cfg?.panel_slots;
+  let slots = Array.isArray(saved) ? saved : null;
   if (!slots) {
-    slots = HOME_DEFAULT.map(k => (k === 'dewpoint' && LANG === 'he') ? 'heat_stress' : k);
+    slots = (homeTiles ? HOME_DEFAULT : PANEL_DEFAULT)
+      .map(k => (k === 'dewpoint' && LANG === 'he') ? 'heat_stress' : k);
   }
   for (let i = 0; i < slotCount(); i++) el('pslot_' + i).value = slots[i] ?? '';
 }
@@ -778,6 +851,7 @@ function populate() {
   el('s_dark').value = cfg.dark_mode ? '1' : '0';
   el('s_dew').value = cfg.graph_dewpoint ? '1' : '0';
   if (fixedLayout) populatePanelSlots();
+  if (graphChoice) populateGraphs();
   selectFont(cfg.font, cfg.font_small);
   el('a_ua').value = cfg.api?.nws_user_agent ?? '';
   el('a_airnow').value = cfg.api?.airnow_api_key ?? '';
@@ -855,7 +929,12 @@ function collect() {
   }
   if (fixedLayout) {
     const chosen = [...Array(slotCount()).keys()].map(i => el('pslot_' + i).value);
-    cfg.home_tiles = chosen;
+    if (homeTiles) cfg.home_tiles = chosen; else cfg.panel_slots = chosen;
+  }
+  if (graphChoice) {
+    cfg.graph_layout = el('g_layout').value;
+    cfg.graph_strip = el('g_strip').value === '1';
+    cfg.graph_slots = [0, 1, 2, 3].map(i => el('gslot_' + i).value);
   }
 }
 
@@ -1098,7 +1177,7 @@ el('rawsave').addEventListener('click', () => {
   save(el('raw').value);
 });
 
-// The 4.26in layout has no widget slots or fonts to choose. The
+// The 1600x1200 layout has no widget slots, fonts or theme to choose. The
 // controls are hidden, not removed: their values still travel with the
 // rest of the configuration, so a backup restores on any board.
 function hideLayoutSettings() {
@@ -1108,10 +1187,16 @@ function hideLayoutSettings() {
   }
   el('fontprev').style.display = 'none';
   el('fonthint').style.display = 'none';
-  // its own tiles instead of the slot grid
+  // its own eight cells instead of the slot grid
   el('widgets').style.display = 'none';
   el('widgets').previousElementSibling.style.display = 'none';
   el('panelbox').style.display = 'block';
+  if (homeTiles) {
+    el('panelhint').textContent = t('The three tiles on the home page, left to right. ' +
+      'Without an indoor sensor the Indoor tile shows the humidity.');
+    el('fixednote').textContent = t('This panel has a layout of its own, with its own ' +
+      'fonts; choose its home page tiles under Widgets below.');
+  }
   buildPanelSlots();
   if (cfg) populatePanelSlots();
   el('fixednote').style.display = 'block';
@@ -1252,6 +1337,12 @@ function showConnInfo(i) {
   box.style.display = 'block';
   if (i.build) { el('fwbuild').textContent = i.build + (i.board ? ' for ' + i.board : ''); }
   if (i.layout === 'fixed') { homeTiles = i.tiles ?? 0; hideLayoutSettings(); }
+  if (i.graphs) {
+    graphChoice = true;
+    buildGraphSlots();
+    el('graphbox').style.display = 'block';
+    if (cfg) populateGraphs();
+  }
   if (i.target) { el('fwtarget').textContent = i.target; }
   showDiagnostics(i);
   if (i.fonts) { setFontOptions(i.fonts); }

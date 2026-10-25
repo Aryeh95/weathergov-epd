@@ -85,6 +85,22 @@
 #ifdef DISP_7C_E6
   void drawTestCardE6();
 #endif
+#ifdef DISP_7C_709
+  // Landscape, as the layout sees it; the panel itself counts 1200x1600.
+  #define DISP_WIDTH  1600
+  #define DISP_HEIGHT 1200
+  #include "epd709.h"
+  extern Epd709 display;
+  // This layout's alert strip pushes the rest of the page down, so the
+  // alerts have to be known before anything is drawn. Call once, before
+  // the drawing loop.
+  void layout709Begin(std::vector<owm_alerts_t> &alerts,
+                      const owm_hourly_t *hourly);
+  // Inks, screens, type sizes and orientation marks, for a first look at
+  // a real panel. Drawn instead of the weather by the _testcard build.
+  void drawTestCard709();
+  void drawTestCard709InkScan();
+#endif
 
 #ifdef DISP_4G_426
   // The EE05's 4.26in (GDEQ0426T82), through GxEPD2_4G: the home page in the

@@ -38,5 +38,27 @@ int main() {
   daily_precip_pick_t p3 = pickDailyPrecip(late, late, none, empty);
   bool ok3 = std::isnan(p3.mm) && p3.src == PRECIP_SRC_NONE;
   printf("23:30, no source: %s\n", ok3 ? "NaN ok" : "FAIL"); if (!ok3) fails++;
+  // Hourly amounts for the stacked graphs: a 6-hour bucket shared among its
+  // hours by their chance of rain, its total kept; hours already past keep
+  // their share (at the mean chance of the rest); hours no bucket reaches
+  // are NaN, not dry.
+  {
+    const int64_t b0 = 1761393600; // 12:00 UTC
+    std::vector<qpf_bucket_t> b = {{b0, 6 * 3600, 3.0f}, {b0 + 6 * 3600, 6 * 3600, 6.0f}};
+    const float popAll[12] = {.46f, .46f, .35f, .73f, .68f, .49f, .68f, .64f, .71f, .71f, .64f, .58f};
+    int64_t st[14]; float pp[14], mm[14];
+    for (int i = 0; i < 14; ++i) { st[i] = b0 + i * 3600; pp[i] = i < 12 ? popAll[i] : .5f; }
+    spreadQpf(b, st, pp, 14, mm);
+    float s1 = 0, s2 = 0; for (int i = 0; i < 6; ++i) { s1 += mm[i]; s2 += mm[i + 6]; }
+    bool ok4 = fabsf(s1 - 3.0f) < 1e-3f && fabsf(s2 - 6.0f) < 1e-3f && mm[3] > mm[2]
+            && std::isnan(mm[12]) && std::isnan(mm[13]);
+    printf("hourly spread, whole buckets: %s\n", ok4 ? "ok" : "FAIL"); if (!ok4) fails++;
+    spreadQpf(b, st + 2, pp + 2, 10, mm);
+    float s3 = 0; for (int i = 0; i < 4; ++i) s3 += mm[i];
+    const float in = .35f + .73f + .68f + .49f, w = .05f;
+    const float want = 3.0f * (in + 4 * w) / (2 * (in / 4 + w) + in + 4 * w);
+    bool ok5 = fabsf(s3 - want) < 1e-3f;
+    printf("hourly spread, two hours past: %s\n", ok5 ? "ok" : "FAIL"); if (!ok5) fails++;
+  }
   printf("%s\n", fails ? "FAILURES" : "ALL OK"); return fails;
 }
