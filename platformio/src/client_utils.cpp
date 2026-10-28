@@ -119,8 +119,14 @@ wl_status_t startWiFi(int &wifiRSSI, unsigned long patienceMs)
   const unsigned long patience = (patienceMs != 0) ? patienceMs : WIFI_TIMEOUT;
   WiFi.mode(WIFI_STA);
   // Static IP skips the DHCP exchange (2-4s per wake). Falls back to DHCP
-  // when unset or unparsable.
-  if (STATIC_IP[0] != '\0')
+  // when unset or unparsable, and on any network but the one it was set for
+  // (a router elsewhere would not route for it: every wake would fail).
+  if (STATIC_IP[0] != '\0' && strcmp(STATIC_SSID, WIFI_SSID) != 0)
+  {
+    Serial.println("[wifi] the static IP was set for another network, "
+                   "using DHCP");
+  }
+  else if (STATIC_IP[0] != '\0')
   {
     IPAddress ip, gw, sn, dns;
     if (ip.fromString(STATIC_IP) && gw.fromString(STATIC_GATEWAY)

@@ -32,6 +32,9 @@
     "gateway": "",
     "subnet": "",
     "dns": "",
+    // The network the static IP was set for (the portal fills this in). On
+    // any other network the device uses DHCP instead.
+    "static_ssid": "",
     "timeout_ms": 60000
   },
 

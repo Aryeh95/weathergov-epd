@@ -296,7 +296,7 @@ All runtime settings live in [`platformio/data/config.json`](platformio/data/con
 - `sleep.wifi_retry_interval_minutes`: how soon to retry after a failed connection (default 15).
 - `sleep.outage_grace_minutes`: how long the last weather stays on screen, marked as old, before an error screen replaces it (default 180; `0` shows errors at once). Only timer wakes hold the screen; after a button press or reset an error is shown straight away.
 - `battery.*`: the low-battery thresholds, in millivolts (warn 3535, low 3462, very low 3442, critical 3404), and the sleep intervals while low (30 and 120 minutes).
-- `wifi.static_ip`, `gateway`, `subnet`, `dns`: a static address skips DHCP, saving 2–4 s per wake.
+- `wifi.static_ip`, `gateway`, `subnet`, `dns`: a static address skips DHCP, saving 2–4 s per wake. It is used only on the network it was set for (`wifi.static_ssid`, which the portal fills in); on any other network the display uses DHCP, and choosing another network in the portal clears the static address.
 - `wifi.timeout_ms`, `time.ntp_server_1`/`_2`, `time.ntp_timeout_ms`, `api.http_client_tcp_timeout_ms`: network timeouts and time servers.
 - `portal.ap_password`, `portal.timeout_minutes`: the setup hotspot's password, and how long the portal stays open.
 

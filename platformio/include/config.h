@@ -615,6 +615,9 @@ extern char STATIC_IP[16];
 extern char STATIC_GATEWAY[16];
 extern char STATIC_SUBNET[16];
 extern char STATIC_DNS[16];
+// The network the static IP was set for; on any other network the device
+// uses DHCP. Empty in an older config.json: then the configured network.
+extern char STATIC_SSID[33];
 extern unsigned HTTP_CLIENT_TCP_TIMEOUT;
 extern String NWS_USER_AGENT;
 extern String AIRNOW_APIKEY;

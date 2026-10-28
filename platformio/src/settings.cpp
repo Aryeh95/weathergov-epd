@@ -250,6 +250,11 @@ bool loadSettings()
   loadStrToCharArray(STATIC_GATEWAY, sizeof(STATIC_GATEWAY), wifi["gateway"]);
   loadStrToCharArray(STATIC_SUBNET, sizeof(STATIC_SUBNET), wifi["subnet"]);
   loadStrToCharArray(STATIC_DNS, sizeof(STATIC_DNS), wifi["dns"]);
+  loadStrToCharArray(STATIC_SSID, sizeof(STATIC_SSID), wifi["static_ssid"]);
+  if (STATIC_SSID[0] == '\0' && STATIC_IP[0] != '\0')
+  { // saved before the key existed: the static IP was set for this network
+    strlcpy(STATIC_SSID, WIFI_SSID, sizeof(STATIC_SSID));
+  }
 
   JsonObjectConst location = doc["location"];
   {

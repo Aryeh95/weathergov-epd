@@ -79,9 +79,11 @@
               onclick="var p=el('w_pass'),s=p.type==='password';p.type=s?'text':'password';this.textContent=s?'\u{1F648} '+t('Hide'):'\u{1F441} '+t('Show')">&#x1F441; Show</button>
     </div>
     <div class="hint">2.4&nbsp;GHz networks only &mdash; the ESP32 cannot see 5&nbsp;GHz.</div>
+    <div id="staticnote" class="hint" style="display:none;opacity:1">The static IP belonged to another network and was cleared: this network will use DHCP.</div>
     <button class="toggle" id="statictoggle" type="button" style="margin-top:0.5rem">Advanced: Static IP (optional &mdash; skips DHCP)</button>
     <div id="staticbox" style="display:none;margin-top:0.4rem">
       <div class="hint">Setting a static IP skips the DHCP exchange and saves 2&ndash;4s of battery on every wake. All 4 fields must be set.</div>
+      <div class="hint">It is used on this network only; on any other the display uses DHCP.</div>
       <div class="row">
         <div><label>Static IP</label><input id="w_static_ip" placeholder="192.168.1.150"></div>
         <div><label>Gateway</label><input id="w_gateway" placeholder="192.168.1.1"></div>
@@ -321,6 +323,8 @@ const I18N_HE = {
   'Scan': 'סריקה', 'Scanning...': 'סורק...',
   'Password': 'סיסמה', 'Show': 'הצג', 'Hide': 'הסתר',
   '2.4 GHz networks only — the ESP32 cannot see 5 GHz.': 'רשתות 2.4 GHz בלבד — ה-ESP32 אינו רואה רשתות 5 GHz.',
+  'The static IP belonged to another network and was cleared: this network will use DHCP.': 'כתובת ה-IP הקבועה הייתה של רשת אחרת ונמחקה: ברשת הזו תתקבל כתובת אוטומטית (DHCP).',
+  'It is used on this network only; on any other the display uses DHCP.': 'היא משמשת ברשת הזו בלבד; בכל רשת אחרת התצוגה מקבלת כתובת אוטומטית.',
   'Advanced: Static IP (optional — skips DHCP)': 'מתקדם: כתובת IP קבועה (אופציונלי — מדלג על DHCP)',
   'Setting a static IP skips the DHCP exchange and saves 2–4s of battery on every wake. All 4 fields must be set.':
     'כתובת IP קבועה מדלגת על חילופי ה-DHCP וחוסכת 2–4 שניות סוללה בכל התעוררות. יש למלא את כל 4 השדות.',
@@ -834,6 +838,8 @@ function populate() {
   if (el('w_static_ip').value) {
     el('staticbox').style.display = 'block';
   }
+  // the network the static IP was set for (older configs: the saved one)
+  staticSsid = cfg.wifi?.static_ssid || cfg.wifi?.ssid || '';
   el('l_lat').value = cfg.location?.lat ?? '';
   el('l_lon').value = cfg.location?.lon ?? '';
   el('l_city').value = cfg.location?.city ?? '';
@@ -884,6 +890,7 @@ function collect() {
   cfg.wifi.gateway = el('w_gateway').value.trim();
   cfg.wifi.subnet = el('w_subnet').value.trim();
   cfg.wifi.dns = el('w_dns').value.trim();
+  cfg.wifi.static_ssid = cfg.wifi.static_ip ? cfg.wifi.ssid : '';
   cfg.location.lat = el('l_lat').value.trim();
   cfg.location.lon = el('l_lon').value.trim();
   cfg.location.city = el('l_city').value.trim();
@@ -1066,6 +1073,7 @@ async function pollScan() {
         }
         b.addEventListener('click', () => {
           el('w_ssid').value = n.ssid;
+          staticForNetwork();
           if (n.open) { el('w_pass').value = ''; }
           else { el('w_pass').focus(); }
           box.style.display = 'none';
@@ -1135,6 +1143,18 @@ el('a_fcsrc').addEventListener('change', () => {
   if (el('a_fcsrc').value === 'ims' && tz.value === US_TZ) tz.value = ISRAEL_TZ;
   else if (el('a_fcsrc').value === 'nws' && tz.value === ISRAEL_TZ) tz.value = US_TZ;
 });
+
+// A static IP belongs to the network it was set for: choosing another
+// network clears it (the device would join, but get nowhere), and says so.
+let staticSsid = '';
+function staticForNetwork() {
+  const ssid = el('w_ssid').value.trim();
+  if (el('w_static_ip').value.trim() && ssid !== staticSsid) {
+    ['w_static_ip', 'w_gateway', 'w_subnet', 'w_dns'].forEach(id => { el(id).value = ''; });
+    el('staticnote').style.display = 'block';
+  }
+}
+el('w_ssid').addEventListener('change', staticForNetwork);
 
 el('statictoggle').addEventListener('click', () => {
   const box = el('staticbox');

@@ -205,6 +205,9 @@ char STATIC_IP[16]      = "";
 char STATIC_GATEWAY[16] = "";
 char STATIC_SUBNET[16]  = "";
 char STATIC_DNS[16]     = "";
+// The network the static IP belongs to (wifi.static_ssid): on any other the
+// device uses DHCP, as a fixed address from one router is useless on another.
+char STATIC_SSID[33]    = "";
 
 
 // HTTP
