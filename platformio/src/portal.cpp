@@ -523,16 +523,18 @@ void runConfigPortal(bool forceAp)
   String urlStr;
   if (staConnected)
   {
-    urlStr = "http://" + WiFi.localIP().toString() + "/";
+    // no trailing slash: browsers do not need it, and in a right-to-left
+    // line a slash after a letter is reordered to the line's far end
+    urlStr = "http://" + WiFi.localIP().toString();
     if (MDNS.begin("weatherepd"))
     {
       MDNS.addService("http", "tcp", 80);
     }
     Serial.println("[portal] on WiFi '" + String(WIFI_SSID) + "' at " + urlStr
-                   + " (or http://weatherepd.local/)");
+                   + " (or http://weatherepd.local)");
     drawPortalScreen(String(TXT_PORTAL_ON_WIFI) + WIFI_SSID,
                      String(TXT_PORTAL_OPEN) + urlStr,
-                     String(TXT_PORTAL_OR) + "http://weatherepd.local/");
+                     String(TXT_PORTAL_OR) + "http://weatherepd.local");
   }
   else
   {
