@@ -66,7 +66,7 @@ void Epd709::drawPixel(int16_t x, int16_t y, uint16_t color)
   {
     return;
   }
-  if (_stipple && ((x + y) & 1))
+  if ((_stipple == 1 && ((x + y) & 1)) || (_stipple == 2 && (x & y & 1)))
   {
     return;
   }

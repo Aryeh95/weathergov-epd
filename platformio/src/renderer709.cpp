@@ -496,7 +496,10 @@ static int drawText(int x, int y, const char *s, const Font709 &f,
   case LD: case MD: case RD: base = y - f.descent;                  break;
   default: break;
   }
-  display.setStipple(grey);
+  // grey: half the dots on paper; in dark mode three in four, as white
+  // dots alone on the black develop weakly and the checker's words all but
+  // vanished on the panel (2026-10-28)
+  display.setStipple(grey ? (DARK_MODE ? 2 : 1) : 0);
   while (*s)
   {
     int code;

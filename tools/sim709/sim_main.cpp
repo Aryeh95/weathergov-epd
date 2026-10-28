@@ -512,6 +512,21 @@ int main(int argc, char **argv)
   }
   DARK_MODE = true;
   weather((out + "/sim_dark.ppm").c_str(), false, 0);
+  {
+    // dark with the stacked graphs over 24 hours, as a panel is often set
+    const int keepLayout = GRAPH_LAYOUT;
+    const String keepSlots[4] = {GRAPH_SLOTS[0], GRAPH_SLOTS[1], GRAPH_SLOTS[2], GRAPH_SLOTS[3]};
+    const char *slots[4] = {"temp_dew", "wind", "rain_clouds", ""};
+    GRAPH_LAYOUT = 1;
+    for (int k = 0; k < 4; ++k) GRAPH_SLOTS[k] = slots[k];
+    HOURLY_GRAPH_MAX = 24;
+    g_rainLead = 24;
+    weather((out + "/sim_dark_stacked.ppm").c_str(), false, 0);
+    GRAPH_LAYOUT = keepLayout;
+    for (int k = 0; k < 4; ++k) GRAPH_SLOTS[k] = keepSlots[k];
+    HOURLY_GRAPH_MAX = 48;
+    g_rainLead = 0;
+  }
   weather((out + "/sim_dark_night.ppm").c_str(), true, 0);
   weather((out + "/sim_dark_alert.ppm").c_str(), false, 1);
   DARK_MODE = false;

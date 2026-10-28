@@ -89,11 +89,12 @@ public:
   int16_t width() const { return _width; }
   int16_t height() const { return _height; }
 
-  /* Half tone for whatever is drawn next: with the stipple on, only every
-   * other pixel (a checker) is set. This is how grey text is made on a
-   * panel whose darkest and lightest inks have nothing in between.
+  /* Half tone for whatever is drawn next: with the stipple at 1 only every
+   * other pixel (a checker) is set, at 2 three of every four (one corner
+   * of each 2x2 cell left out), at 0 all. This is how grey text is made
+   * on a panel whose darkest and lightest inks have nothing in between.
    */
-  void setStipple(bool on) { _stipple = on; }
+  void setStipple(uint8_t density) { _stipple = density; }
 
   bool ready() const { return _frame != nullptr; }
   const uint8_t *frame() const { return _frame; }
@@ -101,7 +102,7 @@ public:
 private:
   uint8_t *_frame = nullptr;
   uint8_t _csM, _csS, _dc, _rst, _busy;
-  bool _stipple = false;
+  uint8_t _stipple = 0;
   uint8_t _rotation = 0;
   int16_t _width = WIDTH, _height = HEIGHT;
   bool _started = false;
