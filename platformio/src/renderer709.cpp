@@ -68,6 +68,7 @@
 #define F_SANS_38  F_BITTER_38
 #define F_SANSB_25 F_BITTERSB_25
 #endif
+#include "assets709/bluenoise709.h"
 #include "assets709/icons709.h"
 #include "assets709/moon709.h"
 #include "icons/icons_196x196.h"
@@ -104,20 +105,17 @@ static const int PLOT0 = 700, PLOT1 = 1480;          // the graph's plot
  * ====================================================================== */
 
 /* The panel has six inks and nothing between them. Every other colour is a
- * screen: a regular pattern of dots of one ink over another, fine enough at
- * 282 ppi for the eye to blend. The pattern is keyed to the pixel's place on
+ * screen: dots of one ink over another, fine enough at 282 ppi for the eye
+ * to blend. The dots come from a 64x64 blue-noise matrix, which spreads
+ * every share evenly without lining the dots up; Bayer's 8x8 matrix, used
+ * until 2026-10-28, left a grid of little crosses in the greys (the two
+ * were compared side by side on the panel). The pattern is keyed to the pixel's place on
  * the page, so neighbouring shapes continue one screen instead of each
  * starting its own.
  */
-static const uint8_t BAYER8[8][8] = {
-  { 0, 32,  8, 40,  2, 34, 10, 42}, {48, 16, 56, 24, 50, 18, 58, 26},
-  {12, 44,  4, 36, 14, 46,  6, 38}, {60, 28, 52, 20, 62, 30, 54, 22},
-  { 3, 35, 11, 43,  1, 33,  9, 41}, {51, 19, 59, 27, 49, 17, 57, 25},
-  {15, 47,  7, 39, 13, 45,  5, 37}, {63, 31, 55, 23, 61, 29, 53, 21}};
-
 static inline bool screen(int x, int y, float share)
 {
-  return share * 64.0f > BAYER8[y & 7][x & 7] + 0.5f;
+  return share * 256.0f > BLUE_NOISE709[y & 63][x & 63] + 0.5f;
 }
 
 /* `top` over `under`, `share` of the area being `top`. With cover below 1

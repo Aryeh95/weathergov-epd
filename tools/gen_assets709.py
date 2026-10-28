@@ -3,6 +3,7 @@
 
   assets709/fonts709.h   every face the layout draws, at its pixel size
   assets709/icons709.h   condition icons at 220 and 104 px
+  assets709/bluenoise709.h  the dot screen, with the icons that use it
   assets709/moon709.h    the moon at 32 phases, from NASA's lunar map
 
 Fonts
@@ -21,9 +22,15 @@ Icons
   makes clouds and suns grainy; here each part of the picture is recognised
   (sun, cloud, rain, moon, lightning) and given a recipe of its own: flat
   colour becomes one solid ink (the sun yellow, warming to gold at its rim
-  with a screen of red dots), greys become a regular screen of dots, edges
-  are cut clean at the final size, and pale shapes get a hairline outline so
-  clouds can stay light without dissolving into the paper.
+  with a screen of red dots), greys become a screen of dots, edges are cut
+  clean at the final size, and pale shapes get a hairline outline so clouds
+  can stay light without dissolving into the paper.
+
+Screen
+  Every dot screen, in the icons and in what the renderer draws, comes from
+  one 64x64 blue-noise matrix (void-and-cluster, fixed seed): even dots that
+  never line up. Bayer's 8x8 matrix, used until 2026-10-28, showed a grid of
+  little crosses in the greys.
 
 Moon
   NASA's LRO colour map (tools/moon/lroc_color_poles_1k.jpg, public
@@ -150,11 +157,63 @@ def write_fonts():
 # ---------------------------------------------------------------- icons
 BLACK, WHITE, RED, YELLOW, GREEN, BLUE = 1, 2, 3, 4, 5, 6   # as icons_color.h
 ICON_SIZES = [220, 104]
-BAYER = np.array([[0, 32, 8, 40, 2, 34, 10, 42], [48, 16, 56, 24, 50, 18, 58, 26],
-                  [12, 44, 4, 36, 14, 46, 6, 38], [60, 28, 52, 20, 62, 30, 54, 22],
-                  [3, 35, 11, 43, 1, 33, 9, 41], [51, 19, 59, 27, 49, 17, 57, 25],
-                  [15, 47, 7, 39, 13, 45, 5, 37], [63, 31, 55, 23, 61, 29, 53, 21]],
-                 dtype=np.float32) / 64.0 + 1 / 128.0
+BN_SIZE = 64
+
+
+def blue_noise(n=BN_SIZE, sigma=1.5, seed=709):
+    """An n x n threshold matrix by void-and-cluster (Ulichney 1993): ranks
+    0..n*n-1 placed so that the dots of every share are as evenly spread as
+    they can be without lining up. Tiles seamlessly (the energy is measured
+    on a torus). The seed makes it the same matrix on every run."""
+    yy, xx = np.mgrid[0:n, 0:n]
+    dy, dx = np.minimum(yy, n - yy), np.minimum(xx, n - xx)
+    kern = np.exp(-(dx * dx + dy * dy) / (2 * sigma * sigma))
+    kf = np.fft.rfft2(kern)
+
+    def energy(p):
+        return np.fft.irfft2(np.fft.rfft2(p) * kf, s=(n, n))
+
+    def bump(i):
+        return np.roll(np.roll(kern, i // n, 0), i % n, 1).reshape(-1)
+
+    rng = np.random.default_rng(seed)
+    ones = n * n // 10
+    p = np.zeros(n * n)
+    p[rng.choice(n * n, ones, replace=False)] = 1
+    # spread the first dots evenly: move the tightest cluster to the largest
+    # void until they are the same pixel
+    e = energy(p.reshape(n, n)).reshape(-1)
+    while True:
+        c = np.argmax(np.where(p == 1, e, -np.inf))
+        p[c] = 0; e -= bump(c)
+        v = np.argmin(np.where(p == 0, e, np.inf))
+        p[v] = 1; e += bump(v)
+        if v == c:
+            break
+    rank = np.zeros(n * n, dtype=np.int32)
+    # below the first dots: take away the tightest cluster, rank by rank down
+    q, eq = p.copy(), e.copy()
+    for r in range(ones - 1, -1, -1):
+        c = np.argmax(np.where(q == 1, eq, -np.inf))
+        q[c] = 0; eq -= bump(c); rank[c] = r
+    # up to half: fill the largest void
+    q, eq = p.copy(), e.copy()
+    for r in range(ones, n * n // 2):
+        v = np.argmin(np.where(q == 0, eq, np.inf))
+        q[v] = 1; eq += bump(v); rank[v] = r
+    # above half the paper is the minority: fill its tightest cluster
+    ez = energy((1 - q).reshape(n, n)).reshape(-1)
+    for r in range(n * n // 2, n * n):
+        c = np.argmax(np.where(q == 0, ez, -np.inf))
+        q[c] = 1; ez -= bump(c); rank[c] = r
+    return rank.reshape(n, n)
+
+
+# the matrix as the firmware keeps it, levels 0-255 (16 pixels each), and
+# as thresholds 0..1 for the icons: a dot where share > threshold, as in
+# the renderer's screen()
+BN_LEVELS = (blue_noise() * 256 // (BN_SIZE * BN_SIZE)).astype(np.uint8)
+BN_THRESH = BN_LEVELS.astype(np.float32) / 256.0 + 1 / 512.0
 # The sun is yellow at the centre warming to gold at the rim: red dots in
 # the yellow, none at the centre and SUN_RIM_RED of them at the edge, rising
 # with the distance to the power SUN_RIM_POW. Pure yellow alone read flat.
@@ -222,7 +281,7 @@ def rework(path, size):
     snow = grey & (v < 0.80) & ("snow" in name)
 
     yy, xx = np.mgrid[0:size, 0:size]
-    th = BAYER[yy % 8, xx % 8]
+    th = BN_THRESH[yy % BN_SIZE, xx % BN_SIZE]
     out = np.zeros((size, size), dtype=np.uint8)
     dens = np.interp(v, [0.62, 0.78, 0.86, 0.905, 0.945], [0.62, CLOUD[3], CLOUD[2], CLOUD[1], CLOUD[0]])
     out[grey] = np.where(dens > th, BLACK, WHITE)[grey]
@@ -284,6 +343,17 @@ def write_icons():
             f.write('  {"%s", ci709_%s_220, ci709_%s_104},\n' % (code, code, code))
         f.write("};\n\n#endif\n")
     print("icons709.h: %d icons x %d sizes, %.0f KB of flash" % (len(codes), len(ICON_SIZES), total / 1024))
+    # the renderer's screen, written with the icons so the two always match
+    with open(os.path.join(OUT, "bluenoise709.h"), "w", encoding="utf-8", newline="\n") as f:
+        f.write(NOTE)
+        f.write("// The dot screen: a %dx%d blue-noise threshold matrix, levels 0-255 (16\n"
+                "// pixels each). A dot is drawn where share * 256 > level.\n"
+                "#ifndef __BLUENOISE709_H__\n#define __BLUENOISE709_H__\n\n#include <Arduino.h>\n\n"
+                "static const uint8_t BLUE_NOISE709[%d][%d] = {\n" % ((BN_SIZE,) * 4))
+        for row in BN_LEVELS:
+            f.write("  {" + ",".join("%d" % v for v in row) + "},\n")
+        f.write("};\n\n#endif\n")
+    print("bluenoise709.h: %dx%d" % (BN_SIZE, BN_SIZE))
 
 
 # ---------------------------------------------------------------- moon
