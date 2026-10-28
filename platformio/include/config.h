@@ -59,6 +59,12 @@
   #define DISP_4G_426
 #elif defined(BOARD_RETERMINAL_E1001)
   #define DISP_BW_V2
+#elif defined(BOARD_RETERMINAL_E1002) && defined(LAYOUT_426)
+  // -e seeed_reterminal_e1002_426c: the 4.26in layout's home page
+  // on the E1002's 7.3in Spectra 6, in its colours
+  #define DISP_4G_426
+  #define COLOR_426
+  #define DISP_426_ON_E6
 #elif defined(BOARD_RETERMINAL_E1002)
   #define DISP_7C_E6
 #elif defined(DISP_BW_V2) || defined(DISP_3C_B) || defined(DISP_7C_F) \
@@ -165,7 +171,8 @@
 // Note: yellow line art on white e-paper has the least contrast of the
 // palette; if COLOR_SUN is hard to read on your panel, GxEPD_ORANGE (dithered
 // red/yellow) or GxEPD_RED are the usual substitutes.
-#if defined(DISP_7C_F) || defined(DISP_7C_E6) || defined(DISP_7C_709)
+#if defined(DISP_7C_F) || defined(DISP_7C_E6) || defined(DISP_7C_709) \
+    || defined(COLOR_426)
   #define MULTICOLOR_DISPLAY
   #define COLOR_SUN     GxEPD_YELLOW
   #define COLOR_PRECIP  GxEPD_BLUE
@@ -576,8 +583,8 @@ extern const uint8_t PIN_BAT_EN;
 // REFRESH wakes into an immediate weather refresh.
 extern const uint8_t PIN_BTN_PORTAL;
 extern const uint8_t PIN_BTN_REFRESH;
-#if defined(BOARD_XIAO_EE05)
-// KEY3: turns the pages of the 4.26in layout (DISP_4G_426)
+#if defined(DISP_4G_426)
+// KEY3 (KEY2 on the E1002): turns the pages of the 4.26in layout
 extern const uint8_t PIN_BTN_PAGE;
 #endif
 extern const uint8_t PIN_EPD_BUSY;

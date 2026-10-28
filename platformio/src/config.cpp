@@ -125,9 +125,13 @@ const uint8_t PIN_SD_EN    = 16; // active high, powers the slot
 const uint8_t PIN_SD_CS    = 14;
 // Front buttons (active low). Middle button wakes into the config portal,
 // the right (green) button wakes into an immediate refresh. KEY2 (GPIO5,
-// left) is currently unassigned.
+// left) is unassigned: the 4.26in layout keeps to its home page
+// here, as a turned page would cost a full refresh (~28 s) each way.
 const uint8_t PIN_BTN_PORTAL  = 4;  // KEY1, middle
 const uint8_t PIN_BTN_REFRESH = 3;  // KEY0, right (green)
+#if defined(DISP_4G_426)
+const uint8_t PIN_BTN_PAGE    = 5;  // KEY2, left; not a wake source
+#endif
 // Onboard SHT4x temperature/humidity sensor
 const uint8_t PIN_BME_SDA = 19;
 const uint8_t PIN_BME_SCL = 20;

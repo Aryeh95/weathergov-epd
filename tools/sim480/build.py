@@ -45,6 +45,9 @@ PANELS = {
     "bwv2": ["BOARD_RETERMINAL_E1002", "BOARD_RETERMINAL_E1001"],
     "3c":   ["DISP_3C_B"],
     "4g426": ["BOARD_XIAO_EE05"],
+    # the 4.26in layout on the E1002's colours (renderer426.cpp,
+    # -e seeed_reterminal_e1002_426c)
+    "e6_426": ["BOARD_XIAO_EE05", "COLOR_426"],
 }
 # --locale: the build's locale, with the font family its defaults file would
 # switch on. he_IL draws the Netanya pages from data/; pl_PL the Kraków
@@ -130,7 +133,7 @@ def main():
         im.save(base + ".png")
         w, h = im.size
         idx_path = base + ".idx"
-        if panel == "e6" and os.path.exists(idx_path):
+        if panel in ("e6", "e6_426") and os.path.exists(idx_path):
             idx = np.fromfile(idx_path, dtype=np.uint8).reshape(h, w)
             view = blend_measured(idx)
         elif panel == "4g426" and os.path.exists(idx_path):

@@ -55,6 +55,7 @@ This is a fork of [lmarzen/esp32-weather-epd](https://github.com/lmarzen/esp32-w
 | the same | 7.5" 640×384 black and white (v1, GDEW075T8) | reduced 800×480 layout | Wiring | `dfrobot_firebeetle2_esp32e` |
 | FireBeetle 2 ESP32-E + **DESPI-C73** adapter | 7.3" 800×480 seven-colour (Waveshare F / GDEY073D46, Spectra 6 GDEP073E01) | [7.3" full colour](#73-full-colour-reterminal-e1002) | Wiring | `dfrobot_firebeetle2_esp32e` |
 | [Seeed reTerminal E1002](https://www.seeedstudio.com/reTerminal-E1002-p-6533.html) | built-in 7.3" Spectra 6 | [7.3" full colour](#73-full-colour-reterminal-e1002) | none | `seeed_reterminal_e1002` |
+| the same | built-in 7.3" Spectra 6 | [4.26" layout in colour](#426-layout-in-colour-reterminal-e1002) | none | `seeed_reterminal_e1002_426c` |
 | Seeed reTerminal E1001 | built-in 7.5" black and white | [7.5" black and white](#75-black-and-white) | none | `seeed_reterminal_e1001` |
 | [Seeed XIAO ePaper Display Board EE02](https://www.seeedstudio.com/XIAO-ePaper-Display-Board-EE02-p-6639.html) | Good Display GDEB0709E01, 7.09" 1600×1200 Spectra 6 | [7.09" high resolution](#709-high-resolution-colour-xiao-ee02) | [Panel, optional sensor](#seeed-xiao-ee02-with-the-709-panel) | `seeed_xiao_ee02_709` |
 | [Seeed XIAO ePaper Display Board EE05](https://wiki.seeedstudio.com/epaper_ee05) | [Seeed 4.26" 800×480 monochrome](https://www.seeedstudio.com/4-26-Monochrome-SPI-ePaper-Display-p-6398.html) (Good Display GDEQ0426T82) | [4.26" four greys](#426-four-greys-xiao-ee05) | [Printed case](#seeed-xiao-ee05-with-the-426-panel) | `seeed_xiao_ee05` |
@@ -115,6 +116,20 @@ Seeed's 4.26" panel (219 ppi) is black and white with a waveform for four greys.
   The home page comes back five minutes after the last press.
 
 The greys were measured on the panel. Black, dark grey, light grey and white come out at L\* 16, 69, 81 and 100, so the layout also uses checkers of two levels, which at this density read as tones of their own. English only so far.
+
+### 4.26" layout in colour (reTerminal E1002)
+
+<img src="showcase/preview-e1002-426c.png" width="80%" />
+
+The 4.26" layout's home page also runs on the E1002's 7.3" Spectra 6 (`seeed_reterminal_e1002_426c`), in the panel's colours:
+
+- highs and the temperature line in red, lows and the dew point in blue, and the outdoor humidity after a blue drop;
+- colour weather icons, made by the 7.09" layout's recipe;
+- tiles outlined on white, as dots of grey break up the small text on them; air quality and pollen get a band of the EPA's colour behind their level;
+- a full day name over each forecast day;
+- alerts in a band under the header, in the warning's own colour where it names one (the Israel Meteorological Service's yellow, orange and red), red otherwise.
+
+It keeps to the home page: a refresh takes about 28 seconds, too long for pages turned by hand. `seeed_reterminal_e1002_426c_he` is the same in Hebrew, mirrored right to left.
 
 ## Building and flashing
 

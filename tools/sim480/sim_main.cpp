@@ -121,7 +121,11 @@ static void savePpm(const char *path)
   const uint8_t *frame = host426Frame();
   for (int i = 0; i < 800 * 480; ++i)
   {
+#if defined(COLOR_426)
+    fwrite(INK_RGB_E6[frame[i] & 7], 1, 3, f);
+#else
     fwrite(GREY_RGB_426[frame[i] & 3], 1, 3, f);
+#endif
   }
   fclose(f);
   // and the level of every dot (<name>.idx), for build.py's measured mixes
@@ -244,6 +248,9 @@ static void drawPage(const char *out, const String &status, bool stale)
   do
   {
     fillDisplayBackground();
+#if defined(DISP_4G_426)
+    ALERT_426 = !alerts.empty();   // as main.cpp sets it
+#endif
     drawCurrentConditions(current, daily[0], air, pollen, NAN, NAN);
     drawOutlookGraph(hourly, daily, timeInfo);
     drawForecast(daily, timeInfo);
@@ -475,6 +482,9 @@ static int mainUS(const std::string &outDir)
   do
   {
     fillDisplayBackground();
+#if defined(DISP_4G_426)
+    ALERT_426 = !alerts.empty();   // as main.cpp sets it
+#endif
     drawCurrentConditions(current, daily[0], air, pollen, inTemp, inHum);
     drawOutlookGraph(hourly, daily, timeInfo);
     drawForecast(daily, timeInfo);
@@ -492,6 +502,9 @@ static int mainUS(const std::string &outDir)
   initDisplay();
   do
   {
+#if defined(DISP_4G_426)
+    ALERT_426 = !alerts.empty();   // as main.cpp sets it
+#endif
     drawCurrentConditions(current, daily[0], air, pollen, inTemp, inHum);
     drawOutlookGraph(hourly, daily, timeInfo);
     drawForecast(daily, timeInfo);

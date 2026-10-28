@@ -19,11 +19,16 @@
 #define __TEXT426_H__
 
 /* The words this layout adds to the ones the locale files already carry.
- * ENGLISH ONLY for now, as for the 1600x1200 layout (text709.h): kept
- * together here so that they can move into locales/locale_*.inc in one
- * step once the layout has settled.
+ * English, and Hebrew where the locale runs right to left (he_IL, the one
+ * such locale): kept together here so that they can move into
+ * locales/locale_*.inc in one step once the layout has settled.
  */
-#define TXT426_INDOOR "Indoor"
-#define TXT426_GUSTS  "gusts"
+#define TXT426_INDOOR (LC_RTL ? "בבית" : "Indoor")
+#define TXT426_GUSTS  (LC_RTL ? "משבים" : "gusts")
+#define TXT426_SETUP  (LC_RTL ? "מצב הגדרות" : "Setup Mode")
+// today's high and low, beside the temperature (in Hebrew the two figures
+// stand alone, "26° / 19°")
+#define TXT426_HIGH   "H"
+#define TXT426_LOW    "L"
 
 #endif

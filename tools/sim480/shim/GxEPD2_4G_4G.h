@@ -18,7 +18,12 @@ struct GxEPD2_426_GDEQ0426T82
 // the frame: a grey level a dot, as the board sits (rotation is applied)
 inline uint8_t *host426Frame()
 {
+#if defined(COLOR_426)
+  // COLOR_426: the reTerminal E1002's inks instead, 2 paper .. 6 blue
+  static std::vector<uint8_t> frame(800 * 480, 2);
+#else
   static std::vector<uint8_t> frame(800 * 480, 3);
+#endif
   return frame.data();
 }
 
@@ -33,7 +38,11 @@ public:
   void firstPage()
   {
     uint8_t *f = host426Frame();
+#if defined(COLOR_426)
+    for (int i = 0; i < 800 * 480; ++i) f[i] = 2;
+#else
     for (int i = 0; i < 800 * 480; ++i) f[i] = 3;
+#endif
   }
   bool nextPage() { return false; }
   void hibernate() {}
@@ -41,8 +50,27 @@ public:
   void drawPixel(int16_t x, int16_t y, uint16_t color) override
   {
     if (x < 0 || y < 0 || x >= width() || y >= height()) return;
+#if defined(COLOR_426)
+    host426Frame()[static_cast<size_t>(y) * 800 + x] = inkOf(color);
+#else
     host426Frame()[static_cast<size_t>(y) * 800 + x] = grey_ ? levelOf(color) : (color == GxEPD_WHITE ? 3 : 0);
+#endif
   }
+#if defined(COLOR_426)
+  static uint8_t inkOf(uint16_t color)
+  {
+    switch (color)
+    {
+    case GxEPD_WHITE:  return 2;
+    case GxEPD_RED:    return 3;
+    case GxEPD_YELLOW: return 4;
+    case GxEPD_GREEN:  return 5;
+    case GxEPD_BLUE:   return 6;
+    case GxEPD_ORANGE: return 7;
+    default:           return 1;
+    }
+  }
+#endif
   // GxEPD2_4G_4G's own rule: black 0, white 3, anything else by brightness
   static uint8_t levelOf(uint16_t color)
   {

@@ -7,6 +7,14 @@
 #define GxEPD_LIGHTGREY 0xC618
 #define GxEPD_WHITE     0xFFFF
 #define GxEPD_RED       0xF800
+#if defined(COLOR_426)
+// the 4.26in layout on the E1002's colours
+#define GxEPD_YELLOW    0xFFE0
+#define GxEPD_GREEN     0x07E0
+#define GxEPD_BLUE      0x001F
+#define GxEPD_ORANGE    0xFD20
+#else
 #define GxEPD_YELLOW    GxEPD_RED
+#endif
 #define GxEPD_COLORED   GxEPD_RED
 #endif

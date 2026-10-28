@@ -122,3 +122,7 @@ Spectra 6.
 | `SIM480_RAIN=1` | a made-up afternoon of showers, to see the rain on a dry day (any panel) |
 | `SIM480_PEAK=<hour>` | the day's warmest hours moved to that hour, to see where the high's label goes (any panel) |
 | `SIM426_TILES="wind,moon_phase,indoor"` | the home tiles, as config.json `home_tiles` |
+
+`--panel=e6_426` draws the same layout as `seeed_reterminal_e1002_426c`
+builds it: in the E1002's colours, shown in its measured inks like
+`--panel=e6`.

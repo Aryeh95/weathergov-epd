@@ -45,8 +45,12 @@
 #include <algorithm>
 #include <cmath>
 #include <SPI.h>
+#if defined(DISP_426_ON_E6)
+#include <GxEPD2_7C.h>
+#else
 #include <GxEPD2_4G_4G.h>
 #include <GxEPD2_4G_BW.h>
+#endif
 #include <aqi.h>
 #include "_locale.h"
 #include "_strftime.h"
@@ -59,6 +63,32 @@
 #include "text426.h"
 #include "sun.h"
 
+#if defined(FONT_INCLUDE_Heebo)
+// a Hebrew build: Heebo, whose high slots carry the Hebrew alphabet, in
+// Bitter's place at every size
+#include "fonts/Heebo/Heebo_8pt8b.h"
+#include "fonts/Heebo/Heebo_9pt8b.h"
+#include "fonts/Heebo/Heebo_10pt8b.h"
+#include "fonts/Heebo/Heebo_11pt8b.h"
+#include "fonts/Heebo/Heebo_12pt8b.h"
+#include "fonts/Heebo/Heebo_14pt8b.h"
+#include "fonts/Heebo/Heebo_16pt8b.h"
+#include "fonts/Heebo/Heebo_18pt8b.h"
+#include "fonts/Heebo/Heebo_20pt8b.h"
+#include "fonts/Heebo/Heebo_26pt8b.h"
+#include "fonts/Heebo/Heebo_48pt8b_temperature.h"
+#define Bitter_8pt8b Heebo_8pt8b
+#define Bitter_9pt8b Heebo_9pt8b
+#define Bitter_10pt8b Heebo_10pt8b
+#define Bitter_11pt8b Heebo_11pt8b
+#define Bitter_12pt8b Heebo_12pt8b
+#define Bitter_14pt8b Heebo_14pt8b
+#define Bitter_16pt8b Heebo_16pt8b
+#define Bitter_18pt8b Heebo_18pt8b
+#define Bitter_20pt8b Heebo_20pt8b
+#define Bitter_26pt8b Heebo_26pt8b
+#define Bitter_48pt8b_temperature Heebo_48pt8b_temperature
+#else
 #include "fonts/Bitter/Bitter_8pt8b.h"
 #include "fonts/Bitter/Bitter_9pt8b.h"
 #include "fonts/Bitter/Bitter_10pt8b.h"
@@ -70,12 +100,35 @@
 #include "fonts/Bitter/Bitter_20pt8b.h"
 #include "fonts/Bitter/Bitter_26pt8b.h"
 #include "fonts/Bitter/Bitter_48pt8b_temperature.h"
+#endif
 
 #include "icons/icons_24x24.h"
 #include "icons/icons_48x48.h"
 #include "icons/icons_196x196.h"
 #include "assets426/moon426.h"
+#if defined(COLOR_426)
+#include "assets426/icons426c.h"
+#endif
+#if defined(COLOR_426)
+#include "assets709/bluenoise709.h"   // the 7.09's dot screen
+#endif
 
+#if defined(DISP_426_ON_E6)
+// On the reTerminal E1002 (-e seeed_reterminal_e1002_426c): its 7.3in
+// Spectra 6 (GDEP073E01), the same 800x480. Its full refresh (~28 s) outlasts GxEPD2's 20 s busy
+// timeout, as in renderer.cpp.
+class PanelE6 : public GxEPD2_730c_GDEP073E01
+{
+public:
+  PanelE6(int16_t cs, int16_t dc, int16_t rst, int16_t busy)
+      : GxEPD2_730c_GDEP073E01(cs, dc, rst, busy)
+  {
+    _busy_timeout = 45000000; // us
+  }
+};
+static GxEPD2_7C<PanelE6, PanelE6::HEIGHT / 4> e6(
+  PanelE6(PIN_EPD_CS, PIN_EPD_DC, PIN_EPD_RST, PIN_EPD_BUSY));
+#else
 typedef GxEPD2_426_GDEQ0426T82 Panel426;
 // The greys in four bands of 120 rows: with a buffer for the whole page
 // (96000 bytes) the library's fillScreen() never ends, as it counts with a
@@ -87,6 +140,7 @@ static GxEPD2_4G_4G<Panel426, Panel426::HEIGHT / 4> grey(
 // past byte 32767 (row 327 of a 48000-byte page) it sends what lies before
 // the buffer instead -- the top of the page, as the board sits, was noise.
 static GxEPD2_4G_BW_R<Panel426, Panel426::HEIGHT / 2> bw(grey.epd2);
+#endif
 
 Display426 display;
 
@@ -110,6 +164,25 @@ static const uint16_t T_DGLG = 0x0003;
 static const uint16_t T_DGW  = 0x0004;
 static const uint16_t T_LGW  = 0x0005;
 
+#if defined(COLOR_426)
+static const uint16_t T_PRECIP = 0x0006;   // a checker of blue and white
+static const uint16_t C_HI   = GxEPD_RED;  // highs and the temperature line
+static const uint16_t C_LO   = GxEPD_BLUE; // lows and the dew point
+static const uint16_t C_RAIN = T_PRECIP;
+// the mixed inks of the air quality levels, as checkers of two inks
+static const uint16_t T_ORANGE = 0x0007;   // red and yellow
+static const uint16_t T_PURPLE = 0x0008;   // red and blue
+static const uint16_t T_MAROON = 0x0009;   // red and black
+/* A tile in the colour of its level (air quality, pollen): a band of the
+ * EPA's colour, Good .. Hazardous, behind the words under the value, in
+ * the ink that reads on each.
+ */
+struct Level426 { uint16_t fill, ink; };
+static const Level426 LEVELS_426[6] = {
+  {GxEPD_GREEN, W}, {GxEPD_YELLOW, K}, {T_ORANGE, K},
+  {GxEPD_RED, W},   {T_PURPLE, W},     {T_MAROON, W}};
+#endif
+
 /* Everything is drawn through this: it turns the stand-in colours into
  * their checkers and hands each dot to the display set up for the page.
  */
@@ -117,9 +190,49 @@ class Mixer426 : public Adafruit_GFX
 {
 public:
   Mixer426() : Adafruit_GFX(DISP_WIDTH, DISP_HEIGHT) {}
+#if defined(DISP_426_ON_E6)
+  Adafruit_GFX *target = &e6;
+#else
   Adafruit_GFX *target = &grey;
+#endif
   void drawPixel(int16_t x, int16_t y, uint16_t color) override
   {
+#if defined(COLOR_426)
+    // in colour (the E1002) there are no greys, so each grey is a
+    // screen of black dots as dark as it was, in the 7.09's blue noise
+    // (Bayer's grid showed as crosses at 127 ppi too, 2026-10-28);
+    // T_PRECIP and the other half-and-half mixes stay checkers
+    float share = -1.0f;
+    switch (color)
+    {
+    case GxEPD_DARKGREY:  share = 0.35f; break;
+    case GxEPD_LIGHTGREY: share = 0.20f; break;
+    case T_KDG:  share = 0.67f; break;
+    case T_KLG:  share = 0.60f; break;
+    case T_DGLG: share = 0.28f; break;
+    case T_DGW:  share = 0.17f; break;
+    case T_LGW:  share = 0.10f; break;
+    case T_PRECIP:
+      color = ((x + y) & 1) ? GxEPD_BLUE : W;
+      break;
+    case T_ORANGE:
+      color = ((x + y) & 1) ? GxEPD_RED : GxEPD_YELLOW;
+      break;
+    case T_PURPLE:
+      color = ((x + y) & 1) ? GxEPD_RED : GxEPD_BLUE;
+      break;
+    case T_MAROON:
+      color = ((x + y) & 1) ? GxEPD_RED : K;
+      break;
+    default: break;
+    }
+    if (share >= 0.0f)
+    {
+      color = share * 256.0f > BLUE_NOISE709[y & 63][x & 63] + 0.5f ? K : W;
+    }
+    target->drawPixel(x, y, color);
+    return;
+#endif
     if (color >= T_KDG && color <= T_LGW)
     {
       static const uint16_t A[6] = {0, K, K, DG, DG, LG};
@@ -165,7 +278,11 @@ static const int HEADER_H = 54;
 
 bool Display426::nextPage()
 {
+#if defined(DISP_426_ON_E6)
+  return e6.nextPage();
+#else
   return s_grey ? grey.nextPage() : bw.nextPage();
+#endif
 }
 
 void setGreyMode426(bool wantGrey)
@@ -362,6 +479,62 @@ static void drawPhotoMoon(int16_t cx, int16_t cy, double frac, bool south)
   }
 }
 
+#if defined(COLOR_426)
+/* One of the E1002's colour icons (icons_color.h: 4 bits a dot, 0 nothing
+ * drawn), from `src` dots square to `dst`, nearest dot. */
+static void drawColorIcon426(int16_t x, int16_t y, const uint8_t *data,
+                             int src, int dst)
+{
+  static const uint16_t INK[7] = {0, K, W, GxEPD_RED, GxEPD_YELLOW,
+                                  GxEPD_GREEN, GxEPD_BLUE};
+  for (int py = 0; py < dst; ++py)
+  {
+    for (int px = 0; px < dst; ++px)
+    {
+      const int32_t n = static_cast<int32_t>(py * src / dst) * src
+                        + px * src / dst;
+      const uint8_t b = pgm_read_byte(&data[n >> 1]);
+      const uint8_t v = (n & 1) ? (b & 0x0F) : (b >> 4);
+      if (v && v < 7)
+      {
+        g->drawPixel(x + px, y + py, INK[v]);
+      }
+    }
+  }
+}
+#endif
+
+#if defined(COLOR_426)
+/* The colour condition icon for an OpenWeatherMap-style id, at 138 or 48
+ * dots: the ids turned into pictures as on the 800x480 colour panels. */
+static const uint8_t *conditionIcon426(int id, bool day, int size)
+{
+  const char *base;
+  if      (id >= 200 && id < 300)  {base = "11";}
+  else if (id >= 300 && id < 500)  {base = "09";}
+  else if (id >= 500 && id < 511)  {base = "10";}
+  else if (id == 511)              {base = "13";}
+  else if (id > 511 && id < 600)   {base = "09";}
+  else if (id >= 600 && id < 700)  {base = "13";}
+  else if (id >= 700 && id < 800)  {base = "50";}
+  else if (id == 800)              {base = "01";}
+  else if (id == 801 || id == 802) {base = "022";}
+  else if (id == 803)              {base = "02";}
+  else                             {base = "04";}
+  char want[8], wantDay[8];
+  snprintf(want, sizeof(want), "%s%c", base, day ? 'd' : 'n');
+  snprintf(wantDay, sizeof(wantDay), "%sd", base);
+  const Icon426c *found = nullptr;
+  for (const Icon426c &ic : ICONS426C)
+  {
+    if (strcmp(ic.code, want) == 0) {found = &ic; break;}
+    if (strcmp(ic.code, wantDay) == 0) {found = &ic;}
+  }
+  if (!found) {return nullptr;}
+  return size == 138 ? found->px138 : found->px48;
+}
+#endif
+
 /* A dotted horizontal rule. */
 static void dottedLine(int16_t x0, int16_t x1, int16_t y, uint16_t color)
 {
@@ -376,6 +549,13 @@ static void dottedLine(int16_t x0, int16_t x1, int16_t y, uint16_t color)
  */
 static void tile(int16_t x, int16_t y, int16_t w, int16_t h)
 {
+#if defined(COLOR_426)
+  // in colour, outlined: the greys are screens of dots there, which break
+  // up the small text written on them
+  g->drawRoundRect(x, y, w, h, 12, K);
+  g->drawRoundRect(x + 1, y + 1, w - 2, h - 2, 11, K);
+  return;
+#endif
   if (s_grey)
   {
     g->fillRoundRect(x, y, w, h, 12, pal().tile);
@@ -614,8 +794,17 @@ static void drawHeader(const String &city, const String &date, int page)
   const uint16_t ink = pal().headerInk;
   g->fillRect(0, 0, DISP_WIDTH, HEADER_H, pal().header);
   g->setFont(&Bitter_18pt8b);
-  drawString(16, 38, fitted(city, 300), LEFT, ink);
-  // where this page is among the pages
+  // right to left (LC_RTL) the page is mirrored: the city at the right
+  if (LC_RTL)
+  {
+    drawString(DISP_WIDTH - 16, 38, fitted(city, 300), RIGHT, ink);
+  }
+  else
+  {
+    drawString(16, 38, fitted(city, 300), LEFT, ink);
+  }
+  // where this page is among the pages (in colour there is one page)
+#if !defined(COLOR_426)
   const int r = 5, gap = 18;
   const int x0 = DISP_WIDTH / 2 - (PAGES_426 - 1) * gap / 2;
   for (int i = 0; i < PAGES_426; ++i)
@@ -629,8 +818,18 @@ static void drawHeader(const String &city, const String &date, int page)
       g->drawCircle(x0 + i * gap, HEADER_H / 2, r, ink);
     }
   }
+#else
+  (void)page;
+#endif
   g->setFont(&Bitter_11pt8b);
-  drawString(DISP_WIDTH - 14, 23, date, RIGHT, ink);
+  if (LC_RTL)
+  {
+    drawString(14, 23, date, LEFT, ink);
+  }
+  else
+  {
+    drawString(DISP_WIDTH - 14, 23, date, RIGHT, ink);
+  }
 }
 
 /* Under the date: the time of the update, the battery, a warning sign if
@@ -643,8 +842,40 @@ static void drawStatus(const String &statusStr, const String &refreshTime,
   g->setFont(&Bitter_9pt8b);
   const uint16_t ink = pal().headerInk;
   const int y = 46;
-  int x = DISP_WIDTH - 14;
   const int tw = getStringWidth(refreshTime);
+  if (LC_RTL)
+  { // mirrored: from the left edge, the time, the battery, the warning
+    int xl = 14;
+    if (stale)
+    {
+      g->fillRoundRect(xl - 4, y - 15, tw + 10, 20, 4, ink);
+      drawString(xl + 1, y, refreshTime, LEFT, ink == W ? K : W);
+      xl += tw + 6 + 12;
+    }
+    else
+    {
+      drawString(xl, y, refreshTime, LEFT, ink);
+      xl += tw + 12;
+    }
+#if BATTERY_MONITORING
+    if (batVoltage != UINT32_MAX)
+    {
+      const uint32_t pct = calcBatPercent(batVoltage, MIN_BATTERY_VOLTAGE,
+                                          MAX_BATTERY_VOLTAGE);
+      const String p = String(pct) + "%";
+      drawString(xl, y, p, LEFT, ink);
+      xl += getStringWidth(p) + 4;
+      drawIcon(xl, y - 18, getBatBitmap24(pct), 24, 24, ink);
+      xl += 24 + 10;
+    }
+#endif
+    if (!statusStr.isEmpty())
+    {
+      drawIcon(xl, y - 18, warning_icon_24x24, 24, 24, ink);
+    }
+    return;
+  }
+  int x = DISP_WIDTH - 14;
   if (stale)
   {
     g->fillRoundRect(x - tw - 6, y - 15, tw + 10, 20, 4, ink);
@@ -694,6 +925,18 @@ void initDisplay()
   SPI.end();
   SPI.begin(PIN_EPD_SCK, PIN_EPD_MISO, PIN_EPD_MOSI, PIN_EPD_CS);
   s_grey = s_wantGrey;
+#if defined(DISP_426_ON_E6)
+  // one colour panel for every page; the black-and-white pages draw on it
+  // as they are
+  e6.init(115200, false, 10, false, SPI,
+          SPISettings(4000000, MSBFIRST, SPI_MODE0));
+  e6.setRotation(0);
+  g->setTextSize(1);
+  g->setTextColor(K);
+  g->setTextWrap(false);
+  e6.setFullWindow();
+  e6.firstPage();
+#else
   // not "initial": a full refresh does not depend on what the panel showed
   // before, and the panel loses its power while the board sleeps anyway
   if (s_grey)
@@ -724,11 +967,16 @@ void initDisplay()
     bw.setFullWindow();
     bw.firstPage();
   }
+#endif
 }
 
 void powerOffDisplay()
 {
+#if defined(DISP_426_ON_E6)
+  e6.hibernate();
+#else
   grey.hibernate();
+#endif
   if (PIN_EPD_PWR != PIN_UNUSED)
   {
     digitalWrite(PIN_EPD_PWR, LOW);
@@ -782,9 +1030,11 @@ static void drawTrendArrow(int16_t x, int16_t y, int trend)
  * wide drops to 16 pt, and only then is it cut short.
  */
 static int tileValue(int16_t x, int16_t y, const String &value, int maxW,
-                     bool draw)
+                     bool draw, uint16_t ink = K)
 {
-  const int gap = 4, sp = value.lastIndexOf(' ');
+  // right to left the unit comes first, and a lone 7 or 1 has no side
+  // bearing to keep it off the unit: a wider gap there
+  const int gap = LC_RTL ? 10 : 4, sp = value.lastIndexOf(' ');
   if (sp > 0)
   {
     const String num = value.substring(0, sp), unit = value.substring(sp + 1);
@@ -794,12 +1044,19 @@ static int tileValue(int16_t x, int16_t y, const String &value, int maxW,
     const int uw = getStringWidth(unit);
     if (nw + gap + uw <= maxW)
     {
-      if (draw)
+      if (draw && LC_RTL)
+      { // read from the right: the number, then its unit to its left
+        g->setFont(&Bitter_12pt8b);
+        drawString(x + uw, y, unit, RIGHT, ink);   // by its ink: no overhang
+        g->setFont(&Bitter_20pt8b);
+        drawString(x + uw + gap, y, num, LEFT, ink);
+      }
+      else if (draw)
       {
         g->setFont(&Bitter_20pt8b);
-        drawString(x, y, num, LEFT, K);
+        drawString(x, y, num, LEFT, ink);
         g->setFont(&Bitter_12pt8b);
-        drawString(x + nw + gap, y, unit, LEFT, K);
+        drawString(x + nw + gap, y, unit, LEFT, ink);
       }
       return nw + gap + uw;
     }
@@ -812,7 +1069,7 @@ static int tileValue(int16_t x, int16_t y, const String &value, int maxW,
   const String v = fitted(value, maxW);
   if (draw)
   {
-    drawString(x, y, v, LEFT, K);
+    drawString(x, y, v, LEFT, ink);
   }
   return getStringWidth(v);
 }
@@ -822,18 +1079,38 @@ static int tileValue(int16_t x, int16_t y, const String &value, int maxW,
  */
 static void homeTile(int16_t x, int16_t y, const String &title,
                      const String &value, const String &sub1,
-                     const String &sub2 = "", int trend = TREND_UNKNOWN)
+                     const String &sub2 = "", int trend = TREND_UNKNOWN,
+                     int level = -1)
 {
   const int w = 124, h = 128, cx = x + w / 2;
+  const uint16_t ink = K;   // the title and value
+  uint16_t subInk = K;      // the lines under them
+  int subY0 = 97;
   tile(x, y, w, h);
+#if defined(COLOR_426)
+  if (level >= 0 && level < 6)
+  {
+    // a band across the bottom, inside the outline
+    const Level426 &lv = LEVELS_426[level];
+    g->fillRoundRect(x + 2, y + 84, w - 4, h - 86, 10, lv.fill);
+    g->fillRect(x + 2, y + 84, w - 4, 12, lv.fill);
+    subInk = lv.ink;
+    if (sub2.isEmpty())
+    {
+      subY0 = 112;   // one line: in the band's middle
+    }
+  }
+#else
+  (void)level;
+#endif
   g->setFont(&Bitter_10pt8b);
-  drawString(cx, y + 25, fitted(title, w - 10), CENTER, K);
+  drawString(cx, y + 25, fitted(title, w - 10), CENTER, ink);
   const bool arrow = trend == TREND_RISING || trend == TREND_STEADY
                      || trend == TREND_FALLING;
   const int maxW = arrow ? w - 36 : w - 10;
   const int vw = tileValue(0, 0, value, maxW, false);
   const int x0 = arrow ? cx - (vw + 26) / 2 : cx - vw / 2;
-  tileValue(x0, y + 72, value, maxW, true);
+  tileValue(x0, y + 72, value, maxW, true, ink);
   if (arrow)
   {
     drawTrendArrow(x0 + vw + 6, y + 58, trend);
@@ -847,11 +1124,55 @@ static void homeTile(int16_t x, int16_t y, const String &title,
     {
       g->setFont(&Bitter_8pt8b);
     }
-    drawString(cx, y + (k ? 117 : 97), fitted(t, w - 10), CENTER, K);
+    drawString(cx, y + (k ? 117 : subY0), fitted(t, w - 10), CENTER, subInk);
   }
 }
 
+#if defined(COLOR_426)
+/* The level of an air quality index (0 Good .. 5 Hazardous), -1 where it is
+ * not the US index: the colours are the EPA's.
+ */
+static int aqLevel426(const owm_resp_air_pollution_t &air)
+{
+  const int a = air.us_aqi;
+  if (a < 0 && air.il_valid)
+  { // Israel's Ministry index, high is clean: its four bands as good,
+    // moderate, unhealthy and very unhealthy (green, yellow, orange, red)
+    const int il = air.il_index;
+    return il > 50 ? 0 : il >= 0 ? 1 : il >= -200 ? 2 : 3;
+  }
+  if (a < 0)
+  {
+    return -1;
+  }
+  return a <= 50 ? 0 : a <= 100 ? 1 : a <= 150 ? 2 : a <= 200 ? 3
+       : a <= 300 ? 4 : 5;
+}
+
+/* Google's Universal Pollen Index (0-5) on the same colours: none to low
+ * green, moderate yellow, high orange, very high red.
+ */
+static int pollenLevel426(int upi)
+{
+  return upi < 0 ? -1 : upi <= 2 ? 0 : upi - 2;
+}
+#endif
+
 int INDOOR_TREND_426 = TREND_UNKNOWN;
+bool ALERT_426 = false;
+
+/* With an alert (in colour) its band runs under the header, and what is
+ * between the header and the graph moves down by its height.
+ */
+static const int ALERT_H = 26;
+static int topShift()
+{
+#if defined(COLOR_426)
+  return ALERT_426 ? ALERT_H : 0;
+#else
+  return 0;
+#endif
+}
 
 /* The home page tile in place `slot` (0 to 2, left to right), showing the
  * widget `key` (config.json "home_tiles"). The keys are the other layouts'
@@ -869,10 +1190,13 @@ static void drawHomeTile(int slot, const String &key,
   {
     return;
   }
-  const int16_t x = 404 + slot * 132, y = HEADER_H + 8;
+  // right to left the tiles are at the left, the first of them nearest the
+  // middle
+  const int16_t x = LC_RTL ? 8 + (2 - slot) * 132 : 404 + slot * 132;
+  const int16_t y = HEADER_H + 8 + topShift();
   auto pct = [](float v) { return String(static_cast<int>(std::lround(v))) + "%"; };
   String title, value = "--", sub1, sub2;
-  int trend = TREND_UNKNOWN;
+  int trend = TREND_UNKNOWN, level = -1;
   if (key == "wind")
   {
     title = TXT_WIND;
@@ -887,6 +1211,9 @@ static void drawHomeTile(int slot, const String &key,
   {
     title = TXT_AIR_QUALITY;
     airQuality(air, value, sub1);
+#if defined(COLOR_426)
+    level = aqLevel426(air);
+#endif
   }
   else if (key == "indoor" && std::isnan(inTemp))
   { // no sensor: the humidity outside
@@ -979,6 +1306,9 @@ static void drawHomeTile(int slot, const String &key,
     {
       value = String(pollen.max_upi);
       sub1 = pollenLine(pollen);
+#if defined(COLOR_426)
+      level = pollenLevel426(pollen.max_upi);
+#endif
     }
   }
   else if (key == "visibility")
@@ -1018,7 +1348,7 @@ static void drawHomeTile(int slot, const String &key,
   { // a key this layout does not know
     return;
   }
-  homeTile(x, y, title, value, sub1, sub2, trend);
+  homeTile(x, y, title, value, sub1, sub2, trend, level);
 }
 
 void drawCurrentConditions(const owm_current_t &current,
@@ -1027,22 +1357,74 @@ void drawCurrentConditions(const owm_current_t &current,
                            const pollen_info_t &pollen,
                            float inTemp, float inHumidity)
 {
-  // the sky, the temperature, what it feels like, today's high and low
-  drawIcon(8, HEADER_H + 6, getCurrentConditionsBitmap128(current), 128, 128,
-           K);
-  g->setFont(&Bitter_48pt8b_temperature);
+  // the sky, the temperature, what it feels like, today's high and low;
+  // right to left, mirrored: the sky at the right, the words to its left
+  const bool rtl = LC_RTL;
+  const int dy = topShift();
+  auto mx = [rtl](int x, int w) { return rtl ? DISP_WIDTH - x - w : x; };
+#if defined(COLOR_426)
+  const int64_t now = static_cast<int64_t>(pageTime());
+  if (const uint8_t *ci = conditionIcon426(current.weather.id,
+        now >= current.sunrise && now < current.sunset, 138))
+  {
+    drawColorIcon426(mx(2, 138), HEADER_H + 2 + dy, ci, 138, 138);
+  }
+  else
+#endif
+  drawIcon(mx(8, 128), HEADER_H + 6 + dy, getCurrentConditionsBitmap128(current),
+           128, 128, K);
   const String t = std::isnan(current.temp)
                  ? String("--")
                  : String(static_cast<int>(std::lround(
                           toTempUnit(current.temp))));
-  drawString(146, 140, t, LEFT, K);
   g->setFont(&Bitter_14pt8b);
-  drawString(g->getCursorX() + 2, 92, tempUnit(), LEFT, K);
+  const int uw = getStringWidth(tempUnit());
+  g->setFont(&Bitter_48pt8b_temperature);
+  const int xt = rtl ? DISP_WIDTH - 146 - getStringWidth(t) - 4 - uw : 146;
+  drawString(xt, 140 + dy, t, LEFT, K);
+  g->setFont(&Bitter_14pt8b);
+  drawString(g->getCursorX() + 2, 92 + dy, tempUnit(), LEFT, K);
   g->setFont(&Bitter_11pt8b);
-  drawString(150, 170, String(TXT_FEELS_LIKE) + " " + deg(current.feels_like),
-             LEFT, K);
+  const String feels = String(TXT_FEELS_LIKE) + " " + deg(current.feels_like);
+#if defined(COLOR_426)
+  const int fy = 166;   // with the high/low at 192: clear of an alert band
+#else
+  const int fy = 170;
+#endif
+  drawString(rtl ? DISP_WIDTH - 150 : 150, fy + dy, feels, rtl ? RIGHT : LEFT,
+             K);
+#if defined(COLOR_426)
+  const String hs = String(TXT426_HIGH) + " " + deg(today.temp.max);
+  const String ls = String(TXT426_LOW) + " " + deg(today.temp.min);
+  const String hu = String(current.humidity) + "%";
+  int hx;   // the drop's middle
+  if (rtl)
+  { // from the right: "high / low" with no words (Hebrew forecasts write
+    // the two figures alone), the drop, the humidity
+    const String hi = deg(today.temp.max), sep = " / ", lo = deg(today.temp.min);
+    const int xl = DISP_WIDTH - 150 - getStringWidth(hi) - getStringWidth(sep)
+                   - getStringWidth(lo);
+    drawString(xl, 192 + dy, lo, LEFT, C_LO);
+    drawString(g->getCursorX(), 192 + dy, sep, LEFT, K);
+    drawString(g->getCursorX(), 192 + dy, hi, LEFT, C_HI);
+    hx = xl - 18;
+    drawString(hx - 11, 192 + dy, hu, RIGHT, K);
+  }
+  else
+  {
+    drawString(150, 192 + dy, hs, LEFT, C_HI);
+    drawString(g->getCursorX() + 18, 192 + dy, ls, LEFT, C_LO);
+    // and the humidity outside, after a drop
+    hx = g->getCursorX() + 24;
+    drawString(hx + 11, 192 + dy, hu, LEFT, K);
+  }
+  // the drop's foot on the text's baseline (row 192)
+  g->fillCircle(hx, 186 + dy, 6, GxEPD_BLUE);
+  g->fillTriangle(hx - 6, 185 + dy, hx + 6, 185 + dy, hx, 172 + dy, GxEPD_BLUE);
+#else
   drawString(150, 196, "H " + deg(today.temp.max) + "   L "
              + deg(today.temp.min), LEFT, K);
+#endif
 
   // the three tiles chosen in the portal
   for (int i = 0; i < 3; ++i)
@@ -1052,7 +1434,9 @@ void drawCurrentConditions(const owm_current_t &current,
 }
 
 // the graph's box; right of it, the rain chance's 0-100 % scale
-static const int GX0 = 58, GX1 = 746, GY0 = 232, GY1 = 370;
+static const int GX0 = 58, GX1 = 746, GY1 = 370;
+// the graph's top: lower by the alert band's height when there is one
+static int gy0() { return 232 + topShift(); }
 
 /* Draws a line `width` dots thick through the samples, column by column:
  * each column fills from the previous sample's height to its own, so steep
@@ -1091,7 +1475,7 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     const float t = toTempUnit(hourly[i].temp);
     lo = std::min(lo, t);
     hi = std::max(hi, t);
-    if (!std::isnan(hourly[i].dew_point))
+    if (GRAPH_DEWPOINT && !std::isnan(hourly[i].dew_point))
     {
       lo = std::min(lo, toTempUnit(hourly[i].dew_point));
     }
@@ -1109,7 +1493,7 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
   const int step = (yHi - yLo > 40) ? 20 : 10;
   auto Y = [&](float t) {
     return static_cast<int16_t>(std::lround(
-      GY1 - (GY1 - GY0) * (t - yLo) / static_cast<float>(yHi - yLo)));
+      GY1 - (GY1 - gy0()) * (t - yLo) / static_cast<float>(yHi - yLo)));
   };
   const int n = GX1 - GX0 + 1;
   const float perHour = (GX1 - GX0) / static_cast<float>(hours);
@@ -1125,15 +1509,18 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
   // legend goes to the top right instead, and where the high is in the way
   // there too, the scale gains a step at the top to bring the dot down.
   g->setFont(&Bitter_9pt8b);
-  const int legendW = 34 + getStringWidth(TXT_TEMPERATURE) + 22 + 34
-                    + getStringWidth(TXT_DEWPOINT) + 22 + 40;
+  // the dew point's line and its entry only where the portal shows it
+  // (graph_dewpoint)
+  const int legendW = 34 + getStringWidth(TXT_TEMPERATURE) + 22 + 40
+                    + (GRAPH_DEWPOINT
+                       ? 34 + getStringWidth(TXT_DEWPOINT) + 22 : 0);
   g->setFont(&Bitter_11pt8b);
   const int hiW = getStringWidth(deg(hourly[iHi].temp));
   const int hiX = std::max(GX0 + 22, std::min(GX1 - 22,
                   GX0 + static_cast<int>((iHi + 0.5f) * perHour)));
   auto clash = [&](int x0) {
     const int top = Y(toTempUnit(hourly[iHi].temp)) - 12 - 18;
-    return top < GY0 - 2 && hiX + hiW / 2 + 8 > x0
+    return top < gy0() - 2 && hiX + hiW / 2 + 8 > x0
            && hiX - hiW / 2 - 8 < x0 + legendW;
   };
   int legendX = GX0;
@@ -1196,12 +1583,16 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     {
       continue;
     }
-    const int bh = pop * (GY1 - GY0) / 100;
+    const int bh = pop * (GY1 - gy0()) / 100;
     const int x0 = GX0 + static_cast<int>(i * perHour) + 2;
     const int x1 = GX0 + static_cast<int>((i + 1) * perHour) - 2;
     if (s_grey)
     {
+#if defined(COLOR_426)
+      g->fillRect(x0, GY1 - bh, x1 - x0, bh, C_RAIN);
+#else
       g->fillRect(x0, GY1 - bh, x1 - x0, bh, pal().rain);
+#endif
     }
     else
     {
@@ -1211,7 +1602,7 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
   g->setFont(&Bitter_8pt8b);
   for (int v = 0; v <= 100; v += 50)
   {
-    drawString(GX1 + 6, GY1 - (GY1 - GY0) * v / 100 + 5, String(v) + "%",
+    drawString(GX1 + 6, GY1 - (GY1 - gy0()) * v / 100 + 5, String(v) + "%",
                LEFT, K);
   }
   // the scale
@@ -1222,8 +1613,19 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     dottedLine(GX0, GX1, y, K);
     drawString(GX0 - 8, y + 6, String(t) + "\260", RIGHT, K);
   }
-  plot(dew, n, 2, K, 7);
+#if defined(COLOR_426)
+  if (GRAPH_DEWPOINT)
+  {
+    plot(dew, n, 2, C_LO, 7);
+  }
+  plot(temp, n, 4, C_HI);
+#else
+  if (GRAPH_DEWPOINT)
+  {
+    plot(dew, n, 2, K, 7);
+  }
   plot(temp, n, 4, K);
+#endif
   g->drawFastHLine(GX0, GY1, n, K);
   g->drawFastHLine(GX0, GY1 + 1, n, K);
   // the day's highest and lowest
@@ -1233,10 +1635,22 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     const int i = k ? iLo : iHi;
     const int x = GX0 + static_cast<int>((i + 0.5f) * perHour);
     const int y = Y(toTempUnit(hourly[i].temp));
-    g->fillCircle(x, y, 6, K);
+#if defined(COLOR_426)
+    const uint16_t ink = k ? C_LO : C_HI;
+#else
+    const uint16_t ink = K;
+#endif
+    g->fillCircle(x, y, 6, ink);
     const int lx = std::max(GX0 + 22, std::min(GX1 - 22, x));
     const bool below = k && (y + 32 < GY1 - 10);
-    drawString(lx, below ? y + 30 : y - 12, deg(hourly[i].temp), CENTER, K);
+    const int ly = below ? y + 30 : y - 12;
+    const String label = deg(hourly[i].temp);
+#if defined(COLOR_426)
+    // on paper of its own, so that the other line cannot run through it
+    const int lw = getStringWidth(label);
+    g->fillRect(lx - lw / 2 - 3, ly - 17, lw + 6, 21, W);
+#endif
+    drawString(lx, ly, label, CENTER, ink);
   }
   // the hours: a tick each, a time every three
   g->setFont(&Bitter_9pt8b);
@@ -1252,26 +1666,69 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     drawString(std::max(GX0 + 16, std::min(GX1 - 16, x)), GY1 + 24,
                clockTime(hourly[0].dt + i * 3600LL, HOUR_FORMAT), CENTER, K);
   }
-  // what the lines are (an alert, if there is one, is drawn over this)
+  // what the lines are (on the grey page an alert is drawn over this; in
+  // colour it has its own place under the header)
   g->setFont(&Bitter_9pt8b);
   int lx = legendX;
-  g->fillRect(lx, GY0 - 18, 28, 4, K);
-  drawString(lx + 34, GY0 - 10, TXT_TEMPERATURE, LEFT, K);
+#if defined(COLOR_426)
+  g->fillRect(lx, gy0() - 18, 28, 4, C_HI);
+#else
+  g->fillRect(lx, gy0() - 18, 28, 4, K);
+#endif
+  drawString(lx + 34, gy0() - 10, TXT_TEMPERATURE, LEFT, K);
   lx = g->getCursorX() + 22;
-  for (int d = 0; d < 28; d += 14)
+  if (GRAPH_DEWPOINT)
   {
-    g->fillRect(lx + d, GY0 - 17, 7, 2, K);
+    for (int d = 0; d < 28; d += 14)
+    {
+#if defined(COLOR_426)
+      g->fillRect(lx + d, gy0() - 17, 7, 2, C_LO);
+#else
+      g->fillRect(lx + d, gy0() - 17, 7, 2, K);
+#endif
+    }
+    drawString(lx + 34, gy0() - 10, TXT_DEWPOINT, LEFT, K);
+    lx = g->getCursorX() + 22;
   }
-  drawString(lx + 34, GY0 - 10, TXT_DEWPOINT, LEFT, K);
   // and the bars: a swatch and an umbrella
-  lx = g->getCursorX() + 22;
   if (s_grey)
   {
-    g->fillRect(lx, GY0 - 22, 14, 13, pal().rain);
+#if defined(COLOR_426)
+    g->fillRect(lx, gy0() - 22, 14, 13, C_RAIN);
+#else
+    g->fillRect(lx, gy0() - 22, 14, 13, pal().rain);
+#endif
   }
-  g->drawRect(lx, GY0 - 22, 14, 13, K);
-  drawIcon(lx + 16, GY0 - 28, wi_umbrella_24x24, 24, 24, K);
+#if defined(COLOR_426)
+  g->drawRect(lx, gy0() - 22, 14, 13, GxEPD_BLUE);
+#else
+  g->drawRect(lx, gy0() - 22, 14, 13, K);
+#endif
+  drawIcon(lx + 16, gy0() - 28, wi_umbrella_24x24, 24, 24, K);
 }
+
+#if defined(COLOR_426)
+/* A forecast day's full name ("Wednesday", "יום שלישי"), at 12 pt or the
+ * largest size under it that fits the cell.
+ */
+static void dayName(int16_t x, int16_t y, int64_t dt, alignment_t align,
+                    int maxW)
+{
+  const String name = clockTime(dt, "%A");
+  static const GFXfont *const SIZES[4] = {&Bitter_12pt8b, &Bitter_11pt8b,
+                                          &Bitter_10pt8b, &Bitter_9pt8b};
+  for (const GFXfont *f : SIZES)
+  {
+    g->setFont(f);
+    if (getStringWidth(name) <= maxW)
+    {
+      break;
+    }
+  }
+  drawString(x, y, fitted(name, maxW), align, K);
+  g->setFont(&Bitter_12pt8b);
+}
+#endif
 
 void drawForecast(const owm_daily_t *daily, tm timeInfo)
 {
@@ -1280,6 +1737,63 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
   for (int k = 0; k < 5; ++k)
   {
     const owm_daily_t &d = daily[k + 1];
+#if defined(COLOR_426)
+    // right to left, tomorrow is at the right
+    const int x0 = (LC_RTL ? 4 - k : k) * cw;
+    // the days apart by thin rules: no shading under the coloured figures
+    if (k > 0)
+    {
+      g->drawFastVLine(k * cw, y0 + 10, DISP_HEIGHT - y0 - 20, K);
+    }
+    /* the day's full name across the top of its cell, the picture under
+     * it at the cell's outer side, the high and low beside the picture and
+     * the chance of rain under them; right to left all of it mirrored, the
+     * high read first. The words keep 12 dots from the picture's box:
+     * right-aligned text ends on its ink, and the clouds reach to within
+     * two dots of their box.
+     */
+    const int iy = y0 + 26, ty = y0 + 54, py = y0 + 72;
+    const uint8_t *ci = conditionIcon426(d.weather.id, true, 48);
+    const String hi = deg(d.temp.max), sep = " / ", lo = deg(d.temp.min);
+    if (LC_RTL)
+    {
+      dayName(x0 + cw - 10, y0 + 20, d.dt, RIGHT, cw - 20);
+      if (ci)
+      {
+        drawColorIcon426(x0 + cw - 56, iy, ci, 48, 48);
+      }
+      const int xr = x0 + cw - 68;
+      g->setFont(&Bitter_12pt8b);
+      const int xl = xr - getStringWidth(hi) - getStringWidth(sep)
+                     - getStringWidth(lo);
+      drawString(xl, ty, lo, LEFT, C_LO);
+      drawString(g->getCursorX(), ty, sep, LEFT, K);
+      drawString(g->getCursorX(), ty, hi, LEFT, C_HI);
+      const int pop = static_cast<int>(std::lround(d.pop * 100));
+      if (pop >= 10)
+      {
+        g->setFont(&Bitter_8pt8b);
+        drawString(xr, py, String(pop) + "%", RIGHT, K);
+      }
+      continue;
+    }
+    dayName(x0 + 10, y0 + 20, d.dt, LEFT, cw - 20);
+    if (ci)
+    {
+      drawColorIcon426(x0 + 8, iy, ci, 48, 48);
+    }
+    g->setFont(&Bitter_12pt8b);
+    drawString(x0 + 64, ty, hi, LEFT, C_HI);
+    drawString(g->getCursorX(), ty, sep, LEFT, K);
+    drawString(g->getCursorX(), ty, lo, LEFT, C_LO);
+    const int pop = static_cast<int>(std::lround(d.pop * 100));
+    if (pop >= 10)
+    {
+      g->setFont(&Bitter_8pt8b);
+      drawString(x0 + 64, py, String(pop) + "%", LEFT, K);
+    }
+    continue;
+#else
     const int x0 = k * cw;
     if (k % 2 == 0 && s_grey)
     {
@@ -1296,8 +1810,40 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
       g->setFont(&Bitter_8pt8b);
       drawString(x0 + 64, y0 + 70, String(pop) + "%", LEFT, K);
     }
+#endif
   }
 }
+
+#if defined(COLOR_426)
+/* The band's colour and its words' ink: the warning's own colour where
+ * its name gives one (IMS: "Yellow Warning of ...", "אזהרה צהובה"),
+ * red otherwise.
+ */
+static void alertColours(const String &event, uint16_t &fill,
+                         uint16_t &ink)
+{
+  // both cases spelled out: toLowerCase() works byte by byte, which UTF-8
+  // Hebrew does not survive
+  const String &e = event;
+  if (e.indexOf("Yellow") >= 0 || e.indexOf("yellow") >= 0
+      || e.indexOf("צהוב") >= 0)
+  {
+    fill = GxEPD_YELLOW;
+    ink = K;
+  }
+  else if (e.indexOf("Orange") >= 0 || e.indexOf("orange") >= 0
+           || e.indexOf("כתומ") >= 0)
+  {
+    fill = T_ORANGE;
+    ink = K;
+  }
+  else
+  {
+    fill = GxEPD_RED;
+    ink = W;
+  }
+}
+#endif
 
 void drawAlerts(std::vector<owm_alerts_t> &alerts, const String &city,
                 const String &date)
@@ -1308,9 +1854,22 @@ void drawAlerts(std::vector<owm_alerts_t> &alerts, const String &city,
   {
     return;
   }
-  const int y = GY0 - 32, h = 26;
-  g->fillRect(0, y, DISP_WIDTH, h, K);
-  drawIcon(12, y + 1, warning_icon_24x24, 24, 24, W);
+#if defined(COLOR_426)
+  // under the header, where the page has made room for it (topShift); the
+  // words a little high, as Hebrew letters hang below the line
+  const int y = HEADER_H, h = ALERT_H, tb = y + 18;
+#else
+  const int y = gy0() - 32, h = 26, tb = y + 20;
+#endif
+#if defined(COLOR_426)
+  uint16_t fill, ink;
+  alertColours(alerts[0].event, fill, ink);
+#else
+  const uint16_t fill = K, ink = W;
+#endif
+  g->fillRect(0, y, DISP_WIDTH, h, fill);
+  drawIcon(LC_RTL ? DISP_WIDTH - 36 : 12, y + 1, warning_icon_24x24, 24, 24,
+           ink);
   String title = alerts[0].event;
   toTitleCase(title);
   truncateExtraAlertInfo(title);
@@ -1319,7 +1878,15 @@ void drawAlerts(std::vector<owm_alerts_t> &alerts, const String &city,
     title += "  (+" + String(alerts.size() - 1) + ")";
   }
   g->setFont(&Bitter_11pt8b);
-  drawString(46, y + 20, fitted(title, DISP_WIDTH - 60), LEFT, W);
+  if (LC_RTL)
+  {
+    drawString(DISP_WIDTH - 46, tb, fitted(title, DISP_WIDTH - 60), RIGHT,
+               ink);
+  }
+  else
+  {
+    drawString(46, tb, fitted(title, DISP_WIDTH - 60), LEFT, ink);
+  }
 }
 
 /* ------------------------------------------- the black-and-white pages */
@@ -1777,7 +2344,7 @@ void drawConfigPortalScreen(const String &line1, const String &line2,
 {
   drawIcon((DISP_WIDTH - 196) / 2, 10, wifi_196x196, 196, 196, K);
   g->setFont(&Bitter_26pt8b);
-  drawString(DISP_WIDTH / 2, 262, "Setup Mode", CENTER, K);
+  drawString(DISP_WIDTH / 2, 262, TXT426_SETUP, CENTER, K);
   const String lines[3] = {line1, line2, line3};
   int y = 318;
   for (int i = 0; i < 3; ++i)

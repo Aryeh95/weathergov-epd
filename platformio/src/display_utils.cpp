@@ -23,7 +23,7 @@
 
 #include <aqi.h>
 #include "config.h"
-#if defined(DISP_4G_426)
+#if defined(DISP_4G_426) && !defined(DISP_426_ON_E6)
   #include <GxEPD2_4G.h> // the same GxEPD_* names, from the greys' library
 #else
   #include <GxEPD2.h> // GxEPD_* color defines, used by the semantic palette

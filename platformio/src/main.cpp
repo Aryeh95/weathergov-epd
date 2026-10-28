@@ -98,7 +98,7 @@ static void enableButtonWake()
   {
     rtc_gpio_pullup_en(static_cast<gpio_num_t>(PIN_BTN_REFRESH));
     rtc_gpio_pulldown_dis(static_cast<gpio_num_t>(PIN_BTN_REFRESH));
-#if defined(DISP_4G_426)
+#if defined(DISP_4G_426) && !defined(DISP_426_ON_E6)
     // KEY3 as well: on the ESP32-S3, EXT1 wakes when any of its pins is low
     rtc_gpio_pullup_en(static_cast<gpio_num_t>(PIN_BTN_PAGE));
     rtc_gpio_pulldown_dis(static_cast<gpio_num_t>(PIN_BTN_PAGE));
@@ -340,6 +340,7 @@ static void drawWeatherPage(const tm &timeInfo, const String &dateStr,
     s_inTrend = static_cast<int8_t>(historyIndoorTrend());
   }
   INDOOR_TREND_426 = s_inTrend;
+  ALERT_426 = !alerts.empty();
 #endif
   initDisplay();
   do
@@ -657,7 +658,9 @@ void setup()
   Serial.setTxTimeoutMs(20);
 #endif
 #if defined(DISP_4G_426)
+#if !defined(DISP_426_ON_E6)
   watchPageKey();
+#endif
 #endif
   Serial.println("[build] " GIT_REV " (" __DATE__ " " __TIME__ ")");
 #if defined(BOARD_XIAO_EPAPER) && ARDUINO_USB_CDC_ON_BOOT

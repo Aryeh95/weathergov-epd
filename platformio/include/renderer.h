@@ -110,7 +110,11 @@
   // renderer's own functions.
   #define DISP_WIDTH  800
   #define DISP_HEIGHT 480
-  #include <GxEPD2_4G.h>
+  #if defined(DISP_426_ON_E6)
+    #include <GxEPD2.h>   // the E1002's colour panel, through GxEPD2
+  #else
+    #include <GxEPD2_4G.h>
+  #endif
   class Display426
   {
   public:
@@ -127,6 +131,8 @@
   extern int PALETTE_426;
   // The indoor reading's trend for the home page (TREND_* in history.h).
   extern int INDOOR_TREND_426;
+  // Whether the page has an alert (drawAlerts): set before it is drawn.
+  extern bool ALERT_426;
   // The hours page's layout: 0 the cells, 1 tables, 2 graphs, 3 graph + cells.
   extern int HOURS_LAYOUT_426;
   // The four greys, their mixes and text on each: the _testcard build.
