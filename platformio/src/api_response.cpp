@@ -1660,6 +1660,28 @@ DeserializationError deserializeIMSCurrent(WiFiClient &json, int lid,
  * (ALERT_URGENCY) are seen while the display, which truncates at the comma,
  * shows the type.
  */
+/* A warning's title from its own sentence, where IMS no longer sends the
+ * names of its warning types (warnings_metadata has come back empty since
+ * October 2026): the sentence up to its time span. "Yellow Warning of NEWS
+ * FLASH in All of Israel from 25/10 17 until 28/10 20 LT." gives "Yellow
+ * Warning of NEWS FLASH in All of Israel"; the Hebrew is cut at " מ-".
+ */
+static String imsWarningTitle(const char *full, bool he)
+{
+  if (!full)
+  {
+    return "";
+  }
+  String s(full);
+  s.trim();
+  const int cut = s.indexOf(he ? " מ-" : " from ");
+  if (cut > 0)
+  {
+    s = s.substring(0, cut);
+  }
+  return s;
+}
+
 DeserializationError deserializeIMSAlerts(WiFiClient &json, int rid,
                                           std::vector<owm_alerts_t> &alerts)
 {
@@ -1670,6 +1692,8 @@ DeserializationError deserializeIMSAlerts(WiFiClient &json, int rid,
   w["severity_id"]     = true;
   w["valid_from_unix"] = true;
   w["valid_to"]        = true;
+  w["full_he"]         = true;
+  w["full_en"]         = true;
   filter["data"]["warnings_metadata"]["ims_warning_type"]["*"]["name"] = true;
   filter["data"]["warnings_metadata"]["warning_severity"]["*"]["severity_name"] = true;
 
@@ -1725,11 +1749,24 @@ DeserializationError deserializeIMSAlerts(WiFiClient &json, int rid,
       const String sevId  = String(static_cast<int>(jnum(a["severity_id"], 0)));
       const char *typeName = types[typeId]["name"].as<const char *>();
       const char *sevName  = sevs[sevId]["severity_name"].as<const char *>();
-      alert.event = typeName ? String(typeName) : String("Weather warning");
-      if (sevName && *sevName)
+      if (typeName)
       {
-        alert.event += ", ";
-        alert.event += sevName;
+        alert.event = typeName;
+        if (sevName && *sevName)
+        {
+          alert.event += ", ";
+          alert.event += sevName;
+        }
+      }
+      else
+      {
+        const bool he = (OWM_LANG == "he");
+        alert.event = imsWarningTitle(a[he ? "full_he" : "full_en"]
+                                        .as<const char *>(), he);
+        if (alert.event.isEmpty())
+        {
+          alert.event = "Weather warning";
+        }
       }
       alert.tags = typeName ? String(typeName) : typeId;
       alerts.push_back(alert);
