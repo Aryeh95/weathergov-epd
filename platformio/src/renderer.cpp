@@ -86,6 +86,48 @@
 #endif
 
 #ifdef DISP_7C_E6
+  void GxEPD2_730c_GDEP073E01_Patient::busySleepCb(const void *param)
+  {
+    auto *self = const_cast<GxEPD2_730c_GDEP073E01_Patient *>(
+        static_cast<const GxEPD2_730c_GDEP073E01_Patient *>(param));
+    if (!self || !self->_power_is_on || !self->_canLightSleep)
+    {
+      delay(1);
+      return;
+    }
+    self->_canLightSleep = false;
+    const int16_t holdPins[] = {
+      static_cast<int16_t>(PIN_EPD_PWR),
+      self->_cs,
+      self->_dc,
+      self->_rst,
+      static_cast<int16_t>(PIN_SD_EN),
+      static_cast<int16_t>(PIN_SD_CS),
+    };
+    waitBusyLightSleep(self->_busy, static_cast<uint8_t>(self->_busy_level),
+                       self->_busy_timeout / 1000U, holdPins,
+                       sizeof(holdPins) / sizeof(holdPins[0]));
+  }
+
+  void GxEPD2_730c_GDEP073E01_Patient::refresh(bool partial_update_mode)
+  {
+    _canLightSleep = true;
+    setBusyCallback(&busySleepCb, this);
+    GxEPD2_730c_GDEP073E01::refresh(partial_update_mode);
+    setBusyCallback(nullptr);
+    _canLightSleep = false;
+  }
+
+  void GxEPD2_730c_GDEP073E01_Patient::refresh(int16_t x, int16_t y,
+                                               int16_t w, int16_t h)
+  {
+    _canLightSleep = true;
+    setBusyCallback(&busySleepCb, this);
+    GxEPD2_730c_GDEP073E01::refresh(x, y, w, h);
+    setBusyCallback(nullptr);
+    _canLightSleep = false;
+  }
+
   GxEPD2_7C<GxEPD2_730c_GDEP073E01_Patient,
             GxEPD2_730c_GDEP073E01_Patient::HEIGHT / 4> display(
     GxEPD2_730c_GDEP073E01_Patient(PIN_EPD_CS,
@@ -680,6 +722,72 @@ static void drawValueUnit(int16_t x, int16_t y, const String &value,
   drawString(display.getCursorX(), y, unit, LEFT);
 }
 
+static int16_t shapedAdvance(const GFXfont *font, const String &shaped)
+{
+  int16_t adv = 0;
+  for (size_t i = 0; i < shaped.length(); ++i)
+  {
+    const uint8_t c = static_cast<uint8_t>(shaped[i]);
+    if (c >= font->first && c <= font->last)
+    {
+      adv += font->glyph[c - font->first].xAdvance;
+    }
+  }
+  return adv;
+}
+
+/* Draws a widget's 7pt label at its column origin, plus an optional 5pt
+ * parenthesized tag (air quality source or dominant pollen type) when it fits
+ * before wgtTagRight(PosX). Left to right the tag follows the label on the
+ * right ("Air Quality (EPA)"); in a right-to-left locale the tag stands to
+ * the left of the label so Hebrew reads right to left as
+ * "איכות אוויר (הגנ"ס)" rather than "(הגנ"ס) איכות אוויר".
+ * Leaves the font at FONT_7pt8b.
+ */
+static void drawWidgetLabelWithTag(int PosX, int PosY, const char *label,
+                                   const String &tag)
+{
+  const int16_t x = 48 + (162 * PosX);
+  const int16_t y = wgtLabelY(PosY);
+  const int16_t rightLimit = wgtTagRight(PosX);
+
+  if (tag.isEmpty())
+  {
+    display.setFont(&FONT_7pt8b);
+    drawString(x, y, label, LEFT);
+    return;
+  }
+
+  if (LC_RTL)
+  {
+    const int16_t labelX = x + shapedAdvance(&FONT_5pt8b, shapeText(tag)) + 3;
+    display.setFont(&FONT_7pt8b);
+    int16_t x1, y1;
+    uint16_t w, h;
+    display.getTextBounds(shapeText(label), labelX, y, &x1, &y1, &w, &h);
+    if (x1 + static_cast<int16_t>(w) <= rightLimit)
+    {
+      display.setFont(&FONT_5pt8b);
+      drawString(x, y, tag, LEFT);
+      display.setFont(&FONT_7pt8b);
+      drawString(display.getCursorX() + 3, y, label, LEFT);
+      return;
+    }
+    drawString(x, y, label, LEFT);
+    return;
+  }
+
+  display.setFont(&FONT_7pt8b);
+  drawString(x, y, label, LEFT);
+  display.setFont(&FONT_5pt8b);
+  const int16_t tagX = display.getCursorX() + 3;
+  if (tagX + getStringWidth(tag) <= rightLimit)
+  {
+    drawString(tagX, y, tag, LEFT);
+  }
+  display.setFont(&FONT_7pt8b);
+}
+
 void drawCurrentSunrise(const owm_current_t &current)
 {
   if (POS_SUNRISE < 0 || POS_SUNRISE / 2 >= WIDGET_ROWS)
@@ -988,19 +1096,9 @@ void drawCurrentAirQuality(const owm_resp_air_pollution_t &owm_air_pollution)
   // Open-Meteo's CAMS model pollutant fields -- worth telling apart at a
   // glance. Drawn in the smallest font after the label, and left out if it
   // would run into the graph's axis labels.
-  drawString(48 + (162 * PosX), wgtLabelY(PosY), air_quality_index_label,
-             LEFT);
-  display.setFont(&FONT_5pt8b);
-  {
-    const int16_t tagX = display.getCursorX() + 3;
-    const char *tag = useAirNow ? TXT_AQI_TAG_EPA
-                    : useIL ? TXT_IL_AQI_TAG : TXT_AQI_TAG_MODEL;
-    if (tagX + getStringWidth(tag) <= wgtTagRight(PosX))
-    {
-      drawString(tagX, wgtLabelY(PosY), tag, LEFT);
-    }
-  }
-  display.setFont(&FONT_7pt8b);
+  const char *tag = useAirNow ? TXT_AQI_TAG_EPA
+                  : useIL ? TXT_IL_AQI_TAG : TXT_AQI_TAG_MODEL;
+  drawWidgetLabelWithTag(PosX, PosY, air_quality_index_label, tag);
 
   // spacing between end of index value and start of descriptor text
   const int sp = 8;
@@ -1352,8 +1450,7 @@ void drawCurrentPollen(const pollen_info_t &pollen)
   // the index, since the value alone cannot say whether it is tree,
   // grass or weed. Types that tie for the highest are joined with "+".
   // Nothing is tagged when the fetch failed or every type reads 0.
-  display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_POLLEN, LEFT);
+  String pollenTag;
   if (pollen.max_upi > 0)
   {
     String types;
@@ -1380,17 +1477,10 @@ void drawCurrentPollen(const pollen_info_t &pollen)
     }
     if (!types.isEmpty())
     {
-      display.setFont(&FONT_5pt8b);
-      const int16_t tagX = display.getCursorX() + 3;
-      types = "(" + types + ")";
-      // never let the tag overflow into the next cell or the graph's axis
-      if (tagX + getStringWidth(types) <= wgtTagRight(PosX))
-      {
-        drawString(tagX, wgtLabelY(PosY), types, LEFT);
-      }
-      display.setFont(&FONT_7pt8b);
+      pollenTag = "(" + types + ")";
     }
   }
+  drawWidgetLabelWithTag(PosX, PosY, TXT_POLLEN, pollenTag);
 
   // value: highest Universal Pollen Index (0-5) of tree/grass/weed, with
   // the UV-index category words (Google's UPI categories match: 1 very
@@ -1942,6 +2032,105 @@ static void drawDitheredBitmap(int16_t x, int16_t y, const uint8_t *bitmap,
  *          which are red warning flags in reality
  *   black  the low-urgency haze group, left quiet beside the alert text
  */
+#ifdef MULTICOLOR_DISPLAY
+/* Paints a rounded badge in an alert's IMS colour level (1 = yellow,
+ * 2 = orange dither, 3 = red), matching the risk chips used for air quality
+ * and pollen (drawRiskChip). Returns the knocked-out text ink.
+ */
+static uint16_t fillAlertBadge(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
+                               int color)
+{
+  const int16_t w = x1 - x0 + 1;
+  const int16_t h = y1 - y0 + 1;
+  if (color == 2)
+  {
+    fillRoundRectDithered(x0, y0, w, h, 4, GxEPD_RED, GxEPD_YELLOW);
+    return GxEPD_BLACK;
+  }
+  display.fillRoundRect(x0, y0, w, h, 4,
+                        (color == 1) ? GxEPD_YELLOW : GxEPD_RED);
+  return (color == 1) ? GxEPD_BLACK : GxEPD_WHITE;
+}
+
+static String clipAlertLine(const String &text, int maxW)
+{
+  if (getStringWidth(text) <= maxW)
+  {
+    return text;
+  }
+  String s = text;
+  while (s.length() > 1 && getStringWidth(s + "...") > maxW)
+  {
+    const int sp = s.lastIndexOf(' ');
+    if (sp > 0 && getStringWidth(s.substring(0, sp) + "...") <= maxW)
+    {
+      return s.substring(0, sp) + "...";
+    }
+    int k = static_cast<int>(s.length()) - 1;
+    while (k > 0 && (static_cast<uint8_t>(s.charAt(k)) & 0xC0) == 0x80)
+    {
+      --k;
+    }
+    s.remove(k);
+  }
+  return s + "...";
+}
+
+static void drawAlertBadgeOneLine(int16_t x, int16_t y, const String &text,
+                                  alignment_t align, int max_w, int color)
+{
+  const int16_t padX = 5;
+  const String line = clipAlertLine(text, std::max(16, max_w - 2 * padX));
+  int16_t bx, by;
+  uint16_t bw, bh;
+  display.getTextBounds(shapeText(line), 0, y, &bx, &by, &bw, &bh);
+  const int16_t x0 = (align == RIGHT) ? (x - static_cast<int16_t>(bw) - 2 * padX)
+                                      : x;
+  const int16_t x1 = (align == RIGHT) ? x
+                                      : (x + static_cast<int16_t>(bw) + 2 * padX);
+  const int16_t y0 = by - 3;
+  const int16_t y1 = by + static_cast<int16_t>(bh) + 3;
+  const uint16_t ink = fillAlertBadge(x0, y0, x1, y1, color);
+  const int16_t tx = (align == RIGHT) ? (x - padX) : (x + padX - bx);
+  drawString(tx, y, line, align, ink);
+}
+
+static void drawAlertBadgeTwoLines(int16_t x, int16_t y, const String &text,
+                                   alignment_t align, int max_w,
+                                   int16_t spacing, int color)
+{
+  const int16_t padX = 5;
+  const int innerW = std::max(16, max_w - 2 * padX);
+  String lineA, lineB;
+  if (!wrapTwoLines(text, innerW, lineA, lineB))
+  {
+    const int sp = text.lastIndexOf(' ');
+    if (sp > 0)
+    {
+      lineA = clipAlertLine(text.substring(0, sp), innerW);
+      lineB = clipAlertLine(text.substring(sp + 1), innerW);
+    }
+    else
+    {
+      drawAlertBadgeOneLine(x, y + spacing / 2, text, align, max_w, color);
+      return;
+    }
+  }
+  int16_t bxA, byA, bxB, byB;
+  uint16_t bwA, bhA, bwB, bhB;
+  display.getTextBounds(shapeText(lineA), 0, y, &bxA, &byA, &bwA, &bhA);
+  display.getTextBounds(shapeText(lineB), 0, y + spacing, &bxB, &byB, &bwB, &bhB);
+  const int16_t bw = static_cast<int16_t>(std::max(bwA, bwB));
+  const int16_t x0 = (align == RIGHT) ? (x - bw - 2 * padX) : x;
+  const int16_t x1 = (align == RIGHT) ? x : (x + bw + 2 * padX);
+  const int16_t y0 = byA - 3;
+  const int16_t y1 = byB + static_cast<int16_t>(bhB) + 3;
+  const uint16_t ink = fillAlertBadge(x0, y0, x1, y1, color);
+  drawString((align == RIGHT) ? (x - padX) : (x + padX - bxA), y, lineA, align, ink);
+  drawString((align == RIGHT) ? (x - padX) : (x + padX - bxB), y + spacing, lineB, align, ink);
+}
+#endif
+
 static void drawAlertIcon(int16_t x, int16_t y, const owm_alerts_t &alert,
                           int size)
 {
@@ -1953,20 +2142,38 @@ static void drawAlertIcon(int16_t x, int16_t y, const owm_alerts_t &alert,
 #else
   uint16_t ink = GxEPD_RED;
   bool dither = false;
-  switch (getAlertCategory(alert))
+  const int color = alertColorSeverity(alert);
+  if (color == 1)
   {
-  case WINTER: case FLOOD: case TSUNAMI:
-    ink = GxEPD_BLUE;
-    break;
-  case LIGHTNING:
-    dither = true;
-    break;
-  case SMOG: case SMOKE: case FOG: case DUST: case SANDSTORM:
-  case AIR_QUALITY: case STRONG_WIND:
+    // Yellow line art on white e-paper has low contrast; draw the icon crisp
+    // in foreground ink beside the yellow badge.
     ink = GxEPD_BLACK;
-    break;
-  default: // tornado, hurricane, fire, heat, marine flags, unknown alerts
-    break;
+  }
+  else if (color == 2)
+  {
+    dither = true;
+  }
+  else if (color == 3)
+  {
+    ink = GxEPD_RED;
+  }
+  else
+  {
+    switch (getAlertCategory(alert))
+    {
+    case WINTER: case FLOOD: case TSUNAMI:
+      ink = GxEPD_BLUE;
+      break;
+    case LIGHTNING:
+      dither = true;
+      break;
+    case SMOG: case SMOKE: case FOG: case DUST: case SANDSTORM:
+    case AIR_QUALITY: case STRONG_WIND:
+      ink = GxEPD_BLACK;
+      break;
+    default: // tornado, hurricane, fire, heat, marine flags, unknown alerts
+      break;
+    }
   }
   if (DARK_MODE)
   { // navy and black both vanish on a black ground; flat yellow beats the
@@ -2054,6 +2261,33 @@ static void drawAlertIcon(int16_t x, int16_t y, const owm_alerts_t &alert,
     drawAlertIcon(iconX, 8, cur_alert, 48);
     // must be called after getAlertBitmap
     toTitleCase(cur_alert.event);
+#ifdef MULTICOLOR_DISPLAY
+    const int color = alertColorSeverity(cur_alert);
+    if (color > 0)
+    {
+      display.setFont(&FONT_14pt8b);
+      if (getStringWidth(cur_alert.event) + 10 <= max_w)
+      {
+        drawAlertBadgeOneLine(textX, 24 + 8 - 12 + 20 + 1, cur_alert.event,
+                              textAlign, max_w, color);
+      }
+      else
+      {
+        display.setFont(&FONT_12pt8b);
+        if (getStringWidth(cur_alert.event) + 10 <= max_w)
+        {
+          drawAlertBadgeOneLine(textX, 24 + 8 - 12 + 17 + 1, cur_alert.event,
+                                textAlign, max_w, color);
+        }
+        else
+        {
+          drawAlertBadgeTwoLines(textX, 24 + 8 - 12 + 17 - 11, cur_alert.event,
+                                 textAlign, max_w, 23, color);
+        }
+      }
+      return;
+    }
+#endif
 
     display.setFont(&FONT_14pt8b);
     if (getStringWidth(cur_alert.event) <= max_w)
@@ -2090,6 +2324,15 @@ static void drawAlertIcon(int16_t x, int16_t y, const owm_alerts_t &alert,
       // must be called after getAlertBitmap
       toTitleCase(cur_alert.event);
 
+#ifdef MULTICOLOR_DISPLAY
+      const int color = alertColorSeverity(cur_alert);
+      if (color > 0)
+      {
+        drawAlertBadgeOneLine(textX, 5 + 17 + (i * 32), cur_alert.event,
+                              textAlign, max_w, color);
+        continue;
+      }
+#endif
       drawMultiLnString(textX, 5 + 17 + (i * 32),
                         cur_alert.event, textAlign, max_w, 1, 0);
     } // end for-loop
@@ -2806,7 +3049,7 @@ void drawConfigPortalScreen(const String &line1, const String &line2,
 #else
   display.setFont(&FONT_22pt8b);
 #endif
-  drawString(DISP_WIDTH / 2, titleY, "Setup Mode", CENTER);
+  drawString(DISP_WIDTH / 2, titleY, LC_RTL ? "מצב הגדרות" : "Setup Mode", CENTER);
 
   const String lines[3] = {line1, line2, line3};
   for (int i = 0; i < 3; ++i)

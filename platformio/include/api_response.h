@@ -196,14 +196,17 @@ DeserializationError deserializeNWSForecastDaily(WiFiClient &json,
                                                  owm_daily_t *daily);
 DeserializationError deserializeNWSForecastHourly(WiFiClient &json,
                                                   owm_hourly_t *hourly);
-/* Pressure and visibility from Open-Meteo's `current` block, used to fill
- * the two fields a forecast provider's own current-conditions feed lacks
- * (IMS now_analysis has neither). pressure 0 / visibility -1 mean "not
- * available", like owm_current_t.
+/* Pressure, visibility and sky cover from Open-Meteo's `current` block, used
+ * to fill fields a forecast provider's own current-conditions feed lacks (IMS
+ * now_analysis has neither pressure nor visibility, and its weather_code is
+ * copied from the forecast rather than observed). pressure 0 / visibility -1 /
+ * clouds -1 / weather.id 0 mean "not available".
  */
 typedef struct {
-  int pressure;    // hPa
-  int visibility;  // m
+  int           pressure;    // hPa
+  int           visibility;  // m
+  int           clouds;      // % (-1 when unavailable)
+  owm_weather_t weather;     // condition (id 0 when unavailable)
 } om_gaps_t;
 
 DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,

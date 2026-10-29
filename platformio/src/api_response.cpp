@@ -614,20 +614,96 @@ DeserializationError deserializeNWSGridpointQPF(WiFiClient &json,
   return error;
 } // end deserializeNWSGridpointQPF
 
+/* WMO weather interpretation codes, as Open-Meteo reports them
+ * (https://open-meteo.com/en/docs#weather_variable_documentation), to the
+ * OpenWeatherMap-style condition id the icon selection runs on, an
+ * estimated cloud cover, and a short description (English, Hebrew and
+ * Polish for those builds; other locales leave it blank, as the
+ * weather.gov path does, and let the icon speak).
+ */
+struct WmoCodeMapEntry { int code; int id; int clouds; const char *en; const char *he; const char *pl; };
+static const WmoCodeMapEntry WMO_CODE_MAP[] = {
+  { 0, 800,  0, "Clear",                   "בהיר", "Bezchmurnie"},
+  { 1, 801, 20, "Mainly clear",            "בהיר לרוב", "Przeważnie bezchmurnie"},
+  { 2, 802, 50, "Partly cloudy",           "מעונן חלקית", "Częściowe zachmurzenie"},
+  { 3, 804, 95, "Overcast",                "מעונן", "Pochmurno"},
+  {45, 741, 85, "Fog",                     "ערפל", "Mgła"},
+  {48, 741, 85, "Freezing fog",            "ערפל קופא", "Mgła osadzająca szadź"},
+  {51, 300, 80, "Light drizzle",           "טפטוף קל", "Lekka mżawka"},
+  {53, 301, 85, "Drizzle",                 "טפטוף", "Mżawka"},
+  {55, 302, 90, "Heavy drizzle",           "טפטוף מוגבר", "Gęsta mżawka"},
+  {56, 511, 90, "Freezing drizzle",        "טפטוף קופא", "Marznąca mżawka"},
+  {57, 511, 90, "Freezing drizzle",        "טפטוף קופא", "Marznąca mżawka"},
+  {61, 500, 85, "Light rain",              "גשם קל", "Słaby deszcz"},
+  {63, 501, 90, "Rain",                    "גשם", "Deszcz"},
+  {65, 502, 95, "Heavy rain",              "גשם חזק", "Ulewny deszcz"},
+  {66, 511, 90, "Freezing rain",           "גשם קופא", "Marznący deszcz"},
+  {67, 511, 95, "Freezing rain",           "גשם קופא", "Marznący deszcz"},
+  {71, 600, 90, "Light snow",              "שלג קל", "Słaby śnieg"},
+  {73, 601, 90, "Snow",                    "שלג", "Śnieg"},
+  {75, 602, 95, "Heavy snow",              "שלג כבד", "Intensywny śnieg"},
+  {77, 600, 85, "Snow grains",             "גרגרי שלג", "Ziarna śniegu"},
+  {80, 520, 50, "Light showers",           "ממטרים קלים", "Słabe przelotne opady"},
+  {81, 521, 65, "Showers",                 "ממטרים", "Przelotne opady"},
+  {82, 522, 80, "Heavy showers",           "ממטרים חזקים", "Ulewne przelotne opady"},
+  {85, 620, 70, "Snow showers",            "מטחי שלג", "Przelotny śnieg"},
+  {86, 621, 80, "Heavy snow showers",      "מטחי שלג כבדים", "Intensywny przelotny śnieg"},
+  {95, 211, 85, "Thunderstorm",            "סופת רעמים", "Burza"},
+  {96, 211, 90, "Thunderstorm with hail",  "סופת רעמים וברד", "Burza z gradem"},
+  {99, 212, 95, "Thunderstorm with hail",  "סופת רעמים וברד", "Burza z gradem"},
+};
+
+static void applyWmoCode(int code, bool isDay, owm_weather_t &weather,
+                         int &clouds)
+{
+  int id = 804, cl = 50;
+  const char *en = "", *he = "", *pl = "";
+  for (const WmoCodeMapEntry &e : WMO_CODE_MAP)
+  {
+    if (e.code == code)
+    {
+      id = e.id;
+      cl = e.clouds;
+      en = e.en;
+      he = e.he;
+      pl = e.pl;
+      break;
+    }
+  }
+  weather.id = id;
+  weather.icon = isDay ? "d" : "n";
+  if (OWM_LANG == "he")
+  {
+    weather.description = he;
+  }
+  else if (OWM_LANG == "pl")
+  {
+    weather.description = pl;
+  }
+  else if (OWM_LANG == "en")
+  {
+    weather.description = en;
+  }
+  else
+  {
+    weather.description = "";
+  }
+  clouds = cl;
+} // end applyWmoCode
+
 /* Parses Open-Meteo's current-conditions block (/v1/forecast?current=...,
  * requested with wind_speed_unit=ms). Values are model output interpolated
  * to the configured coordinates, refreshed every ~15 minutes. Any missing
  * field falls back to the first hourly forecast period, mirroring
- * deserializeNWSObservation. The condition icon/description always comes
- * from the forecast (fallback.weather) -- Open-Meteo's weather codes are
- * not mapped.
+ * deserializeNWSObservation; weather_code maps to the condition id and
+ * description via applyWmoCode.
  *
  * With wantCurrent == false only the daily block is parsed and `current`
  * is left untouched (used when CURRENT_SOURCE is another provider but the
  * forecast row still needs Open-Meteo's daily precipitation). With `gaps`
- * set, pressure_msl and visibility are also read into it, whatever
- * wantCurrent is -- the gap fill for providers whose own current-conditions
- * feed lacks them (IMS).
+ * set, pressure_msl, visibility and current sky cover are also read into it,
+ * whatever wantCurrent is -- the gap fill for providers whose own
+ * current-conditions feed lacks them (IMS).
  */
 DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
                                                  const owm_hourly_t &fallback,
@@ -641,6 +717,8 @@ DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
   {
     gaps->pressure   = 0;
     gaps->visibility = -1;
+    gaps->clouds     = -1;
+    gaps->weather    = {};
   }
   // Filter like every NWS parser does: the response also carries the
   // request echo (latitude/longitude/elevation/timezone), generation time
@@ -654,6 +732,8 @@ DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
   cur["dew_point_2m"]         = true;
   cur["pressure_msl"]         = true;
   cur["cloud_cover"]          = true;
+  cur["weather_code"]         = true;
+  cur["is_day"]               = true;
   cur["visibility"]           = true;
   cur["wind_speed_10m"]       = true;
   cur["wind_gusts_10m"]       = true;
@@ -694,14 +774,27 @@ DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
     ++omDaily.n;
   }
 
+  JsonObject c = doc["current"];
+  const bool omIsDay = c["is_day"].isNull() ? (fallback.weather.icon != "n")
+                                            : (c["is_day"].as<int>() != 0);
   if (gaps)
   {
-    JsonVariant gp = doc["current"]["pressure_msl"];
-    JsonVariant gv = doc["current"]["visibility"];
+    JsonVariant gp = c["pressure_msl"];
+    JsonVariant gv = c["visibility"];
+    JsonVariant gc = c["cloud_cover"];
+    JsonVariant gw = c["weather_code"];
     if (!gp.isNull())
       gaps->pressure = static_cast<int>(std::round(gp.as<float>()));
     if (!gv.isNull())
       gaps->visibility = static_cast<int>(gv.as<float>());
+    if (!gw.isNull())
+    {
+      int wmoClouds = 0;
+      applyWmoCode(gw.as<int>(), omIsDay, gaps->weather, wmoClouds);
+      gaps->clouds = wmoClouds;
+    }
+    if (!gc.isNull())
+      gaps->clouds = static_cast<int>(std::round(gc.as<float>()));
   }
 
   if (!wantCurrent)
@@ -715,8 +808,13 @@ DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
   current = {};
   current.dt      = time(nullptr);
   current.weather = fallback.weather;
+  current.clouds  = fallback.clouds;
 
-  JsonObject c = doc["current"];
+  JsonVariant codeVar = c["weather_code"];
+  if (!codeVar.isNull())
+  {
+    applyWmoCode(codeVar.as<int>(), omIsDay, current.weather, current.clouds);
+  }
 
   JsonVariant tempVar = c["temperature_2m"];
   current.temp = !tempVar.isNull() ? celsius_to_kelvin(tempVar.as<float>())
@@ -759,91 +857,15 @@ DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
                                        : fallback.wind_deg;
 
   JsonVariant cloudVar = c["cloud_cover"];
-  current.clouds = !cloudVar.isNull()
-                  ? static_cast<int>(std::round(cloudVar.as<float>()))
-                  : fallback.clouds;
+  if (!cloudVar.isNull())
+  {
+    current.clouds = static_cast<int>(std::round(cloudVar.as<float>()));
+  }
 
   return error;
 } // end deserializeOpenMeteoCurrent
 
 /* ---- Open-Meteo forecast ----------------------------------------------- */
-
-/* WMO weather interpretation codes, as Open-Meteo reports them
- * (https://open-meteo.com/en/docs#weather_variable_documentation), to the
- * OpenWeatherMap-style condition id the icon selection runs on, an
- * estimated cloud cover, and a short description (English, Hebrew and
- * Polish for those builds; other locales leave it blank, as the
- * weather.gov path does, and let the icon speak).
- */
-struct WmoCodeMapEntry { int code; int id; int clouds; const char *en; const char *he; const char *pl; };
-static const WmoCodeMapEntry WMO_CODE_MAP[] = {
-  { 0, 800,  0, "Clear",                   "בהיר", "Bezchmurnie"},
-  { 1, 801, 20, "Mainly clear",            "בהיר בעיקר", "Przeważnie bezchmurnie"},
-  { 2, 802, 50, "Partly cloudy",           "מעונן חלקית", "Częściowe zachmurzenie"},
-  { 3, 804, 95, "Overcast",                "מעונן", "Pochmurno"},
-  {45, 741, 85, "Fog",                     "ערפל", "Mgła"},
-  {48, 741, 85, "Freezing fog",            "ערפל מקפיא", "Mgła osadzająca szadź"},
-  {51, 300, 80, "Light drizzle",           "טפטוף קל", "Lekka mżawka"},
-  {53, 301, 85, "Drizzle",                 "טפטוף", "Mżawka"},
-  {55, 302, 90, "Heavy drizzle",           "טפטוף חזק", "Gęsta mżawka"},
-  {56, 511, 90, "Freezing drizzle",        "טפטוף מקפיא", "Marznąca mżawka"},
-  {57, 511, 90, "Freezing drizzle",        "טפטוף מקפיא", "Marznąca mżawka"},
-  {61, 500, 85, "Light rain",              "גשם קל", "Słaby deszcz"},
-  {63, 501, 90, "Rain",                    "גשם", "Deszcz"},
-  {65, 502, 95, "Heavy rain",              "גשם חזק", "Ulewny deszcz"},
-  {66, 511, 90, "Freezing rain",           "גשם מקפיא", "Marznący deszcz"},
-  {67, 511, 95, "Freezing rain",           "גשם מקפיא", "Marznący deszcz"},
-  {71, 600, 90, "Light snow",              "שלג קל", "Słaby śnieg"},
-  {73, 601, 90, "Snow",                    "שלג", "Śnieg"},
-  {75, 602, 95, "Heavy snow",              "שלג כבד", "Intensywny śnieg"},
-  {77, 600, 85, "Snow grains",             "גרגרי שלג", "Ziarna śniegu"},
-  {80, 520, 50, "Light showers",           "ממטרים קלים", "Słabe przelotne opady"},
-  {81, 521, 65, "Showers",                 "ממטרים", "Przelotne opady"},
-  {82, 522, 80, "Heavy showers",           "ממטרים חזקים", "Ulewne przelotne opady"},
-  {85, 620, 70, "Snow showers",            "ממטרי שלג", "Przelotny śnieg"},
-  {86, 621, 80, "Heavy snow showers",      "ממטרי שלג חזקים", "Intensywny przelotny śnieg"},
-  {95, 211, 85, "Thunderstorm",            "סופת רעמים", "Burza"},
-  {96, 211, 90, "Thunderstorm with hail",  "סופת רעמים עם ברד", "Burza z gradem"},
-  {99, 212, 95, "Thunderstorm with hail",  "סופת רעמים עם ברד", "Burza z gradem"},
-};
-
-static void applyWmoCode(int code, bool isDay, owm_weather_t &weather,
-                         int &clouds)
-{
-  int id = 804, cl = 50;
-  const char *en = "", *he = "", *pl = "";
-  for (const WmoCodeMapEntry &e : WMO_CODE_MAP)
-  {
-    if (e.code == code)
-    {
-      id = e.id;
-      cl = e.clouds;
-      en = e.en;
-      he = e.he;
-      pl = e.pl;
-      break;
-    }
-  }
-  weather.id = id;
-  weather.icon = isDay ? "d" : "n";
-  if (OWM_LANG == "he")
-  {
-    weather.description = he;
-  }
-  else if (OWM_LANG == "pl")
-  {
-    weather.description = pl;
-  }
-  else if (OWM_LANG == "en")
-  {
-    weather.description = en;
-  }
-  else
-  {
-    weather.description = "";
-  }
-  clouds = cl;
-} // end applyWmoCode
 
 /* Parses Open-Meteo's forecast (/v1/forecast?hourly=...&daily=..., requested
  * with forecast_hours=48, forecast_days=7, timezone=auto,
@@ -1036,20 +1058,119 @@ DeserializationError deserializeOpenMeteoForecast(WiFiClient &json,
   return error;
 } // end deserializeOpenMeteoForecast
 
+/* Google Maps Platform Weather API WeatherCondition.Type enum values
+ * (https://developers.google.com/maps/documentation/weather/reference/rest/v1/WeatherCondition#Type)
+ * to the OpenWeatherMap-style condition id the icon selection runs on and an
+ * estimated cloud cover when cloudCover is absent.
+ */
+struct GoogleCondMapEntry { const char *type; int id; int clouds; const char *en; const char *he; };
+static const GoogleCondMapEntry GOOGLE_COND_MAP[] = {
+  {"CLEAR",                    800,   0, "Clear",                   "בהיר"},
+  {"MOSTLY_CLEAR",             801,  15, "Mostly clear",            "בהיר לרוב"},
+  {"PARTLY_CLOUDY",            802,  45, "Partly cloudy",           "מעונן חלקית"},
+  {"MOSTLY_CLOUDY",            803,  75, "Mostly cloudy",           "מעונן לרוב"},
+  {"CLOUDY",                   804,  95, "Cloudy",                  "מעונן"},
+  {"WINDY",                    800,  10, "Windy",                   "רוחות חזקות"},
+  {"WIND_AND_RAIN",            501,  90, "Wind and rain",           "גשם ורוחות"},
+  {"LIGHT_RAIN_SHOWERS",       520,  50, "Light showers",           "ממטרים קלים"},
+  {"CHANCE_OF_SHOWERS",        520,  50, "Chance of showers",       "ייתכנו ממטרים"},
+  {"SCATTERED_SHOWERS",        520,  60, "Scattered showers",       "ממטרים פזורים"},
+  {"RAIN_SHOWERS",             521,  70, "Rain showers",            "ממטרים"},
+  {"HEAVY_RAIN_SHOWERS",       522,  85, "Heavy showers",           "ממטרים חזקים"},
+  {"LIGHT_TO_MODERATE_RAIN",   500,  85, "Light rain",              "גשם קל"},
+  {"MODERATE_TO_HEAVY_RAIN",   502,  90, "Heavy rain",              "גשם חזק"},
+  {"RAIN",                     501,  90, "Rain",                    "גשם"},
+  {"LIGHT_RAIN",               500,  80, "Light rain",              "גשם קל"},
+  {"HEAVY_RAIN",               502,  95, "Heavy rain",              "גשם כבד"},
+  {"RAIN_PERIODICALLY_HEAVY",  502,  90, "Heavy rain",              "גשם חזק לפרקים"},
+  {"LIGHT_SNOW_SHOWERS",       620,  65, "Light snow showers",      "מטחי שלג קלים"},
+  {"CHANCE_OF_SNOW_SHOWERS",   620,  60, "Chance of snow showers",  "ייתכנו מטחי שלג"},
+  {"SCATTERED_SNOW_SHOWERS",   620,  65, "Scattered snow showers",  "מטחי שלג פזורים"},
+  {"SNOW_SHOWERS",             621,  75, "Snow showers",            "מטחי שלג"},
+  {"HEAVY_SNOW_SHOWERS",       622,  90, "Heavy snow showers",      "מטחי שלג כבדים"},
+  {"LIGHT_TO_MODERATE_SNOW",   600,  85, "Light snow",              "שלג קל"},
+  {"MODERATE_TO_HEAVY_SNOW",   602,  95, "Heavy snow",              "שלג כבד"},
+  {"SNOW",                     601,  90, "Snow",                    "שלג"},
+  {"LIGHT_SNOW",               600,  85, "Light snow",              "שלג קל"},
+  {"HEAVY_SNOW",               602,  95, "Heavy snow",              "שלג כבד"},
+  {"SNOWSTORM",                602,  95, "Snowstorm",               "סופת שלגים"},
+  {"SNOW_PERIODICALLY_HEAVY",  602,  95, "Heavy snow",              "שלג כבד לפרקים"},
+  {"HEAVY_SNOW_STORM",         602, 100, "Heavy snowstorm",         "סופת שלגים עזה"},
+  {"BLOWING_SNOW",             601,  85, "Blowing snow",            "שלג נישא ברוח"},
+  {"RAIN_AND_SNOW",            616,  90, "Rain and snow",           "גשם ושלג"},
+  {"HAIL",                     611,  85, "Hail",                    "ברד"},
+  {"HAIL_SHOWERS",             611,  75, "Hail showers",            "מטחי ברד"},
+  {"SLEET",                    611,  90, "Sleet",                   "שלג מעורב בגשם"},
+  {"FREEZING_RAIN",            511,  90, "Freezing rain",           "גשם קופא"},
+  {"FREEZING_DRIZZLE",         511,  85, "Freezing drizzle",        "טפטוף קופא"},
+  {"DRIZZLE",                  301,  85, "Drizzle",                 "טפטוף"},
+  {"THUNDERSTORM",             211,  85, "Thunderstorm",            "סופת רעמים"},
+  {"THUNDERSHOWER",            210,  75, "Thundershower",           "ממטרים וסופות רעמים"},
+  {"LIGHT_THUNDERSTORM_RAIN",  200,  80, "Light thunderstorm",      "גשם קל וסופות רעמים"},
+  {"SCATTERED_THUNDERSTORMS",  210,  70, "Scattered thunderstorms", "סופות רעמים פזורות"},
+  {"HEAVY_THUNDERSTORM",       212,  95, "Heavy thunderstorm",      "סופת רעמים חזקה"},
+  {"FOG",                      741,  85, "Fog",                     "ערפל"},
+  {"LIGHT_FOG",                701,  60, "Mist",                    "ערפל קל"},
+  {"HAZE",                     721,  30, "Haze",                    "אובך קל"},
+  {"DUST",                     731,  30, "Dust",                    "אביך"},
+  {"SANDSTORM",                761,  40, "Sandstorm",               "סופת חול"},
+  {"VERY_HOT",                 800,   5, "Very hot",                "חם מאוד"},
+  {"VERY_COLD",                800,   5, "Very cold",               "קר מאוד"},
+};
+
+static bool applyGoogleCondition(const char *type, const char *desc, bool isDay,
+                                 owm_weather_t &weather, int &clouds)
+{
+  if (!type || !*type)
+  {
+    return false;
+  }
+  for (const GoogleCondMapEntry &e : GOOGLE_COND_MAP)
+  {
+    if (strcmp(e.type, type) == 0)
+    {
+      weather.id   = e.id;
+      weather.icon = isDay ? "d" : "n";
+      if (OWM_LANG == "he")
+      {
+        weather.description = e.he;
+      }
+      else if (desc && *desc)
+      {
+        weather.description = desc;
+      }
+      else if (OWM_LANG == "en")
+      {
+        weather.description = e.en;
+      }
+      else
+      {
+        weather.description = "";
+      }
+      clouds = e.clouds;
+      return true;
+    }
+  }
+  return false;
+}
+
 /* Parses the Google Maps Platform Weather API's current conditions
  * (/v1/currentConditions:lookup, default METRIC units): a nowcast blended
  * from nearby stations, refreshed every 15 minutes. Any missing field falls
  * back to the first hourly forecast period, like deserializeOpenMeteoCurrent.
- * The condition icon/description always comes from the forecast
- * (fallback.weather) -- Google's weatherCondition types are not mapped.
+ * weatherCondition.type and weatherCondition.description.text set the
+ * condition icon and localized description when recognized.
  */
 DeserializationError deserializeGoogleCurrent(WiFiClient &json,
                                               const owm_hourly_t &fallback,
                                               owm_current_t &current)
 {
-  // The response also carries a 24-hour history block, icon URIs, localized
-  // descriptions and precipitation probabilities that are never read.
+  // The response also carries a 24-hour history block, icon URIs and
+  // precipitation probabilities that are never read.
   JsonDocument filter;
+  filter["isDaytime"]                       = true;
+  filter["weatherCondition"]["type"]        = true;
+  filter["weatherCondition"]["description"]["text"] = true;
   filter["temperature"]["degrees"]          = true;
   filter["feelsLikeTemperature"]["degrees"] = true;
   filter["dewPoint"]["degrees"]             = true;
@@ -1080,6 +1201,13 @@ DeserializationError deserializeGoogleCurrent(WiFiClient &json,
   current = {};
   current.dt      = time(nullptr);
   current.weather = fallback.weather;
+  current.clouds  = fallback.clouds;
+
+  const bool isDay = doc["isDaytime"].isNull() ? (fallback.weather.icon != "n")
+                                               : doc["isDaytime"].as<bool>();
+  applyGoogleCondition(doc["weatherCondition"]["type"].as<const char *>(),
+                       doc["weatherCondition"]["description"]["text"].as<const char *>(),
+                       isDay, current.weather, current.clouds);
 
   JsonVariant tempVar = doc["temperature"]["degrees"];
   current.temp = !tempVar.isNull() ? celsius_to_kelvin(tempVar.as<float>())
@@ -1124,9 +1252,10 @@ DeserializationError deserializeGoogleCurrent(WiFiClient &json,
                                        : fallback.wind_deg;
 
   JsonVariant cloudVar = doc["cloudCover"];
-  current.clouds = !cloudVar.isNull()
-                  ? static_cast<int>(std::round(cloudVar.as<float>()))
-                  : fallback.clouds;
+  if (!cloudVar.isNull())
+  {
+    current.clouds = static_cast<int>(std::round(cloudVar.as<float>()));
+  }
 
   return error;
 } // end deserializeGoogleCurrent
@@ -1256,7 +1385,7 @@ static const ImsCodeMapEntry IMS_CODE_MAP[] = {
   {1250, 800, 0, "Clear", "בהיר"},  // Clear
   {1220, 802, 40, "Partly cloudy", "מעונן חלקית"},  // Partly cloudy
   {1230, 804, 90, "Cloudy", "מעונן"},  // Cloudy
-  {1570, 731, 30, "Dust", "אובך"},  // Dust
+  {1570, 731, 30, "Dust", "אביך"},  // Dust
   {1010, 761, 40, "Sandstorms", "סופות חול"},  // Sandstorms
   {1160, 741, 85, "Fog", "ערפל"},  // Fog
   {1310, 800, 5, "Hot", "חם"},  // Hot
@@ -1267,11 +1396,11 @@ static const ImsCodeMapEntry IMS_CODE_MAP[] = {
   {1300, 800, 5, "Frost", "קרה"},  // Frost
   {1530, 500, 50, "Partly cloudy, possible rain", "מעונן חלקית, ייתכן גשם"},  // Partly cloudy, possible rain
   {1540, 500, 80, "Cloudy, possible rain", "מעונן, ייתכן גשם"},  // Cloudy, possible rain
-  {1560, 500, 90, "Cloudy, light rain", "מעונן, גשם קל"},  // Cloudy, light rain
+  {1560, 500, 90, "Cloudy, light rain", "מעונן עם גשם קל"},  // Cloudy, light rain
   {1140, 501, 90, "Rainy", "גשום"},  // Rainy
   {1020, 211, 90, "Thunderstorms", "סופות רעמים"},  // Thunderstorms
   {1510, 212, 95, "Stormy", "סוער"},  // Stormy
-  {1260, 800, 10, "Windy", "רוחות"},  // Windy (the renderer adds the wind to the icon)
+  {1260, 800, 10, "Windy", "רוחות חזקות"},  // Windy (the renderer adds the wind to the icon)
   {1080, 611, 90, "Sleet", "שלג מעורב בגשם"},  // Sleet
   {1070, 600, 90, "Light snow", "שלג קל"},  // Light snow
   {1060, 601, 90, "Snow", "שלג"},  // Snow
@@ -1564,9 +1693,10 @@ DeserializationError deserializeIMSForecast(WiFiClient &json,
   return error;
 } // end deserializeIMSForecast
 
-/* /{lang}/now_analysis?lid={lid}: IMS's current conditions for the
- * location, refreshed through the hour. No pressure or visibility (the
- * widgets show "--"), the rest maps straight across.
+/* /{lang}/now_analysis/{lid}: IMS's current conditions for the location,
+ * refreshed through the hour. Pressure, visibility and real-time sky cover
+ * (now_analysis copies weather_code from the forecast) are filled in by
+ * finishWeather from Open-Meteo when reachable; the rest maps straight across.
  */
 DeserializationError deserializeIMSCurrent(WiFiClient &json, int lid,
                                            const owm_hourly_t &fallback,
@@ -1601,15 +1731,6 @@ DeserializationError deserializeIMSCurrent(WiFiClient &json, int lid,
     return error;
   }
   JsonObject o = doc["data"][String(lid)];
-  if (o.isNull())
-  {
-    // whatever single location came back
-    for (JsonPair kv : doc["data"].as<JsonObject>())
-    {
-      o = kv.value().as<JsonObject>();
-      break;
-    }
-  }
   if (o.isNull())
   {
     fillCurrentFromFallback(fallback, current);
@@ -1655,16 +1776,66 @@ DeserializationError deserializeIMSCurrent(WiFiClient &json, int lid,
 } // end deserializeIMSCurrent
 
 /* /{lang}/warnings: every current warning, by day, then by region
- * ("r-<rid>"), then by warning id. Only the device's region is kept. The
- * event text is "<warning type>, <severity>" so the urgency words
- * (ALERT_URGENCY) are seen while the display, which truncates at the comma,
- * shows the type.
+ * ("r-<rid>"), then by warning id. Only the location's land region (rid)
+ * and general-public / road / news-flash warnings are kept (skipping sea,
+ * aviation and agriculture advisories), deduplicated per hazard at the
+ * highest active severity, and ordered Red > Orange > Yellow.
+ *
+ * Since October 2026 /warnings omits warnings_metadata (still carried on
+ * /city_portal/{lid}), so IMS's official severity_id and warning_type_id
+ * tables are built in below. The severity name goes in alert.description so
+ * the renderers colour the alert badge Yellow / Orange / Red like the
+ * air-quality and pollen chips while alert.event stays the concise hazard
+ * name.
  */
-/* A warning's title from its own sentence, where IMS no longer sends the
- * names of its warning types (warnings_metadata has come back empty since
- * October 2026): the sentence up to its time span. "Yellow Warning of NEWS
- * FLASH in All of Israel from 25/10 17 until 28/10 20 LT." gives "Yellow
- * Warning of NEWS FLASH in All of Israel"; the Hebrew is cut at " מ-".
+struct ImsSeverityEntry { int id; int rank; bool early; const char *en; const char *he; };
+static const ImsSeverityEntry IMS_SEVERITIES[] = {
+  {7, 6, false, "Red Warning",          "אזהרה אדומה"},
+  {6, 5, true,  "Red Early Warning",    "התראה מוקדמת אדומה"},
+  {4, 4, false, "Orange Warning",       "אזהרה כתומה"},
+  {5, 3, true,  "Orange Early Warning", "התראה מוקדמת כתומה"},
+  {3, 2, false, "Yellow Warning",       "אזהרה צהובה"},
+  {2, 1, true,  "Yellow Early Warning", "התראה מוקדמת צהובה"},
+};
+
+struct ImsWarningTypeEntry { int id; const char *en; const char *he; };
+static const ImsWarningTypeEntry IMS_WARNING_TYPES[] = {
+  { 2, "Strong Winds",              "רוחות חזקות"},
+  { 5, "Flash Floods",              "שטפונות"},
+  { 6, "Snow",                      "שלג"},
+  { 7, "Flooding",                  "הצפות"},
+  { 8, "Heat Stress",               "עומס חום"},
+  { 9, "Frost",                     "קרה"},
+  {10, "Fire Danger",               "סכנת שריפות"},
+  {11, "Thunderstorms",             "סופות רעמים"},
+  {12, "Reduced Visibility",        "הגבלת ראות"},
+  {33, "Heat Wave",                 "גל חום"},
+  {53, "Significant Precipitation", "כמויות גשם משמעותיות"},
+  {54, "Extreme Temperature",       "טמפרטורות קיצוניות"},
+};
+
+static bool isImsSeaType(int typeId)
+{
+  return typeId == 3 || typeId == 4; // High Sea Swimming Danger, High Sea
+}
+
+static bool isImsSpecialistType(int typeId)
+{
+  // IMS warning types with for_app == 0 (aviation turbulence, wind shear,
+  // icing, low ceiling, mountain wave/obscuration, burning index, ash, etc.)
+  switch (typeId)
+  {
+  case 13: case 14: case 15: case 16: case 35:
+  case 39: case 40: case 41: case 42:
+    return true;
+  default:
+    return false;
+  }
+}
+
+/* Fallback title from a warning's full sentence (used for News Flashes,
+ * warning_type_id == 51, or any unmapped type): strips a leading "update: "
+ * prefix and cuts before the region list or time span.
  */
 static String imsWarningTitle(const char *full, bool he)
 {
@@ -1674,7 +1845,38 @@ static String imsWarningTitle(const char *full, bool he)
   }
   String s(full);
   s.trim();
-  const int cut = s.indexOf(he ? " מ-" : " from ");
+  if (he)
+  {
+    if (s.startsWith("עדכון:"))
+    {
+      s = s.substring(strlen("עדכון:"));
+      s.trim();
+    }
+  }
+  else if (s.startsWith("update:") || s.startsWith("Update:"))
+  {
+    s = s.substring(7);
+    s.trim();
+  }
+  int cut = -1;
+  auto cutBefore = [&](const char *sep) {
+    const int p = s.indexOf(sep);
+    if (p > 0 && (cut < 0 || p < cut))
+    {
+      cut = p;
+    }
+  };
+  if (he)
+  {
+    cutBefore(" מ-");
+    cutBefore(" ב-");
+  }
+  else
+  {
+    cutBefore(" in ");
+    cutBefore(" on ");
+    cutBefore(" from ");
+  }
   if (cut > 0)
   {
     s = s.substring(0, cut);
@@ -1690,6 +1892,7 @@ DeserializationError deserializeIMSAlerts(WiFiClient &json, int rid,
   w["wid"]             = true;
   w["warning_type_id"] = true;
   w["severity_id"]     = true;
+  w["groups"]          = true;
   w["valid_from_unix"] = true;
   w["valid_to"]        = true;
   w["full_he"]         = true;
@@ -1713,9 +1916,19 @@ DeserializationError deserializeIMSAlerts(WiFiClient &json, int rid,
 
   JsonObject types = doc["data"]["warnings_metadata"]["ims_warning_type"];
   JsonObject sevs  = doc["data"]["warnings_metadata"]["warning_severity"];
+  const bool he = (OWM_LANG == "he");
   const String regionKey = "r-" + String(rid);
-  const int64_t now = static_cast<int64_t>(time(nullptr));
+
+  struct Candidate
+  {
+    owm_alerts_t alert;
+    int          typeId;
+    int          rank;
+  };
+  std::vector<Candidate> cands;
   std::vector<String> seen;
+  const int64_t now = static_cast<int64_t>(time(nullptr));
+
   for (JsonPair dayKv : doc["data"]["full_warnings_data"].as<JsonObject>())
   {
     JsonObject region = dayKv.value()[regionKey];
@@ -1738,6 +1951,41 @@ DeserializationError deserializeIMSAlerts(WiFiClient &json, int rid,
       }
       seen.push_back(wid);
 
+      const int typeId = static_cast<int>(jnum(a["warning_type_id"], 0));
+      const int sevId  = static_cast<int>(jnum(a["severity_id"], 0));
+      if (sevId == 0 || sevId == 8 || isImsSeaType(typeId))
+      {
+        continue; // inactive (green / gray) or sea conditions
+      }
+
+      // Filter specialist and marine audience groups (17 = aviation,
+      // 27 = shipping, 36 = coast/seamanship, 50 = agriculture), keeping
+      // general public (18), news flashes (51/52) and roads (56).
+      bool hasPublicGroup = true;
+      bool hasGroup18     = false;
+      JsonArray groups = a["groups"].as<JsonArray>();
+      if (!groups.isNull() && groups.size() > 0)
+      {
+        hasPublicGroup = false;
+        for (JsonVariant gv : groups)
+        {
+          const int gid = static_cast<int>(jnum(gv, 0));
+          if (gid == 18)
+          {
+            hasGroup18 = true;
+            hasPublicGroup = true;
+          }
+          else if (gid == 51 || gid == 52 || gid == 56)
+          {
+            hasPublicGroup = true;
+          }
+        }
+      }
+      if (!hasPublicGroup || (isImsSpecialistType(typeId) && !hasGroup18))
+      {
+        continue;
+      }
+
       owm_alerts_t alert = {};
       alert.start = static_cast<int64_t>(jnum(a["valid_from_unix"], 0.f));
       alert.end   = parseIMSLocalTime(a["valid_to"].as<const char *>());
@@ -1745,36 +1993,96 @@ DeserializationError deserializeIMSAlerts(WiFiClient &json, int rid,
       {
         continue;                    // already over
       }
-      const String typeId = String(static_cast<int>(jnum(a["warning_type_id"], 0)));
-      const String sevId  = String(static_cast<int>(jnum(a["severity_id"], 0)));
-      const char *typeName = types[typeId]["name"].as<const char *>();
-      const char *sevName  = sevs[sevId]["severity_name"].as<const char *>();
-      if (typeName)
+
+      int  sevRank  = 1;
+      bool isEarly  = false;
+      const char *sevLabel = sevs[String(sevId)]["severity_name"].as<const char *>();
+      for (const ImsSeverityEntry &se : IMS_SEVERITIES)
       {
-        alert.event = typeName;
-        if (sevName && *sevName)
+        if (se.id == sevId)
         {
-          alert.event += ", ";
-          alert.event += sevName;
+          sevRank = se.rank;
+          isEarly = se.early;
+          if (!sevLabel || !*sevLabel)
+          {
+            sevLabel = he ? se.he : se.en;
+          }
+          break;
         }
+      }
+      if (sevLabel && *sevLabel)
+      {
+        alert.description = sevLabel;
+      }
+
+      const char *typeLabel = nullptr;
+      if (typeId != 51) // News Flash uses its sentence rather than "News Flash"
+      {
+        typeLabel = types[String(typeId)]["name"].as<const char *>();
+        if (!typeLabel || !*typeLabel)
+        {
+          for (const ImsWarningTypeEntry &te : IMS_WARNING_TYPES)
+          {
+            if (te.id == typeId)
+            {
+              typeLabel = he ? te.he : te.en;
+              break;
+            }
+          }
+        }
+      }
+
+      if (typeLabel && *typeLabel)
+      {
+        alert.event = isEarly
+                    ? String(he ? "התראה מוקדמת: " : "Early Warning: ") + typeLabel
+                    : String(typeLabel);
       }
       else
       {
-        const bool he = (OWM_LANG == "he");
         alert.event = imsWarningTitle(a[he ? "full_he" : "full_en"]
                                         .as<const char *>(), he);
         if (alert.event.isEmpty())
         {
-          alert.event = "Weather warning";
+          alert.event = (sevLabel && *sevLabel) ? sevLabel
+                      : (he ? "אזהרת מזג אוויר" : "Weather warning");
         }
       }
-      alert.tags = typeName ? String(typeName) : typeId;
-      alerts.push_back(alert);
-      if (alerts.size() >= OWM_NUM_ALERTS)
+      alert.tags = (typeLabel && *typeLabel) ? String(typeLabel)
+                                             : String(typeId);
+
+      bool merged = false;
+      if (typeId > 0 && typeId != 51)
       {
-        return error;
+        for (Candidate &existing : cands)
+        {
+          if (existing.typeId == typeId)
+          {
+            if (sevRank > existing.rank
+                || (sevRank == existing.rank && alert.end > existing.alert.end))
+            {
+              existing.alert = alert;
+              existing.rank  = sevRank;
+            }
+            merged = true;
+            break;
+          }
+        }
+      }
+      if (!merged)
+      {
+        cands.push_back({alert, typeId, sevRank});
       }
     }
+  }
+
+  std::stable_sort(cands.begin(), cands.end(),
+                   [](const Candidate &p, const Candidate &q) {
+                     return p.rank > q.rank;
+                   });
+  for (size_t i = 0; i < cands.size() && alerts.size() < OWM_NUM_ALERTS; ++i)
+  {
+    alerts.push_back(cands[i].alert);
   }
   return error;
 } // end deserializeIMSAlerts

@@ -90,10 +90,10 @@ const char *TXT_IL_AQI[4] = {"טובה", "בינונית", "נמוכה", "נמו
 const char *TXT_IL_AQI_TAG = "(הגנ\"ס)";
 const char *TXT_AQI_TAG_EPA = "(EPA)";
 const char *TXT_AQI_TAG_MODEL = "(מודל)";
-const char *TXT_PORTAL_ON_WIFI = "מחובר לרשת WiFi: ";
+const char *TXT_PORTAL_ON_WIFI = "מחובר לרשת: ";
 const char *TXT_PORTAL_OPEN = "פתחו ";
 const char *TXT_PORTAL_OR = "או ";
-const char *TXT_PORTAL_JOIN = "התחברו לרשת WiFi: ";
+const char *TXT_PORTAL_JOIN = "התחברו לרשת: ";
 const char *TXT_PORTAL_PASSWORD = "סיסמה: ";
 const char *TXT_PORTAL_THEN_OPEN = "ואז פתחו ";
 const char *TXT_PORTAL_PAUSED[3] = {"ההתקנה הושהתה לחיסכון בסוללה.", "לחצו על כפתור האיפוס (RST)", "כדי להפעיל שוב את נקודת ההתקנה."};
@@ -126,12 +126,12 @@ const char *TXT_TEMPERATURE        = "טמפרטורה";
 
 // MOON PHASE
 const char *TXT_MOONPHASE       = "מופע הירח";
-const char *TXT_NEW_MOON        = "מולד";
+const char *TXT_NEW_MOON        = "מולד הירח";
 const char *TXT_WAXING_CRESCENT = "סהר מתמלא";
 const char *TXT_FIRST_QUARTER   = "רבע ראשון";
-const char *TXT_WAXING_GIBBOUS  = "גיבן מתמלא";
+const char *TXT_WAXING_GIBBOUS  = "קמור מתמלא";
 const char *TXT_FULL_MOON       = "ירח מלא";
-const char *TXT_WANING_GIBBOUS  = "גיבן מתמעט";
+const char *TXT_WANING_GIBBOUS  = "קמור מתמעט";
 const char *TXT_THIRD_QUARTER   = "רבע אחרון";
 const char *TXT_WANING_CRESCENT = "סהר מתמעט";
 

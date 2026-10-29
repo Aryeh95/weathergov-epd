@@ -8,8 +8,15 @@ struct SimPanel800
 {
   static const uint16_t WIDTH = 800, HEIGHT = 480;
   SimPanel800(int16_t, int16_t, int16_t, int16_t) {}
+  virtual ~SimPanel800() {}
+  virtual void refresh(bool = false) {}
+  virtual void refresh(int16_t, int16_t, int16_t, int16_t) {}
+  void setBusyCallback(void (*)(const void *), const void * = 0) {}
 protected:
   uint32_t _busy_timeout = 0;
+  int16_t _cs = -1, _dc = -1, _rst = -1, _busy = -1;
+  int _busy_level = 0;
+  bool _power_is_on = false;
 };
 struct SimPanel640
 {

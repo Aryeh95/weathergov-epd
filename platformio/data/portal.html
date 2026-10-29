@@ -353,11 +353,11 @@ const I18N_HE = {
   'Candle lighting (min before sunset)': 'הדלקת נרות (דקות לפני השקיעה)',
   'Shabbat ends (min after sunset)': 'צאת השבת (דקות אחרי השקיעה)',
   'On Friday and holiday eves the sunset widget shows the candle lighting time; on Shabbat and holidays, when they end. 18 minutes is the common custom for candle lighting (Jerusalem uses 40); 42 for the close (some wait 50 or 72). Holidays follow the Israeli calendar (one day of Yom Tov). Pick a date format with the holiday name to see it in the corner.':
-    'בערבי שבת וחג ווידג\'ט השקיעה מציג את זמן הדלקת הנרות; בשבת ובחג — את זמן הצאת. 18 דקות הוא המנהג הנפוץ להדלקת נרות (בירושלים 40); 42 לצאת השבת (יש הנוהגים 50 או 72). החגים לפי לוח ארץ ישראל (יום טוב אחד). בחרו תבנית תאריך עם שם החג כדי לראותו בפינה.',
+    'בערבי שבת וחג ווידג\'ט השקיעה מציג את זמן הדלקת הנרות; בשבת ובחג — את צאת השבת או החג. 18 דקות הוא המנהג הנפוץ להדלקת נרות (בירושלים 40); 42 לצאת השבת (יש הנוהגים 50 או 72). החגים לפי לוח ארץ ישראל (יום טוב אחד). בחרו תבנית תאריך עם שם החג כדי לראותו בפינה.',
   // Schedule
   'Schedule': 'לוח זמנים',
   'Refresh every (min)': 'עדכון כל (דקות)', 'Bed time (hour)': 'שעת שינה', 'Wake time (hour)': 'שעת השכמה',
-  'WiFi retry (min)': 'ניסיון WiFi חוזר (דקות)', 'Keep last weather when offline (min)': 'שמירת המזג האחרון כשאין קשר (דקות)',
+  'WiFi retry (min)': 'ניסיון WiFi חוזר (דקות)', 'Keep last weather when offline (min)': 'שמירת מזג האוויר האחרון כשאין חיבור (דקות)',
   'Graph hours': 'שעות בגרף', 'Forecast days': 'ימי תחזית', 'Widget rows': 'שורות ווידג\'טים',
   '5 (10 slots)': '5 (10 משבצות)', '6 (12 slots)': '6 (12 משבצות)',
   'Theme (full-color panels only)': 'ערכת נושא (מסכי צבע מלא בלבד)',
@@ -366,7 +366,7 @@ const I18N_HE = {
   'Font': 'גופן', 'Small text font (labels, axis)': 'גופן לטקסט קטן (תוויות, צירים)', 'Same as font': 'כמו הגופן הראשי',
   '(not in this firmware)': '(לא בקושחה זו)',
   'No updates between bed and wake hours (set both equal to disable). When the weather cannot be fetched, the last weather stays on the screen for the time set above before an error replaces it, with its time marked as old (in red, or with a warning sign on black and white panels); 0 shows errors at once. Pressing a button always shows the error.':
-    'אין עדכונים בין שעת השינה לשעת ההשכמה (ערכים שווים מבטלים). כשלא ניתן להביא את מזג האוויר, המזג האחרון נשאר על המסך למשך הזמן שהוגדר למעלה לפני שהודעת שגיאה מחליפה אותו, ושעתו מסומנת כישנה (באדום, או בסימן אזהרה במסכי שחור-לבן); 0 מציג שגיאות מיד. לחיצה על כפתור תמיד מציגה את השגיאה.',
+    'אין עדכונים בין שעת השינה לשעת ההשכמה (ערכים שווים מבטלים). כשלא ניתן להביא את מזג האוויר, מזג האוויר האחרון נשאר על המסך למשך הזמן שהוגדר למעלה לפני שהודעת שגיאה מחליפה אותו, ושעתו מסומנת כישנה (באדום, או בסימן אזהרה במסכי שחור-לבן); 0 מציג שגיאות מיד. לחיצה על כפתור תמיד מציגה את השגיאה.',
   'Partly Cloudy': 'מעונן חלקית',
   'Humidity Dew Point Air Quality (EPA) 12am 3am 6am 9am 0.1in': 'לחות נקודת טל איכות אוויר 00:00 03:00 06:00 09:00 1 מ"מ',
   'Only fonts compiled into this firmware are listed (see FONT_INCLUDE_ in config.h). The small text font covers everything under 11 pt: widget labels, the graph axis, source tags. A sans like FreeSans stays crisper there than a serif. The preview uses the web version of the fonts and needs internet access; the display draws its own bitmap copies.':
@@ -384,10 +384,11 @@ const I18N_HE = {
     'למדד איכות האוויר של ה-EPA האמריקני. מפתח Google הוא מפתח Maps Platform עם Pollen API (ולמקור שלמטה גם Weather API) מופעלים.',
   'Forecast source': 'מקור התחזית',
   'weather.gov (United States)': 'weather.gov (ארצות הברית)',
+  'Open-Meteo (anywhere in the world)': 'Open-Meteo (כל העולם)',
   'Israel Meteorological Service (Israel)': 'השירות המטאורולוגי הישראלי',
   'IMS location id (0 = nearest to the coordinates)': 'מזהה מיקום של השירות המטאורולוגי (0 = הקרוב לקואורדינטות)',
-  'Forecasts, condition icons and weather alerts. weather.gov covers US locations; the Israel Meteorological Service (ims.gov.il) covers Israel, in the firmware\'s language (Hebrew with LOCALE he_IL). Location ids are listed at':
-    'תחזיות, סמלי מזג אוויר והתרעות. weather.gov מכסה את ארה"ב; השירות המטאורולוגי (ims.gov.il) מכסה את ישראל, בעברית. רשימת מזהי המיקומים:',
+  'Forecasts, condition icons and weather alerts. weather.gov covers US locations; Open-Meteo covers the whole world (no alerts); the Israel Meteorological Service (ims.gov.il) covers Israel, in the firmware\'s language (Hebrew with LOCALE he_IL). Location ids are listed at':
+    'תחזיות, סמלי מזג אוויר והתרעות. weather.gov מכסה את ארה"ב; Open-Meteo מכסה את כל העולם (ללא התרעות); השירות המטאורולוגי (ims.gov.il) מכסה את ישראל, בעברית. רשימת מזהי המיקומים:',
   'Air quality index source': 'מקור מדד איכות האוויר',
   'Automatic (Israel with IMS, else AirNow with a key, else model)': 'אוטומטי (המשרד להגנת הסביבה עם השירות המטאורולוגי, אחרת AirNow עם מפתח, אחרת מודל)',
   'AirNow, US EPA (needs the AirNow key)': 'AirNow, ה-EPA האמריקני (דורש מפתח)',
@@ -395,27 +396,31 @@ const I18N_HE = {
   'Open-Meteo model': 'מודל Open-Meteo',
   'Ministry station id (0 = the stations within 15 km)': 'מזהה תחנת ניטור (0 = התחנות ברדיוס 15 ק"מ)',
   'The Israeli option reads the measured index of the national monitoring network\'s stations within 15 km (the worst of them) (air.sviva.gov.il), on Israel\'s scale: 100 is best, below zero is poor.':
-    'האפשרות הישראלית קוראת את המדד המדוד בתחנות מערך הניטור הארצי ברדיוס 15 ק"מ (הגרועה מביניהן) מ-air.sviva.gov.il, בסולם הישראלי: 100 הוא הטוב ביותר, מתחת לאפס — נמוכה.',
+    'האפשרות הישראלית קוראת את המדד המדוד בתחנות מערך הניטור הארצי ברדיוס 15 ק"מ (הגרועה מביניהן) מ-air.sviva.gov.il, בסולם הישראלי: 100 הוא הטוב ביותר, מתחת לאפס — איכות אוויר נמוכה.',
   'The Israeli option reads the measured index of the national monitoring network\'s stations within 15 km (the worst of them) (':
     'האפשרות הישראלית קוראת את המדד המדוד בתחנות מערך הניטור הארצי ברדיוס 15 ק"מ (הגרועה מביניהן) (',
-  '), on Israel\'s scale: 100 is best, below zero is poor.': '), בסולם הישראלי: 100 הוא הטוב ביותר, מתחת לאפס — נמוכה.',
+  '), on Israel\'s scale: 100 is best, below zero is poor.': '), בסולם הישראלי: 100 הוא הטוב ביותר, מתחת לאפס — איכות אוויר נמוכה.',
   'Current conditions source': 'מקור המצב הנוכחי',
   'Open-Meteo model (default, no key)': 'מודל Open-Meteo (ברירת מחדל, ללא מפתח)',
   'Google Weather API (needs Google key)': 'Google Weather API (דורש מפתח Google)',
   'the forecast source\'s own (no key)': 'של מקור התחזית עצמו (ללא מפתח)',
   'Where the big temperature and the humidity, dew point, pressure, wind and visibility widgets come from. The last option is weather.gov\'s hourly forecast for the current hour, or IMS\'s own current conditions; neither has pressure or visibility.':
-    'מכאן מגיעים הטמפרטורה הגדולה וווידג\'טי הלחות, נקודת הטל, הלחץ, הרוח והראות. האפשרות האחרונה היא התחזית השעתית של weather.gov לשעה הנוכחית, או התצפיות של השירות המטאורולוגי; לחץ וראות מושלמים אז מ-Open-Meteo.',
+    'מכאן מגיעים הטמפרטורה הגדולה והווידג\'טים של הלחות, נקודת הטל, הלחץ, הרוח והראות. האפשרות האחרונה היא התחזית השעתית של weather.gov לשעה הנוכחית, או התצפיות של השירות המטאורולוגי; לחץ וראות מושלמים אז מ-Open-Meteo.',
   // Widgets
   'Widgets': 'ווידג\'טים',
   'Slot layout on the display: 0 1 / 2 3 / 4 5 / 6 7 / 8 9 (top to bottom). Pick which widget fills each slot; leave a slot empty to show nothing there. Slots 10-11 appear when Widget rows (in Schedule) is 6.':
     'פריסת המשבצות על המסך (משמאל לימין, מלמעלה למטה): 0 1 / 2 3 / 4 5 / 6 7 / 8 9. בחרו איזה ווידג\'ט ממלא כל משבצת; משבצת ריקה לא מציגה דבר. משבצות 10–11 מופיעות כששורות הווידג\'טים (בלוח הזמנים) הן 6.',
   'Slot': 'משבצת', '(left)': '(שמאל)', '(right)': '(ימין)', '— Empty —': '— ריק —',
-  'Row': 'שורה', 'left': 'שמאל', 'right': 'ימין',
+  'Row': 'שורה', 'Tile': 'אריח', 'left': 'שמאל', 'middle': 'אמצע', 'right': 'ימין',
   'Indoor (temperature and humidity)': 'בבית (טמפרטורה ולחות)',
   'This panel has a layout of its own, with its own fonts; choose its eight readings under Widgets below.':
     'לתצוגה זו פריסה וגופנים משלה; את שמונה הנתונים שהיא מציגה בוחרים למטה, תחת ווידג׳טים.',
+  'This panel has a layout of its own, with its own fonts; choose its home page tiles under Widgets below.':
+    'לתצוגה זו פריסה וגופנים משלה; את אריחי דף הבית שלה בוחרים למטה, תחת ווידג׳טים.',
   'The eight readings under the sunrise diagram, two to a row. Without an indoor sensor the Indoor cell shows visibility.':
     'שמונת הנתונים שמתחת לתרשים הזריחה, שניים בשורה. בלי חיישן פנימי, משבצת "בבית" מציגה ראות.',
+  'The three tiles on the home page, left to right. Without an indoor sensor the Indoor tile shows the humidity.':
+    'שלושת האריחים בדף הבית, משמאל לימין. בלי חיישן פנימי, אריח "בבית" מציג לחות.',
   'Sunrise': 'זריחה', 'Sunset': 'שקיעה', 'Sunrise and sunset': 'זריחה ושקיעה', 'Humidity': 'לחות', 'Dew point': 'נקודת טל', 'Wind': 'רוח',
   'UV index': 'מדד UV', 'Pressure': 'לחץ ברומטרי', 'Air quality': 'איכות אוויר', 'Visibility': 'ראות',
   'Indoor temp': 'טמפרטורה בבית', 'Indoor humidity': 'לחות בבית', 'Moon phase': 'מופע הירח', 'Pollen': 'אבקנים',
@@ -428,7 +433,7 @@ const I18N_HE = {
   'Stacked: up to four smaller graphs on one time scale, top to bottom. With weather.gov, an hour\'s rain amount is its share of weather.gov\'s 6-hour total, shared out by the hours\' chance of rain.':
     'זה מעל זה: עד ארבעה גרפים קטנים על ציר זמן אחד, מלמעלה למטה. עם weather.gov, כמות הגשם בשעה היא חלקה מסך 6 השעות של weather.gov, לפי הסיכוי לגשם בכל שעה.',
   'Graph': 'גרף', 'Temperature': 'טמפרטורה', 'Temperature and dew point': 'טמפרטורה ונקודת טל',
-  'Temperature and feels like': 'טמפרטורה ומורגשת', 'Feels like': 'מורגשת',
+  'Temperature and feels like': 'טמפרטורה וטמפ׳ מורגשת', 'Feels like': 'טמפרטורה מורגשת',
   'Wind and gusts': 'רוח ומשבים', 'Chance of rain': 'סיכוי לגשם', 'Rain amount': 'כמות גשם',
   'Rain amount and chance': 'כמות גשם וסיכוי', 'Cloud cover': 'כיסוי עננים',
   '"%1" is in both slot %2 and slot %3 — a widget can only appear once.': '"%1" נמצא גם במשבצת %2 וגם במשבצת %3 — ווידג\'ט יכול להופיע פעם אחת בלבד.',
@@ -452,6 +457,7 @@ const I18N_HE = {
   'That is not a .bin file.': 'זה אינו קובץ .bin.',
   'Install "%1" (%2 kB)?': 'להתקין את "%1" (%2 kB)?',
   'Uploading...': 'מעלה...',
+  'Firmware updated. Restarting...': 'הקושחה עודכנה. מפעיל מחדש...',
   'The page will stop responding while it reboots; the new firmware takes over on the next refresh.': 'הדף יפסיק להגיב בזמן ההפעלה מחדש; הקושחה החדשה פועלת מהעדכון הבא.',
   'Update failed: %1. The previous firmware is still installed and running.': 'העדכון נכשל: %1. הקושחה הקודמת עדיין מותקנת ופועלת.',
   'Unexpected response:': 'תגובה לא צפויה:',
@@ -1119,7 +1125,7 @@ el('fwbtn').addEventListener('click', () => {
       const j = JSON.parse(xhr.responseText);
       if (j.ok) {
         prog.textContent = '';
-        setStatus('ok', j.message + ' ' + t('The page will stop responding while it reboots; the new firmware takes over on the next refresh.'));
+        setStatus('ok', t(j.message) + ' ' + t('The page will stop responding while it reboots; the new firmware takes over on the next refresh.'));
       } else {
         setStatus('err', t('Update failed: %1. The previous firmware is still installed and running.')
           .replace('%1', j.error));

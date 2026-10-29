@@ -18,8 +18,12 @@
 #include <cmath>
 #include <vector>
 #include <Arduino.h>
+#include <WiFi.h>
 #include <driver/adc.h>
+#include <driver/gpio.h>
 #include <esp_adc_cal.h>
+#include <esp_sleep.h>
+#include <esp_timer.h>
 
 #include <aqi.h>
 #include "config.h"
@@ -272,6 +276,69 @@ void truncateExtraAlertInfo(String &text)
   return;
 } // end truncateExtraAlertInfo
 
+static bool hasAsciiWord(const String &s, const char *word)
+{
+  const int wlen = static_cast<int>(strlen(word));
+  const int slen = static_cast<int>(s.length());
+  for (int i = 0; i <= slen - wlen; ++i)
+  {
+    bool match = true;
+    for (int k = 0; k < wlen; ++k)
+    {
+      if (tolower(static_cast<unsigned char>(s.charAt(i + k))) != word[k])
+      {
+        match = false;
+        break;
+      }
+    }
+    if (!match)
+    {
+      continue;
+    }
+    const bool leftOk  = (i == 0)
+                      || !isalpha(static_cast<unsigned char>(s.charAt(i - 1)));
+    const bool rightOk = (i + wlen == slen)
+                      || !isalpha(static_cast<unsigned char>(s.charAt(i + wlen)));
+    if (leftOk && rightOk)
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+/* Explicit colour severity in an alert's event text (IMS, UK Met Office,
+ * MeteoAlarm): 3 = red, 2 = orange/amber, 1 = yellow, 0 = none. Whole-word
+ * matching in English avoids substrings such as "Reduced Visibility";
+ * weather.gov's Red Flag Warning (fire weather) names no colour level.
+ */
+int alertColorSeverity(const String &event)
+{
+  String lower = event;
+  lower.toLowerCase();
+  const bool redFlag = lower.indexOf("red flag") >= 0;
+  if ((hasAsciiWord(event, "red") && !redFlag) || event.indexOf("אדומ") >= 0)
+  {
+    return 3;
+  }
+  if (hasAsciiWord(event, "orange") || hasAsciiWord(event, "amber")
+      || event.indexOf("כתומ") >= 0)
+  {
+    return 2;
+  }
+  if (hasAsciiWord(event, "yellow") || event.indexOf("צהוב") >= 0)
+  {
+    return 1;
+  }
+  return 0;
+}
+
+int alertColorSeverity(const owm_alerts_t &alert)
+{
+  const int c = alertColorSeverity(alert.description);
+  return (c > 0) ? c : alertColorSeverity(alert.event);
+}
+
 /* Returns the urgency of an event based by checking if the event String
  * contains any indicator keywords.
  *
@@ -285,6 +352,13 @@ void truncateExtraAlertInfo(String &text)
  */
 int eventUrgency(const String &event)
 {
+  const int color = alertColorSeverity(event);
+  if (color > 0)
+  {
+    const bool early = hasAsciiWord(event, "early")
+                    || event.indexOf("מוקדמת") >= 0;
+    return 100 + color * 2 - (early ? 1 : 0);
+  }
   int urgency_lvl = -1;
   for (int i = 0; i < ALERT_URGENCY.size(); ++i)
   {
@@ -295,6 +369,20 @@ int eventUrgency(const String &event)
   }
   return urgency_lvl;
 } // end eventUrgency
+
+static int alertUrgency(const owm_alerts_t &alert)
+{
+  const int color = alertColorSeverity(alert);
+  if (color > 0)
+  {
+    const bool early = hasAsciiWord(alert.description, "early")
+                    || alert.description.indexOf("מוקדמת") >= 0
+                    || hasAsciiWord(alert.event, "early")
+                    || alert.event.indexOf("מוקדמת") >= 0;
+    return 100 + color * 2 - (early ? 1 : 0);
+  }
+  return eventUrgency(alert.event);
+}
 
 /* This algorithm filters alerts from the API responses to be displayed by
  * marking the corresponding index in the ignore list.
@@ -357,7 +445,7 @@ void filterAlerts(std::vector<owm_alerts_t> &resp, int *ignore_list)
       if (i != j && resp[i].tags == resp[j].tags)
       {
         // comparing alerts of the same tag, removing the less urgent alert
-        if (eventUrgency(resp[i].event) >= eventUrgency(resp[j].event))
+        if (alertUrgency(resp[i]) >= alertUrgency(resp[j]))
         {
           ignore_list[j] = 1;
         }
@@ -1956,4 +2044,122 @@ void disableBuiltinLED()
 #endif
   return;
 } // end disableBuiltinLED
+
+/* Waits for an e-paper panel's BUSY pin to leave busyLevel, entering ESP32
+ * light sleep while waiting when WiFi is off and no USB-CDC host is attached.
+ * Output pins in holdPins (skipping PIN_UNUSED / negative values) are latched
+ * at their current levels across light sleep so CS, DC, RST, and panel/SD
+ * power switches cannot glitch while the digital domain is clock-gated.
+ */
+bool waitBusyLightSleep(int16_t busyPin, uint8_t busyLevel, uint32_t timeoutMs,
+                        const int16_t *holdPins, size_t holdCount)
+{
+  if (busyPin < 0 || busyPin == PIN_UNUSED)
+  {
+    return true;
+  }
+  const int64_t startUs = esp_timer_get_time();
+  const int64_t timeoutUs = static_cast<int64_t>(timeoutMs) * 1000LL;
+  if (digitalRead(busyPin) != busyLevel)
+  {
+    return true;
+  }
+
+  bool canSleep = (WiFi.getMode() == WIFI_OFF);
+#if defined(BOARD_XIAO_EPAPER) && ARDUINO_USB_CDC_ON_BOOT
+  // Light sleep drops the USB port. isPlugged() reads false for a moment on
+  // a glitch while the computer is still there, so, as in sleepOrWait(),
+  // only 3 s of silence counts as gone; any sign of the computer keeps the
+  // whole wait awake.
+  if (canSleep)
+  {
+    const unsigned long quietSince = millis();
+    while (millis() - quietSince < 3000)
+    {
+      if (HWCDC::isPlugged())
+      {
+        canSleep = false;
+        break;
+      }
+      if (digitalRead(busyPin) != busyLevel)
+      {
+        return true;
+      }
+      if (esp_timer_get_time() - startUs > timeoutUs)
+      {
+        return false;
+      }
+      delay(5);
+    }
+  }
+#endif
+
+  if (!canSleep)
+  {
+    while (digitalRead(busyPin) == busyLevel)
+    {
+      if (esp_timer_get_time() - startUs > timeoutUs)
+      {
+        return false;
+      }
+      delay(5);
+    }
+    return true;
+  }
+
+  Serial.flush();
+  esp_sleep_pd_config(ESP_PD_DOMAIN_VDDSDIO, ESP_PD_OPTION_ON);
+  for (size_t i = 0; i < holdCount; ++i)
+  {
+    if (holdPins[i] >= 0 && holdPins[i] != PIN_UNUSED)
+    {
+      gpio_hold_en(static_cast<gpio_num_t>(holdPins[i]));
+    }
+  }
+
+  const gpio_num_t busyGpio = static_cast<gpio_num_t>(busyPin);
+  if (busyLevel == LOW)
+  {
+    gpio_pullup_en(busyGpio);
+    gpio_pulldown_dis(busyGpio);
+  }
+  const gpio_int_type_t wakeLevel =
+      (busyLevel == LOW) ? GPIO_INTR_HIGH_LEVEL : GPIO_INTR_LOW_LEVEL;
+
+  bool timedOut = false;
+  while (digitalRead(busyPin) == busyLevel)
+  {
+    const int64_t elapsedUs = esp_timer_get_time() - startUs;
+    if (elapsedUs > timeoutUs)
+    {
+      timedOut = true;
+      break;
+    }
+    int64_t remUs = timeoutUs - elapsedUs + 10000LL;
+    if (remUs > 4000000LL)
+    {
+      remUs = 4000000LL;
+    }
+    gpio_wakeup_enable(busyGpio, wakeLevel);
+    esp_sleep_enable_gpio_wakeup();
+    esp_sleep_enable_timer_wakeup(static_cast<uint64_t>(remUs));
+    esp_light_sleep_start();
+    if (digitalRead(busyPin) == busyLevel)
+    {
+      delay(1);
+    }
+  }
+
+  gpio_wakeup_disable(busyGpio);
+  esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_GPIO);
+  esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
+  for (size_t i = 0; i < holdCount; ++i)
+  {
+    if (holdPins[i] >= 0 && holdPins[i] != PIN_UNUSED)
+    {
+      gpio_hold_dis(static_cast<gpio_num_t>(holdPins[i]));
+    }
+  }
+  return !timedOut;
+} // end waitBusyLightSleep
 

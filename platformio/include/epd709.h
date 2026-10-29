@@ -108,7 +108,7 @@ private:
   bool _started = false;
 
   static uint8_t inkOf(uint16_t color);
-  bool waitReady(uint32_t timeoutMs);
+  bool waitReady(uint32_t timeoutMs, bool lightSleep = false);
   void select(bool master, bool slave);
   void command(bool master, bool slave, uint8_t cmd, const uint8_t *data,
                size_t len);

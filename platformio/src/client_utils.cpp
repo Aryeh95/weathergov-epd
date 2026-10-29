@@ -671,9 +671,10 @@ static int finishWeather(WiFiClient &client, owm_current_t &current,
   // (or, for another source, only carries) the daily precipitation totals
   // for the forecast-row days weather.gov's QPF does not reach (precip.h).
   om_daily_precip_t omDaily = {};
-  om_gaps_t omGaps = {0, -1};
+  om_gaps_t omGaps = {0, -1, -1, {}};
   // A forecast provider's own current-conditions feed (IMS now_analysis)
-  // has no pressure or visibility; Open-Meteo fills those two in.
+  // has no pressure, visibility or observed sky cover; Open-Meteo fills
+  // those in on the same request.
   const bool fillGaps = useNWS && providerCurrent;
   int omResponse = HTTP_CODE_OK;
 #if DAILY_PRECIP_AMOUNTS
@@ -688,12 +689,12 @@ static int finishWeather(WiFiClient &client, owm_current_t &current,
     {
       omUri += "&current=temperature_2m,apparent_temperature,"
                "relative_humidity_2m,dew_point_2m,pressure_msl,"
-               "cloud_cover,visibility,wind_speed_10m,wind_gusts_10m,"
-               "wind_direction_10m&wind_speed_unit=ms";
+               "cloud_cover,weather_code,is_day,visibility,wind_speed_10m,"
+               "wind_gusts_10m,wind_direction_10m&wind_speed_unit=ms";
     }
     else if (fillGaps)
     {
-      omUri += "&current=pressure_msl,visibility";
+      omUri += "&current=pressure_msl,visibility,weather_code,cloud_cover,is_day";
     }
 #if DAILY_PRECIP_AMOUNTS
     // Local midnights for the coordinate's own zone, as unix time.
@@ -731,6 +732,15 @@ static int finishWeather(WiFiClient &client, owm_current_t &current,
     {
       if (current.pressure <= 0)  current.pressure   = omGaps.pressure;
       if (current.visibility < 0) current.visibility = omGaps.visibility;
+      // IMS now_analysis carries no cloud sensor (its weather_code is copied
+      // from the forecast); use Open-Meteo's current sky condition unless IMS
+      // is reporting dust, sandstorm or fog (700..799).
+      if (omGaps.weather.id > 0
+          && (current.weather.id < 700 || current.weather.id >= 800))
+      {
+        current.weather = omGaps.weather;
+        if (omGaps.clouds >= 0) current.clouds = omGaps.clouds;
+      }
     }
   }
   else
@@ -1172,7 +1182,8 @@ int getGoogleCurrent(WiFiClient &client, const owm_hourly_t &fallback,
 {
   String baseUri = "/v1/currentConditions:lookup"
                    "?location.latitude=" + LAT
-                 + "&location.longitude=" + LON;
+                 + "&location.longitude=" + LON
+                 + "&languageCode=" + OWM_LANG;
   String uri = baseUri + "&key=" + POLLEN_APIKEY;
   // API key is censored from the serial log to reduce the risk of users
   // exposing their key.
@@ -1313,8 +1324,12 @@ int getIMSWeather(WiFiClient &client, owm_current_t &current,
   std::vector<qpf_bucket_t> noQpf;
   return finishWeather(client, current, hourly, daily, noQpf, true,
       [&]() -> int {
+        // The location goes in the path: IMS ignores ?lid= and answers
+        // with Jerusalem (lid 1) whatever is asked. Jerusalem itself is
+        // the bare /now_analysis, as /now_analysis/1 is a 301 to it.
         return httpGetAndParse(client, IMS_ENDPOINT, HTTPS_PORT,
-            "/" + imsLang() + "/now_analysis?lid=" + String(lid),
+            "/" + imsLang() + "/now_analysis"
+                + (lid == 1 ? String() : "/" + String(lid)),
             IMS_USER_AGENT,
             [&](WiFiClient &s) {
               return deserializeIMSCurrent(s, lid, hourly[0], current);

@@ -57,6 +57,8 @@ void getDateStr(String &s, tm *timeInfo);
 void getRefreshTimeStr(String &s, bool timeSuccess, tm *timeInfo);
 void toTitleCase(String &text);
 void truncateExtraAlertInfo(String &text);
+int alertColorSeverity(const String &event);
+int alertColorSeverity(const owm_alerts_t &alert);
 void filterAlerts(std::vector<owm_alerts_t> &resp, int *ignore_list);
 const char *getUVIdesc(unsigned int uvi);
 /* Heat stress as the Israel Meteorological Service reports it: Zohar's
@@ -111,6 +113,8 @@ const char *getWifiStatusPhrase(wl_status_t status);
 void printHeapUsage();
 void disableBuiltinLED();
 void idleSDCard();
+bool waitBusyLightSleep(int16_t busyPin, uint8_t busyLevel, uint32_t timeoutMs,
+                        const int16_t *holdPins, size_t holdCount);
 
 #endif
 

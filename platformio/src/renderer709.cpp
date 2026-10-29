@@ -930,7 +930,8 @@ struct Alert709
 {
   String event;
   String until;
-  int rank; // 0 warning, 1 watch, 2 advisory and everything else
+  int rank;  // 0 warning/red, 1 watch/orange, 2 advisory/yellow
+  int color; // explicit IMS/Met colour: 3 red, 2 orange, 1 yellow, 0 none
 };
 static std::vector<Alert709> notices;
 static int alertTop = 0; // room the strip takes from what is under it
@@ -966,11 +967,19 @@ void layout709Begin(std::vector<owm_alerts_t> &alerts,
     a.event = alerts[i].event;
     toTitleCase(a.event);
     a.event = label(a.event.c_str());
-    String lower = alerts[i].event;
-    lower.toLowerCase();
-    a.rank = (lower.indexOf("warning") >= 0) ? 0
-           : (lower.indexOf("watch") >= 0)   ? 1
-                                             : 2;
+    a.color = alertColorSeverity(alerts[i]);
+    if (a.color > 0)
+    {
+      a.rank = 3 - a.color; // red -> 0, orange/amber -> 1, yellow -> 2
+    }
+    else
+    {
+      String lower = alerts[i].event;
+      lower.toLowerCase();
+      a.rank = (lower.indexOf("warning") >= 0) ? 0
+             : (lower.indexOf("watch") >= 0)   ? 1
+                                               : 2;
+    }
     if (alerts[i].end > 0)
     {
       const time_t end = static_cast<time_t>(alerts[i].end);
@@ -1006,16 +1015,21 @@ static void drawNotice(int x0, int y0, int x1, int y1, const Alert709 &a,
 {
   uint16_t ink = K, sign = Y;
   if (a.rank == 0)
-  { // a warning: the strongest thing on the page
+  { // red warning: matches RISK_RED in drawChip
     fillBox(x0, y0, x1, y1, 10, R);
     ink = W_ABS;
     sign = R;
   }
+  else if (a.color == 1)
+  { // explicit yellow warning (IMS): solid yellow ink matching RISK_YELLOW
+    fillBox(x0, y0, x1, y1, 10, Y);
+    ink = K_ABS;
+    sign = W_ABS;
+    strokeBox(x0, y0, x1, y1, 10, 2, DARK_MODE ? K_ABS : K);
+  }
   else
   {
-    // in dark mode as well the notice stays light, a note on the dark page:
-    // its paper is true white and its words true black (flipped, the
-    // advisory's yellow went dark and its words pale on it)
+    // orange warning (T_ORANGE, matching RISK_AMBER) or NWS watch / advisory
     Tone t = (a.rank == 1) ? T_ORANGE : T_ADVISORY;
     if (DARK_MODE)
     {

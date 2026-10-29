@@ -240,7 +240,7 @@ const std::vector<String> TERM_SMOG =
 const std::vector<String> TERM_SMOKE =
     {"smoke"};
 const std::vector<String> TERM_FOG =
-    {"fog", "haar"};
+    {"fog", "haar", "visibility"};
 const std::vector<String> TERM_METEOR =
     {"meteor", "asteroid"};
 const std::vector<String> TERM_NUCLEAR =
@@ -252,12 +252,12 @@ const std::vector<String> TERM_EARTHQUAKE =
 const std::vector<String> TERM_FIRE =
     {"fire", "red flag"};
 const std::vector<String> TERM_HEAT =
-    {"heat"};
+    {"heat", "extreme temperature"};
 const std::vector<String> TERM_WINTER =
     {"blizzard", "winter", "ice", "icy", "snow", "sleet", "cold",
      "freezing", "wind chill", "freeze", "frost", "hail", "avalanche"};
 const std::vector<String> TERM_TSUNAMI =
-    {"tsunami", "surf", "rip current", "beach", "seas"};
+    {"tsunami", "surf", "rip current", "beach", "seas", "high sea", "swimming"};
 const std::vector<String> TERM_LIGHTNING =
     {"thunderstorm", "storm cell", "pulse storm", "squall line", "supercell",
      "lightning"};
@@ -265,7 +265,7 @@ const std::vector<String> TERM_SANDSTORM =
     {"sandstorm", "blowing dust", "dust storm"};
 const std::vector<String> TERM_FLOOD =
     {"flood", "storm surge", "seiche", "swell", "high seas", "high tides",
-     "tidal surge", "hydrologic"};
+     "tidal surge", "hydrologic", "precipitation"};
 const std::vector<String> TERM_VOLCANO =
     {"volcanic", "ash", "volcano", "eruption"};
 const std::vector<String> TERM_AIR_QUALITY =

@@ -77,6 +77,12 @@
     {
       _busy_timeout = 45000000; // us
     }
+    void refresh(bool partial_update_mode = false) override;
+    void refresh(int16_t x, int16_t y, int16_t w, int16_t h) override;
+
+  private:
+    bool _canLightSleep = false;
+    static void busySleepCb(const void *param);
   };
   extern GxEPD2_7C<GxEPD2_730c_GDEP073E01_Patient,
             GxEPD2_730c_GDEP073E01_Patient::HEIGHT / 4> display;

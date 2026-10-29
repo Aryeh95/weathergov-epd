@@ -206,6 +206,7 @@ struct SerialStub
   void println(const String &s) { puts(s.c_str()); }
   void println() { puts(""); }
   void printf(const char *, ...) {}
+  void flush() {}
 };
 extern SerialStub Serial;
 
@@ -225,10 +226,12 @@ inline void delay(unsigned long) {}
 #define LOW 0
 inline void pinMode(int, int) {}
 inline void digitalWrite(int, int) {}
+inline int digitalRead(int) { return HIGH; }
 inline int analogRead(int) { return 2000; }
 inline uint32_t analogReadMilliVolts(int) { return 2000; }
 typedef int gpio_num_t;
 inline void gpio_hold_en(gpio_num_t) {}
+inline void gpio_hold_dis(gpio_num_t) {}
 inline void gpio_deep_sleep_hold_en() {}
 
 using std::max;

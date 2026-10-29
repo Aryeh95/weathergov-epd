@@ -67,6 +67,46 @@ void toTitleCase(String &text)
                       : toLowerCase(text.charAt(i)));
   }
 }
+static bool hasAsciiWord(const String &s, const char *word)
+{ // display_utils.cpp's, copied
+  const int wlen = static_cast<int>(strlen(word));
+  const int slen = static_cast<int>(s.length());
+  for (int i = 0; i <= slen - wlen; ++i)
+  {
+    bool match = true;
+    for (int k = 0; k < wlen && match; ++k)
+    {
+      match = tolower(static_cast<unsigned char>(s.charAt(i + k))) == word[k];
+    }
+    if (match
+        && (i == 0 || !isalpha(static_cast<unsigned char>(s.charAt(i - 1))))
+        && (i + wlen == slen
+            || !isalpha(static_cast<unsigned char>(s.charAt(i + wlen)))))
+    {
+      return true;
+    }
+  }
+  return false;
+}
+int alertColorSeverity(const String &event)
+{ // display_utils.cpp's, copied
+  String lower = event;
+  lower.toLowerCase();
+  const bool redFlag = lower.indexOf("red flag") >= 0;
+  if ((hasAsciiWord(event, "red") && !redFlag) || event.indexOf("אדומ") >= 0)
+    return 3;
+  if (hasAsciiWord(event, "orange") || hasAsciiWord(event, "amber")
+      || event.indexOf("כתומ") >= 0)
+    return 2;
+  if (hasAsciiWord(event, "yellow") || event.indexOf("צהוב") >= 0)
+    return 1;
+  return 0;
+}
+int alertColorSeverity(const owm_alerts_t &alert)
+{
+  const int c = alertColorSeverity(alert.description);
+  return (c > 0) ? c : alertColorSeverity(alert.event);
+}
 void filterAlerts(std::vector<owm_alerts_t> &resp, int *ignore)
 {
   for (size_t i = 0; i < resp.size(); ++i)

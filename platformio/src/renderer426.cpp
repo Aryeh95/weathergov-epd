@@ -1819,20 +1819,16 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
  * its name gives one (IMS: "Yellow Warning of ...", "אזהרה צהובה"),
  * red otherwise.
  */
-static void alertColours(const String &event, uint16_t &fill,
+static void alertColours(const owm_alerts_t &alert, uint16_t &fill,
                          uint16_t &ink)
 {
-  // both cases spelled out: toLowerCase() works byte by byte, which UTF-8
-  // Hebrew does not survive
-  const String &e = event;
-  if (e.indexOf("Yellow") >= 0 || e.indexOf("yellow") >= 0
-      || e.indexOf("צהוב") >= 0)
+  const int color = alertColorSeverity(alert);
+  if (color == 1)
   {
     fill = GxEPD_YELLOW;
     ink = K;
   }
-  else if (e.indexOf("Orange") >= 0 || e.indexOf("orange") >= 0
-           || e.indexOf("כתומ") >= 0)
+  else if (color == 2)
   {
     fill = T_ORANGE;
     ink = K;
@@ -1863,7 +1859,7 @@ void drawAlerts(std::vector<owm_alerts_t> &alerts, const String &city,
 #endif
 #if defined(COLOR_426)
   uint16_t fill, ink;
-  alertColours(alerts[0].event, fill, ink);
+  alertColours(alerts[0], fill, ink);
 #else
   const uint16_t fill = K, ink = W;
 #endif
@@ -1873,9 +1869,27 @@ void drawAlerts(std::vector<owm_alerts_t> &alerts, const String &city,
   String title = alerts[0].event;
   toTitleCase(title);
   truncateExtraAlertInfo(title);
-  if (alerts.size() > 1)
+  int extra = 0;
+  for (size_t i = 1; i < alerts.size(); ++i)
   {
-    title += "  (+" + String(alerts.size() - 1) + ")";
+    bool dup = false;
+    for (size_t j = 0; j < i; ++j)
+    {
+      if (!alerts[i].tags.isEmpty()
+          && alerts[i].tags.equalsIgnoreCase(alerts[j].tags))
+      {
+        dup = true;
+        break;
+      }
+    }
+    if (!dup)
+    {
+      ++extra;
+    }
+  }
+  if (extra > 0)
+  {
+    title += "  (+" + String(extra) + ")";
   }
   g->setFont(&Bitter_11pt8b);
   if (LC_RTL)

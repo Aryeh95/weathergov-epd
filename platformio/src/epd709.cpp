@@ -17,6 +17,7 @@
 
 #ifndef EPD709_HOST
 #include <SPI.h>
+#include "display_utils.h"
 // 8 MHz: the clock bb_epaper (the OpenDisplay firmware's driver) uses for
 // this controller pair, and the fastest any driver has been seen to run it.
 // An ESPHome driver for the EE02 found only 2 MHz reliable, so if the test
@@ -130,11 +131,28 @@ void Epd709::hibernate() {}
 #else
 // ---- the panel
 
-bool Epd709::waitReady(uint32_t timeoutMs)
+bool Epd709::waitReady(uint32_t timeoutMs, bool lightSleep)
 {
   // The controller needs a moment to pull BUSY low after a command; sampled
   // too early, the idle-high level looks like "already done".
   delay(10);
+  if (lightSleep)
+  {
+    const int16_t holdPins[] = {
+      static_cast<int16_t>(PIN_EPD_PWR),
+      static_cast<int16_t>(_csM),
+      static_cast<int16_t>(_csS),
+      static_cast<int16_t>(_dc),
+      static_cast<int16_t>(_rst),
+    };
+    if (!waitBusyLightSleep(_busy, LOW, timeoutMs, holdPins,
+                            sizeof(holdPins) / sizeof(holdPins[0])))
+    {
+      Serial.println("[epd709] busy timeout");
+      return false;
+    }
+    return true;
+  }
   const uint32_t start = millis();
   while (digitalRead(_busy) == LOW) // HIGH = ready
   {
@@ -301,7 +319,7 @@ void Epd709::refresh()
   delay(50);
   const uint32_t start = millis();
   command(true, true, 0x12, &drf, 1);    // refresh
-  waitReady(EPD709_BUSY_TIMEOUT_MS);
+  waitReady(EPD709_BUSY_TIMEOUT_MS, true);
   Serial.println("[epd709] refresh took "
                  + String((millis() - start) / 1000.0, 1) + " s");
   delay(30);
