@@ -1704,12 +1704,21 @@ void drawStatusBar(const String &statusStr, const String &refreshTimeStr,
 #if BATTERY_MONITORING
   const uint32_t percent = calcBatPercent(batVoltage, MIN_BATTERY_VOLTAGE,
                                           MAX_BATTERY_VOLTAGE);
-  String bat = String(TXT709_DOT) + TXT709_BATTERY " " + String(percent) + "%";
-  if (batDaysLeft >= 0)
-  {
-    bat += ", " + String(batDaysLeft) + " " TXT709_DAYS_LEFT;
+  const String bat = String(TXT709_DOT) + TXT709_BATTERY " " + String(percent)
+                   + "%";
+  const String daysLeft = (batDaysLeft >= 0)
+      ? ", " + String(batDaysLeft) + " " TXT709_DAYS_LEFT : String();
+  if (textWidth(s + bat + daysLeft, F_SANS_24) > LEFT1 - LEFT0)
+  { // too long (a refresh time with a date leaves no room for the days
+    // left): the time alone, as the date is the page's own, in its header
+    s = String(TXT709_UPDATED " ") + clock(nowUtc(), TIME_FORMAT);
   }
-  if (textWidth(s + bat, F_SANS_24) <= LEFT1 - LEFT0)
+  // still too long: the days left go, never the battery itself
+  if (textWidth(s + bat + daysLeft, F_SANS_24) <= LEFT1 - LEFT0)
+  {
+    s += bat + daysLeft;
+  }
+  else if (textWidth(s + bat, F_SANS_24) <= LEFT1 - LEFT0)
   {
     s += bat;
   }
