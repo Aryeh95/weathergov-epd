@@ -199,6 +199,12 @@
       Leave empty to use Open-Meteo instead. The Google key is a Maps
       Platform key with the Pollen API (and, for the source below, the
       Weather API) enabled.</div>
+    <label>Local relay (optional)</label><input id="a_relay" autocomplete="off" placeholder="192.168.1.50:8080">
+    <div class="hint">Address of a weather relay on your home network
+      (tools/relay in the project). The display then gets all its data from
+      it over the local network, about a second of WiFi instead of 10-20,
+      and fetches directly whenever the relay doesn't answer. Leave empty
+      to fetch directly.</div>
     <label>Forecast source</label>
     <select id="a_fcsrc">
       <option value="nws">weather.gov (United States)</option>
@@ -382,6 +388,9 @@ const I18N_HE = {
   'Free key from': 'מפתח חינמי מ-',
   'for the EPA\'s official AQI. Leave empty to use Open-Meteo instead. The Google key is a Maps Platform key with the Pollen API (and, for the source below, the Weather API) enabled.':
     'למדד איכות האוויר של ה-EPA האמריקני. מפתח Google הוא מפתח Maps Platform עם Pollen API (ולמקור שלמטה גם Weather API) מופעלים.',
+  'Local relay (optional)': 'ממסר מקומי (אופציונלי)',
+  'Address of a weather relay on your home network (tools/relay in the project). The display then gets all its data from it over the local network, about a second of WiFi instead of 10-20, and fetches directly whenever the relay doesn\'t answer. Leave empty to fetch directly.':
+    'כתובת של ממסר מזג אוויר ברשת הביתית (tools/relay בפרויקט). המסך מקבל ממנו את כל הנתונים דרך הרשת המקומית, כשנייה של WiFi במקום 10-20, ופונה ישירות לשירותים בכל פעם שהממסר אינו עונה. השאירו ריק כדי לפנות ישירות.',
   'Forecast source': 'מקור התחזית',
   'weather.gov (United States)': 'weather.gov (ארצות הברית)',
   'Open-Meteo (anywhere in the world)': 'Open-Meteo (כל העולם)',
@@ -868,6 +877,7 @@ function populate() {
   el('a_ua').value = cfg.api?.nws_user_agent ?? '';
   el('a_airnow').value = cfg.api?.airnow_api_key ?? '';
   el('a_pollen').value = cfg.api?.pollen_api_key ?? '';
+  el('a_relay').value = cfg.api?.local_relay ?? '';
   el('a_cursrc').value = cfg.api?.current_source ?? 'open-meteo';
   el('a_fcsrc').value = cfg.api?.forecast_source ?? 'nws';
   el('a_imslid').value = String(cfg.api?.ims_location_id ?? 0);
@@ -924,6 +934,7 @@ function collect() {
   cfg.api.nws_user_agent = el('a_ua').value.trim();
   cfg.api.airnow_api_key = el('a_airnow').value.trim();
   cfg.api.pollen_api_key = el('a_pollen').value.trim();
+  cfg.api.local_relay = el('a_relay').value.trim();
   cfg.api.current_source = el('a_cursrc').value;
   cfg.api.forecast_source = el('a_fcsrc').value;
   cfg.api.ims_location_id = Math.max(0, parseInt(el('a_imslid').value, 10) || 0);

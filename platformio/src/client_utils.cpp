@@ -71,6 +71,20 @@ static const long    QPF_STALE_OK_S  = 12L * 3600L;
 static HTTPClient s_http;
 static String     s_openHost;
 static uint16_t   s_openPort = 0;
+
+// Local relay (LOCAL_RELAY, see tools/relay). Plain HTTP on the home
+// network, one short-lived connection per request: on a LAN a TCP connect
+// costs a few ms, and closing after each reply saves tracking how much of
+// a body the parser left unread. s_relayDown is set the first time the
+// relay fails to answer, and sends the rest of the wake direct.
+static HTTPClient s_relayHttp;
+static WiFiClient s_relayClient;
+static String     s_relayHost;
+static uint16_t   s_relayPort = 0;
+static bool       s_relayDown = false;
+static const uint16_t RELAY_DEFAULT_PORT       = 8080;
+static const uint32_t RELAY_CONNECT_TIMEOUT_MS = 1000;
+static const int      RELAY_FAILED             = -100000;
 static const char *GOOGLE_WEATHER_ENDPOINT = "weather.googleapis.com";
 static const char *IMS_ENDPOINT = "ims.gov.il";
 static const char *SVIVA_SITE_ENDPOINT = "air.sviva.gov.il";      // Ministry of Environmental Protection
@@ -499,6 +513,114 @@ static void splitUrl(const String &url, String &host, String &uri)
   }
 } // end splitUrl
 
+/* True while requests should go through the local relay: one is configured
+ * and it has not failed to answer during this wake. Parses LOCAL_RELAY
+ * ("host", "host:port", either with an http:// prefix) on first use.
+ */
+static bool relayInUse()
+{
+  if (LOCAL_RELAY.isEmpty() || s_relayDown)
+  {
+    return false;
+  }
+  if (s_relayPort == 0)
+  {
+    String host, uri;
+    splitUrl(LOCAL_RELAY, host, uri);
+    const int colon = host.indexOf(':');
+    s_relayHost = (colon == -1) ? host : host.substring(0, colon);
+    s_relayPort = (colon == -1) ? RELAY_DEFAULT_PORT
+                                : static_cast<uint16_t>(host.substring(colon + 1).toInt());
+    if (s_relayHost.isEmpty() || s_relayPort == 0)
+    {
+      Serial.println("[relay] can't read the address \"" + LOCAL_RELAY
+                     + "\", fetching directly");
+      s_relayDown = true;
+      return false;
+    }
+  }
+  return true;
+} // end relayInUse
+
+/* One GET through the local relay, ex. https://api.weather.gov/alerts
+ * becomes http://<relay>/https/api.weather.gov/alerts. The relay forwards
+ * the User-Agent and any extra headers, and passes the service's status
+ * and body back unchanged, so parseFn and the caller see the same reply a
+ * direct request would get.
+ *
+ * Returns the HTTP status (or a negative parse error, as
+ * httpGetAndParse), or RELAY_FAILED when this request has to go direct:
+ * the relay did not answer (it is then skipped for the rest of the wake),
+ * or it answered but could not reach the service itself (X-Relay-Error).
+ */
+static int relayGetAndParse(const String &host, uint16_t port,
+                            const String &uri, const String &userAgent,
+                            std::function<DeserializationError(WiFiClient&)> &parseFn,
+                            unsigned timeoutMs,
+                            const std::vector<std::pair<String, String>> *extraHeaders)
+{
+  HTTPClient &http = s_relayHttp;
+  http.setConnectTimeout(RELAY_CONNECT_TIMEOUT_MS);
+  // on a cache miss the relay fetches from the service before it replies
+  http.setTimeout(timeoutMs + 5000);
+  http.useHTTP10(true);
+  http.setUserAgent(userAgent.isEmpty() ? String("ESP32HTTPClient") : userAgent);
+  const String path = "/https/" + host
+                      + (port == HTTPS_PORT ? String() : ":" + String(port))
+                      + uri;
+  const unsigned long tReq = millis();
+  http.begin(s_relayClient, s_relayHost, s_relayPort, path);
+  http.addHeader("X-Relay-Timeout", String(timeoutMs));
+  if (extraHeaders)
+  {
+    for (const auto &h : *extraHeaders)
+    {
+      http.addHeader(h.first, h.second);
+    }
+  }
+  static const char *wanted[] = {"X-Relay-Error", "X-Relay-Age"};
+  http.collectHeaders(wanted, 2);
+  int httpResponse = http.GET();
+  const unsigned long tHdr = millis();
+  if (httpResponse < 0)
+  {
+    http.end();
+    s_relayClient.stop();
+    s_relayDown = true;
+    Serial.println("  relay " + s_relayHost + ":" + String(s_relayPort)
+                   + " did not answer (" + getHttpResponsePhrase(httpResponse)
+                   + "), fetching directly for the rest of this wake");
+    return RELAY_FAILED;
+  }
+  const String relayErr = http.header("X-Relay-Error");
+  if (!relayErr.isEmpty())
+  {
+    http.end();
+    s_relayClient.stop();
+    Serial.println("  relay could not reach the service (" + relayErr
+                   + "), fetching directly");
+    return RELAY_FAILED;
+  }
+  if (httpResponse == HTTP_CODE_OK)
+  {
+    DeserializationError jsonErr = parseFn(http.getStream());
+    if (jsonErr)
+    {
+      httpResponse = -256 - static_cast<int>(jsonErr.code());
+    }
+  }
+  const String age = http.header("X-Relay-Age");
+  http.end();
+  s_relayClient.stop();
+  Serial.println("  " + String(httpResponse, DEC) + " "
+                 + getHttpResponsePhrase(httpResponse)
+                 + "  via relay (" + String(tHdr - tReq) + " ms to headers, "
+                 + String(millis() - tHdr) + " ms body"
+                 + (age.isEmpty() ? String() : ", fetched " + age + " s earlier")
+                 + ")");
+  return httpResponse;
+} // end relayGetAndParse
+
 /* Performs an HTTP GET request, retrying up to maxAttempts times, and hands
  * the response stream to parseFn to be deserialized on success.
  *
@@ -549,6 +671,19 @@ static int httpGetAndParse(WiFiClient &client, const String &host,
     {
       // -512 offset distinguishes these errors from httpClient errors
       return -512 - static_cast<int>(connection_status);
+    }
+
+    if (relayInUse())
+    {
+      httpResponse = relayGetAndParse(host, port, uri, userAgent, parseFn,
+                                      timeoutMs, extraHeaders);
+      if (httpResponse != RELAY_FAILED)
+      {
+        rxSuccess = (httpResponse == HTTP_CODE_OK);
+        ++attempts;
+        continue;
+      }
+      // this attempt goes direct
     }
 
     HTTPClient &http = s_http;

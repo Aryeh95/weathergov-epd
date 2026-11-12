@@ -394,6 +394,8 @@ bool loadSettings()
   NWS_USER_AGENT = api["nws_user_agent"] | NWS_USER_AGENT;
   AIRNOW_APIKEY  = api["airnow_api_key"] | AIRNOW_APIKEY;
   POLLEN_APIKEY  = api["pollen_api_key"] | POLLEN_APIKEY;
+  LOCAL_RELAY    = api["local_relay"]    | LOCAL_RELAY;
+  LOCAL_RELAY.trim();
   CURRENT_SOURCE = api["current_source"] | CURRENT_SOURCE;
   if (CURRENT_SOURCE != "google" && CURRENT_SOURCE != "nws")
   {

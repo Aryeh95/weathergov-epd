@@ -222,6 +222,15 @@ char STATIC_SSID[33]    = "";
 //   -258 Deserialization Incomplete Input
 unsigned HTTP_CLIENT_TCP_TIMEOUT = 10000; // ms
 
+// LOCAL RELAY (optional)
+// Address of a weather relay on the home network, ex. "192.168.1.50:8080"
+// (tools/relay/weather_relay.py, port 8080 when none is given). Every
+// request then goes over plain HTTP to the relay, which has usually fetched
+// it already, instead of a TLS connection to each service: about a second
+// of WiFi per wake instead of 10-20. When the relay does not answer, the
+// device fetches directly for the rest of that wake. Empty = no relay.
+String LOCAL_RELAY = "";
+
 // NATIONAL WEATHER SERVICE (NWS) API
 // weather.gov's API is free and does not require an API key. NWS asks that
 // requests include a descriptive User-Agent, ideally with a contact method,

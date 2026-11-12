@@ -282,6 +282,7 @@ All runtime settings live in [`platformio/data/config.json`](platformio/data/con
 - `api.nws_user_agent`: weather.gov asks for a contact email in the User-Agent, so they can reach you if your device misbehaves. Please set one.
 - `api.airnow_api_key`: optional. A free [AirNow key](https://docs.airnowapi.org/) gives the EPA's official measured US AQI.
 - `api.pollen_api_key`: optional. A Google Maps Platform key with the Pollen API enabled turns on the pollen widget. The same key serves `current_source: "google"` when the Weather API is enabled on its project.
+- `api.local_relay`: optional, ex. `"192.168.1.50:8080"`. The address of a [weather relay](tools/relay/README.md) on your home network, which fetches everything ahead of time so each wake takes about a second of WiFi instead of 10-20. When the relay doesn't answer, the display fetches directly.
 
 </details>
 
