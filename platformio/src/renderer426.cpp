@@ -1953,7 +1953,7 @@ static void drawWeekPage(const owm_daily_t *daily)
     if (!std::isnan(daily[i].temp.min)) {wLo = std::min(wLo, daily[i].temp.min);}
     if (!std::isnan(daily[i].temp.max)) {wHi = std::max(wHi, daily[i].temp.max);}
   }
-  const int bx0 = 500, bx1 = 700;
+  const int bx0 = 540, bx1 = 716;
   for (int i = 0; i < OWM_NUM_DAILY; ++i)
   {
     const owm_daily_t &d = daily[i];
@@ -1975,15 +1975,20 @@ static void drawWeekPage(const owm_daily_t *daily)
     drawIcon(244, y0 + (rh - 24) / 2, wi_strong_wind_24x24, 24, 24, K);
     drawString(274, base, fitted(speed(d.wind_speed) + " "
                + getCompassPointNotation(d.wind_deg), 110), LEFT, K);
+    g->setFont(&Bitter_14pt8b);
+    const String lo = deg(d.temp.min);
+    drawString(bx0 - 14, base + 2, lo, RIGHT, K);
 #if DAILY_PRECIP_AMOUNTS
+    // ends a little before the low, however wide the low is
+    const int amountRight = bx0 - 14 - getStringWidth(lo) - 14;
     const String amount = precip(d.rain + d.snow);
+    g->setFont(&Bitter_11pt8b);
     if (!amount.isEmpty() && d.rain + d.snow > 0.0f)
     {
-      drawString(392, base, amount, LEFT, K);
+      drawString(amountRight, base, amount, RIGHT, K);
     }
-#endif
     g->setFont(&Bitter_14pt8b);
-    drawString(bx0 - 14, base + 2, deg(d.temp.min), RIGHT, K);
+#endif
     drawString(bx1 + 14, base + 2, deg(d.temp.max), LEFT, K);
     // the week's range as a rule, the day's as a bar along it
     const int yb = y0 + rh / 2;
