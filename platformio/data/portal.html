@@ -553,7 +553,11 @@ const WIDGETS = [
   ['pressure','Pressure'],['air_quality','Air quality'],
   ['visibility','Visibility'],['intemp','Indoor temp'],['inhumidity','Indoor humidity'],
   ['moon_phase','Moon phase'],['pollen','Pollen'],['heat_stress','Heat stress']];
-let cfg = null; // parsed config; the form writes back into this object
+const WIDGET_DEFAULT = {
+  sunrise: 0, sunset: 1, humidity: 2, dewpoint: 3, wind: 4,
+  uvi: 5, pressure: 6, air_quality: 7, intemp: 8, inhumidity: 9
+};
+let cfg = {}; // parsed config; the form writes back into this object
 
 // Font preview. Web equivalents of the display fonts: Google-hosted where
 // the family is on Google Fonts, common system twins for the GNU FreeFonts.
@@ -889,14 +893,20 @@ function populate() {
   el('h_candle').value = sh.candle_lighting_minutes ?? 18;
   el('h_havdalah').value = sh.havdalah_minutes ?? 42;
   for (let slot = 0; slot < 12; slot++) el('slot_' + slot).value = '';
+  const wp = cfg.widget_positions ?? {
+    ...WIDGET_DEFAULT,
+    ...(info.heat_stress_default ? { dewpoint: -1, heat_stress: 3 } : {})
+  };
   for (const [key] of WIDGETS) {
-    const v = +(cfg.widget_positions?.[key] ?? -1);
+    const v = +(wp[key] ?? -1);
     if (v >= 0 && v < 12) el('slot_' + v).value = key;
   }
   updateSlotVisibility();
 }
 
 function collect() {
+  if (!cfg || typeof cfg !== 'object') cfg = {};
+  staticForNetwork();
   cfg.wifi = cfg.wifi ?? {}; cfg.location = cfg.location ?? {};
   cfg.time = cfg.time ?? {}; cfg.sleep = cfg.sleep ?? {};
   cfg.api = cfg.api ?? {}; cfg.widget_positions = cfg.widget_positions ?? {};
@@ -912,11 +922,15 @@ function collect() {
   cfg.location.city = el('l_city').value.trim();
   cfg.time.timezone = el('t_tz').value.trim();
   if (el('t_clock').value === '24') {
-    cfg.time.time_format = '%H:%M'; cfg.time.hour_format = '%H';
-    cfg.time.refresh_time_format = '%x %H:%M';
+    if (!(cfg.time.time_format ?? '').includes('%H')) {
+      cfg.time.time_format = '%H:%M'; cfg.time.hour_format = '%H';
+      cfg.time.refresh_time_format = '%x %H:%M';
+    }
   } else {
-    cfg.time.time_format = '%l:%M%P'; cfg.time.hour_format = '%l%P';
-    cfg.time.refresh_time_format = '%x %l:%M%P';
+    if (!cfg.time.time_format || cfg.time.time_format.includes('%H')) {
+      cfg.time.time_format = '%l:%M%P'; cfg.time.hour_format = '%l%P';
+      cfg.time.refresh_time_format = '%x %l:%M%P';
+    }
   }
   cfg.time.date_format = el('t_date').value;
   cfg.sleep.sleep_duration_minutes = +el('s_dur').value;
@@ -992,7 +1006,7 @@ async function save(body) {
   el('save').disabled = true;
   try {
     const r = await fetch('/config', { method: 'POST', body,
-      headers: { 'Content-Type': 'application/json' } });
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'WeatherEPD' } });
     const j = await r.json();
     if (j.ok) {
       setStatus('ok', t('Saved! The display is restarting with the new settings. If you changed the WiFi network, reconnect to that network to reach it again.'));
@@ -1148,6 +1162,7 @@ el('fwbtn').addEventListener('click', () => {
     setStatus('err', t('Upload failed (connection lost). The previous firmware is still installed.'));
   };
   xhr.open('POST', el('fwforce').checked ? '/update?force=1' : '/update');
+  xhr.setRequestHeader('X-Requested-With', 'WeatherEPD');
   xhr.send(fd);
 });
 
@@ -1221,6 +1236,11 @@ function hideLayoutSettings() {
   fixedLayout = true;
   for (const id of ['s_wrows', 's_font', 's_font_small']) {
     el(id).parentElement.style.display = 'none';
+  }
+  if (homeTiles) {
+    for (const id of ['s_dark', 's_fdays']) {
+      el(id).parentElement.style.display = 'none';
+    }
   }
   el('fontprev').style.display = 'none';
   el('fonthint').style.display = 'none';
@@ -1401,20 +1421,27 @@ const infoLoaded = fetch('/info').then(r => r.json()).then(i => {
   buildTimeSelects();
   if (info.ip) showConnInfo(info);
 });
-fetch('/config').then(r => r.text()).then(t => infoLoaded.then(() => {
-  el('raw').value = t;
-  cfg = JSON.parse(stripComments(t));
-  // A Hebrew build shows heat stress where the dew point was unless the
-  // config places the widget itself (settings.cpp does the same on the
-  // device); show the picker the way the panel will come up, so that a
-  // save keeps it.
-  if (info.heat_stress_default && cfg.widget_positions
-      && cfg.widget_positions.heat_stress === undefined) {
-    cfg.widget_positions.heat_stress = cfg.widget_positions.dewpoint ?? -1;
-    cfg.widget_positions.dewpoint = -1;
-  }
-  populate();
-})).catch(e => setStatus('err', t('Failed to load current config:') + ' ' + e.message));
+fetch('/config', { headers: { 'X-Requested-With': 'WeatherEPD' } })
+  .then(r => r.ok ? r.text() : (r.status === 404 ? '{}\n' : Promise.reject(new Error('HTTP ' + r.status))))
+  .then(raw => infoLoaded.then(() => {
+    el('raw').value = raw;
+    cfg = JSON.parse(stripComments(raw) || '{}');
+    if (!cfg || typeof cfg !== 'object') cfg = {};
+    // A Hebrew build shows heat stress where the dew point was unless the
+    // config places the widget itself (settings.cpp does the same on the
+    // device); show the picker the way the panel will come up, so that a
+    // save keeps it.
+    if (info.heat_stress_default && cfg.widget_positions
+        && cfg.widget_positions.heat_stress === undefined) {
+      cfg.widget_positions.heat_stress = cfg.widget_positions.dewpoint ?? -1;
+      cfg.widget_positions.dewpoint = -1;
+    }
+    populate();
+  })).catch(e => infoLoaded.then(() => {
+    cfg = {};
+    populate();
+    setStatus('err', t('Failed to load current config:') + ' ' + e.message);
+  }));
 </script>
 </body>
 </html>

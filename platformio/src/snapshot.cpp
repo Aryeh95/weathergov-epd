@@ -26,7 +26,7 @@ const char *const PATH = "/last.bin";
 const char *const PATH_TMP = "/last.tmp";
 const char *const PATH_OLD = "/last.old"; // the previous file, while the new one takes its place
 const uint32_t MAGIC = 0x31584557; // "WEX1"
-const uint16_t VERSION = 2;    // 2: the hours' rain amounts (2026-10-25)
+const uint16_t VERSION = 3;    // 3: Israeli AQI + IMS heat stress (2026-11-17)
 const size_t   MAX_TEXT = 200;     // longest string kept
 const size_t   MAX_BYTES = 32768;  // a file larger than this is not ours
 
@@ -35,6 +35,8 @@ const size_t   MAX_BYTES = 32768;  // a file larger than this is not ours
 const uint32_t LAYOUT = static_cast<uint32_t>(
     OWM_NUM_HOURLY * 1000003u + OWM_NUM_DAILY * 10007u
   + OWM_NUM_AIR_POLLUTION * 101u + sizeof(owm_components_t)
+  + sizeof(owm_current_t) * 31u + sizeof(owm_hourly_t) * 17u
+  + sizeof(owm_daily_t) * 13u + sizeof(owm_resp_air_pollution_t) * 7u
   + sizeof(int64_t) * 7u + sizeof(int) * 13u + sizeof(pollen_info_t));
 
 struct Header
@@ -151,6 +153,8 @@ void io(Archive &a, owm_current_t &c)
   a.pod(c.wind_speed);
   a.pod(c.wind_gust);
   a.pod(c.wind_deg);
+  a.pod(c.heat_stress);
+  a.pod(c.heat_stress_level);
   io(a, c.weather);
 }
 
@@ -170,6 +174,8 @@ void io(Archive &a, owm_hourly_t &h)
   a.pod(h.wind_deg);
   a.pod(h.pop);
   a.pod(h.precip);
+  a.pod(h.heat_stress);
+  a.pod(h.heat_stress_level);
   io(a, h.weather);
 }
 
@@ -232,6 +238,8 @@ void io(Archive &a, owm_resp_air_pollution_t &r)
   a.pod(r.dt);
   a.pod(r.us_aqi);
   a.pod(r.valid);
+  a.pod(r.il_valid);
+  a.pod(r.il_index);
 }
 
 void io(Archive &a, snapshot_meta_t &m)

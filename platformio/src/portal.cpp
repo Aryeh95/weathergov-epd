@@ -120,15 +120,41 @@ static void handleRoot()
                 PORTAL_PAGE_LEN);
 } // end handleRoot
 
-/* Serves the current /config.json (raw, comments included).
+/* Rejects cross-origin requests (CSRF): browsers will not attach a custom
+ * header across origins without a CORS preflight, and no CORS allow headers
+ * are served here.
+ */
+static bool checkPortalHeader()
+{
+  if (server.header("X-Requested-With") == "WeatherEPD")
+  {
+    return true;
+  }
+  server.send(403, "application/json",
+              "{\"ok\":false,\"error\":\"Missing request header\"}");
+  return false;
+}
+
+/* Serves the current /config.json (raw, comments included), falling back to
+ * /config.bak or an empty JSON object on a freshly flashed device that has
+ * never had a filesystem uploaded.
  */
 static void handleGetConfig()
 {
   lastActivity = millis();
+  if (!checkPortalHeader())
+  {
+    return;
+  }
+  server.sendHeader("Cache-Control", "no-store");
   File f = LittleFS.open("/config.json", "r");
   if (!f)
   {
-    server.send(404, "text/plain", "config.json not found");
+    f = LittleFS.open("/config.bak", "r");
+  }
+  if (!f)
+  {
+    server.send(200, "application/json", "{}\n");
     return;
   }
   server.streamFile(f, "application/json");
@@ -141,6 +167,10 @@ static void handleGetConfig()
 static void handlePostConfig()
 {
   lastActivity = millis();
+  if (!checkPortalHeader())
+  {
+    return;
+  }
   String body = server.arg("plain");
   if (body.length() > SETTINGS_MAX_BYTES)
   {
@@ -380,6 +410,15 @@ static void handleUpdateUpload()
     otaError = "";
     otaCommitted = false;
     uploadTarget.reset();
+    if (Update.isRunning())
+    {
+      Update.abort();
+    }
+    if (server.header("X-Requested-With") != "WeatherEPD")
+    {
+      otaError = "Missing request header";
+      return;
+    }
     Serial.println("[portal] OTA upload started: " + up.filename);
     if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH))
     {
@@ -392,6 +431,7 @@ static void handleUpdateUpload()
     if (Update.write(up.buf, up.currentSize) != up.currentSize)
     {
       otaError = Update.errorString();
+      Update.abort();
     }
   }
   else if (up.status == UPLOAD_FILE_END && otaError.isEmpty())
@@ -556,6 +596,8 @@ void runConfigPortal(bool forceAp)
                      String(TXT_PORTAL_THEN_OPEN) + urlStr);
   }
 
+  static const char *PORTAL_HEADERS[] = {"X-Requested-With"};
+  server.collectHeaders(PORTAL_HEADERS, 1);
   server.on("/", HTTP_GET, handleRoot);
   server.on("/config", HTTP_GET, handleGetConfig);
   server.on("/config", HTTP_POST, handlePostConfig);

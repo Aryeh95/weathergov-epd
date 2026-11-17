@@ -111,18 +111,29 @@ void historyUpdate(time_t now, float pressureHpa, float inTempC,
   bat_rec_t log[BAT_SLOTS] = {};
   int bn = prefs.getBytes("bathist", log, sizeof(log)) / sizeof(bat_rec_t);
   bn = constrain(bn, 0, BAT_SLOTS);
+  const uint32_t nowU = (now > 0) ? static_cast<uint32_t>(now) : 0U;
+  int bw = 0;
+  for (int i = 0; i < bn; ++i)
+  {
+    if (log[i].ts <= nowU && (bw == 0 || log[i].ts >= log[bw - 1].ts))
+    {
+      log[bw++] = log[i];
+    }
+  }
+  bn = bw;
   if (bn > 0 && batMv > log[bn - 1].mv + 60)
   { // voltage jumped up: the battery was charged, old slope is meaningless
     bn = 0;
   }
-  if (bn == 0 || now - log[bn - 1].ts >= 86400L)
+  if (nowU > 0 && (bn == 0
+      || static_cast<int64_t>(nowU) - static_cast<int64_t>(log[bn - 1].ts) >= 86400LL))
   {
     if (bn == BAT_SLOTS)
     {
       memmove(log, log + 1, sizeof(bat_rec_t) * (BAT_SLOTS - 1));
       bn = BAT_SLOTS - 1;
     }
-    log[bn].ts = now;
+    log[bn].ts = nowU;
     log[bn].mv = static_cast<uint16_t>(batMv);
     ++bn;
     prefs.putBytes("bathist", log, sizeof(bat_rec_t) * bn);
@@ -130,12 +141,16 @@ void historyUpdate(time_t now, float pressureHpa, float inTempC,
   // least-squares slope in mV/day over the log; needs >=4 points spanning
   // >=3 days to say anything
   batDaysLeft = -1;
-  if (bn >= 4 && log[bn - 1].ts - log[0].ts >= 3 * 86400L)
+  if (bn >= 4
+      && static_cast<int64_t>(log[bn - 1].ts) - static_cast<int64_t>(log[0].ts)
+           >= 3LL * 86400LL)
   {
     double sx = 0, sy = 0, sxx = 0, sxy = 0;
     for (int i = 0; i < bn; ++i)
     {
-      double x = (log[i].ts - log[0].ts) / 86400.0;
+      double x = static_cast<double>(
+                   static_cast<int64_t>(log[i].ts) - static_cast<int64_t>(log[0].ts))
+                 / 86400.0;
       double y = log[i].mv;
       sx += x; sy += y; sxx += x * x; sxy += x * y;
     }

@@ -217,7 +217,7 @@ static void sleepOrWait(uint64_t seconds)
     pinMode(PIN_BTN_PAGE, INPUT_PULLUP);
 #endif
     const unsigned long t0 = millis();
-    const uint64_t waitMs = (seconds - 1) * 1000ULL;
+    const uint64_t waitMs = seconds ? (seconds - 1) * 1000ULL : 0;
     uint64_t left = 1;
     bool timed = (seconds != 0);
     // The core calls the computer gone when its 1 ms start-of-frame has
@@ -236,7 +236,8 @@ static void sleepOrWait(uint64_t seconds)
         }
         else if (millis() - quietSince >= 3000)
         {
-          left = seconds ? (waitMs - (millis() - t0)) / 1000ULL + 1 : 0;
+          const uint64_t elapsed = millis() - t0;
+          left = seconds ? ((elapsed < waitMs) ? (waitMs - elapsed) / 1000ULL + 1 : 1) : 0;
           s_waitEnd = 1;
           break;
         }
@@ -497,10 +498,10 @@ void beginDeepSleep(unsigned long startTime, tm *timeInfo)
 
   // estimated wake time, if this falls in a sleep period then sleepDuration
   // must be adjusted
-  const int predictedWakeHour = ((curMinute + sleepMinutes) / 60) % 24;
+  const int predictedWakeMinute = curMinute + sleepMinutes;
 
   uint64_t sleepDuration;
-  if (predictedWakeHour < bedtimeHour)
+  if (BED_TIME == WAKE_TIME || predictedWakeMinute <= bedtimeHour * 60)
   {
     sleepDuration = sleepMinutes * 60 - timeInfo->tm_sec;
   }
@@ -758,11 +759,12 @@ void setup()
     else if (prefs.getString("cfgKey", "") != place)
     {
       static const char *const CACHES[] = {
-        "qpfStamp", "qpfBlob", "qpfTime", "pollenStamp", "pollenTree",
-        "pollenGrass", "pollenWeed", "pollenMax", "airnowStamp", "airnowAqi",
-        "omStamp", "omHum", "omDew", "omPres", "omVis", "dayStamp", "dayHi",
-        "dayLo", "nwsLat", "nwsLon", "nwsFc", "nwsFcH", "wxhist",
-        "ilaqStamp", "ilaqValid", "ilaqIdx"};
+        "qpfStamp", "qpfBlob", "qpfTime", "gustBlob", "skyBlob", "feelBlob",
+        "pollenStamp", "pollenTree", "pollenGrass", "pollenWeed", "pollenMax",
+        "airnowStamp", "airnowAqi", "omStamp", "omHum", "omDew", "omPres",
+        "omVis", "dayStamp", "dayHi", "dayLo", "nwsLat", "nwsLon", "nwsFc",
+        "nwsFcH", "wxhist", "ilaqStamp", "ilaqValid", "ilaqIdx",
+        "goodScreen", "outageMin", "staleShown"};
       for (const char *key : CACHES)
       {
         if (prefs.isKey(key))
@@ -777,23 +779,32 @@ void setup()
     }
   }
 
+  const esp_sleep_wakeup_cause_t wakeCause = esp_sleep_get_wakeup_cause();
+  const bool buttonPortal = (wakeCause == ESP_SLEEP_WAKEUP_EXT0);
+  const bool unconfigured = (strcmp(WIFI_SSID, "ssid") == 0);
+  const bool forcePortalFlag =
+#if defined(FORCE_PORTAL)
+      true;
+#else
+      false;
+#endif
+  const bool portalBtnSaved = prefs.getBool("portalBtn", false);
+
 #if BATTERY_MONITORING
   uint32_t batteryVoltage = readBatteryVoltage();
   Serial.print(TXT_BATTERY_VOLTAGE);
   Serial.println(": " + String(batteryVoltage) + "mv");
 
-  // When the battery is low, the display shows a low-battery page instead of
-  // the weather, and keeps it until the battery recovers -- like a Kindle,
-  // and like upstream. Two refinements for colour panels, whose inks are
-  // the more prone to ghosting when one image stays for long (Good
-  // Display's E6 design notice): the page is drawn in black on white only,
-  // with no coloured icon and no dark-mode ground, and it is drawn again
-  // once a day while the device still wakes (low and very low battery).
-  // At a critically low battery the device hibernates showing it.
+  // A reading below 1.0 V means no LiPo cell is connected (e.g. XIAO EE02 or
+  // EE05 powered from USB with the battery unplugged or switched off; a real
+  // cell's protection circuit cuts off around 2.4-2.8 V). Setup/portal
+  // requests are also allowed through so a USB-powered fresh flash never
+  // locks itself out before WiFi is configured.
+  const bool batteryPresent = (batteryVoltage >= 1000);
   bool lowBat = prefs.getBool("lowBat", false);
 
-  // low battery, deep sleep now
-  if (batteryVoltage <= LOW_BATTERY_VOLTAGE)
+  if (batteryPresent && !buttonPortal && !portalBtnSaved && !unconfigured
+      && !forcePortalFlag && batteryVoltage <= LOW_BATTERY_VOLTAGE)
   {
     const bool critical = batteryVoltage <= CRIT_LOW_BATTERY_VOLTAGE;
     // minutes since the low-battery page was last drawn
@@ -820,7 +831,16 @@ void setup()
                                       : LOW_BATTERY_SLEEP_INTERVAL));
       prefs.end();
     }
+    else
+    {
+      prefs.end();
+    }
 
+    const unsigned long sleepMin =
+        critical ? 0UL
+        : (batteryVoltage <= VERY_LOW_BATTERY_VOLTAGE)
+            ? VERY_LOW_BATTERY_SLEEP_INTERVAL
+            : LOW_BATTERY_SLEEP_INTERVAL;
     if (critical)
     { // critically low battery
       // don't set esp_sleep_enable_timer_wakeup();
@@ -830,31 +850,31 @@ void setup()
     }
     else if (batteryVoltage <= VERY_LOW_BATTERY_VOLTAGE)
     { // very low battery
-      esp_sleep_enable_timer_wakeup(VERY_LOW_BATTERY_SLEEP_INTERVAL
-                                    * 60ULL * 1000000ULL);
+      esp_sleep_enable_timer_wakeup(sleepMin * 60ULL * 1000000ULL);
+      enableButtonWake();
       Serial.println(TXT_VERY_LOW_BATTERY_VOLTAGE);
       Serial.print(TXT_ENTERING_DEEP_SLEEP_FOR);
-      Serial.println(" " + String(VERY_LOW_BATTERY_SLEEP_INTERVAL) + "min");
+      Serial.println(" " + String(sleepMin) + "min");
     }
     else
     { // low battery
-      esp_sleep_enable_timer_wakeup(LOW_BATTERY_SLEEP_INTERVAL
-                                    * 60ULL * 1000000ULL);
+      esp_sleep_enable_timer_wakeup(sleepMin * 60ULL * 1000000ULL);
+      enableButtonWake();
       Serial.println(TXT_LOW_BATTERY_VOLTAGE);
       Serial.print(TXT_ENTERING_DEEP_SLEEP_FOR);
-      Serial.println(" " + String(LOW_BATTERY_SLEEP_INTERVAL) + "min");
+      Serial.println(" " + String(sleepMin) + "min");
     }
     wakeDiag.batteryMv = static_cast<uint16_t>(batteryVoltage);
     diagOutcome(DIAG_BATTERY, 0, "");
-    diagSave(startTime,
-             (batteryVoltage <= CRIT_LOW_BATTERY_VOLTAGE) ? 0
-             : (batteryVoltage <= VERY_LOW_BATTERY_VOLTAGE)
-               ? VERY_LOW_BATTERY_SLEEP_INTERVAL * 60UL
-               : LOW_BATTERY_SLEEP_INTERVAL * 60UL);
-    esp_deep_sleep_start();
+    diagSave(startTime, sleepMin * 60UL);
+    if (critical)
+    {
+      esp_deep_sleep_start();
+    }
+    sleepOrWait(sleepMin * 60ULL);
   }
-  // battery is no longer low, reset the variables in non-volatile storage
-  if (lowBat == true)
+  // battery is no longer low (or no battery is attached), reset NVS state
+  if (lowBat == true && (!batteryPresent || batteryVoltage > LOW_BATTERY_VOLTAGE))
   {
     prefs.putBool("lowBat", false);
     prefs.putInt("lowBatMin", 0);
@@ -876,7 +896,7 @@ void setup()
   // The one request kept across a restart is the portal button pressed
   // while the board waited awake on USB (sleepOrWait): a marker of its own,
   // which nothing else sets.
-  bool portalRequested = prefs.getBool("portalBtn", false);
+  bool portalRequested = portalBtnSaved;
   if (portalRequested)
   {
     prefs.putBool("portalBtn", false);
@@ -897,11 +917,9 @@ void setup()
   // Wake buttons (see enableButtonWake): the PORTAL button wakes via EXT0,
   // the REFRESH button via EXT1. A refresh-button wake needs no special
   // handling -- proceeding with a normal update IS the response.
-  const esp_sleep_wakeup_cause_t wakeCause = esp_sleep_get_wakeup_cause();
-  const bool buttonPortal = (wakeCause == ESP_SLEEP_WAKEUP_EXT0);
   if (wakeCause == ESP_SLEEP_WAKEUP_EXT1)
   {
-#if defined(DISP_4G_426)
+#if defined(DISP_4G_426) && !defined(DISP_426_ON_E6)
     if (esp_sleep_get_ext1_wakeup_status() & (1ULL << PIN_BTN_PAGE))
     {
       Serial.println("Woken by page button.");
@@ -910,7 +928,6 @@ void setup()
 #endif
     Serial.println("Woken by refresh button.");
   }
-  bool unconfigured = (strcmp(WIFI_SSID, "ssid") == 0);
   if (portalRequested || buttonPortal || unconfigured)
   {
     prefs.putBool("drd", false);
@@ -935,7 +952,7 @@ void setup()
     runConfigPortal(unconfigured); // never returns
   }
 
-#if !defined(BOARD_RETERMINAL_E1002)
+#if !defined(BOARD_RETERMINAL_E1002) && !defined(BOARD_XIAO_EPAPER)
   // A press of RST may be the first of two. Starting WiFi at once meant the
   // second press cut a connection short as it was being made, and some
   // routers then refuse the display for a minute or two (seen: 123 s of
@@ -1108,9 +1125,10 @@ void setup()
                    + " delta=" + String((long)(rtcNow - lastNtpSync)));
     configTzTime(TIMEZONE, NTP_SERVER_1, NTP_SERVER_2);
     phaseStart = millis();
-    timeConfigured = waitForSNTPSync(&timeInfo);
+    bool ntpSynced = false;
+    timeConfigured = waitForSNTPSync(&timeInfo, &ntpSynced);
     wakeDiag.clockMs = millis() - phaseStart;
-    if (timeConfigured)
+    if (ntpSynced)
     {
       prefs.begin(NVS_NAMESPACE, false);
       prefs.putLong64("lastNtpSync", static_cast<int64_t>(time(nullptr)));
@@ -1268,7 +1286,10 @@ void setup()
     statusStr = "Open-Meteo Air Quality API";
     tmpStr = String(rxStatus, DEC) + ": " + getHttpResponsePhrase(rxStatus);
   }
-  current.uvi = uvi;
+  if (std::isnan(current.uvi))
+  {
+    current.uvi = uvi;
+  }
 
   // Official US EPA AQI from AirNow, when an API key is configured.
   // Non-fatal: on failure (or with no key, or no monitor within range)
@@ -1284,10 +1305,12 @@ void setup()
   pollen_info_t pollen;
   pollen.tree = pollen.grass = pollen.weed = 0;
   pollen.max_upi = -1;
-#if defined(DISP_7C_709) || defined(DISP_4G_426)
-  // This layout always has a pollen cell; it has no widget slots to give
-  // or withhold one.
-  const bool wantPollen = true;
+#if defined(DISP_7C_709)
+  bool wantPollen = false;
+  for (const String &s : PANEL_SLOTS) { if (s == "pollen") { wantPollen = true; break; } }
+#elif defined(DISP_4G_426)
+  bool wantPollen = false;
+  for (const String &s : HOME_TILES) { if (s == "pollen") { wantPollen = true; break; } }
 #else
   const bool wantPollen = (POS_POLLEN >= 0);
 #endif

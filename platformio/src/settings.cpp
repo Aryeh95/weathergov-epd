@@ -130,6 +130,97 @@ static String textProblem(const char *name, JsonVariantConst v, size_t most)
   return "";
 }
 
+static bool ipv4Ok(const char *s)
+{
+  if (!s || *s == '\0')
+  {
+    return false;
+  }
+  const char *p = s;
+  for (int part = 0; part < 4; ++part)
+  {
+    if (*p < '0' || *p > '9')
+    {
+      return false;
+    }
+    long val = 0;
+    while (*p >= '0' && *p <= '9')
+    {
+      val = val * 10 + (*p - '0');
+      if (val > 255)
+      {
+        return false;
+      }
+      ++p;
+    }
+    if (part < 3)
+    {
+      if (*p != '.')
+      {
+        return false;
+      }
+      ++p;
+    }
+  }
+  return *p == '\0';
+}
+
+static String relayProblem(JsonVariantConst v)
+{
+  if (v.isNull())
+  {
+    return "";
+  }
+  const char *raw = v.as<const char *>();
+  if (!raw)
+  {
+    return "api.local_relay must be text";
+  }
+  String s(raw);
+  s.trim();
+  if (s.isEmpty())
+  {
+    return "";
+  }
+  if (s.startsWith("https://"))
+  {
+    return "api.local_relay uses plain HTTP on the LAN (remove https://)";
+  }
+  if (s.startsWith("http://"))
+  {
+    s = s.substring(7);
+  }
+  if (s.endsWith("/"))
+  {
+    s.remove(s.length() - 1);
+  }
+  if (s.indexOf('/') >= 0)
+  {
+    return "api.local_relay must be host or host:port (no path)";
+  }
+  const int colon = s.indexOf(':');
+  const String host = (colon < 0) ? s : s.substring(0, colon);
+  if (host.isEmpty())
+  {
+    return "api.local_relay has no host";
+  }
+  if (colon >= 0)
+  {
+    const String portStr = s.substring(colon + 1);
+    if (portStr.isEmpty())
+    {
+      return "api.local_relay port is empty";
+    }
+    char *end = nullptr;
+    const long port = strtol(portStr.c_str(), &end, 10);
+    if (*end != '\0' || port < 1 || port > 65535)
+    {
+      return "api.local_relay port must be between 1 and 65535";
+    }
+  }
+  return "";
+}
+
 String settingsProblem(JsonVariantConst doc)
 {
   if (!doc.is<JsonObjectConst>())
@@ -138,11 +229,16 @@ String settingsProblem(JsonVariantConst doc)
   }
   JsonVariantConst wifi = doc["wifi"], loc = doc["location"],
                    t = doc["time"], sleep = doc["sleep"],
-                   battery = doc["battery"], portal = doc["portal"];
+                   battery = doc["battery"], portal = doc["portal"],
+                   api = doc["api"];
   const String problems[] = {
     textProblem("wifi.ssid", wifi["ssid"], sizeof(WIFI_SSID) - 1),
     textProblem("wifi.password", wifi["password"],
                 sizeof(WIFI_PASSWORD) - 1),
+    textProblem("wifi.static_ip", wifi["static_ip"], sizeof(STATIC_IP) - 1),
+    textProblem("wifi.gateway", wifi["gateway"], sizeof(STATIC_GATEWAY) - 1),
+    textProblem("wifi.subnet", wifi["subnet"], sizeof(STATIC_SUBNET) - 1),
+    textProblem("wifi.dns", wifi["dns"], sizeof(STATIC_DNS) - 1),
     numberProblem("wifi.timeout_ms", wifi["timeout_ms"], 1000, 300000),
     textProblem("time.timezone", t["timezone"], sizeof(TIMEZONE) - 1),
     textProblem("time.time_format", t["time_format"],
@@ -167,12 +263,25 @@ String settingsProblem(JsonVariantConst doc)
                   OWM_NUM_HOURLY),
     numberProblem("forecast_days", doc["forecast_days"], 5, 7),
     numberProblem("widget_rows", doc["widget_rows"], 5, 6),
+    numberProblem("battery.warn_voltage_mv", battery["warn_voltage_mv"],
+                  2000, 5500),
+    numberProblem("battery.low_voltage_mv", battery["low_voltage_mv"],
+                  2000, 5500),
+    numberProblem("battery.very_low_voltage_mv", battery["very_low_voltage_mv"],
+                  2000, 5500),
+    numberProblem("battery.crit_low_voltage_mv", battery["crit_low_voltage_mv"],
+                  2000, 5500),
+    numberProblem("battery.low_sleep_interval_minutes",
+                  battery["low_sleep_interval_minutes"], 1, 10080),
+    numberProblem("battery.very_low_sleep_interval_minutes",
+                  battery["very_low_sleep_interval_minutes"], 1, 10080),
     numberProblem("battery.max_voltage_mv", battery["max_voltage_mv"],
                   2500, 5500),
     numberProblem("battery.min_voltage_mv", battery["min_voltage_mv"],
                   2500, 5500),
     numberProblem("portal.timeout_minutes", portal["timeout_minutes"], 1,
                   240),
+    relayProblem(api["local_relay"]),
   };
   for (const String &p : problems)
   {
@@ -180,6 +289,21 @@ String settingsProblem(JsonVariantConst doc)
     {
       return p;
     }
+  }
+  const char *sip = wifi["static_ip"] | "";
+  const char *sgw = wifi["gateway"]   | "";
+  const char *ssn = wifi["subnet"]    | "";
+  const char *sdn = wifi["dns"]       | "";
+  if (*sip || *sgw || *ssn || *sdn)
+  {
+    if (!*sip || !*sgw || !*ssn || !*sdn)
+    {
+      return "Static IP requires IP address, gateway, subnet mask, and DNS server";
+    }
+    if (!ipv4Ok(sip)) { return "wifi.static_ip is not a valid IPv4 address"; }
+    if (!ipv4Ok(sgw)) { return "wifi.gateway is not a valid IPv4 address"; }
+    if (!ipv4Ok(ssn)) { return "wifi.subnet is not a valid IPv4 address"; }
+    if (!ipv4Ok(sdn)) { return "wifi.dns is not a valid IPv4 address"; }
   }
   // the keys the loader reads: lat and lon (an earlier version of this check
   // looked for "latitude" and "longitude", which nothing writes, so it
@@ -313,11 +437,11 @@ bool loadSettings()
   WIDGET_ROWS = doc["widget_rows"] | WIDGET_ROWS;
   WIDGET_ROWS = constrain(WIDGET_ROWS, 5, 6);
 
-#ifdef MULTICOLOR_DISPLAY
+#if defined(MULTICOLOR_DISPLAY) && !defined(DISP_4G_426)
   DARK_MODE = doc["dark_mode"] | DARK_MODE;
 #else
-  // Dark mode is a color-panel feature: pure white-on-black didn't earn
-  // its keep on the single-color panels, so the setting is ignored there.
+  // Dark mode is a color-panel feature (and the 4.26in layout has no dark
+  // version): ignored elsewhere.
   DARK_MODE = false;
 #endif
 
@@ -377,14 +501,14 @@ bool loadSettings()
                  + String(FONT_FAMILY_NAMES[FONT_SMALL_FAMILY_INDEX]));
 
   JsonObjectConst battery = doc["battery"];
-  WARN_BATTERY_VOLTAGE     = battery["warn_voltage_mv"]     | WARN_BATTERY_VOLTAGE;
-  LOW_BATTERY_VOLTAGE      = battery["low_voltage_mv"]      | LOW_BATTERY_VOLTAGE;
-  VERY_LOW_BATTERY_VOLTAGE = battery["very_low_voltage_mv"] | VERY_LOW_BATTERY_VOLTAGE;
-  CRIT_LOW_BATTERY_VOLTAGE = battery["crit_low_voltage_mv"] | CRIT_LOW_BATTERY_VOLTAGE;
-  LOW_BATTERY_SLEEP_INTERVAL      = battery["low_sleep_interval_minutes"]      | LOW_BATTERY_SLEEP_INTERVAL;
-  VERY_LOW_BATTERY_SLEEP_INTERVAL = battery["very_low_sleep_interval_minutes"] | VERY_LOW_BATTERY_SLEEP_INTERVAL;
-  MAX_BATTERY_VOLTAGE = battery["max_voltage_mv"] | MAX_BATTERY_VOLTAGE;
-  MIN_BATTERY_VOLTAGE = battery["min_voltage_mv"] | MIN_BATTERY_VOLTAGE;
+  WARN_BATTERY_VOLTAGE     = constrain(battery["warn_voltage_mv"]     | static_cast<long>(WARN_BATTERY_VOLTAGE),     2000L, 5500L);
+  LOW_BATTERY_VOLTAGE      = constrain(battery["low_voltage_mv"]      | static_cast<long>(LOW_BATTERY_VOLTAGE),      2000L, 5500L);
+  VERY_LOW_BATTERY_VOLTAGE = constrain(battery["very_low_voltage_mv"] | static_cast<long>(VERY_LOW_BATTERY_VOLTAGE), 2000L, 5500L);
+  CRIT_LOW_BATTERY_VOLTAGE = constrain(battery["crit_low_voltage_mv"] | static_cast<long>(CRIT_LOW_BATTERY_VOLTAGE), 2000L, 5500L);
+  LOW_BATTERY_SLEEP_INTERVAL      = constrain(battery["low_sleep_interval_minutes"]      | static_cast<long>(LOW_BATTERY_SLEEP_INTERVAL),      1L, 10080L);
+  VERY_LOW_BATTERY_SLEEP_INTERVAL = constrain(battery["very_low_sleep_interval_minutes"] | static_cast<long>(VERY_LOW_BATTERY_SLEEP_INTERVAL), 1L, 10080L);
+  MAX_BATTERY_VOLTAGE = constrain(battery["max_voltage_mv"] | static_cast<long>(MAX_BATTERY_VOLTAGE), 2500L, 5500L);
+  MIN_BATTERY_VOLTAGE = constrain(battery["min_voltage_mv"] | static_cast<long>(MIN_BATTERY_VOLTAGE), 2500L, 5500L);
   if (MAX_BATTERY_VOLTAGE <= MIN_BATTERY_VOLTAGE)
   { // the battery percentage divides by their difference
     MAX_BATTERY_VOLTAGE = MIN_BATTERY_VOLTAGE + 1000;
@@ -425,7 +549,18 @@ bool loadSettings()
   HAVDALAH_MINUTES        = constrain(HAVDALAH_MINUTES, 0, 120);
 
   JsonObjectConst portal = doc["portal"];
-  PORTAL_AP_PASSWORD = portal["ap_password"]     | PORTAL_AP_PASSWORD;
+  if (!portal["ap_password"].isNull())
+  {
+    const String ap = portal["ap_password"].as<String>();
+    if (ap.isEmpty() || (ap.length() >= 8 && ap.length() <= 63))
+    {
+      PORTAL_AP_PASSWORD = ap;
+    }
+    else
+    {
+      Serial.println("[settings] portal.ap_password must be 8-63 chars or empty; keeping default");
+    }
+  }
   PORTAL_TIMEOUT     = portal["timeout_minutes"] | PORTAL_TIMEOUT;
   PORTAL_TIMEOUT     = constrain(PORTAL_TIMEOUT, 1, 240);
   HTTP_CLIENT_TCP_TIMEOUT = api["http_client_tcp_timeout_ms"] | HTTP_CLIENT_TCP_TIMEOUT;

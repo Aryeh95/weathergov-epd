@@ -33,7 +33,7 @@
 wl_status_t startWiFi(int &wifiRSSI, unsigned long patienceMs = 0);
 String getWifiFailureDetail(wl_status_t status);
 void killWiFi();
-bool waitForSNTPSync(tm *timeInfo);
+bool waitForSNTPSync(tm *timeInfo, bool *ntpSynced = nullptr);
 bool printLocalTime(tm *timeInfo);
 
 /* Fetches weather.gov's gridpoint forecast (12-hour periods and hourly), and

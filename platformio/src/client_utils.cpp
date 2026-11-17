@@ -457,10 +457,13 @@ void killWiFi()
 bool printLocalTime(tm *timeInfo)
 {
   int attempts = 0;
-  while (!getLocalTime(timeInfo) && attempts++ < 3)
+  while (!getLocalTime(timeInfo, 200))
   {
-    Serial.println(TXT_FAILED_TO_GET_TIME);
-    return false;
+    if (++attempts >= 3)
+    {
+      Serial.println(TXT_FAILED_TO_GET_TIME);
+      return false;
+    }
   }
   Serial.println(timeInfo, "%A, %B %d, %Y %H:%M:%S");
   return true;
@@ -469,11 +472,12 @@ bool printLocalTime(tm *timeInfo)
 /* Waits for NTP server time sync, adjusted for the time zone specified in
  * config.cpp.
  *
- * Returns true if time was set successfully, otherwise false.
+ * Returns true if local time is valid (either freshly synced or from a warm
+ * RTC), otherwise false. Sets *ntpSynced when SNTP itself completed.
  *
  * Note: Must be connected to WiFi to get time from NTP server.
  */
-bool waitForSNTPSync(tm *timeInfo)
+bool waitForSNTPSync(tm *timeInfo, bool *ntpSynced)
 {
   // Wait for SNTP synchronization to complete
   unsigned long timeout = millis() + NTP_TIMEOUT;
@@ -489,6 +493,10 @@ bool waitForSNTPSync(tm *timeInfo)
       delay(100); // ms
     }
     Serial.println();
+  }
+  if (ntpSynced)
+  {
+    *ntpSynced = (sntp_get_sync_status() == SNTP_SYNC_STATUS_COMPLETED);
   }
   return printLocalTime(timeInfo);
 } // waitForSNTPSync
@@ -525,16 +533,36 @@ static bool relayInUse()
   }
   if (s_relayPort == 0)
   {
+    String raw = LOCAL_RELAY;
+    raw.trim();
+    if (raw.startsWith("https://"))
+    {
+      Serial.println("[relay] \"" + LOCAL_RELAY
+                     + "\" uses https:// (relay is plain HTTP on LAN), fetching directly");
+      s_relayDown = true;
+      return false;
+    }
     String host, uri;
-    splitUrl(LOCAL_RELAY, host, uri);
+    splitUrl(raw, host, uri);
     const int colon = host.indexOf(':');
     s_relayHost = (colon == -1) ? host : host.substring(0, colon);
-    s_relayPort = (colon == -1) ? RELAY_DEFAULT_PORT
-                                : static_cast<uint16_t>(host.substring(colon + 1).toInt());
-    if (s_relayHost.isEmpty() || s_relayPort == 0)
+    long portNum = RELAY_DEFAULT_PORT;
+    if (colon != -1)
+    {
+      const String portStr = host.substring(colon + 1);
+      char *end = nullptr;
+      portNum = portStr.isEmpty() ? 0 : strtol(portStr.c_str(), &end, 10);
+      if (!end || *end != '\0' || portNum < 1 || portNum > 65535)
+      {
+        portNum = 0;
+      }
+    }
+    s_relayPort = static_cast<uint16_t>(portNum);
+    if (s_relayHost.isEmpty() || s_relayPort == 0 || uri != "/")
     {
       Serial.println("[relay] can't read the address \"" + LOCAL_RELAY
                      + "\", fetching directly");
+      s_relayPort = 0;
       s_relayDown = true;
       return false;
     }
