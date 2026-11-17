@@ -115,7 +115,7 @@ Seeed's 4.26" panel (219 ppi) is black and white with a waveform for four greys.
 
   The home page comes back five minutes after the last press.
 
-The greys were measured on the panel. Black, dark grey, light grey and white come out at L\* 16, 69, 81 and 100, so the layout also uses checkers of two levels, which at this density read as tones of their own. English only so far.
+The greys were measured on the panel. Black, dark grey, light grey and white come out at L\* 16, 69, 81 and 100, so the layout also uses checkers of two levels, which at this density read as tones of their own. Supports English, Hebrew (`he_IL`, right-to-left) and the other compiled-in locales.
 
 ### 4.26" layout in colour (reTerminal E1002)
 
@@ -144,6 +144,7 @@ Each target selects its board, panel, sensor and pins by itself. Only the DIY bu
 | `dfrobot_firebeetle2_esp32e` | FireBeetle 2 ESP32-E (USB-C) with a 7.5" panel on a DESPI-C02, or a 7.3" colour panel on a DESPI-C73. The default target; select the panel in config.h. |
 | `firebeetle32` | The older micro-USB FireBeetle ESP32. Change `PIN_BAT_ADC` to `A0` and `PIN_EPD_BUSY` to `5` in config.cpp. |
 | `seeed_reterminal_e1002` | reTerminal E1002 |
+| `seeed_reterminal_e1002_426c`, `seeed_reterminal_e1002_426c_he` | reTerminal E1002 running the 4.26" layout's home page in Spectra 6 colour (English or Hebrew) |
 | `seeed_reterminal_e1001` | reTerminal E1001 |
 | `seeed_xiao_ee02_709` | XIAO EE02 with the GDEB0709E01 |
 | `seeed_xiao_ee05` | XIAO EE05 with the 4.26" panel (four-grey layout with pages) |
@@ -438,7 +439,7 @@ The EE05 fits a 3D-printed case: a remix of Seeed Studio's own enclosure for thi
 - a slightly wider screen window;
 - button labels engraved in the back.
 
-The STL files and a print guide are on Printables.
+The STL files and a print guide are on [Printables](https://www.printables.com/).
 
 **Parts:**
 
