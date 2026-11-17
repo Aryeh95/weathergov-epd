@@ -28,6 +28,7 @@ import statistics
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -50,6 +51,11 @@ HOP_HEADERS = {
     "proxy-connection", "te", "upgrade", "x-relay-timeout",
 }
 
+# Ephemeral guest tokens (e.g. Sviva's hourly JWT in Authorization/Cookie)
+# rotate between wakes for the same public feed; forward the latest headers
+# without splitting the cache into a new entry on every rotation.
+EPHEMERAL_HEADERS = {"authorization", "cookie"}
+
 # Query parameters whose values are kept out of the log
 SECRET_PARAMS = re.compile(r"(?i)((?:api_?)?key|token|secret)=[^&]*")
 
@@ -60,25 +66,96 @@ def censor(url):
     return SECRET_PARAMS.sub(lambda m: m.group(1) + "=***", url)
 
 
+def decompress_body(raw, encoding):
+    enc = (encoding or "").strip().lower()
+    if enc == "gzip":
+        return gzip.decompress(raw)
+    if enc == "deflate":
+        try:
+            return zlib.decompress(raw)
+        except zlib.error:
+            return zlib.decompress(raw, -zlib.MAX_WBITS)
+    return raw
+
+
+class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Blocks redirects to non-HTTPS URLs or hosts outside ALLOWED_HOSTS."""
+
+    def __init__(self, allowed):
+        super().__init__()
+        self.allowed = allowed
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        parsed = urllib.parse.urlparse(newurl)
+        host = (parsed.hostname or "").lower()
+        if parsed.scheme != "https" or host not in self.allowed:
+            raise urllib.error.URLError(
+                f"refused redirect to {parsed.scheme}://{host}")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 class Entry:
-    """One URL (with the headers it was asked with) and what the relay
-    knows about it."""
+    """One URL (with its non-ephemeral headers) and what the relay knows
+    about each display asking for it."""
 
     def __init__(self, url, headers):
         self.url = url
-        self.headers = headers
+        self.headers = dict(headers)
         self.status = None
         self.body = b""
         self.ctype = "application/json"
-        self.fetched = 0.0        # when the cached body was fetched
-        self.asked = []           # when a display asked, most recent last
-        self.lock = threading.Lock()
+        self.fetched = 0.0        # when the cached 200 body was fetched
+        self.attempted = 0.0      # last fetch/prefetch attempt (even on error)
+        self.asked_by_client = {} # client_ip -> list of wake timestamps
+        self.lock = threading.RLock()
+
+    def record_ask(self, client_ip, now):
+        with self.lock:
+            stale = [ip for ip, ts in self.asked_by_client.items()
+                     if not ts or now - ts[-1] > 86400]
+            for ip in stale:
+                if ip != client_ip:
+                    del self.asked_by_client[ip]
+            ts = self.asked_by_client.get(client_ip, [])
+            if not ts or now - ts[-1] > 60:  # a retry is not a new wake
+                self.asked_by_client[client_ip] = (ts + [now])[-6:]
+
+    def last_asked(self):
+        with self.lock:
+            return max((ts[-1] for ts in self.asked_by_client.values() if ts),
+                       default=0.0)
+
+    def _client_interval(self, ts):
+        gaps = [b - a for a, b in zip(ts, ts[1:])]
+        return statistics.median(gaps) if gaps else None
 
     def interval(self):
-        """How often the display asks: the median gap between its last
-        few requests, so one long night's sleep doesn't throw it off."""
-        gaps = [b - a for a, b in zip(self.asked, self.asked[1:])]
-        return statistics.median(gaps) if gaps else None
+        """Representative interval (seconds) across active clients, for /status."""
+        with self.lock:
+            intervals = [iv for ts in self.asked_by_client.values()
+                         for iv in (self._client_interval(ts),) if iv is not None]
+        return min(intervals) if intervals else None
+
+    def should_prefetch(self, now, max_age, lead):
+        """True when any active display's next expected wake is within `lead`
+        seconds and the currently cached copy would be expired by that wake."""
+        with self.lock:
+            clients = [(ip, list(ts)) for ip, ts in self.asked_by_client.items() if ts]
+            status, fetched, attempted = self.status, self.fetched, self.attempted
+        for _, ts in clients:
+            every = self._client_interval(ts)
+            if every is None:
+                continue
+            last = ts[-1]
+            if now - last > 3 * every + 3600:
+                continue
+            wake = last + every
+            due = wake - lead
+            if status == 200 and fetched > 0 and wake - fetched <= max_age:
+                continue  # cached copy will still be fresh when this display wakes
+            if now >= due and max(fetched, attempted) < due:
+                return True
+        return False
 
 
 class Relay:
@@ -89,72 +166,87 @@ class Relay:
         self.max_entries = max_entries
         self.entries = {}
         self.lock = threading.Lock()
+        self.opener = urllib.request.build_opener(SafeRedirectHandler(self.allowed))
+
+    def _cache_key(self, url, headers):
+        stable = sorted((k.lower(), v) for k, v in headers.items()
+                        if k.lower() not in EPHEMERAL_HEADERS)
+        return url + "\n" + "\n".join(f"{k}: {v}" for k, v in stable)
 
     def entry(self, url, headers):
-        key = url + "\n" + "\n".join(f"{k}: {v}" for k, v in sorted(headers.items()))
+        key = self._cache_key(url, headers)
         with self.lock:
             e = self.entries.get(key)
             if e is None:
                 if len(self.entries) >= self.max_entries:
-                    oldest = min(self.entries, key=lambda k: self.entries[k].asked[-1]
-                                 if self.entries[k].asked else 0)
+                    oldest = min(self.entries,
+                                 key=lambda k: self.entries[k].last_asked())
                     del self.entries[oldest]
                 e = self.entries[key] = Entry(url, headers)
-            return e
+                return e
+        with e.lock:
+            e.headers = dict(headers)
+        return e
 
     def fetch(self, e, timeout, why):
-        """Fetches e.url into e. Returns an error string when the service
-        could not be reached at all (no HTTP status)."""
+        """Fetches e.url. On live fetch returns (status, body, ctype, err);
+        stores 200 responses in e for caching."""
         req = urllib.request.Request(e.url, headers=dict(e.headers))
         req.add_header("Accept-Encoding", "gzip, deflate")
         start = time.time()
+        e.attempted = start
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
+            with self.opener.open(req, timeout=timeout) as resp:
                 status, raw, hdrs = resp.status, resp.read(), resp.headers
+            raw = decompress_body(raw, hdrs.get("Content-Encoding"))
         except urllib.error.HTTPError as err:
-            status, raw, hdrs = err.code, err.read(), err.headers
-        except Exception as err:  # DNS, refused, timeout, TLS
+            try:
+                err_body = err.read()
+                raw = decompress_body(err_body, err.headers.get("Content-Encoding"))
+                status, hdrs = err.code, err.headers
+            except Exception as dec_err:
+                log.warning("%s %s error-body decode failed: %s",
+                            why, censor(e.url), dec_err)
+                return None, b"", "text/plain", str(dec_err) or type(dec_err).__name__
+        except Exception as err:  # DNS, refused, timeout, TLS, redirect, bad gzip
             log.warning("%s %s failed: %s", why, censor(e.url), err)
-            return str(err) or type(err).__name__
-        enc = (hdrs.get("Content-Encoding") or "").lower()
-        if enc == "gzip":
-            raw = gzip.decompress(raw)
-        elif enc == "deflate":
-            raw = zlib.decompress(raw)
-        e.status, e.body = status, raw
-        e.ctype = hdrs.get("Content-Type") or "application/json"
-        e.fetched = time.time()
+            return None, b"", "text/plain", str(err) or type(err).__name__
+        ctype = hdrs.get("Content-Type") or "application/json"
+        done = time.time()
+        e.attempted = done
+        if status == 200:
+            e.status, e.body, e.ctype, e.fetched = status, raw, ctype, done
+        elif why != "prefetch":
+            e.status = None  # never serve a failure from the cache
         log.info("%s %s -> %d, %d bytes in %.1f s", why, censor(e.url),
-                 status, len(raw), e.fetched - start)
-        return None
+                 status, len(raw), done - start)
+        return status, raw, ctype, None
+
+    def prefetch_one_pass(self, now=None):
+        if now is None:
+            now = time.time()
+        with self.lock:
+            entries = list(self.entries.items())
+        for key, e in entries:
+            last = e.last_asked()
+            if last == 0.0:
+                continue
+            if now - last > 86400:
+                with self.lock:
+                    self.entries.pop(key, None)
+                continue
+            if e.should_prefetch(now, self.max_age, self.lead):
+                with e.lock:
+                    if e.should_prefetch(now, self.max_age, self.lead):
+                        self.fetch(e, 30, "prefetch")
 
     def prefetch_loop(self, period=15):
         while True:
             time.sleep(period)
-            now = time.time()
-            with self.lock:
-                entries = list(self.entries.items())
-            for key, e in entries:
-                if not e.asked:
-                    continue
-                every = e.interval()
-                if every is None:
-                    if now - e.asked[-1] > 86400:
-                        with self.lock:
-                            self.entries.pop(key, None)
-                    continue
-                due = e.asked[-1] + every   # the next expected request
-                if now - e.asked[-1] > 3 * every + 3600:
-                    # the display stopped asking: asleep, gone, or the URL
-                    # changed; keep the entry a day in case it comes back
-                    if now - e.asked[-1] > 86400:
-                        with self.lock:
-                            self.entries.pop(key, None)
-                    continue
-                if now >= due - self.lead and e.fetched < due - self.lead:
-                    with e.lock:
-                        if e.fetched < due - self.lead:
-                            self.fetch(e, 30, "prefetch")
+            try:
+                self.prefetch_one_pass()
+            except Exception:
+                log.exception("unexpected error in prefetch_loop")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -198,36 +290,33 @@ class Handler(BaseHTTPRequestHandler):
             timeout = 20
         e = r.entry(url, headers)
         now = time.time()
-        if not e.asked or now - e.asked[-1] > 60:  # a retry is not a new wake
-            e.asked = (e.asked + [now])[-6:]
+        e.record_ask(self.client_address[0], now)
         with e.lock:
             age = now - e.fetched
             if e.status == 200 and age <= r.max_age:
-                how = "cached"
+                status, body, ctype, how = e.status, e.body, e.ctype, "cached"
             else:
-                err = r.fetch(e, timeout, "fetch")
+                status, body, ctype, err = r.fetch(e, timeout, "fetch")
                 if err:
                     self.reply(502, (err + "\n").encode(),
                                extra=[("X-Relay-Error", err.replace("\n", " ")[:200])])
                     return
                 age, how = 0, "live"
-            status, body, ctype = e.status, e.body, e.ctype
-            if status != 200:
-                e.status = None  # never serve a failure from the cache
         log.info("%s %s -> %d (%s, %d s old)", self.client_address[0],
                  censor(url), status, how, age)
         self.reply(status, body, ctype, extra=[("X-Relay-Age", str(int(age)))])
 
     def status_page(self):
         now = time.time()
-        lines = ["weather relay: %d URLs" % len(self.relay.entries), ""]
         with self.relay.lock:
             entries = list(self.relay.entries.values())
+        lines = ["weather relay: %d URLs" % len(entries), ""]
         for e in sorted(entries, key=lambda e: e.url):
             every = e.interval()
+            last = e.last_asked()
             lines.append("%s\n    asked %d s ago, every %s, cached copy %s"
                          % (censor(e.url),
-                            now - e.asked[-1] if e.asked else -1,
+                            now - last if last else -1,
                             "%d min" % (every / 60) if every else "?",
                             "%d s old" % (now - e.fetched) if e.fetched else "none"))
         self.reply(200, ("\n".join(lines) + "\n").encode())
