@@ -117,7 +117,7 @@ const char *TXT_AIR_QUALITY        = "Qualidade do Ar";
 const char *TXT_AIR_POLLUTION      = "Polui\347\343o do Ar";
 const char *TXT_VISIBILITY         = "Visibilidade";
 const char *TXT_MORE_THAN          = "> ";
-const char *TXT_POLLEN             = "Pólen";
+const char *TXT_POLLEN             = "P\363len";
 // Pollen type driving the index, shown as a small tag beside the
 // "Pollen" label. Keep these short -- they must fit the widget cell.
 const char *TXT_POLLEN_TREE        = "arvore";
@@ -519,9 +519,9 @@ const char *TXT_WL_DISCONNECTED    = "Desconectado";
 
 // WIFI FAILURE DETAILS
 // Shown on the 2nd line of the connection error screen.
-const char *TXT_WIFI_REASON_NO_AP_FOUND    = "Rede não encontrada";
+const char *TXT_WIFI_REASON_NO_AP_FOUND    = "Rede n\343o encontrada";
 const char *TXT_WIFI_REASON_AUTH_FAIL      = "Senha possivelmente incorreta";
-const char *TXT_WIFI_REASON_ASSOC_FAIL     = "Conexão recusada pelo roteador";
+const char *TXT_WIFI_REASON_ASSOC_FAIL     = "Conex\343o recusada pelo roteador";
 const char *TXT_WIFI_REASON_BEACON_TIMEOUT = "Sinal fraco";
 const char *TXT_WIFI_REASON_TIMEOUT        = "Sem resposta do roteador";
 const char *TXT_WIFI_REASON_UNKNOWN        = "Motivo desconhecido";

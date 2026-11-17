@@ -107,12 +107,15 @@ int alertColorSeverity(const owm_alerts_t &alert)
   const int c = alertColorSeverity(alert.description);
   return (c > 0) ? c : alertColorSeverity(alert.event);
 }
-void filterAlerts(std::vector<owm_alerts_t> &resp, int *ignore)
+void filterAlerts(std::vector<owm_alerts_t> &resp, int *ignore, int max_alerts)
 {
-  for (size_t i = 0; i < resp.size(); ++i)
+  const int count = std::min<int>(static_cast<int>(resp.size()), OWM_NUM_ALERTS);
+  int valid = 0;
+  for (int i = 0; i < count; ++i)
   {
     resp[i].event.toLowerCase();
-    ignore[i] = 0;
+    ignore[i] = (valid < max_alerts) ? 0 : 1;
+    if (!ignore[i]) ++valid;
   }
 }
 const char *getUVIdesc(unsigned int uvi)
@@ -141,6 +144,10 @@ const char *getMoonPhaseDesc(int phase)
 }
 uint32_t calcBatPercent(uint32_t v, uint32_t minv, uint32_t maxv)
 {
+  if (v <= minv || maxv <= minv)
+  {
+    return 0;
+  }
   const uint32_t p = static_cast<uint32_t>(
     105 - (105 / (1 + pow(1.724 * (v - minv) / (maxv - minv), 5.5))));
   return p >= 100 ? 100 : p;
@@ -412,7 +419,7 @@ static void weather(const char *path, bool night, int alertCount, const char *st
   localtime_r(&hostNow, &timeInfo);
   String date, refreshed;
   {
-    char buf[48];
+    char buf[64] = {};
     _strftime(buf, sizeof(buf), DATE_FORMAT, &timeInfo);
     date = buf;
     date.replace("  ", " ");

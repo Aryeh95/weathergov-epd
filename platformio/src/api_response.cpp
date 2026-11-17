@@ -512,13 +512,17 @@ void fillCurrentFromFallback(const owm_hourly_t &fallback, owm_current_t &curren
   current.dt         = time(nullptr);
   current.weather     = fallback.weather;
   current.temp        = fallback.temp;
-  current.feels_like  = fallback.temp;
+  current.feels_like  = (!std::isnan(fallback.feels_like) && fallback.feels_like > 0.f)
+                        ? fallback.feels_like : fallback.temp;
   current.wind_speed  = fallback.wind_speed;
   current.wind_gust   = fallback.wind_gust;
   current.wind_deg    = fallback.wind_deg;
   current.clouds      = fallback.clouds;
   current.humidity    = fallback.humidity;
   current.dew_point   = fallback.dew_point;
+  current.uvi         = NAN;
+  current.heat_stress       = fallback.heat_stress;
+  current.heat_stress_level = fallback.heat_stress_level;
   // The hourly forecast carries neither of these. Mark them unavailable so
   // the widgets show "--" and the pressure history skips the sample (see
   // main.cpp), instead of displaying a fabricated 1013 hPa / 10 km.
@@ -809,6 +813,7 @@ DeserializationError deserializeOpenMeteoCurrent(WiFiClient &json,
   current.dt      = time(nullptr);
   current.weather = fallback.weather;
   current.clouds  = fallback.clouds;
+  current.uvi     = NAN;
 
   JsonVariant codeVar = c["weather_code"];
   if (!codeVar.isNull())
@@ -1202,6 +1207,7 @@ DeserializationError deserializeGoogleCurrent(WiFiClient &json,
   current.dt      = time(nullptr);
   current.weather = fallback.weather;
   current.clouds  = fallback.clouds;
+  current.uvi     = NAN;
 
   const bool isDay = doc["isDaytime"].isNull() ? (fallback.weather.icon != "n")
                                                : doc["isDaytime"].as<bool>();
@@ -1285,6 +1291,7 @@ DeserializationError deserializeNWSAlerts(WiFiClient &json,
     return error;
   }
 
+  alerts.clear();
   int i = 0;
   for (JsonObject feature : doc["features"].as<JsonArray>())
   {
@@ -1619,6 +1626,10 @@ DeserializationError deserializeIMSForecast(WiFiClient &json,
       const float rain  = jnum(ho["rain"], 0.f);
       const float pop   = jnum(ho["rain_chance"], 0.f) / 100.f;
       const int   code  = static_cast<int>(jnum(ho["weather_code"], 1230));
+      const float hSpd  = jnum(ho["wind_speed"], 0.f) * KMH_TO_MS;
+      float       hGust = jnum(ho["gust_speed"], NAN);
+      hGust = std::isnan(hGust) ? hSpd : hGust * KMH_TO_MS;
+      const int   hDeg  = imsWindDegrees(static_cast<int>(jnum(ho["wind_direction_id"], 0)));
 
       if (haveDaily)
       {
@@ -1629,6 +1640,14 @@ DeserializationError deserializeIMSForecast(WiFiClient &json,
         {
           hmin = std::isnan(hmin) ? tempC : std::min(hmin, tempC);
           hmax = std::isnan(hmax) ? tempC : std::max(hmax, tempC);
+        }
+        // the wind shown for the day: the strongest hour's
+        if (hSpd > dd.wind_speed
+            || (hSpd == dd.wind_speed && hGust > dd.wind_gust))
+        {
+          dd.wind_speed = hSpd;
+          dd.wind_gust  = hGust;
+          dd.wind_deg   = hDeg;
         }
         // a daytime hour's code stands in for a missing daily block
         tm lt;
@@ -1649,17 +1668,15 @@ DeserializationError deserializeIMSForecast(WiFiClient &json,
       hh = {};
       hh.dt   = t;
       hh.temp = std::isnan(tempC) ? NAN : celsius_to_kelvin(tempC);
-      hh.feels_like = hh.temp;
       hh.humidity   = std::isnan(rh) ? 0 : static_cast<int>(std::round(rh));
       const float dp = dewPointC(tempC, rh);
       hh.dew_point  = std::isnan(dp) ? NAN : celsius_to_kelvin(dp);
       hh.pop        = pop;
       hh.precip     = rain;
-      hh.wind_speed = jnum(ho["wind_speed"], 0.f) * KMH_TO_MS;
-      hh.wind_gust  = jnum(ho["gust_speed"], NAN);
-      hh.wind_gust  = std::isnan(hh.wind_gust) ? hh.wind_speed
-                                               : hh.wind_gust * KMH_TO_MS;
-      hh.wind_deg   = imsWindDegrees(static_cast<int>(jnum(ho["wind_direction_id"], 0)));
+      hh.wind_speed = hSpd;
+      hh.wind_gust  = hGust;
+      hh.wind_deg   = hDeg;
+      hh.feels_like = apparentTemperatureK(hh.temp, hh.humidity, hh.wind_speed);
       hh.heat_stress       = jnum(ho["heat_stress"], 0.f);
       hh.heat_stress_level = static_cast<int>(jnum(ho["heat_stress_level"], 0.f));
       applyImsCode(code, hh.weather, hh.clouds);
@@ -1681,7 +1698,6 @@ DeserializationError deserializeIMSForecast(WiFiClient &json,
       {
         applyImsCode(dayCode < 0 ? 1230 : dayCode, dd.weather, dd.clouds);
       }
-      // the wind shown for the day: the strongest hour's
       ++di;
     }
   }
@@ -1914,6 +1930,7 @@ DeserializationError deserializeIMSAlerts(WiFiClient &json, int rid,
     return error;
   }
 
+  alerts.clear();
   JsonObject types = doc["data"]["warnings_metadata"]["ims_warning_type"];
   JsonObject sevs  = doc["data"]["warnings_metadata"]["warning_severity"];
   const bool he = (OWM_LANG == "he");

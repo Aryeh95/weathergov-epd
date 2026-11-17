@@ -119,7 +119,7 @@ const char *TXT_POLLEN_WEED        = "maleza";
 const char *TXT_POLLEN_ALL         = "todos";
 const char *TXT_INDOOR_TEMPERATURE = "Temperatura";
 const char *TXT_INDOOR_HUMIDITY    = "Humedad";
-const char *TXT_DEWPOINT           = "Punto de rocío";
+const char *TXT_DEWPOINT           = "Punto de roc\355o";
 const char *TXT_TEMPERATURE        = "Temperatura";
 
 // MOON PHASE
@@ -153,8 +153,8 @@ const char *TXT_WIFI_NO_CONNECTION = "Sin conexi\363n";
 
 // UNIT SYMBOLS - TEMPERATURE
 const char *TXT_UNITS_TEMP_KELVIN     = "K";
-const char *TXT_UNITS_TEMP_CELSIUS    = "C";
-const char *TXT_UNITS_TEMP_FAHRENHEIT = "F";
+const char *TXT_UNITS_TEMP_CELSIUS    = "\260C";
+const char *TXT_UNITS_TEMP_FAHRENHEIT = "\260F";
 // UNIT SYMBOLS - WIND SPEED
 const char *TXT_UNITS_SPEED_METERSPERSECOND   = "m/s";
 const char *TXT_UNITS_SPEED_FEETPERSECOND     = "ft/s";
@@ -169,8 +169,8 @@ const char *TXT_UNITS_PRES_MILLIMETERSOFMERCURY     = "mmHg";
 const char *TXT_UNITS_PRES_INCHESOFMERCURY          = "inHg";
 const char *TXT_UNITS_PRES_MILLIBARS                = "mbar";
 const char *TXT_UNITS_PRES_ATMOSPHERES              = "atm";
-const char *TXT_UNITS_PRES_GRAMSPERSQUARECENTIMETER = "g/cm";
-const char *TXT_UNITS_PRES_POUNDSPERSQUAREINCH      = "lb/in";
+const char *TXT_UNITS_PRES_GRAMSPERSQUARECENTIMETER = "g/cm\262";
+const char *TXT_UNITS_PRES_POUNDSPERSQUAREINCH      = "lb/in\262";
 // UNITS SYMBOLS - VISIBILITY DISTANCE
 const char *TXT_UNITS_DIST_KILOMETERS = "km";
 const char *TXT_UNITS_DIST_MILES      = "mi";
@@ -399,13 +399,13 @@ const char *UNITED_STATES_AQI_SHORT_TXT[6] =
 // COMPASS POINT
 const char *COMPASS_POINT_NOTATION[32] = {
 //   0°   11.25°   22.5°   33.75°   45°   56.25°   67.5°   78.75°
-   "N",  "NNO",  "NE",   "ENE",  "E",  "ESE",  "SE",  "SSE",
+   "N",  "NpE",  "NNE",   "NEpN",  "NE", "NEpE",  "ENE",  "EpN",
 //  90°  101.25°  112.5°  123.75°  135°  146.25°  157.5°  168.75°
-   "S",  "SSO",   "SO",  "OSO",  "O", "ONO",  "NO",  "NNO",
+   "E",  "EpS",   "ESE",  "SEpE",  "SE", "SEpS",  "SSE",  "SpE",
 // 180°  191.25°  202.5°  213.75°  225°  236.25°  247.5°  258.75°
-   "O",  "ONO",   "NO",  "NNO",  "N", "NNO",  "NE",  "ENE",
+   "S",  "SpO",   "SSO",  "SOpS",  "SO", "SOpO",  "OSO",  "OpS",
 // 270°  281.25°  292.5°  303.75°  315°  326.25°  337.5°  348.75°
-   "E",  "ESE",  "SE",  "SSE",  "S", "SSO",  "SO",  "OSO",
+   "O",  "OpN",   "ONO",  "NOpO",  "NO", "NOpN",  "NNO",  "NpO",
 };
 
 // HTTP CLIENT ERRORS
@@ -511,8 +511,8 @@ const char *TXT_WL_DISCONNECTED    = "Desconectado";
 // WIFI FAILURE DETAILS
 // Shown on the 2nd line of the connection error screen.
 const char *TXT_WIFI_REASON_NO_AP_FOUND    = "Red no encontrada";
-const char *TXT_WIFI_REASON_AUTH_FAIL      = "Contraseña posiblemente incorrecta";
-const char *TXT_WIFI_REASON_ASSOC_FAIL     = "El router rechazó la conexión";
-const char *TXT_WIFI_REASON_BEACON_TIMEOUT = "Señal débil";
+const char *TXT_WIFI_REASON_AUTH_FAIL      = "Contrase\361a posiblemente incorrecta";
+const char *TXT_WIFI_REASON_ASSOC_FAIL     = "El router rechaz\363 la conexi\363n";
+const char *TXT_WIFI_REASON_BEACON_TIMEOUT = "Se\361al d\351bil";
 const char *TXT_WIFI_REASON_TIMEOUT        = "Sin respuesta del router";
 const char *TXT_WIFI_REASON_UNKNOWN        = "Motivo desconocido";

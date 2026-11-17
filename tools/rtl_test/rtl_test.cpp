@@ -86,6 +86,10 @@ int main()
   check("time", "זריחה 06:42", "06:42 החירז");
   // Hebrew on both sides of a number
   check("date", "יום ג' 5 באוק'", "'קואב 5 'ג םוי");
+  // trailing comma after a date stays with the Hebrew clause, not the number
+  check("date with commas", "יום שישי, 09/10, כ\"ח תשרי", "ירשת ח\"כ ,09/10 ,ישיש םוי");
+  // leading '<' before a digit stays attached to the number
+  check("less-than mm", "<1 מ\"מ", "מ\"מ <1");
   // brackets mirror inside Hebrew
   check("brackets", "(סערה)", "(הרעס)");
   // Latin word inside Hebrew keeps its letters in order
@@ -141,11 +145,18 @@ int main()
     if (!ok) ++failures;
   }
 #else
-  // with LC_RTL off (a Latin-1 locale) nothing changes at all
+  // with LC_RTL off (a Latin-1 locale): 2-byte UTF-8 folds onto ISO-8859-1,
+  // raw Latin-1 escapes pass through, and unmapped scripts become '?'
+  {
+    String s = shapeText(String("Z\xC3\xBCrich 24\xC2\xB0" "C / 24\260C"));
+    bool ok = s == "Z\xFCrich 24\xB0" "C / 24\xB0" "C";
+    printf("%s %-28s %s\n", ok ? "ok  " : "FAIL", "UTF-8 to Latin-1", hex(s).c_str());
+    if (!ok) ++failures;
+  }
   {
     String s = shapeText(String("לחות 91%"));
-    bool ok = s == "לחות 91%";
-    printf("%s %-28s\n", ok ? "ok  " : "FAIL", "LTR locale untouched");
+    bool ok = s == "???? 91%";
+    printf("%s %-28s %s\n", ok ? "ok  " : "FAIL", "LTR unmapped -> '?'", hex(s).c_str());
     if (!ok) ++failures;
   }
 #endif

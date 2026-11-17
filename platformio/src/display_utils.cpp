@@ -125,6 +125,10 @@ uint32_t readBatteryVoltage()
  */
 uint32_t calcBatPercent(uint32_t v, uint32_t minv, uint32_t maxv)
 {
+  if (v <= minv || maxv <= minv)
+  {
+    return 0;
+  }
   // slow
   //uint32_t p = 110 - (110 / (1 + pow(1.468 * (v - minv)/(maxv - minv), 6)));
 
@@ -190,9 +194,20 @@ void getDateStr(String &s, tm *timeInfo)
   s.replace(", ,", ",");
   s.replace(" · ·", " ·");
   s.trim();
-  while (s.length() > 0 && (s.endsWith(",") || s.endsWith("·") || s.endsWith("-") || s.endsWith("|")))
+  while (s.length() > 0)
   {
-    s.remove(s.length() - 1);
+    if (s.endsWith("·"))
+    {
+      s.remove(s.length() - strlen("·"));
+    }
+    else if (s.endsWith(",") || s.endsWith("-") || s.endsWith("|"))
+    {
+      s.remove(s.length() - 1);
+    }
+    else
+    {
+      break;
+    }
     s.trim();
   }
   return;
@@ -418,18 +433,20 @@ static int alertUrgency(const owm_alerts_t &alert)
  * Truncate Extraneous Info (anything that follows a comma, period, or open
  *   parentheses)
  */
-void filterAlerts(std::vector<owm_alerts_t> &resp, int *ignore_list)
+void filterAlerts(std::vector<owm_alerts_t> &resp, int *ignore_list,
+                  int max_alerts)
 {
+  const int count = std::min<int>(static_cast<int>(resp.size()), OWM_NUM_ALERTS);
   // Convert all event text and tags to lowercase.
-  for (auto &alert : resp)
+  for (int i = 0; i < count; ++i)
   {
-    alert.event.toLowerCase();
-    alert.tags.toLowerCase();
+    resp[i].event.toLowerCase();
+    resp[i].tags.toLowerCase();
   }
 
   // Deduplicate alerts with the same first tag. Keeping only the most urgent
   // alerts of each tag and alerts who's urgency cannot be determined.
-  for (int i = 0; i < resp.size(); ++i)
+  for (int i = 0; i < count; ++i)
   {
     if (ignore_list[i] == 1)
     {
@@ -440,7 +457,7 @@ void filterAlerts(std::vector<owm_alerts_t> &resp, int *ignore_list)
       continue; // urgency can not be determined so it remains in the list
     }
 
-    for (int j = 0; j < resp.size(); ++j)
+    for (int j = 0; j < count; ++j)
     {
       if (i != j && resp[i].tags == resp[j].tags)
       {
@@ -453,11 +470,11 @@ void filterAlerts(std::vector<owm_alerts_t> &resp, int *ignore_list)
     }
   }
 
-  // Save only the 2 most recent alerts
+  // Save up to max_alerts alerts
   int valid_cnt = 0;
-  for (int i = 0; i < resp.size(); ++i)
+  for (int i = 0; i < count; ++i)
   {
-    if (valid_cnt < 2 && !ignore_list[i])
+    if (valid_cnt < max_alerts && !ignore_list[i])
     {
       ++valid_cnt;
     }
@@ -468,9 +485,9 @@ void filterAlerts(std::vector<owm_alerts_t> &resp, int *ignore_list)
   }
 
   // Remove trailing/extraneous information
-  for (auto &alert : resp)
+  for (int i = 0; i < count; ++i)
   {
-    truncateExtraAlertInfo(alert.event);
+    truncateExtraAlertInfo(resp[i].event);
   }
 
   return;
@@ -927,7 +944,7 @@ uint16_t getConditionsColor(int id, bool day, bool moon, bool cloudy,
     return COLOR_SUN;
   }
   // clouds, fog, dust, night skies, windy variants
-  return GxEPD_BLACK;
+  return DARK_MODE ? GxEPD_WHITE : GxEPD_BLACK;
 #endif
 } // end getConditionsColor
 
@@ -1787,12 +1804,12 @@ static const unsigned char *wind_direction_icon_arr[] = {
  */
 const uint8_t *getWindBitmap24(int windDeg)
 {
-  windDeg %= 360; // enforce domain
+  windDeg = ((windDeg % 360) + 360) % 360; // enforce [0, 360)
   // number of directions
   int n = sizeof(wind_direction_icon_arr)
           / sizeof(wind_direction_icon_arr[0]);
-  int arr_offset = (int) ( (windDeg + (360 / n / 2)) % 360 )
-                         / ( 360 / (float) n );
+  const float sector = 360.0f / static_cast<float>(n);
+  int arr_offset = static_cast<int>(std::floor((windDeg + sector * 0.5f) / sector)) % n;
 
   return wind_direction_icon_arr[arr_offset];
 } // end getWindBitmap24
@@ -1820,9 +1837,11 @@ const char *getCompassPointNotation(int windDeg)
   const int precision = 4;
 #endif
 
-  windDeg %= 360; // enforce domain
-  int arr_offset = (int) (windDeg / ( 360 / (float) precision ))
-                         * ( 32 / precision) ;
+  windDeg = ((windDeg % 360) + 360) % 360; // enforce [0, 360)
+  const float sector = 360.0f / static_cast<float>(precision);
+  const int bin = static_cast<int>(std::floor((windDeg + sector * 0.5f) / sector))
+                  % precision;
+  int arr_offset = bin * (32 / precision);
 
   return COMPASS_POINT_NOTATION[arr_offset];
 } // end getCompassPointNotation

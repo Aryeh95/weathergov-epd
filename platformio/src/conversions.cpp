@@ -81,6 +81,10 @@ float meterspersecond_to_knots(float meterspersecond)
 
 int meterspersecond_to_beaufort(float meterspersecond)
 {
+  if (!(meterspersecond > 0.f))
+  {
+    return 0;
+  }
   int beaufort = (int) ((powf( 1 / 0.836f, 2.f/3.f)
                          * powf(meterspersecond, 2.f/3.f))
                         + .5f);

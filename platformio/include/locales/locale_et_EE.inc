@@ -117,7 +117,7 @@ const char *TXT_AIR_QUALITY        = "\xD5hu Kvaliteet";
 const char *TXT_AIR_POLLUTION      = "\xD5husaaste";
 const char *TXT_VISIBILITY         = "N\xE4htavus";
 const char *TXT_MORE_THAN          = "> ";
-const char *TXT_POLLEN             = "Õietolm";
+const char *TXT_POLLEN             = "\xD5ietolm";
 // Pollen type driving the index, shown as a small tag beside the
 // "Pollen" label. Keep these short -- they must fit the widget cell.
 const char *TXT_POLLEN_TREE        = "puu";
@@ -517,9 +517,9 @@ const char *TXT_WL_DISCONNECTED    = "Disconnected";
 
 // WIFI FAILURE DETAILS
 // Shown on the 2nd line of the connection error screen.
-const char *TXT_WIFI_REASON_NO_AP_FOUND    = "Võrku ei leitud";
-const char *TXT_WIFI_REASON_AUTH_FAIL      = "Parool võib olla vale";
-const char *TXT_WIFI_REASON_ASSOC_FAIL     = "Ruuter keeldus ühendusest";
-const char *TXT_WIFI_REASON_BEACON_TIMEOUT = "Nõrk signaal";
+const char *TXT_WIFI_REASON_NO_AP_FOUND    = "V\xF5rku ei leitud";
+const char *TXT_WIFI_REASON_AUTH_FAIL      = "Parool v\xF5ib olla vale";
+const char *TXT_WIFI_REASON_ASSOC_FAIL     = "Ruuter keeldus \xFChendusest";
+const char *TXT_WIFI_REASON_BEACON_TIMEOUT = "N\xF5rk signaal";
 const char *TXT_WIFI_REASON_TIMEOUT        = "Ruuter ei vasta";
-const char *TXT_WIFI_REASON_UNKNOWN        = "Teadmata põhjus";
+const char *TXT_WIFI_REASON_UNKNOWN        = "Teadmata p\xF5hjus";

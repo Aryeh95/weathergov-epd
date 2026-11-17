@@ -864,6 +864,10 @@ static float toUnitsF(float kelvin)
 }
 static String tempText(float kelvin)
 {
+  if (std::isnan(kelvin))
+  {
+    return "--";
+  }
   return String(toUnits(kelvin)) + "\xB0";
 }
 
@@ -953,7 +957,7 @@ void layout709Begin(std::vector<owm_alerts_t> &alerts,
     return;
   }
   int ignore[OWM_NUM_ALERTS] = {0};
-  filterAlerts(alerts, ignore);
+  filterAlerts(alerts, ignore, OWM_NUM_ALERTS);
   const time_t now = nowUtc();
   tm today;
   localtime_r(&now, &today);
@@ -1527,45 +1531,62 @@ void drawCurrentConditions(const owm_current_t &current,
                              : RISK_PURPLE;
   }
 
-  // air quality: AirNow's official figure when there is one, otherwise
-  // worked out from Open-Meteo's modelled pollutants
+  // air quality: AirNow's official figure when there is one, Israel's
+  // Ministry index when configured/available, otherwise Open-Meteo's model
   const bool epa = (air.us_aqi >= 0);
-  const bool airKnown = epa || air.valid;
-  int aqi = 0, aqiMax = 0;
-  if (epa)
+  const bool useIL = !epa && air.il_valid;
+  const bool airKnown = epa || useIL || air.valid;
+  if (useIL)
   {
-    aqi = air.us_aqi;
-    aqiMax = UNITED_STATES_AQI_MAX;
-  }
-  else if (airKnown)
-  {
-    const owm_components_t &p = air.components;
-    aqi = calc_aqi(AQI_SCALE, p.co, p.nh3, p.no, p.no2, p.o3, NULL, p.so2,
-                   p.pm10, p.pm2_5);
-    aqiMax = aqi_scale_max(AQI_SCALE);
-  }
-  const bool usScale = epa || (AQI_SCALE == UNITED_STATES_AQI);
-  cells[CK_AIR].label = label((epa || aqi_desc_type(AQI_SCALE) == AIR_QUALITY_DESC)
-                     ? TXT_AIR_QUALITY : TXT_AIR_POLLUTION);
-  if (!airKnown)
-  { // neither source answered
-    cells[CK_AIR].value = "--";
+    const int il = air.il_index;
+    const int band = (il > 50) ? 0 : (il >= 0) ? 1 : (il >= -200) ? 2 : 3;
+    static const int IL_BAND[4] = {RISK_GREEN, RISK_YELLOW, RISK_RED,
+                                   RISK_MAROON};
+    cells[CK_AIR].label = label(TXT_AIR_QUALITY);
+    cells[CK_AIR].tag   = TXT_IL_AQI_TAG;
+    cells[CK_AIR].value = String(il);
+    cells[CK_AIR].word  = TXT_IL_AQI[band];
+    cells[CK_AIR].brief = TXT_IL_AQI[band];
+    cells[CK_AIR].level = IL_BAND[band];
   }
   else
   {
-    cells[CK_AIR].tag = epa ? TXT709_TAG_EPA : TXT709_TAG_MODEL;
-    cells[CK_AIR].value = (aqi > aqiMax) ? "> " + String(aqiMax) : String(aqi);
-    cells[CK_AIR].word = epa ? united_states_aqi_desc(aqi)
-                    : aqi_desc(AQI_SCALE, aqi);
-  }
-  if (airKnown && usScale)
-  {
-    static const int BAND[6] = {RISK_GREEN, RISK_YELLOW, RISK_AMBER,
-                                RISK_RED, RISK_PURPLE, RISK_MAROON};
-    const int band = (aqi <= 50) ? 0 : (aqi <= 100) ? 1 : (aqi <= 150) ? 2
-                   : (aqi <= 200) ? 3 : (aqi <= 300) ? 4 : 5;
-    cells[CK_AIR].level = BAND[band];
-    cells[CK_AIR].brief = UNITED_STATES_AQI_SHORT_TXT[band];
+    int aqi = 0, aqiMax = 0;
+    if (epa)
+    {
+      aqi = air.us_aqi;
+      aqiMax = UNITED_STATES_AQI_MAX;
+    }
+    else if (airKnown)
+    {
+      const owm_components_t &p = air.components;
+      aqi = calc_aqi(AQI_SCALE, p.co, p.nh3, p.no, p.no2, p.o3, NULL, p.so2,
+                     p.pm10, p.pm2_5);
+      aqiMax = aqi_scale_max(AQI_SCALE);
+    }
+    const bool usScale = epa || (AQI_SCALE == UNITED_STATES_AQI);
+    cells[CK_AIR].label = label((epa || aqi_desc_type(AQI_SCALE) == AIR_QUALITY_DESC)
+                       ? TXT_AIR_QUALITY : TXT_AIR_POLLUTION);
+    if (!airKnown)
+    { // neither source answered
+      cells[CK_AIR].value = "--";
+    }
+    else
+    {
+      cells[CK_AIR].tag = epa ? TXT709_TAG_EPA : TXT709_TAG_MODEL;
+      cells[CK_AIR].value = (aqi > aqiMax) ? "> " + String(aqiMax) : String(aqi);
+      cells[CK_AIR].word = epa ? united_states_aqi_desc(aqi)
+                      : aqi_desc(AQI_SCALE, aqi);
+    }
+    if (airKnown && usScale)
+    {
+      static const int BAND[6] = {RISK_GREEN, RISK_YELLOW, RISK_AMBER,
+                                  RISK_RED, RISK_PURPLE, RISK_MAROON};
+      const int band = (aqi <= 50) ? 0 : (aqi <= 100) ? 1 : (aqi <= 150) ? 2
+                     : (aqi <= 200) ? 3 : (aqi <= 300) ? 4 : 5;
+      cells[CK_AIR].level = BAND[band];
+      cells[CK_AIR].brief = UNITED_STATES_AQI_SHORT_TXT[band];
+    }
   }
 
   cells[CK_POLLEN].label = TXT_POLLEN;
@@ -3116,7 +3137,17 @@ static void chart(Met m, const owm_hourly_t *hourly, Frame f, int yTitle,
   if (m == RAIN_BOTH && !amounts) m = RAIN;
   auto mx = [&](const float *v) { float r = -1e9f; for (int i = 0; i < n; ++i) if (!std::isnan(v[i])) r = std::max(r, v[i]); return r; };
   auto mn = [&](const float *v) { float r = 1e9f; for (int i = 0; i < n; ++i) if (!std::isnan(v[i])) r = std::min(r, v[i]); return r; };
-  auto argmax = [&](const float *v) { int k = 0; for (int i = 1; i < n; ++i) if (v[i] > v[k]) k = i; return k; };
+  auto argmax = [&](const float *v) {
+    int k = 0;
+    for (int i = 1; i < n; ++i)
+    {
+      if (!std::isnan(v[i]) && (std::isnan(v[k]) || v[i] > v[k]))
+      {
+        k = i;
+      }
+    }
+    return k;
+  };
   auto I = [](float x) { return String(static_cast<int>(lroundf(x))); };
   float total = 0;
   for (int i = 0; i < n; ++i) if (!std::isnan(va[i])) total += va[i];

@@ -637,13 +637,19 @@ size_t _strftime(char *s, size_t maxsize, const char *format,
     i = strlen(tbuf);
     if (i)
     {
-      if (s + i < endp - 1)
+      if (s + i < endp)
       {
         strcpy(s, tbuf);
         s += i;
       }
       else
+      {
+        if (s < endp)
+        {
+          *s = '\0';
+        }
         return 0;
+      }
     }
   }
 out:
@@ -653,6 +659,12 @@ out:
     return (s - start);
   }
   else
+  {
+    if (s < endp)
+    {
+      *s = '\0';
+    }
     return 0;
+  }
 } // end _strftime
 

@@ -118,7 +118,7 @@ const char *TXT_AIR_QUALITY        = "Ilman Laatu";
 const char *TXT_AIR_POLLUTION      = "Ilmansaaste";
 const char *TXT_VISIBILITY         = "N\xE4kyvyys";
 const char *TXT_MORE_THAN          = "> ";
-const char *TXT_POLLEN             = "Siitepöly";
+const char *TXT_POLLEN             = "Siitep\xF6ly";
 // Pollen type driving the index, shown as a small tag beside the
 // "Pollen" label. Keep these short -- they must fit the widget cell.
 const char *TXT_POLLEN_TREE        = "puu";
@@ -137,9 +137,9 @@ const char *TXT_WAXING_CRESCENT = "Kasvava puolikuu";
 const char *TXT_FIRST_QUARTER   = "Ensimm\xE4inen nelj\xE4nnes";
 const char *TXT_WAXING_GIBBOUS  = "Kasvava kupera kuu";
 const char *TXT_FULL_MOON       = "T\xE4ysikuu";
-const char *TXT_WANING_GIBBOUS  = "V\xE4henev kupera kuu";
+const char *TXT_WANING_GIBBOUS  = "V\xE4henev\xE4 kupera kuu";
 const char *TXT_THIRD_QUARTER   = "Viimeinen nelj\xE4nnes";
-const char *TXT_WANING_CRESCENT = "V\xE4henev puolikuu";
+const char *TXT_WANING_CRESCENT = "V\xE4henev\xE4 puolikuu";
 
 // UV INDEX
 const char *TXT_UV_LOW       = "Matala";
@@ -518,9 +518,9 @@ const char *TXT_WL_DISCONNECTED    = "Disconnected";
 
 // WIFI FAILURE DETAILS
 // Shown on the 2nd line of the connection error screen.
-const char *TXT_WIFI_REASON_NO_AP_FOUND    = "Verkkoa ei löytynyt";
-const char *TXT_WIFI_REASON_AUTH_FAIL      = "Salasana mahdollisesti väärä";
-const char *TXT_WIFI_REASON_ASSOC_FAIL     = "Reititin hylkäsi yhteyden";
+const char *TXT_WIFI_REASON_NO_AP_FOUND    = "Verkkoa ei l\xF6ytynyt";
+const char *TXT_WIFI_REASON_AUTH_FAIL      = "Salasana mahdollisesti v\xE4\xE4r\xE4";
+const char *TXT_WIFI_REASON_ASSOC_FAIL     = "Reititin hylk\xE4si yhteyden";
 const char *TXT_WIFI_REASON_BEACON_TIMEOUT = "Heikko signaali";
-const char *TXT_WIFI_REASON_TIMEOUT        = "Ei vastausta reitittimeltä";
+const char *TXT_WIFI_REASON_TIMEOUT        = "Ei vastausta reitittimelt\xE4";
 const char *TXT_WIFI_REASON_UNKNOWN        = "Tuntematon syy";

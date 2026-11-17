@@ -174,8 +174,8 @@ const char *TXT_UNITS_PRES_MILLIMETERSOFMERCURY     = "mmHg";
 const char *TXT_UNITS_PRES_INCHESOFMERCURY          = "inHg";
 const char *TXT_UNITS_PRES_MILLIBARS                = "mbar";
 const char *TXT_UNITS_PRES_ATMOSPHERES              = "atm";
-const char *TXT_UNITS_PRES_GRAMSPERSQUARECENTIMETER = "g/cm˛";
-const char *TXT_UNITS_PRES_POUNDSPERSQUAREINCH      = "lb/in˛";
+const char *TXT_UNITS_PRES_GRAMSPERSQUARECENTIMETER = "g/cm2";
+const char *TXT_UNITS_PRES_POUNDSPERSQUAREINCH      = "lb/in2";
 // UNITS SYMBOLS - VISIBILITY DISTANCE
 const char *TXT_UNITS_DIST_KILOMETERS = "km";
 const char *TXT_UNITS_DIST_MILES      = "mi";

@@ -310,19 +310,19 @@ const aqi_scale_t AQI_SCALE = EUROPEAN_UNION_CAQI;
 
 const char *AUSTRALIA_AQI_TXT[6] =
 {
-  "Tr\350s bon",
-  "Bon",
-  "Juste",
-  "Mauvais",
-  "Tr\350s mauvais",
-  "Dangereux",
+  "Ottimo",
+  "Buono",
+  "Discreto",
+  "Scarso",
+  "Molto scarso",
+  "Pericoloso",
 };
 const char *CANADA_AQHI_TXT[4] =
 {
-  "Bas",
-  "Mod\351r\351",
-  "Haut",
-  "Tr\350s haut",
+  "Basso",
+  "Moderato",
+  "Alto",
+  "Molto alto",
 };
 const char *EUROPEAN_UNION_CAQI_TXT[5] =
 {
@@ -334,60 +334,60 @@ const char *EUROPEAN_UNION_CAQI_TXT[5] =
 };
 const char *HONG_KONG_AQHI_TXT[5] =
 {
-  "Bas",
-  "Mod\351r\351",
-  "Haut",
-  "Tr\350s haut",
-  "Dangereux",
+  "Basso",
+  "Moderato",
+  "Alto",
+  "Molto alto",
+  "Grave",
 };
 const char *INDIA_AQI_TXT[6] =
 {
-  "Bon",
-  "Satisfaisant",
-  "Mod\351r\351",
-  "Mauvais",
-  "Tr\350s mauvais",
-  "S\351v\350re",
+  "Buono",
+  "Soddisfacente",
+  "Moderato",
+  "Scarso",
+  "Molto scarso",
+  "Grave",
 };
 const char *CHINA_AQI_TXT[6] =
 {
-  "Excellent",
-  "Bon",
-  "L\351g\350rement pollu\351",
-  "Mod\351r\351ment pollu\351",
-  "Tr\350s pollu\351",
-  "S\351v\350rement pollu\351",
+  "Eccellente",
+  "Buono",
+  "Lievemente inquinato",
+  "Moderatamente inquinato",
+  "Fortemente inquinato",
+  "Gravemente inquinato",
 };
 const char *SINGAPORE_PSI_TXT[5] =
 {
-  "Bon",
-  "Mod\351r\351",
-  "Malsain",
-  "Tr\350s malsain",
-  "Dangereux",
+  "Buono",
+  "Moderato",
+  "Insalubre",
+  "Molto insalubre",
+  "Pericoloso",
 };
 const char *SOUTH_KOREA_CAI_TXT[4] =
 {
-  "Bon",
-  "Moyen",
-  "Malsain",
-  "Tr\350s malsain",
+  "Buono",
+  "Medio",
+  "Insalubre",
+  "Molto insalubre",
 };
 const char *UNITED_KINGDOM_DAQI_TXT[4] =
 {
-  "Bas",
-  "Mod\351r\351",
-  "Haut",
-  "Tr\350s haut",
+  "Basso",
+  "Moderato",
+  "Alto",
+  "Molto alto",
 };
 const char *UNITED_STATES_AQI_TXT[6] =
 {
-  "Bon",
-  "Mod\351r\351",
-  "Malsain pour les groupes sensibles",
-  "Malsain",
-  "Tr\350s malsain",
-  "Dangereux",
+  "Buona",
+  "Moderata",
+  "Insalubre per i gruppi sensibili",
+  "Insalubre",
+  "Molto insalubre",
+  "Pericolosa",
 };
 } // end extern "C"
 /* Short forms of the above, for the AQI widget's badge when the column is
@@ -395,12 +395,12 @@ const char *UNITED_STATES_AQI_TXT[6] =
  */
 const char *UNITED_STATES_AQI_SHORT_TXT[6] =
 {
-  "Bon",
-  "Mod\351r\351",
-  "Malsain gr. sens.",
-  "Malsain",
-  "T. malsain",
-  "Danger",
+  "Buona",
+  "Moderata",
+  "Sensibili",
+  "Insalubre",
+  "M. insalubre",
+  "Pericolosa",
 };
 
 

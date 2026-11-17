@@ -415,7 +415,9 @@ int hebcalEvening(const tm *civilDay, bool &isYomTov)
   if (tomorrowHoly)
   {
     isYomTov = tomorrowYT;
-    return todayHoly ? HEBCAL_EVE_CANDLES_LATE : HEBCAL_EVE_CANDLES;
+    // Friday's sunset starts Shabbat even when Friday is a Yom Tov, so
+    // Shabbat candles must be lit before sunset (never after nightfall).
+    return (todayHoly && wd != 5) ? HEBCAL_EVE_CANDLES_LATE : HEBCAL_EVE_CANDLES;
   }
   if (todayHoly)
   {

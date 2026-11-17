@@ -638,6 +638,7 @@ void initDisplay()
   {
     pinMode(PIN_EPD_PWR, OUTPUT);
     digitalWrite(PIN_EPD_PWR, HIGH);
+    delay(20); // let the switched panel rail settle before _reset()
   }
 #ifdef DRIVER_WAVESHARE
   display.init(115200, true, 2, false);
@@ -682,6 +683,12 @@ void powerOffDisplay()
                        // minimum power use
   if (PIN_EPD_PWR != PIN_UNUSED)
   {
+    SPI.end();
+    pinMode(PIN_EPD_CS, INPUT);
+    pinMode(PIN_EPD_DC, INPUT);
+    pinMode(PIN_EPD_RST, INPUT);
+    pinMode(PIN_EPD_SCK, INPUT);
+    pinMode(PIN_EPD_MOSI, INPUT);
     digitalWrite(PIN_EPD_PWR, LOW);
   }
   return;
@@ -808,7 +815,12 @@ void drawCurrentSunrise(const owm_current_t &current)
 
   // sunrise
   display.setFont(&FONT_12pt8b);
-  char timeBuffer[12] = {}; // big enough to accommodate "hh:mm:ss am"
+  if (current.sunrise <= 0)
+  {
+    drawString(48 + (162 * PosX), wgtValueY(PosY), "--", LEFT);
+    return;
+  }
+  char timeBuffer[32] = {};
   time_t ts = current.sunrise;
   tm *timeInfo = localtime(&ts);
   _strftime(timeBuffer, sizeof(timeBuffer), TIME_FORMAT, timeInfo);
@@ -871,7 +883,12 @@ void drawCurrentSunset(const owm_current_t &current)
 
   // sunset (or the candle lighting / close that stands in for it)
   display.setFont(&FONT_12pt8b);
-  char timeBuffer[12] = {}; // big enough to accommodate "hh:mm:ss am"
+  if (ts <= 0)
+  {
+    drawString(48 + (162 * PosX), wgtValueY(PosY), "--", LEFT);
+    return;
+  }
+  char timeBuffer[32] = {};
   tm *timeInfo = localtime(&ts);
   _strftime(timeBuffer, sizeof(timeBuffer), TIME_FORMAT, timeInfo);
   drawString(48 + (162 * PosX), wgtValueY(PosY), timeBuffer, LEFT);
@@ -1624,6 +1641,9 @@ void drawCurrentDewpoint(const owm_current_t &current)
   // icons
   drawWidgetIcon(162 * PosX, wgtY(PosY),
                  wi_thermometer_48x48, wi_thermometer_40x40, "dewpoint", DM_FG);
+#ifdef MULTICOLOR_DISPLAY
+  if (!getColorWidgetIcon("dewpoint", (WIDGET_ROWS == 5) ? 48 : 40))
+#endif
   display.drawInvertedBitmap(162 * PosX + 48 - 24, wgtY(PosY) + 4,
                              wi_raindrops_24x24, 24, 24, DM_FG);
   
@@ -2419,44 +2439,28 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
 
   // calculate y max/min and intervals
   int yMajorTicks = 5;
-#ifdef UNITS_TEMP_KELVIN
-  float tempMin = hourly[0].temp;
-#endif
-#ifdef UNITS_TEMP_CELSIUS
-  float tempMin = kelvin_to_celsius(hourly[0].temp);
-#endif
-#ifdef UNITS_TEMP_FAHRENHEIT
-  float tempMin = kelvin_to_fahrenheit(hourly[0].temp);
-#endif
-  float tempMax = tempMin;
-  float precipMax = hourly[0].pop;
+  float tempMin = INFINITY;
+  float tempMax = -INFINITY;
+  float precipMax = 0.0f;
   int yTempMajorTicks = 5;
-  float newTemp = 0;
-  // The dew point never exceeds the temperature, so it only ever pulls the
-  // axis floor down -- but it has to be in the bounds or the curve is drawn
-  // straight through the x axis on a dry afternoon.
-  if (GRAPH_DEWPOINT && !std::isnan(hourly[0].dew_point))
+  for (int i = 0; i < HOURLY_GRAPH_MAX; ++i)
   {
-    tempMin = std::min(tempMin, kelvin_to_graph_units(hourly[0].dew_point));
-  }
-  for (int i = 1; i < HOURLY_GRAPH_MAX; ++i)
-  {
-#ifdef UNITS_TEMP_KELVIN
-    newTemp = hourly[i].temp;
-#endif
-#ifdef UNITS_TEMP_CELSIUS
-    newTemp = kelvin_to_celsius(hourly[i].temp);
-#endif
-#ifdef UNITS_TEMP_FAHRENHEIT
-    newTemp = kelvin_to_fahrenheit(hourly[i].temp);
-#endif
-    tempMin = std::min(tempMin, newTemp);
-    tempMax = std::max(tempMax, newTemp);
+    const float newTemp = kelvin_to_graph_units(hourly[i].temp);
+    if (!std::isnan(newTemp))
+    {
+      tempMin = std::min(tempMin, newTemp);
+      tempMax = std::max(tempMax, newTemp);
+    }
     if (GRAPH_DEWPOINT && !std::isnan(hourly[i].dew_point))
     {
       tempMin = std::min(tempMin, kelvin_to_graph_units(hourly[i].dew_point));
     }
     precipMax = std::max<float>(precipMax, hourly[i].pop);
+  }
+  if (!std::isfinite(tempMin) || !std::isfinite(tempMax))
+  {
+    tempMin = 0.0f;
+    tempMax = 10.0f;
   }
   int tempBoundMin = static_cast<int>(tempMin - 1)
                       - modulo(static_cast<int>(tempMin - 1), yTempMajorTicks);
@@ -2629,9 +2633,7 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     int legendX = xPos1;
     auto legendItem = [&](const char *label, uint16_t color, int thickness)
     {
-      int16_t bx, by;
-      uint16_t bw, bh;
-      display.getTextBounds(label, 0, 0, &bx, &by, &bw, &bh);
+      uint16_t bw = getStringWidth(label);
       legendX -= bw;
       drawString(legendX, legendY, label, LEFT, DM_TEXT(color));
       legendX -= 4 + 14; // gap, then the swatch
@@ -2667,7 +2669,9 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
   std::vector<int> y_d(HOURLY_GRAPH_MAX, INT_MIN);
     for (int i = 0; i < HOURLY_GRAPH_MAX; ++i)
   {
-    y_t[i] = kelvin_to_plot_y(hourly[i].temp, tempBoundMin, yPxPerUnit, yPos1);
+    y_t[i] = std::isnan(hourly[i].temp)
+             ? INT_MIN
+             : kelvin_to_plot_y(hourly[i].temp, tempBoundMin, yPxPerUnit, yPos1);
     x_t[i] = static_cast<int>(std::round(xPos0 + (i * xInterval)
                                           + (0.5 * xInterval) ));
     if (GRAPH_DEWPOINT && !std::isnan(hourly[i].dew_point))
@@ -2764,18 +2768,24 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
         }
       }
       // graph temperature
-      display.drawLine(x0_t    , y0_t    , x1_t    , y1_t    , DM_GFX(ACCENT_COLOR));
-      display.drawLine(x0_t    , y0_t + 1, x1_t    , y1_t + 1, DM_GFX(ACCENT_COLOR));
-      display.drawLine(x0_t - 1, y0_t    , x1_t - 1, y1_t    , DM_GFX(ACCENT_COLOR));
-      if (DARK_MODE)
-      { // thicken the line: the red ink is dim against a black ground
-        display.drawLine(x0_t    , y0_t - 1, x1_t    , y1_t - 1, DM_GFX(ACCENT_COLOR));
-        display.drawLine(x0_t    , y0_t + 2, x1_t    , y1_t + 2, DM_GFX(ACCENT_COLOR));
+      if (y0_t != INT_MIN && y1_t != INT_MIN)
+      {
+        display.drawLine(x0_t    , y0_t    , x1_t    , y1_t    , DM_GFX(ACCENT_COLOR));
+        display.drawLine(x0_t    , y0_t + 1, x1_t    , y1_t + 1, DM_GFX(ACCENT_COLOR));
+        display.drawLine(x0_t - 1, y0_t    , x1_t - 1, y1_t    , DM_GFX(ACCENT_COLOR));
+        if (DARK_MODE)
+        { // thicken the line: the red ink is dim against a black ground
+          display.drawLine(x0_t    , y0_t - 1, x1_t    , y1_t - 1, DM_GFX(ACCENT_COLOR));
+          display.drawLine(x0_t    , y0_t + 2, x1_t    , y1_t + 2, DM_GFX(ACCENT_COLOR));
+        }
       }
 
       // draw hourly bitmap
 #if DISPLAY_HOURLY_ICONS
-      if (daily[day_idx].dt + 86400 <= hourly[i].dt) {
+      if (day_idx + 1 < OWM_NUM_DAILY && daily[day_idx].dt > 0
+          && daily[day_idx + 1].dt > 0
+          && daily[day_idx].dt + 86400 <= hourly[i].dt)
+      {
         ++day_idx;
       }
       if ((i % hourInterval) == 0) // skip first and last tick
@@ -2828,7 +2838,7 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
       display.drawLine(xTick    , yPos1 + 1, xTick    , yPos1 + 4, DM_FG);
       display.drawLine(xTick + 1, yPos1 + 1, xTick + 1, yPos1 + 4, DM_FG);
       // draw x axis labels
-      char timeBuffer[12] = {}; // big enough to accommodate "hh:mm:ss am"
+      char timeBuffer[32] = {};
       time_t ts = hourly[i].dt;
       tm *timeInfo = localtime(&ts);
       _strftime(timeBuffer, sizeof(timeBuffer), HOUR_FORMAT, timeInfo);
@@ -2846,7 +2856,7 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     display.drawLine(xTick    , yPos1 + 1, xTick    , yPos1 + 4, DM_FG);
     display.drawLine(xTick + 1, yPos1 + 1, xTick + 1, yPos1 + 4, DM_FG);
     // draw x axis labels
-    char timeBuffer[12] = {}; // big enough to accommodate "hh:mm:ss am"
+    char timeBuffer[32] = {};
     time_t ts = hourly[HOURLY_GRAPH_MAX - 1].dt + 3600;
     tm *timeInfo = localtime(&ts);
     _strftime(timeBuffer, sizeof(timeBuffer), HOUR_FORMAT, timeInfo);
@@ -2932,7 +2942,7 @@ void drawStatusBar(const String &statusStr, const String &refreshTimeStr,
   uint32_t batPercent = calcBatPercent(batVoltage,
                                        MIN_BATTERY_VOLTAGE,
                                        MAX_BATTERY_VOLTAGE);
-#if defined(DISP_3C_B) || defined(DISP_7C_F)
+#if defined(DISP_3C_B) || defined(DISP_7C_F) || defined(DISP_7C_E6)
   if (batVoltage < WARN_BATTERY_VOLTAGE)
   {
     dataColor = DM_TEXT(ACCENT_COLOR);

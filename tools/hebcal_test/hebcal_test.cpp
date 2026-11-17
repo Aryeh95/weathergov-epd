@@ -135,6 +135,12 @@ int main()
     // Rosh Hashanah day 1 2026-09-12 (Shabbat) into day 2: candles after nightfall
     tm rh1 = fri; rh1.tm_mon = 8; rh1.tm_mday = 12; mktime(&rh1);
     check(hebcalEvening(&rh1, yt) == HEBCAL_EVE_CANDLES_LATE && yt, "Rosh Hashanah I into II: late candles");
+    // Friday Yom Tov (Shavuot 2026-05-22 and 2027-06-11) entering Shabbat:
+    // candles MUST be lit before sunset (HEBCAL_EVE_CANDLES), never after nightfall
+    tm shavFri = {}; shavFri.tm_year = 126; shavFri.tm_mon = 4; shavFri.tm_mday = 22; shavFri.tm_hour = 12; shavFri.tm_isdst = -1; mktime(&shavFri);
+    check(hebcalEvening(&shavFri, yt) == HEBCAL_EVE_CANDLES && !yt, "Friday Shavuot 2026 into Shabbat: before-sunset candles");
+    tm shavFri27 = {}; shavFri27.tm_year = 127; shavFri27.tm_mon = 5; shavFri27.tm_mday = 11; shavFri27.tm_hour = 12; shavFri27.tm_isdst = -1; mktime(&shavFri27);
+    check(hebcalEvening(&shavFri27, yt) == HEBCAL_EVE_CANDLES && !yt, "Friday Shavuot 2027 into Shabbat: before-sunset candles");
   }
 
   // numerals

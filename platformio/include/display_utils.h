@@ -59,7 +59,8 @@ void toTitleCase(String &text);
 void truncateExtraAlertInfo(String &text);
 int alertColorSeverity(const String &event);
 int alertColorSeverity(const owm_alerts_t &alert);
-void filterAlerts(std::vector<owm_alerts_t> &resp, int *ignore_list);
+void filterAlerts(std::vector<owm_alerts_t> &resp, int *ignore_list,
+                  int max_alerts = 2);
 const char *getUVIdesc(unsigned int uvi);
 /* Heat stress as the Israel Meteorological Service reports it: Zohar's
  * discomfort index (the mean of the dry- and wet-bulb temperatures) from the

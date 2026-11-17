@@ -234,6 +234,29 @@ static String transcodeLatin2(const String &text)
   return out;
 }
 
+static String transcodeLatin1(const String &text)
+{
+  std::vector<uint32_t> cps;
+  decodeUtf8(text, cps);
+  String out;
+  out.reserve(cps.size());
+  for (uint32_t c : cps)
+  {
+    switch (c)
+    {
+      case 0x2010: case 0x2011: case 0x2012: case 0x2013: case 0x2014:
+        out += '-'; break;
+      case 0x2018: case 0x2019: out += '\''; break;
+      case 0x201C: case 0x201D: out += '"';  break;
+      case 0x2026: out += '.'; break;
+      default:
+        out += (c <= 0xFF) ? static_cast<char>(c) : '?';
+        break;
+    }
+  }
+  return out;
+}
+
 String shapeText(const String &text)
 {
   if (text.isEmpty())
@@ -246,7 +269,7 @@ String shapeText(const String &text)
     {
       return transcodeLatin2(text);
     }
-    return text;
+    return transcodeLatin1(text);
   }
   std::vector<uint32_t> cps;
   decodeUtf8(text, cps);
@@ -261,17 +284,27 @@ String shapeText(const String &text)
     if (isHebrewCp(cps[i]))                      { dir[i] = 'R'; anyHebrew = true; }
     else if (isDigitCp(cps[i]) || isLatinLetterCp(cps[i])) { dir[i] = 'L'; }
   }
-  // a number's signs go with it: "24°" "91%" "10:30" "-3" "3.5"
+  // a number's signs go with it: "24°" "91%" "10:30" "-3" "3.5" "<1"
   for (size_t i = 0; i < n; ++i)
   {
-    if (dir[i] == 'N' && isNumberSignCp(cps[i]))
+    if (dir[i] != 'N')
     {
-      bool before = i > 0 && isDigitCp(cps[i - 1]);
-      bool after  = i + 1 < n && isDigitCp(cps[i + 1]);
-      if (before || after)
-      {
-        dir[i] = 'L';
-      }
+      continue;
+    }
+    const uint32_t c = cps[i];
+    const bool before = i > 0 && isDigitCp(cps[i - 1]);
+    const bool after  = i + 1 < n && isDigitCp(cps[i + 1]);
+    if ((c == '.' || c == ',' || c == ':' || c == '/') && before && after)
+    {
+      dir[i] = 'L';
+    }
+    else if ((c == '+' || c == '-' || c == '<' || c == '>') && after)
+    {
+      dir[i] = 'L';
+    }
+    else if ((c == '%' || c == 0x00B0) && (before || after))
+    {
+      dir[i] = 'L';
     }
   }
   // remaining neutrals: between two L characters they are L, else they

@@ -88,6 +88,29 @@
 #define Bitter_20pt8b Heebo_20pt8b
 #define Bitter_26pt8b Heebo_26pt8b
 #define Bitter_48pt8b_temperature Heebo_48pt8b_temperature
+#elif defined(FONT_INCLUDE_Lato_CE)
+#include "fonts/Lato_CE/Lato_CE_8pt8b.h"
+#include "fonts/Lato_CE/Lato_CE_9pt8b.h"
+#include "fonts/Lato_CE/Lato_CE_10pt8b.h"
+#include "fonts/Lato_CE/Lato_CE_11pt8b.h"
+#include "fonts/Lato_CE/Lato_CE_12pt8b.h"
+#include "fonts/Lato_CE/Lato_CE_14pt8b.h"
+#include "fonts/Lato_CE/Lato_CE_16pt8b.h"
+#include "fonts/Lato_CE/Lato_CE_18pt8b.h"
+#include "fonts/Lato_CE/Lato_CE_20pt8b.h"
+#include "fonts/Lato_CE/Lato_CE_26pt8b.h"
+#include "fonts/Lato_CE/Lato_CE_48pt8b_temperature.h"
+#define Bitter_8pt8b Lato_CE_8pt8b
+#define Bitter_9pt8b Lato_CE_9pt8b
+#define Bitter_10pt8b Lato_CE_10pt8b
+#define Bitter_11pt8b Lato_CE_11pt8b
+#define Bitter_12pt8b Lato_CE_12pt8b
+#define Bitter_14pt8b Lato_CE_14pt8b
+#define Bitter_16pt8b Lato_CE_16pt8b
+#define Bitter_18pt8b Lato_CE_18pt8b
+#define Bitter_20pt8b Lato_CE_20pt8b
+#define Bitter_26pt8b Lato_CE_26pt8b
+#define Bitter_48pt8b_temperature Lato_CE_48pt8b_temperature
 #else
 #include "fonts/Bitter/Bitter_8pt8b.h"
 #include "fonts/Bitter/Bitter_9pt8b.h"
@@ -116,7 +139,7 @@
 #if defined(DISP_426_ON_E6)
 // On the reTerminal E1002 (-e seeed_reterminal_e1002_426c): its 7.3in
 // Spectra 6 (GDEP073E01), the same 800x480. Its full refresh (~28 s) outlasts GxEPD2's 20 s busy
-// timeout, as in renderer.cpp.
+// timeout, as in renderer.cpp, and waits in light sleep with control lines held.
 class PanelE6 : public GxEPD2_730c_GDEP073E01
 {
 public:
@@ -124,6 +147,46 @@ public:
       : GxEPD2_730c_GDEP073E01(cs, dc, rst, busy)
   {
     _busy_timeout = 45000000; // us
+  }
+  void refresh(bool partial_update_mode = false) override
+  {
+    _canLightSleep = true;
+    setBusyCallback(&busySleepCb, this);
+    GxEPD2_730c_GDEP073E01::refresh(partial_update_mode);
+    setBusyCallback(nullptr);
+    _canLightSleep = false;
+  }
+  void refresh(int16_t x, int16_t y, int16_t w, int16_t h) override
+  {
+    _canLightSleep = true;
+    setBusyCallback(&busySleepCb, this);
+    GxEPD2_730c_GDEP073E01::refresh(x, y, w, h);
+    setBusyCallback(nullptr);
+    _canLightSleep = false;
+  }
+
+private:
+  bool _canLightSleep = false;
+  static void busySleepCb(const void *param)
+  {
+    auto *self = const_cast<PanelE6 *>(static_cast<const PanelE6 *>(param));
+    if (!self || !self->_power_is_on || !self->_canLightSleep)
+    {
+      delay(1);
+      return;
+    }
+    self->_canLightSleep = false;
+    const int16_t holdPins[] = {
+      static_cast<int16_t>(PIN_EPD_PWR),
+      self->_cs,
+      self->_dc,
+      self->_rst,
+      static_cast<int16_t>(PIN_SD_EN),
+      static_cast<int16_t>(PIN_SD_CS),
+    };
+    waitBusyLightSleep(self->_busy, static_cast<uint8_t>(self->_busy_level),
+                       self->_busy_timeout / 1000U, holdPins,
+                       sizeof(holdPins) / sizeof(holdPins[0]));
   }
 };
 static GxEPD2_7C<PanelE6, PanelE6::HEIGHT / 4> e6(
@@ -371,7 +434,12 @@ static String fitted(const String &text, int maxW)
   String s = text;
   while (s.length() > 1 && getStringWidth(s + "..") > maxW)
   {
-    s.remove(s.length() - 1);
+    int end = static_cast<int>(s.length()) - 1;
+    while (end > 0 && (static_cast<uint8_t>(s[end]) & 0xC0) == 0x80)
+    {
+      --end;
+    }
+    s.remove(end);
   }
   s.trim();
   return s + "..";
@@ -712,6 +780,10 @@ static String precip(float mm)
 
 static String clockTime(int64_t t, const char *format)
 {
+  if (t <= 0)
+  {
+    return "--";
+  }
   const time_t ts = static_cast<time_t>(t);
   tm when = {};
   localtime_r(&ts, &when);
@@ -979,6 +1051,12 @@ void powerOffDisplay()
 #endif
   if (PIN_EPD_PWR != PIN_UNUSED)
   {
+    SPI.end();
+    pinMode(PIN_EPD_CS, INPUT);
+    pinMode(PIN_EPD_DC, INPUT);
+    pinMode(PIN_EPD_RST, INPUT);
+    pinMode(PIN_EPD_SCK, INPUT);
+    pinMode(PIN_EPD_MOSI, INPUT);
     digitalWrite(PIN_EPD_PWR, LOW);
   }
 }
@@ -1134,12 +1212,18 @@ static void homeTile(int16_t x, int16_t y, const String &title,
  */
 static int aqLevel426(const owm_resp_air_pollution_t &air)
 {
-  const int a = air.us_aqi;
+  int a = air.us_aqi;
   if (a < 0 && air.il_valid)
-  { // Israel's Ministry index, high is clean: its four bands as good,
-    // moderate, unhealthy and very unhealthy (green, yellow, orange, red)
+  { // Israel's Ministry index, high is clean: good green, medium yellow,
+    // low red, very low maroon (matching renderer.cpp IL_BAND_RISK)
     const int il = air.il_index;
-    return il > 50 ? 0 : il >= 0 ? 1 : il >= -200 ? 2 : 3;
+    return il > 50 ? 0 : il >= 0 ? 1 : il >= -200 ? 3 : 5;
+  }
+  if (a < 0 && air.valid && AQI_SCALE == UNITED_STATES_AQI)
+  {
+    const owm_components_t &c = air.components;
+    a = calc_aqi(UNITED_STATES_AQI, c.co, c.nh3, c.no, c.no2, c.o3, NULL,
+                 c.so2, c.pm10, c.pm2_5);
   }
   if (a < 0)
   {
@@ -1265,22 +1349,25 @@ static void drawHomeTile(int slot, const String &key,
   {
     title = TXT_HEAT_STRESS;
     float index;
-    int level;
+    int hsLevel;
     if (current.heat_stress > 0.f && current.heat_stress_level >= 0)
     { // reported by the source (IMS)
       index = current.heat_stress;
-      level = std::min(current.heat_stress_level, 5);
+      hsLevel = std::min(current.heat_stress_level, 5);
     }
     else
     {
       index = heatStressIndex(kelvin_to_celsius(current.temp),
                               current.humidity);
-      level = heatStressLevel(index);
+      hsLevel = heatStressLevel(index);
     }
-    if (level >= 0)
+    if (hsLevel >= 0)
     {
       value = String(static_cast<int>(std::floor(index + 0.4999f)));
-      sub1 = TXT_HEAT_STRESS_LEVEL[level];
+      sub1 = TXT_HEAT_STRESS_LEVEL[hsLevel];
+#if defined(COLOR_426)
+      level = hsLevel;
+#endif
     }
   }
   else if (key == "pressure")
@@ -1364,8 +1451,10 @@ void drawCurrentConditions(const owm_current_t &current,
   auto mx = [rtl](int x, int w) { return rtl ? DISP_WIDTH - x - w : x; };
 #if defined(COLOR_426)
   const int64_t now = static_cast<int64_t>(pageTime());
-  if (const uint8_t *ci = conditionIcon426(current.weather.id,
-        now >= current.sunrise && now < current.sunset, 138))
+  const bool daytime = (current.sunrise > 0 && current.sunset > current.sunrise)
+                     ? (now >= current.sunrise && now < current.sunset)
+                     : (current.weather.icon != "n");
+  if (const uint8_t *ci = conditionIcon426(current.weather.id, daytime, 138))
   {
     drawColorIcon426(mx(2, 138), HEADER_H + 2 + dy, ci, 138, 138);
   }
@@ -1467,14 +1556,21 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
 {
   (void)daily;
   (void)timeInfo;
-  const int hours = std::min(24, OWM_NUM_HOURLY - 1);
+  int hours = std::min(HOURLY_GRAPH_MAX, OWM_NUM_HOURLY - 1);
+  while (hours > 1 && hourly[hours - 1].dt <= 0)
+  {
+    --hours;
+  }
   // the range, in the display's unit, in steps of 10
   float lo = INFINITY, hi = -INFINITY;
   for (int i = 0; i < hours; ++i)
   {
     const float t = toTempUnit(hourly[i].temp);
-    lo = std::min(lo, t);
-    hi = std::max(hi, t);
+    if (!std::isnan(t))
+    {
+      lo = std::min(lo, t);
+      hi = std::max(hi, t);
+    }
     if (GRAPH_DEWPOINT && !std::isnan(hourly[i].dew_point))
     {
       lo = std::min(lo, toTempUnit(hourly[i].dew_point));
@@ -1501,8 +1597,16 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
   int iHi = 0, iLo = 0;
   for (int i = 1; i < hours; ++i)
   {
-    if (hourly[i].temp > hourly[iHi].temp) {iHi = i;}
-    if (hourly[i].temp < hourly[iLo].temp) {iLo = i;}
+    if (!std::isnan(hourly[i].temp)
+        && (std::isnan(hourly[iHi].temp) || hourly[i].temp > hourly[iHi].temp))
+    {
+      iHi = i;
+    }
+    if (!std::isnan(hourly[i].temp)
+        && (std::isnan(hourly[iLo].temp) || hourly[i].temp < hourly[iLo].temp))
+    {
+      iLo = i;
+    }
   }
   // The legend sits above the graph's top left, and the high's label above
   // its dot, which is never far below the top. Where the two would meet the
@@ -1652,12 +1756,13 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
 #endif
     drawString(lx, ly, label, CENTER, ink);
   }
-  // the hours: a tick each, a time every three
+  // the hours: a tick each, a time every three (or six on wider spans)
+  const int labelStep = (hours > 30) ? 6 : 3;
   g->setFont(&Bitter_9pt8b);
   for (int i = 0; i <= hours; ++i)
   {
     const int x = GX0 + static_cast<int>(i * perHour);
-    if (i % 3)
+    if (i % labelStep)
     {
       g->drawFastVLine(x, GY1, 3, K);
       continue;
@@ -1737,6 +1842,10 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
   for (int k = 0; k < 5; ++k)
   {
     const owm_daily_t &d = daily[k + 1];
+    if (d.dt <= 0)
+    {
+      continue;
+    }
 #if defined(COLOR_426)
     // right to left, tomorrow is at the right
     const int x0 = (LC_RTL ? 4 - k : k) * cw;
@@ -1957,6 +2066,10 @@ static void drawWeekPage(const owm_daily_t *daily)
   for (int i = 0; i < OWM_NUM_DAILY; ++i)
   {
     const owm_daily_t &d = daily[i];
+    if (d.dt <= 0)
+    {
+      continue;
+    }
     const int y0 = top + i * rh, base = y0 + rh / 2 + 9;
     if (i)
     {
@@ -2047,6 +2160,14 @@ static void hourSeries(const owm_hourly_t *hourly, float *temp, float *feel,
 {
   for (int i = 0; i < HN; ++i)
   {
+    if (hourly[i].dt <= 0)
+    {
+      temp[i] = NAN;
+      feel[i] = NAN;
+      pop[i]  = 0.0f;
+      wind[i] = 0.0f;
+      continue;
+    }
     temp[i] = toTempUnit(hourly[i].temp);
     feel[i] = std::isnan(hourly[i].feels_like) ? temp[i]
                                                 : toTempUnit(hourly[i].feels_like);

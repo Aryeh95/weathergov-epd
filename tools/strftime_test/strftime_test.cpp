@@ -60,15 +60,21 @@ int main()
     printf("%-26s -> %3u characters  %s\n", format, static_cast<unsigned>(n), ok ? "ok" : "TOO LONG");
     fails += !ok;
   }
-  // and an output buffer smaller than the field is truncated, not overrun
+  // and an output buffer smaller than the field is NUL-terminated, not overrun
   {
     char out[8];
     char guard[8];
+    memset(out, 'x', sizeof(out));
     memset(guard, 'g', sizeof(guard));
-    _strftime(out, sizeof(out), "%064Y", &t);
-    bool ok = strlen(out) < sizeof(out);
+    const size_t n = _strftime(out, sizeof(out), "%064Y", &t);
+    bool ok = (n == 0 && out[0] == '\0');
     for (char g : guard) {ok = ok && g == 'g';}
-    printf("small output buffer          %s\n", ok ? "ok" : "OVERRUN");
+    // exact-fit 11-char output in a 12-byte buffer succeeds
+    char fit[12];
+    memset(fit, 'x', sizeof(fit));
+    const size_t fn = _strftime(fit, sizeof(fit), "12:34:56 am", &t);
+    ok = ok && (fn == 11 && strcmp(fit, "12:34:56 am") == 0);
+    printf("small & exact-fit buffers    %s\n", ok ? "ok" : "OVERRUN");
     fails += !ok;
   }
   printf("%s\n", fails ? "FAILURES" : "ALL OK");

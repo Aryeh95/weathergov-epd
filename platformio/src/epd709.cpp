@@ -216,7 +216,10 @@ void Epd709::init(uint32_t, bool, uint16_t, bool)
   delay(20);
   digitalWrite(_rst, HIGH);
   delay(20);
-  waitReady(EPD709_BUSY_TIMEOUT_MS);
+  if (!waitReady(EPD709_BUSY_TIMEOUT_MS))
+  {
+    return;
+  }
 
   // Good Display's own GDEB0709E01 demo (2026), register for register and
   // in its order. Its analog timing (0x74) and booster (0x06/0x05) values are
@@ -359,6 +362,7 @@ void Epd709::hibernate()
   pinMode(_csS, INPUT);
   pinMode(_dc, INPUT);
   pinMode(_rst, INPUT);
+  pinMode(_busy, INPUT);
   pinMode(PIN_EPD_SCK, INPUT);
   pinMode(PIN_EPD_MOSI, INPUT);
   _started = false;
