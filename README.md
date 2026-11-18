@@ -439,7 +439,7 @@ The EE05 fits a 3D-printed case: a remix of Seeed Studio's own enclosure for thi
 - a slightly wider screen window;
 - button labels engraved in the back.
 
-The STL files and a print guide are on [Printables](https://www.printables.com/).
+The STL files and a print guide are on [Printables](https://www.printables.com/model/1881647-e-paper-weather-display).
 
 **Parts:**
 
