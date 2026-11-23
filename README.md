@@ -40,7 +40,7 @@ This is a fork of [lmarzen/esp32-weather-epd](https://github.com/lmarzen/esp32-w
 
 - **No API keys or accounts.** weather.gov supplies the hourly and daily forecasts and the alerts (US only). [Open-Meteo](https://open-meteo.com/), also free and keyless, supplies the current conditions, UV and air quality. The forecast can come from Open-Meteo instead, for anywhere in the world, or from the [Israel Meteorological Service](https://ims.gov.il/en). Optional keys add official US air quality ([AirNow](https://docs.airnowapi.org/)) and pollen ([Google](https://developers.google.com/maps/documentation/pollen)).
 - **Phone setup, no code editing.** A fresh device opens a WiFi hotspot with a setup page. Every runtime setting can be changed later from a web portal, including firmware updates over WiFi. A USB cable is needed only for the first flash.
-- **Layouts for each panel.** The 800×480 layout runs on black-and-white, three-colour and full-colour panels, with colour icons and colour-coded readings where the panel has the inks. The 7.09" and 4.26" panels each have a layout of their own.
+- **Layouts for each panel.** The 800×480 layout runs on black-and-white, three-colour and full-colour panels, with colour icons and colour-coded readings where the panel has the inks. The 7.09" and 4.26" panels each have a layout of their own, and the 7.5" black-and-white panel has a second one in four greys.
 - **14 widgets.** Sunrise and sunset (computed on the device), humidity, dew point, heat stress, wind, UV, pressure with its trend, air quality, visibility, moon phase, pollen, and indoor temperature and humidity from an optional sensor.
 - **It copes with outages.** The device connects to the strongest access point on mesh networks, and its error screens say why WiFi failed. It retries every 15 minutes. During a short outage the last forecast stays on screen, marked as old, before an error replaces it.
 - **Long battery life.** About 14 µA asleep and a few seconds awake per update on the FireBeetle build. The battery level and its estimated days left are on screen, and a low-battery page protects the cell.
@@ -57,6 +57,8 @@ This is a fork of [lmarzen/esp32-weather-epd](https://github.com/lmarzen/esp32-w
 | [Seeed reTerminal E1002](https://www.seeedstudio.com/reTerminal-E1002-p-6533.html) | built-in 7.3" Spectra 6 | [7.3" full colour](#73-full-colour-reterminal-e1002) | none | `seeed_reterminal_e1002` |
 | the same | built-in 7.3" Spectra 6 | [4.26" layout in colour](#426-layout-in-colour-reterminal-e1002) | none | `seeed_reterminal_e1002_426c` |
 | Seeed reTerminal E1001 | built-in 7.5" black and white | [7.5" black and white](#75-black-and-white) | none | `seeed_reterminal_e1001` |
+| the same | built-in 7.5" black and white | [7.5" four greys](#75-four-greys-trmnl-kit-reterminal-e1001) | none | `seeed_reterminal_e1001_grey` |
+| TRMNL 7.5" (OG) DIY kit: Seeed XIAO ePaper Display Board EE04 | 7.5" 800×480 black and white (GDEY075T7 class) | [7.5" four greys](#75-four-greys-trmnl-kit-reterminal-e1001) or [black and white](#75-black-and-white) | none | `seeed_xiao_ee04_grey`, `seeed_xiao_ee04` |
 | [Seeed XIAO ePaper Display Board EE02](https://www.seeedstudio.com/XIAO-ePaper-Display-Board-EE02-p-6639.html) | Good Display GDEB0709E01, 7.09" 1600×1200 Spectra 6 | [7.09" high resolution](#709-high-resolution-colour-xiao-ee02) | [Panel, optional sensor](#seeed-xiao-ee02-with-the-709-panel) | `seeed_xiao_ee02_709` |
 | [Seeed XIAO ePaper Display Board EE05](https://wiki.seeedstudio.com/epaper_ee05) | [Seeed 4.26" 800×480 monochrome](https://www.seeedstudio.com/4-26-Monochrome-SPI-ePaper-Display-p-6398.html) (Good Display GDEQ0426T82) | [4.26" four greys](#426-four-greys-xiao-ee05) | [Printed case](#seeed-xiao-ee05-with-the-426-panel) | `seeed_xiao_ee05` |
 
@@ -70,7 +72,17 @@ The DIY build takes an optional BME280, BME680 or SHT40/41/45 indoor sensor. The
 
 The original 800×480 layout, drawn in line art. Top left: the current conditions. Below them: up to 12 widgets in a two-column grid, chosen and ordered in the portal. Along the top: a 5- to 7-day forecast. Bottom right: a graph of the next 24 to 48 hours, with temperature (and optionally the dew point) as lines, the chance of rain as bars and the weather as icons along the line. Up to two weather alerts appear at the top, beside the city and date. The status bar shows the update time, WiFi and battery.
 
-It runs on the FireBeetle build with a 7.5" v2 panel, on the reTerminal E1001, and on the EE05 with the `seeed_xiao_ee05_classic` target. A dark mode (white on black) is available on the colour panels.
+It runs on the FireBeetle build with a 7.5" v2 panel, on the reTerminal E1001, on the TRMNL kit (`seeed_xiao_ee04`), and on the EE05 with the `seeed_xiao_ee05_classic` target. A dark mode (white on black) is available on the colour panels.
+
+### 7.5" four greys (TRMNL kit, reTerminal E1001)
+
+The same 800×480 layout, drawn in the black-and-white panel's four greys (`seeed_xiao_ee04_grey`, `seeed_reterminal_e1001_grey`):
+
+- **Smoother type and icons:** the Bitter text and the large weather, alert and error icons are 2-bit, with light grey at their edges, hinted so the strokes stay sharp.
+- **Greys with a meaning:** clouds are filled (light grey for rain and snow, dark grey for thunderstorms, a lighter dither for the others); the moon is shaded from NASA's map; the temperature and dew point are smooth curves; the dew point line and the chance-of-rain bars are grey.
+- **Two pages.** **Now** is the page above. **Forecast** is weather.gov's forecast in words, six periods in two columns, turned to with a button (KEY2 on the kit, the left button on the E1001). It is drawn from the weather the last update saved, without the network, and the Now page comes back five minutes after the last press. The words come from weather.gov only, so with another forecast source the page says so.
+
+A refresh takes about 4 seconds. The greys were measured on the panel: black, dark grey, light grey and white come out at L\* 19, 34, 67 and 100.
 
 ### 7.5" three-colour (black/white/red)
 
@@ -146,10 +158,13 @@ Each target selects its board, panel, sensor and pins by itself. Only the DIY bu
 | `seeed_reterminal_e1002` | reTerminal E1002 |
 | `seeed_reterminal_e1002_426c`, `seeed_reterminal_e1002_426c_he` | reTerminal E1002 running the 4.26" layout's home page in Spectra 6 colour (English or Hebrew) |
 | `seeed_reterminal_e1001` | reTerminal E1001 |
+| `seeed_reterminal_e1001_grey` | reTerminal E1001 in four greys, with the forecast page |
+| `seeed_xiao_ee04` | TRMNL 7.5" (OG) DIY kit (XIAO EE04), black and white |
+| `seeed_xiao_ee04_grey` | TRMNL kit in four greys, with the forecast page |
 | `seeed_xiao_ee02_709` | XIAO EE02 with the GDEB0709E01 |
 | `seeed_xiao_ee05` | XIAO EE05 with the 4.26" panel (four-grey layout with pages) |
 | `seeed_xiao_ee05_classic` | XIAO EE05 drawing the 7.5" black-and-white layout instead |
-| `seeed_reterminal_e1002_testcard`, `seeed_xiao_ee02_709_testcard`, `seeed_xiao_ee05_testcard` | A test card instead of the weather (inks, greys, type sizes, orientation marks); no WiFi needed. Useful to check a new panel first. |
+| `seeed_reterminal_e1002_testcard`, `seeed_xiao_ee02_709_testcard`, `seeed_xiao_ee05_testcard`, `seeed_xiao_ee04_grey_testcard` | A test card instead of the weather (inks, greys, type sizes, orientation marks); no WiFi needed. Useful to check a new panel first. |
 
 ### Compile-time settings
 
@@ -168,7 +183,7 @@ What is **compiled in**, and so needs a rebuild to change, is in [`platformio/in
 | Pressure: `UNITS_PRES_MILLIBARS`, `_HECTOPASCALS`, `_INCHESOFMERCURY`, `_MILLIMETERSOFMERCURY`, `_PASCALS`, `_ATMOSPHERES`, … | mbar | |
 | Visibility: `UNITS_DIST_MILES`, `_KILOMETERS` | miles | |
 | Daily precipitation: `UNITS_DAILY_PRECIP_INCHES`, `_MILLIMETERS`, `_CENTIMETERS`, `_POP` | inches | Amounts come from weather.gov's gridpoint forecast for about 3 days, then Open-Meteo. `_POP` shows the chance instead (and saves one large request per update). |
-| Fonts: `FONT_INCLUDE_<Family> 1` | FreeSans (+ Bitter on the reTerminals and EE05) | Each family costs 150–250 KB of flash; the families compiled in are offered in the portal. Add a TTF with `tools/fontconvert.py` and `tools/gen_font_table.py`. |
+| Fonts: `FONT_INCLUDE_<Family> 1` | FreeSans (+ Bitter on the reTerminals, EE04 and EE05) | Each family costs 150–250 KB of flash; the families compiled in are offered in the portal. Add a TTF with `tools/fontconvert.py` and `tools/gen_font_table.py`. |
 | `ACCENT_COLOR` | `GxEPD_RED` | The three-colour panel's accent. |
 | `COLOR_SUN`, `COLOR_PRECIP`, `COLOR_TEMP_HI`, … | yellow, blue, red, … | The full-colour panels' palette, by meaning. |
 | `WIND_INDICATOR_*`, `WIND_ICONS_*` | arrow, 16 directions | Arrow, degrees or compass points; the arrow's precision. |
@@ -211,7 +226,7 @@ Notes per board:
 
 - **FireBeetle 2 ESP32-E:** if the upload stops with `Wrong boot mode detected (0x13)`, unplug the board, connect GPIO0 (labelled 0/D5) to GND, and plug it back in. Other upload errors usually mean a missing USB-serial driver.
 - **reTerminal E1001 / E1002:** they flash through their own USB-serial chip (a CH340). If the upload cannot connect while the display sleeps, press the reset button and try again.
-- **XIAO EE02 / EE05:** the USB port is the ESP32-S3's own, and serial output appears there. While a computer is attached, the board waits awake between updates instead of sleeping, so it can be flashed and its log read at any time. If no port appears (the board was asleep), press RST once. Some power banks switch themselves off at the tiny current the board draws asleep.
+- **XIAO EE02 / EE04 / EE05:** the USB port is the ESP32-S3's own, and serial output appears there. While a computer is attached, the board waits awake between updates instead of sleeping, so it can be flashed and its log read at any time. If no port appears (the board was asleep), press RST once. Some power banks switch themselves off at the tiny current the board draws asleep. The EE04 restarts by itself after an upload; no button is needed.
 - **Test cards:** flash a test card target before the weather on a new panel. It shows the inks or greys, a ladder of type sizes and named corners, so one look tells you whether the picture is the right way up.
 
 ### Updates over WiFi
@@ -243,8 +258,9 @@ If setup isn't finished within 10 minutes, the device shows "Setup paused" and s
 | Device | Open the portal | Refresh now | Other buttons |
 |---|---|---|---|
 | FireBeetle DIY build | Press RST **twice**, one to three seconds apart, after the panel has finished refreshing | RST once | |
-| reTerminal E1001 / E1002 | Middle button | Green (right) button | |
+| reTerminal E1001 / E1002 | Middle button | Green (right) button | Left button turns the page (E1001 grey build) |
 | XIAO EE02 | KEY1 | KEY2 | KEY3 unused |
+| XIAO EE04 (TRMNL kit) | KEY0 | KEY1 | KEY2 turns the page (grey build) |
 | XIAO EE05 | KEY1 | KEY2 | KEY3 turns the page; RST restarts |
 
 What the portal offers:
@@ -479,7 +495,7 @@ The lid's labels are the buttons: **SETUP** (KEY1, portal), **REFRESH** (KEY2), 
 Two tools build the firmware's own drawing code for a computer and save what it draws as pictures, in each panel's measured inks. That's how the previews above were made, with `--balance`, which white-balances every panel to the same white.
 
 - **[tools/sim480](tools/sim480/README.md):** the 800×480 layouts, plus the 4.26" pages.
-  - `--panel=` picks the panel: `e6` (Spectra 6), `bwv2` (black and white), `3c` (three-colour) or `4g426` (EE05).
+  - `--panel=` picks the panel: `e6` (Spectra 6), `bwv2` (black and white), `3c` (three-colour), `4g426` (EE05) or `4g75` (the 7.5" in four greys).
   - `--locale=en_US` draws a real device's page from its own config.json and replies saved by `fetch_us.py`. Other locales draw saved sample data for Israel or Kraków.
   - `SIM480_RAIN=1` adds made-up showers.
 - **[tools/sim709](tools/sim709/README.md):** the 7.09" layout, with sample weather: day, night, alerts, dark mode, errors.

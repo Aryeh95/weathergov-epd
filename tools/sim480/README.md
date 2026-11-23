@@ -19,7 +19,7 @@ replies in `data/`.
 ```
 pip install pillow numpy
 pio run -e seeed_reterminal_e1002      # once, for .pio/libdeps (GFX, ArduinoJson)
-python tools/sim480/build.py [output folder] [data folder] [--panel=e6|bwv2|3c] [--balance]
+python tools/sim480/build.py [output folder] [data folder] [--panel=e6|bwv2|3c|4g426|4g75] [--balance]
 ```
 
 Needs a C++17 compiler (clang++ or g++ on the path).
@@ -122,6 +122,15 @@ Spectra 6.
 | `SIM480_RAIN=1` | a made-up afternoon of showers, to see the rain on a dry day (any panel) |
 | `SIM480_PEAK=<hour>` | the day's warmest hours moved to that hour, to see where the high's label goes (any panel) |
 | `SIM426_TILES="wind,moon_phase,indoor"` | the home tiles, as config.json `home_tiles` |
+
+## The 7.5in in four greys (`--panel=4g75`)
+
+The `seeed_xiao_ee04_grey` and `seeed_reterminal_e1001_grey` builds draw
+the 800x480 layout in the black-and-white panel's four greys.
+`--panel=4g75 --locale=en_US` draws both of their pages, `sim_us_now` and
+`sim_us_forecast`, in the greys measured on the
+`seeed_xiao_ee04_grey_testcard` card (`measured_75.json`): black, dark
+grey, light grey and white are L* 19, 34, 67 and 100.
 
 `--panel=e6_426` draws the same layout as `seeed_reterminal_e1002_426c`
 builds it: in the E1002's colours, shown in its measured inks like
