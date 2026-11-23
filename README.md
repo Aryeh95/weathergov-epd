@@ -6,14 +6,30 @@ This is a fork of [lmarzen/esp32-weather-epd](https://github.com/lmarzen/esp32-w
 
 <img src="showcase/preview-e1002.png" />
 
-| | | |
-|:---:|:---:|:---:|
-| [<img src="showcase/preview-75-bw.png" />](#75-black-and-white) | [<img src="showcase/preview-75-3c.png" />](#75-three-colour-blackwhitered) | [<img src="showcase/preview-e1002.png" />](#73-full-colour-reterminal-e1002) |
-| 7.5" black and white | 7.5" three-colour | 7.3" full colour (reTerminal E1002) |
-| [<img src="showcase/preview-gdeb0709e01.png" />](#709-high-resolution-colour-xiao-ee02) | [<img src="showcase/preview-ee05-426-home.png" />](#426-four-greys-xiao-ee05) | [<img src="showcase/preview-ee05-426-hours.png" />](#426-four-greys-xiao-ee05) |
-| 7.09" high-resolution colour (XIAO EE02) | 4.26" four greys (XIAO EE05) | 4.26" hours page |
+<table>
+  <tr>
+    <td width="33%" align="center"><a href="#75-four-greys-trmnl-kit-reterminal-e1001"><img src="showcase/preview-75-grey.png" width="280" alt="7.5&quot; four greys" /></a></td>
+    <td width="33%" align="center"><a href="#75-three-colour-blackwhitered"><img src="showcase/preview-75-3c.png" width="280" alt="7.5&quot; three-colour" /></a></td>
+    <td width="33%" align="center"><a href="#73-full-colour-reterminal-e1002"><img src="showcase/preview-e1002.png" width="280" alt="7.3&quot; full colour (reTerminal E1002)" /></a></td>
+  </tr>
+  <tr>
+    <td width="33%" align="center">7.5" four greys</td>
+    <td width="33%" align="center">7.5" three-colour</td>
+    <td width="33%" align="center">7.3" full colour (reTerminal E1002)</td>
+  </tr>
+  <tr>
+    <td width="33%" align="center"><a href="#709-high-resolution-colour-xiao-ee02"><img src="showcase/preview-gdeb0709e01.png" width="280" alt="7.09&quot; high-resolution colour (XIAO EE02)" /></a></td>
+    <td width="33%" align="center"><a href="#426-four-greys-xiao-ee05"><img src="showcase/preview-ee05-426-home.png" width="280" alt="4.26&quot; four greys (XIAO EE05)" /></a></td>
+    <td width="33%" align="center"><a href="#426-four-greys-xiao-ee05"><img src="showcase/preview-ee05-426-hours.png" width="280" alt="4.26&quot; hours page" /></a></td>
+  </tr>
+  <tr>
+    <td width="33%" align="center">7.09" high-resolution colour (XIAO EE02)</td>
+    <td width="33%" align="center">4.26" four greys (XIAO EE05)</td>
+    <td width="33%" align="center">4.26" hours page</td>
+  </tr>
+</table>
 
-*The previews are drawn by the firmware's own rendering code on a PC (see [Previewing layouts on a PC](#previewing-layouts-on-a-pc)), with sample weather and a made-up afternoon of showers. They use each panel's measured inks, white-balanced to one common white, the way your eye adjusts to a panel in a room. Side by side, the colour panels look darker than the black-and-white ones: they reflect less light.*
+*The previews are drawn by the firmware's own rendering code on a PC (see [Previewing layouts on a PC](#previewing-layouts-on-a-pc)), with sample weather and a made-up afternoon of showers. They use each panel's measured inks, white-balanced to one common white, the way your eye adjusts to a panel in a room. Side by side, the colour panels look darker than the monochrome ones: they reflect less light.*
 
 ## Contents
 
@@ -40,7 +56,7 @@ This is a fork of [lmarzen/esp32-weather-epd](https://github.com/lmarzen/esp32-w
 
 - **No API keys or accounts.** weather.gov supplies the hourly and daily forecasts and the alerts (US only). [Open-Meteo](https://open-meteo.com/), also free and keyless, supplies the current conditions, UV and air quality. The forecast can come from Open-Meteo instead, for anywhere in the world, or from the [Israel Meteorological Service](https://ims.gov.il/en). Optional keys add official US air quality ([AirNow](https://docs.airnowapi.org/)) and pollen ([Google](https://developers.google.com/maps/documentation/pollen)).
 - **Phone setup, no code editing.** A fresh device opens a WiFi hotspot with a setup page. Every runtime setting can be changed later from a web portal, including firmware updates over WiFi. A USB cable is needed only for the first flash.
-- **Layouts for each panel.** The 800×480 layout runs on black-and-white, three-colour and full-colour panels, with colour icons and colour-coded readings where the panel has the inks. The 7.09" and 4.26" panels each have a layout of their own, and the 7.5" black-and-white panel has a second one in four greys.
+- **Layouts for each panel.** The 800×480 layout runs in four greys on 7.5" monochrome panels (with a second text-forecast page), and in three-colour or full-colour where the panel has colour inks. The 7.09" and 4.26" panels each have a layout of their own.
 - **14 widgets.** Sunrise and sunset (computed on the device), humidity, dew point, heat stress, wind, UV, pressure with its trend, air quality, visibility, moon phase, pollen, and indoor temperature and humidity from an optional sensor.
 - **It copes with outages.** The device connects to the strongest access point on mesh networks, and its error screens say why WiFi failed. It retries every 15 minutes. During a short outage the last forecast stays on screen, marked as old, before an error replaces it.
 - **Long battery life.** About 14 µA asleep and a few seconds awake per update on the FireBeetle build. The battery level and its estimated days left are on screen, and a low-battery page protects the cell.
@@ -50,15 +66,14 @@ This is a fork of [lmarzen/esp32-weather-epd](https://github.com/lmarzen/esp32-w
 
 | Device | Panel | Layout | Assembly | Build target |
 |---|---|---|---|---|
-| DFRobot FireBeetle 2 ESP32-E + DESPI-C02 adapter | 7.5" 800×480 black and white (Waveshare v2, Good Display GDEY075T7) | [7.5" black and white](#75-black-and-white) | [Wiring](#diy-firebeetle-esp32-and-a-75-or-73-panel) | `dfrobot_firebeetle2_esp32e` |
+| DFRobot FireBeetle 2 ESP32-E + DESPI-C02 adapter | 7.5" 800×480 black and white (Waveshare v2, Good Display GDEY075T7) | 800×480 (1-bit) | [Wiring](#diy-firebeetle-esp32-and-a-75-or-73-panel) | `dfrobot_firebeetle2_esp32e` |
 | the same | 7.5" 800×480 black/white/red (Waveshare B, Good Display GDEY075Z08) | [7.5" three-colour](#75-three-colour-blackwhitered) | Wiring | `dfrobot_firebeetle2_esp32e` |
 | the same | 7.5" 640×384 black and white (v1, GDEW075T8) | reduced 800×480 layout | Wiring | `dfrobot_firebeetle2_esp32e` |
 | FireBeetle 2 ESP32-E + **DESPI-C73** adapter | 7.3" 800×480 seven-colour (Waveshare F / GDEY073D46, Spectra 6 GDEP073E01) | [7.3" full colour](#73-full-colour-reterminal-e1002) | Wiring | `dfrobot_firebeetle2_esp32e` |
 | [Seeed reTerminal E1002](https://www.seeedstudio.com/reTerminal-E1002-p-6533.html) | built-in 7.3" Spectra 6 | [7.3" full colour](#73-full-colour-reterminal-e1002) | none | `seeed_reterminal_e1002` |
 | the same | built-in 7.3" Spectra 6 | [4.26" layout in colour](#426-layout-in-colour-reterminal-e1002) | none | `seeed_reterminal_e1002_426c` |
-| Seeed reTerminal E1001 | built-in 7.5" black and white | [7.5" black and white](#75-black-and-white) | none | `seeed_reterminal_e1001` |
-| the same | built-in 7.5" black and white | [7.5" four greys](#75-four-greys-trmnl-kit-reterminal-e1001) | none | `seeed_reterminal_e1001_grey` |
-| TRMNL 7.5" (OG) DIY kit: Seeed XIAO ePaper Display Board EE04 | 7.5" 800×480 black and white (GDEY075T7 class) | [7.5" four greys](#75-four-greys-trmnl-kit-reterminal-e1001) or [black and white](#75-black-and-white) | none | `seeed_xiao_ee04_grey`, `seeed_xiao_ee04` |
+| Seeed reTerminal E1001 | built-in 7.5" monochrome | [7.5" four greys](#75-four-greys-trmnl-kit-reterminal-e1001) | none | `seeed_reterminal_e1001_grey` (1-bit: `seeed_reterminal_e1001`) |
+| TRMNL 7.5" (OG) DIY kit: Seeed XIAO ePaper Display Board EE04 | 7.5" 800×480 monochrome (GDEY075T7 class) | [7.5" four greys](#75-four-greys-trmnl-kit-reterminal-e1001) | none | `seeed_xiao_ee04_grey` (1-bit: `seeed_xiao_ee04`) |
 | [Seeed XIAO ePaper Display Board EE02](https://www.seeedstudio.com/XIAO-ePaper-Display-Board-EE02-p-6639.html) | Good Display GDEB0709E01, 7.09" 1600×1200 Spectra 6 | [7.09" high resolution](#709-high-resolution-colour-xiao-ee02) | [Panel, optional sensor](#seeed-xiao-ee02-with-the-709-panel) | `seeed_xiao_ee02_709` |
 | [Seeed XIAO ePaper Display Board EE05](https://wiki.seeedstudio.com/epaper_ee05) | [Seeed 4.26" 800×480 monochrome](https://www.seeedstudio.com/4-26-Monochrome-SPI-ePaper-Display-p-6398.html) (Good Display GDEQ0426T82) | [4.26" four greys](#426-four-greys-xiao-ee05) | [Printed case](#seeed-xiao-ee05-with-the-426-panel) | `seeed_xiao_ee05` |
 
@@ -66,23 +81,26 @@ The DIY build takes an optional BME280, BME680 or SHT40/41/45 indoor sensor. The
 
 ## Layouts
 
-### 7.5" black and white
-
-<img src="showcase/preview-75-bw.png" width="80%" />
-
-The original 800×480 layout, drawn in line art. Top left: the current conditions. Below them: up to 12 widgets in a two-column grid, chosen and ordered in the portal. Along the top: a 5- to 7-day forecast. Bottom right: a graph of the next 24 to 48 hours, with temperature (and optionally the dew point) as lines, the chance of rain as bars and the weather as icons along the line. Up to two weather alerts appear at the top, beside the city and date. The status bar shows the update time, WiFi and battery.
-
-It runs on the FireBeetle build with a 7.5" v2 panel, on the reTerminal E1001, on the TRMNL kit (`seeed_xiao_ee04`), and on the EE05 with the `seeed_xiao_ee05_classic` target. A dark mode (white on black) is available on the colour panels.
-
 ### 7.5" four greys (TRMNL kit, reTerminal E1001)
 
-The same 800×480 layout, drawn in the black-and-white panel's four greys (`seeed_xiao_ee04_grey`, `seeed_reterminal_e1001_grey`):
+<table>
+  <tr>
+    <th width="50%">Now</th>
+    <th width="50%">Forecast</th>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="showcase/preview-75-grey.png" width="400" alt="7.5&quot; four greys — Now page" /></td>
+    <td width="50%" align="center"><img src="showcase/preview-75-grey-forecast.png" width="400" alt="7.5&quot; four greys — Forecast page" /></td>
+  </tr>
+</table>
 
-- **Smoother type and icons:** the Bitter text and the large weather, alert and error icons are 2-bit, with light grey at their edges, hinted so the strokes stay sharp.
-- **Greys with a meaning:** clouds are filled (light grey for rain and snow, dark grey for thunderstorms, a lighter dither for the others); the moon is shaded from NASA's map; the temperature and dew point are smooth curves; the dew point line and the chance-of-rain bars are grey.
-- **Two pages.** **Now** is the page above. **Forecast** is weather.gov's forecast in words, six periods in two columns, turned to with a button (KEY2 on the kit, the left button on the E1001). It is drawn from the weather the last update saved, without the network, and the Now page comes back five minutes after the last press. The words come from weather.gov only, so with another forecast source the page says so.
+The 800×480 layout drawn in the 7.5" monochrome panel's four greys (`seeed_xiao_ee04_grey`, `seeed_reterminal_e1001_grey`). Top left: current conditions. Below them: up to 12 widgets in a two-column grid (5 or 6 rows), chosen and ordered in the portal. Along the top: a 5- to 7-day forecast in alternating rounded cards. Bottom right: a graph of the next 24 to 48 hours with temperature and dew point curves, chance-of-rain bars and sky icons. Up to two weather alerts appear at the top beside the city and date, and the status bar shows update time, WiFi and battery.
 
-A refresh takes about 4 seconds. The greys were measured on the panel: black, dark grey, light grey and white come out at L\* 19, 34, 67 and 100.
+- **2-bit anti-aliased type and weather icons:** Bitter text (with dark, legible small labels) and precomputed 2-bit weather, alert and error icons (`32`, `48`, `64` and `196` px) with smooth edges and evenly filled clouds across all sky states.
+- **Four-greyscale widgets and shading:** dedicated multi-tone widget icons at both 5- and 6-row sizes (including pollen, visibility, humidity, dew point, air quality, indoor pair, heat stress and barometer), a moon shaded from NASA's lunar map, contrast-coded precipitation bars, rounded alternating forecast cards, rounded nighttime shading behind the graph, and 4-level anti-aliased temperature and dew point curves with high/low peak callouts.
+- **Two pages:** **Now** (left) and **Forecast** (right), which shows weather.gov's forecast in words across six periods in two columns of rounded day and night cards, toggled with a button (`KEY2` on the TRMNL kit, the left button on the E1001). It renders from the weather saved on the last update without WiFi and returns to Now five minutes after the last press. The text comes from weather.gov only, so other forecast sources say so.
+
+A refresh takes about 4 seconds. The greys were measured on the panel: black, dark grey, light grey and white come out at L\* 19, 34, 67 and 100. For the DIY FireBeetle build or plain 1-bit line art, the 1-bit targets (`dfrobot_firebeetle2_esp32e`, `seeed_xiao_ee04`, `seeed_reterminal_e1001`, `seeed_xiao_ee05_classic`) remain available; dark mode (white on black) is supported on the full-colour panels.
 
 ### 7.5" three-colour (black/white/red)
 
@@ -110,9 +128,18 @@ The layout keeps colour to flat areas, and its colours were measured from test c
 
 ### 4.26" four greys (XIAO EE05)
 
-| Home (four greys) | Hours (black and white) | Week (black and white) |
-|:---:|:---:|:---:|
-| <img src="showcase/preview-ee05-426-home.png" /> | <img src="showcase/preview-ee05-426-hours.png" /> | <img src="showcase/preview-ee05-426-week.png" /> |
+<table>
+  <tr>
+    <th width="33%">Home (four greys)</th>
+    <th width="33%">Hours (black and white)</th>
+    <th width="33%">Week (black and white)</th>
+  </tr>
+  <tr>
+    <td width="33%" align="center"><img src="showcase/preview-ee05-426-home.png" width="280" alt="4.26&quot; four greys — Home page" /></td>
+    <td width="33%" align="center"><img src="showcase/preview-ee05-426-hours.png" width="280" alt="4.26&quot; — Hours page" /></td>
+    <td width="33%" align="center"><img src="showcase/preview-ee05-426-week.png" width="280" alt="4.26&quot; — Week page" /></td>
+  </tr>
+</table>
 
 Seeed's 4.26" panel (219 ppi) is black and white with a waveform for four greys. Its layout comes in pages:
 
@@ -157,10 +184,10 @@ Each target selects its board, panel, sensor and pins by itself. Only the DIY bu
 | `firebeetle32` | The older micro-USB FireBeetle ESP32. Change `PIN_BAT_ADC` to `A0` and `PIN_EPD_BUSY` to `5` in config.cpp. |
 | `seeed_reterminal_e1002` | reTerminal E1002 |
 | `seeed_reterminal_e1002_426c`, `seeed_reterminal_e1002_426c_he` | reTerminal E1002 running the 4.26" layout's home page in Spectra 6 colour (English or Hebrew) |
-| `seeed_reterminal_e1001` | reTerminal E1001 |
 | `seeed_reterminal_e1001_grey` | reTerminal E1001 in four greys, with the forecast page |
-| `seeed_xiao_ee04` | TRMNL 7.5" (OG) DIY kit (XIAO EE04), black and white |
-| `seeed_xiao_ee04_grey` | TRMNL kit in four greys, with the forecast page |
+| `seeed_reterminal_e1001` | reTerminal E1001, 1-bit black and white |
+| `seeed_xiao_ee04_grey` | TRMNL 7.5" (OG) DIY kit (XIAO EE04) in four greys, with the forecast page |
+| `seeed_xiao_ee04` | TRMNL kit, 1-bit black and white |
 | `seeed_xiao_ee02_709` | XIAO EE02 with the GDEB0709E01 |
 | `seeed_xiao_ee05` | XIAO EE05 with the 4.26" panel (four-grey layout with pages) |
 | `seeed_xiao_ee05_classic` | XIAO EE05 drawing the 7.5" black-and-white layout instead |
@@ -311,7 +338,7 @@ All runtime settings live in [`platformio/data/config.json`](platformio/data/con
 - `forecast_days`: 5 to 7 days in the forecast row.
 - `sleep.hourly_graph_max`: hours on the graph, 8 to 48.
 - `graph_dewpoint`: adds the dew point as a second curve on the graph.
-- `font`, `font_small`: the typeface for the text, and a separate one for the small text (labels, axis, tags). Only families compiled in are available. On ~125 ppi panels, Bitter with FreeSans below is the intended pairing.
+- `font`, `font_small`: the typeface for the text, and a separate one for the small text (labels, axis, tags). Only families compiled in are available. On the 7.5" four-grey build, 2-bit Bitter is the default for both; on 1-bit and colour ~125 ppi panels, Bitter with FreeSans below is the intended pairing.
 - `dark_mode`: white on black, on the colour panels.
 - `panel_slots` (7.09" layout): its eight readings.
 - `graph_layout` (7.09" layout): `one` for the one hourly graph, `stacked` for smaller graphs stacked under the timeline, chosen top to bottom in `graph_slots` from temp, temp_dew, temp_feels, feels, dew, wind, rain, amount, rain_both, rain_clouds (with cloud cover behind), humidity and clouds. `graph_strip`: `false` hides the strip of named weather, and the graph(s) take its room. weather.gov gives rain amounts only as 6-hour totals; each hour gets a share of its total by its chance of rain.
@@ -344,7 +371,7 @@ All runtime settings live in [`platformio/data/config.json`](platformio/data/con
   - The forecast row runs right to left, with day names spelt out where they fit. Units use the Israeli abbreviations.
   - With IMS as the source, the current conditions get a short description, and IMS's warnings are shown as IMS words them.
   - The setup portal comes up in Hebrew too ([screenshot](showcase/portal-he.png)).
-  - Previews: [Netanya](showcase/preview-netanya-he.png), [an alert](showcase/preview-netanya-he-alert.png), [black and white](showcase/preview-netanya-he-bw.png).
+  - Previews: [Netanya](showcase/preview-netanya-he.png), [an alert](showcase/preview-netanya-he-alert.png).
 - **Shabbat and holidays:**
   - On Friday and on the eve of a holiday, the sunset widget shows candle lighting (sunset less `shabbat.candle_lighting_minutes`, default 18).
   - On Shabbat and holidays it shows when they end (sunset plus `shabbat.havdalah_minutes`, default 42).
@@ -423,7 +450,7 @@ Upstream's own case is a wooden stand: 63 mm deep, 49 mm high and 170.2 mm wide 
 
 ### Seeed reTerminal E1001 / E1002
 
-No assembly: the panel, battery, buttons, SHT4x sensor and case are built in. Flash `seeed_reterminal_e1002` (or `_e1001`) and set it up from your phone.
+No assembly: the panel, battery, buttons, SHT4x sensor and case are built in. Flash `seeed_reterminal_e1002` (or `seeed_reterminal_e1001_grey` for the E1001) and set it up from your phone.
 
 ### Seeed XIAO EE02 with the 7.09" panel
 
@@ -543,7 +570,7 @@ weathergov-epd is a fork of [esp32-weather-epd](https://github.com/lmarzen/esp32
 | [Adafruit-GFX-Library: fontconvert](https://github.com/adafruit/Adafruit-GFX-Library/tree/master/fontconvert) | [BSD License](fonts/fontconvert/license.txt) | Preprocesses fonts for the Adafruit_GFX library. |
 | [pollutant-concentration-to-aqi](https://github.com/lmarzen/pollutant-concentration-to-aqi) | [GNU LGPL v2.1](platformio/lib/pollutant-concentration-to-aqi/LICENSE) | Converts pollutant concentrations to an AQI. |
 | [InkyPi weather icons](https://github.com/fatihak/InkyPi) | [GNU GPL v3.0](https://github.com/fatihak/InkyPi/blob/main/LICENSE) | Full-colour icon artwork by Faith Akici, reduced to e-paper inks by tools/generate_color_icons.py. |
-| [NASA LRO lunar map](https://svs.gsfc.nasa.gov/4720) | Public domain | The moon on the 7.09" and 4.26" layouts (tools/moon). |
+| [NASA LRO lunar map](https://svs.gsfc.nasa.gov/4720) | Public domain | The moon on the 7.5" four-grey, 7.09" and 4.26" layouts (tools/moon). |
 | [Bitter](https://fonts.google.com/specimen/Bitter), [Lato](https://fonts.google.com/specimen/Lato), [Montserrat](https://fonts.google.com/specimen/Montserrat), [Open Sans](https://fonts.google.com/specimen/Open+Sans), [Poppins](https://fonts.google.com/specimen/Poppins), [Quicksand](https://fonts.google.com/specimen/Quicksand), [Raleway](https://fonts.google.com/specimen/Raleway), [Heebo](https://fonts.google.com/specimen/Heebo) | [SIL OFL v1.1](http://scripts.sil.org/OFL) | Font families |
 | [GNU FreeFont](https://www.gnu.org/software/freefont/) | [GNU GPL v3.0](https://www.gnu.org/software/freefont/license.html) | Font family |
 | [Roboto](https://fonts.google.com/specimen/Roboto), [Roboto Mono](https://fonts.google.com/specimen/Roboto+Mono), [Roboto Slab](https://fonts.google.com/specimen/Roboto+Slab) | [Apache License v2.0](https://www.apache.org/licenses/LICENSE-2.0) | Font families |
