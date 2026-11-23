@@ -238,9 +238,13 @@ size_t _strftime(char *s, size_t maxsize, const char *format,
   if (s == NULL || format == NULL || timeptr == NULL || maxsize == 0)
     return 0;
 
-  // quick check if we even need to bother
-  if (strchr(format, '%') == NULL && strlen(format) + 1 >= maxsize)
+  // quick check if we even need to bother: plain text and its terminator
+  // must fit (an exact fit is fine)
+  if (strchr(format, '%') == NULL && strlen(format) + 1 > maxsize)
+  {
+    *s = '\0';
     return 0;
+  }
 
   for (; *format && s < endp - 1; format++)
   {
