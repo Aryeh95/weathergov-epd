@@ -145,6 +145,12 @@
 #if defined(DISP_BW_V2) && defined(GREYS_75)
   // The four greys, their mixes and text on each: the _testcard build.
   void drawTestCard75();
+  // Ways of anti-aliasing with the light grey: the _aacard build.
+  void drawTestCardAA75();
+  // The page's text sizes in 1 and 2 bits: the _textcard build.
+  void drawTestCardText75();
+  // Icons in 1 and 2 bits: the _iconcard build.
+  void drawTestCardIcons75();
   // The pages KEY3 turns to (main.cpp, turnPage): 0 the home page, 1 the
   // forecast in words.
   #define PAGES_426 2

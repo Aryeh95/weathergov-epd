@@ -606,6 +606,38 @@ int main(int argc, char **argv)
     return 0;
   }
 #endif
+#if defined(GREYS_75)
+  if (getenv("SIM480_ICONCARD"))
+  { // the icon card (seeed_xiao_ee04_grey_iconcard), on its own
+    initDisplay();
+    do
+    {
+      drawTestCardIcons75();
+    } while (display.nextPage());
+    savePpm((outDir + "/sim_icon75_card.ppm").c_str());
+    return 0;
+  }
+  if (getenv("SIM480_TEXTCARD"))
+  { // the text card (seeed_xiao_ee04_grey_textcard), on its own
+    initDisplay();
+    do
+    {
+      drawTestCardText75();
+    } while (display.nextPage());
+    savePpm((outDir + "/sim_text75_card.ppm").c_str());
+    return 0;
+  }
+  if (getenv("SIM480_AACARD"))
+  { // the anti-aliasing card (seeed_xiao_ee04_grey_aacard), on its own
+    initDisplay();
+    do
+    {
+      drawTestCardAA75();
+    } while (display.nextPage());
+    savePpm((outDir + "/sim_aa75_card.ppm").c_str());
+    return 0;
+  }
+#endif
   if (strcmp(LOCALE_STR(LOCALE), "pl_PL") == 0)
   {
     return mainKrakow(outDir);

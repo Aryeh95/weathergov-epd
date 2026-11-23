@@ -3934,6 +3934,306 @@ void drawTestCard75()
 }
 #endif
 
+#if defined(GREYS_75)
+/* Anti-aliasing test card (-D GREY75_TEST_CARD=2, the
+ * seeed_xiao_ee04_grey_aacard build): which way of softening edges with the
+ * light grey looks best on the panel, and how lone light-grey dots come out
+ * beside black ones (a flat patch, as on the first card, may not say).
+ *   row 1: a fan of lines and a circle, black only (as the graph drew them)
+ *          and anti-aliased with five stroke / threshold choices;
+ *   row 2: lone light-grey dots alone, beside black, between blacks, against
+ *          a black edge, next to the flat patch and the LG/W checker;
+ *   row 3: the big temperature as drawn, and with its steps softened; and a
+ *          curve three ways.
+ */
+static void aaPolyline75(const float *px, const float *py, int m, float halfW,
+                         float lo, float hi)
+{
+  float x0 = 1e9f, x1 = -1e9f, y0 = 1e9f, y1 = -1e9f;
+  for (int j = 0; j < m; ++j)
+  {
+    x0 = std::min(x0, px[j]); x1 = std::max(x1, px[j]);
+    y0 = std::min(y0, py[j]); y1 = std::max(y1, py[j]);
+  }
+  const float r = halfW + 1.0f;
+  for (int y = static_cast<int>(std::floor(y0 - r));
+       y <= static_cast<int>(std::ceil(y1 + r)); ++y)
+  {
+    for (int x = static_cast<int>(std::floor(x0 - r));
+         x <= static_cast<int>(std::ceil(x1 + r)); ++x)
+    {
+      float d2 = 1e9f;
+      for (int j = 0; j + 1 < m; ++j)
+      {
+        const float ax = px[j], ay = py[j];
+        const float bx = px[j + 1] - ax, by = py[j + 1] - ay;
+        const float l2 = bx * bx + by * by;
+        float t = l2 > 0 ? ((x - ax) * bx + (y - ay) * by) / l2 : 0;
+        t = std::max(0.0f, std::min(1.0f, t));
+        const float ex = x - (ax + t * bx), ey = y - (ay + t * by);
+        d2 = std::min(d2, ex * ex + ey * ey);
+      }
+      aaInk75(x, y, halfW + 0.5f - std::sqrt(d2), lo, hi);
+    }
+  }
+}
+
+// the graph's own black stroke: rows y, y + 1 and column x - 1
+static void blackPolyline75(const float *px, const float *py, int m)
+{
+  for (int j = 0; j + 1 < m; ++j)
+  {
+    const int ax = lround(px[j] + 0.5f), ay = lround(py[j] - 0.5f);
+    const int bx = lround(px[j + 1] + 0.5f), by = lround(py[j + 1] - 0.5f);
+    display.drawLine(ax, ay, bx, by, GxEPD_BLACK);
+    display.drawLine(ax, ay + 1, bx, by + 1, GxEPD_BLACK);
+    display.drawLine(ax - 1, ay, bx - 1, by, GxEPD_BLACK);
+  }
+}
+
+#include "aa75_card59.h"
+#include "aa75_text.h"
+#include "aa75_icons.h"
+
+/* Icon card (-D GREY75_TEST_CARD=4, the seeed_xiao_ee04_grey_iconcard
+ * build): icons at the sizes the page draws, each as the 1-bit header draws
+ * it (left of a pair) and in 2 bits from its SVG (right, aa75_icons.h).
+ */
+static void drawIcon2bit75(int x0, int y0, int n, const uint8_t *dots)
+{
+  for (int y = 0, i = 0; y < n; ++y)
+  {
+    for (int x = 0; x < n; ++x, ++i)
+    {
+      const int v = (dots[i >> 2] >> (6 - 2 * (i & 3))) & 3;
+      if (v) display.drawPixel(x0 + x, y0 + y, v == 2 ? GxEPD_BLACK : G_LG);
+    }
+  }
+}
+
+void drawTestCardIcons75()
+{
+  const uint16_t K = GxEPD_BLACK;
+  display.setFont(&FONT_11pt8b);
+  drawString(DISP_WIDTH / 2, 20, "icons: 1-bit | 2-bit", CENTER, K);
+  display.setFont(&FONT_7pt8b);
+  int col[256] = {0};
+  for (int k = 0; k < AA_ICONS_N; ++k)
+  {
+    const AaIcon75 &a = AA_ICONS[k];
+    const int S = a.size;
+    int x, y;
+    const int c = col[S]++;
+    if (S == 196) { x = 30; y = 34; }
+    else if (S == 64) { x = 436 + c * 170; y = 40; }
+    else if (S == 48) { x = 436 + c * 120; y = 130; }
+    else
+    {
+      x = 34 + c * (2 * S + 6 + 18);
+      y = S == 32 ? 260 : (S == 24 ? 320 : 370);
+    }
+    if (c == 0) drawString(x - 4, y + S / 2 + 4, String(S), RIGHT, K);
+    display.drawInvertedBitmap(x, y, a.mono, S, S, K);
+    drawIcon2bit75(x + S + 6, y, S, a.dots);
+  }
+}
+
+
+/* Text card (-D GREY75_TEST_CARD=3, the seeed_xiao_ee04_grey_textcard
+ * build): Bitter at every size the page uses, as the 1-bit font draws it
+ * (left) and in 2 bits shaded from the hinted outline (right, aa75_text.h).
+ */
+// the sizes the font table may leave out, in their own namespace so a
+// second copy cannot clash with the table's
+namespace aa75fonts {
+#include "fonts/Bitter/Bitter_10pt8b.h"
+#include "fonts/Bitter/Bitter_9pt8b.h"
+#include "fonts/FreeSans/FreeSans_9pt8b.h"
+}
+
+static const GFXfont *aaTextFont75(const char *family, int pt)
+{
+  const bool bitter = family[0] == 'B';
+  switch (pt)
+  {
+  case 26: return &Bitter_26pt8b;
+  case 16: return &Bitter_16pt8b;
+  case 14: return &Bitter_14pt8b;
+  case 12: return &Bitter_12pt8b;
+  case 11: return &Bitter_11pt8b;
+  case 10: return &aa75fonts::Bitter_10pt8b;
+  case 9: return bitter ? &aa75fonts::Bitter_9pt8b : &aa75fonts::FreeSans_9pt8b;
+  case 8: return bitter ? &Bitter_8pt8b : &FreeSans_8pt8b;
+  case 7: return bitter ? &Bitter_7pt8b : &FreeSans_7pt8b;
+  default: return bitter ? &Bitter_6pt8b : &FreeSans_6pt8b;
+  }
+}
+
+void drawTestCardText75()
+{
+  const uint16_t K = GxEPD_BLACK;
+  display.setFont(&aa75fonts::FreeSans_9pt8b);
+  drawString(30, 20, "1-bit (now)", LEFT, K);
+  drawString(420, 20, "2-bit hinted (7, 6: darker)", LEFT, K);
+  display.drawFastVLine(412, 8, 464, G_LG);
+  int top = 34;
+  for (int r = 0; r < AA_TXT_N; ++r)
+  {
+    const AaText75 &t = AA_TXT[r];
+    display.setFont(aaTextFont75(t.family, t.pt));
+    display.setTextColor(K);
+    display.setCursor(30 + 2, top + t.base);
+    display.print(t.text);
+    for (int y = 0; y < t.h; ++y)
+    {
+      for (int x = 0; x < AA_TXT_W; ++x)
+      {
+        const int i = y * AA_TXT_W + x;
+        const int d = (t.dots[0][i >> 2] >> (6 - 2 * (i & 3))) & 3;
+        if (d) display.drawPixel(420 + x, top + y, d == 2 ? K : G_LG);
+      }
+    }
+    display.setFont(&FreeSans_6pt8b);
+    drawString(24, top + t.base, String(t.pt), RIGHT, K);
+    top += t.h + 10;
+  }
+}
+
+
+void drawTestCardAA75()
+{
+  const uint16_t K = GxEPD_BLACK;
+  display.setFont(&FONT_11pt8b);
+  drawString(DISP_WIDTH / 2, 20, "7.5in: anti-aliasing with light grey", CENTER, K);
+  display.setFont(&FONT_7pt8b);
+  drawString(8, 14, "top left", LEFT, K);
+  drawString(DISP_WIDTH - 8, 14, "top right", RIGHT, K);
+
+  struct V { bool aa; float halfW, lo, hi; const char *name; };
+  static const V VAR[6] = {
+    {false, 1.0f, 0, 0, "A black only"},
+    {true, 1.1f, 0.35f, 0.82f, "B 2.2px 35/82"},
+    {true, 1.1f, 0.25f, 0.75f, "C 2.2px 25/75"},
+    {true, 1.1f, 0.50f, 0.90f, "D 2.2px 50/90"},
+    {true, 0.8f, 0.35f, 0.82f, "E 1.6px 35/82"},
+    {true, 1.5f, 0.35f, 0.82f, "F 3.0px 35/82"}};
+  static const float ANG[8] = {0, 5, 12, 20, 30, 45, 62, 85};
+  for (int c = 0; c < 6; ++c)
+  {
+    const V &v = VAR[c];
+    const float ox = 16 + c * 130 + 6, oy = 140;
+    auto stroke = [&](const float *px, const float *py, int m) {
+      if (v.aa) aaPolyline75(px, py, m, v.halfW, v.lo, v.hi);
+      else blackPolyline75(px, py, m);
+    };
+    for (float a : ANG)
+    {
+      const float r = a * static_cast<float>(M_PI) / 180;
+      const float px[2] = {ox, ox + 105 * cosf(r)};
+      const float py[2] = {oy, oy - 105 * sinf(r)};
+      stroke(px, py, 2);
+    }
+    float cx[73], cy[73];
+    for (int k = 0; k <= 72; ++k)
+    {
+      const float r = k * 2 * static_cast<float>(M_PI) / 72;
+      cx[k] = ox + 56 + 28 * cosf(r);
+      cy[k] = oy + 50 + 28 * sinf(r);
+    }
+    stroke(cx, cy, 73);
+    drawString(static_cast<int>(ox) + 56, 236, v.name, CENTER, K);
+  }
+
+  // lone light-grey dots
+  static const char *const PAT[6] = {"LG flat", "LG/W checker", "LG alone",
+                                     "K LG pairs", "K LG K", "K K LG W W W"};
+  for (int p = 0; p < 6; ++p)
+  {
+    const int x0 = 16 + p * 130, y0 = 248, w = 116, h = 56;
+    display.drawRect(x0 - 1, y0 - 1, w + 2, h + 2, K);
+    for (int j = 0; j < h; ++j)
+    {
+      for (int i = 0; i < w; ++i)
+      {
+        uint16_t c = GxEPD_WHITE;
+        switch (p)
+        {
+        case 0: c = G_LG; break;
+        case 1: c = ((i + j) & 1) ? G_LG : GxEPD_WHITE; break;
+        case 2: if (i % 3 == 1 && j % 3 == 1) c = G_LG; break;
+        case 3:
+          if (j % 3 == 1)
+          {
+            if (i % 4 == 1) c = K;
+            else if (i % 4 == 2) c = G_LG;
+          }
+          break;
+        case 4:
+          if (j % 3 == 1)
+          {
+            const int q = i % 5;
+            if (q == 1 || q == 3) c = K;
+            else if (q == 2) c = G_LG;
+          }
+          break;
+        case 5:
+        {
+          const int q = i % 6;
+          c = q < 2 ? K : (q == 2 ? G_LG : GxEPD_WHITE);
+          break;
+        }
+        }
+        if (c != GxEPD_WHITE) display.drawPixel(x0 + i, y0 + j, c);
+      }
+    }
+    drawString(x0 + w / 2, y0 + h + 14, PAT[p], CENTER, K);
+  }
+
+  // the big temperature: FreeSans 48 pt as the 1-bit font draws it, and
+  // the same glyphs in 2 bits, shaded from the outline (aa75_card59.h)
+  GFXcanvas1 canvas(200, 110);
+  canvas.fillScreen(0);
+  canvas.setFont(&FreeSans_48pt8b_temperature);
+  canvas.setTextColor(1);
+  canvas.setCursor(4, 96);
+  canvas.print("59");
+  for (int y = 0; y < 110; ++y)
+  {
+    for (int x = 0; x < 200; ++x)
+    {
+      if (canvas.getPixel(x, y)) display.drawPixel(8 + x, 336 + y, K);
+    }
+  }
+  for (int y = 0; y < AA59_H; ++y)
+  {
+    for (int x = 0; x < AA59_W; ++x)
+    {
+      const int i = y * AA59_W + x;
+      const int v = (AA59[i >> 2] >> (6 - 2 * (i & 3))) & 3;
+      if (v) display.drawPixel(204 + x, 336 + y, v == 2 ? K : G_LG);
+    }
+  }
+  drawString(8 + 100, 474, "59 as drawn", CENTER, K);
+  drawString(204 + 100, 474, "59 2-bit font", CENTER, K);
+
+  // a curve three ways: A, B, C
+  float qx[121], qy[121];
+  for (int k = 0; k <= 120; ++k)
+  {
+    qx[k] = 430 + k * 3;
+    qy[k] = 22 * sinf(k * 0.06f) + 6 * sinf(k * 0.21f);
+  }
+  for (int r = 0; r < 3; ++r)
+  {
+    float y[121];
+    for (int k = 0; k <= 120; ++k) y[k] = 362 + r * 42 + qy[k] * 0.5f;
+    if (r == 0) blackPolyline75(qx, y, 121);
+    else aaPolyline75(qx, y, 121, VAR[r].halfW, VAR[r].lo, VAR[r].hi);
+    drawString(422, 366 + r * 42, VAR[r].name, RIGHT, K);
+  }
+}
+#endif
+
 #if defined(DISP_7C_E6)
 /* A test card for the 7.3in Spectra 6 panel (-D E6_TEST_CARD, the
  * seeed_reterminal_e1002_testcard build): the six inks and the dot mixes

@@ -739,7 +739,15 @@ void setup()
   initDisplay();
   do
   {
+#if GREY75_TEST_CARD == 4
+    drawTestCardIcons75();
+#elif GREY75_TEST_CARD == 3
+    drawTestCardText75();
+#elif GREY75_TEST_CARD == 2
+    drawTestCardAA75();
+#else
     drawTestCard75();
+#endif
   } while (display.nextPage());
   powerOffDisplay();
   Serial.println("[grey75] test card drawn");
