@@ -59,6 +59,10 @@
   #define DISP_4G_426
 #elif defined(BOARD_RETERMINAL_E1001)
   #define DISP_BW_V2
+#elif defined(BOARD_XIAO_EE04)
+  // the TRMNL 7.5in (OG) DIY kit: the EE04 board and a 7.5in UC8179
+  // black-and-white panel, the GDEY075T7 class
+  #define DISP_BW_V2
 #elif defined(BOARD_RETERMINAL_E1002) && defined(LAYOUT_426)
   // -e seeed_reterminal_e1002_426c: the 4.26in layout's home page
   // on the E1002's 7.3in Spectra 6, in its colours
@@ -91,9 +95,11 @@
 #define DRIVER_DESPI_C02
 // #define DRIVER_WAVESHARE
 
-// Seeed's XIAO ePaper Display Boards (EE02, EE05) share the XIAO ESP32-S3
-// Plus, its USB port as Serial, its user LED and their two wake buttons.
-#if defined(BOARD_XIAO_EE02) || defined(BOARD_XIAO_EE05)
+// Seeed's XIAO ePaper Display Boards (EE02, EE04, EE05) share the XIAO
+// ESP32-S3 Plus, its USB port as Serial, its user LED and their two wake
+// buttons.
+#if defined(BOARD_XIAO_EE02) || defined(BOARD_XIAO_EE04) \
+    || defined(BOARD_XIAO_EE05)
   #define BOARD_XIAO_EPAPER
 #endif
 
@@ -114,6 +120,13 @@
 #elif defined(BOARD_XIAO_EE05)
   // none on the board either; an SHT4x on the extension port (see
   // config.cpp for the pins) is found by itself
+  #define SENSOR_SHT4X
+  #define SENSOR_OPTIONAL
+  // its supply is switched on just before it is read
+  #define SENSOR_INIT_DELAY_MS 10
+#elif defined(BOARD_XIAO_EE04)
+  // none on the board either; an SHT4x on the pads of the font chip it was
+  // never given (as on the EE02, see config.cpp) is found by itself
   #define SENSOR_SHT4X
   #define SENSOR_OPTIONAL
   // its supply is switched on just before it is read
@@ -469,7 +482,8 @@
 // configured one has none. The he_IL locale's defaults file switches Heebo
 // on; for another build:
 // #define FONT_INCLUDE_Heebo 1
-#if (defined(BOARD_RETERMINAL_E1002) || defined(BOARD_XIAO_EE05)) \
+#if (defined(BOARD_RETERMINAL_E1002) || defined(BOARD_XIAO_EE05) \
+     || defined(BOARD_XIAO_EE04)) \
     && !defined(FONT_INCLUDE_Bitter)
   #define FONT_INCLUDE_Bitter 1
 #endif

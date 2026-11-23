@@ -64,6 +64,45 @@ const uint8_t PIN_BME_SDA = 13;
 const uint8_t PIN_BME_SCL = 11;
 const uint8_t PIN_BME_PWR = PIN_EPD_PWR; // one load switch for both
 const uint8_t BME_ADDRESS = 0x76;
+#elif defined(BOARD_XIAO_EE04)
+// Seeed XIAO ePaper Display Board EE04 (XIAO ESP32-S3 Plus), as in the
+// TRMNL 7.5in (OG) DIY kit -- fixed wiring, do not change. The panel pins
+// are the EE05's (Seeed_GFX2's board table gives both the same); the
+// battery switch and the third button differ (Seeed's EE04 wiki).
+// Battery: GPIO1 through a 1:2 divider, switched on by ADC_EN (GPIO6).
+const uint8_t PIN_BAT_ADC  = 1;
+const uint8_t PIN_BAT_EN   = 6;
+// 24-pin panel connector (the board's jumper on its 24-pin side)
+const uint8_t PIN_EPD_BUSY = 4;
+const uint8_t PIN_EPD_CS   = 44; // the UART0 RX pin
+const uint8_t PIN_EPD_CS2  = PIN_UNUSED;
+const uint8_t PIN_EPD_RST  = 38;
+const uint8_t PIN_EPD_DC   = 10;
+const uint8_t PIN_EPD_SCK  = 7;
+const uint8_t PIN_EPD_MISO = PIN_UNUSED;
+const uint8_t PIN_EPD_MOSI = 9;
+const uint8_t PIN_EPD_PWR  = 43; // panel supply load switch (the UART0 TX pin)
+const uint8_t PIN_SD_EN    = PIN_UNUSED; // no microSD slot
+const uint8_t PIN_SD_CS    = PIN_UNUSED;
+// Three buttons, active low: KEY0 (GPIO2) wakes into the configuration
+// portal, KEY1 (GPIO3) into an immediate refresh; KEY2 (GPIO5) is unused.
+const uint8_t PIN_BTN_PORTAL  = 2;
+const uint8_t PIN_BTN_REFRESH = 3;
+const uint8_t PIN_BTN_PAGE    = 5;
+// No sensor on the board, and the XIAO's I2C pins are a button (GPIO5)
+// and the battery switch (GPIO6) here. As on the EE02, an SHT4x goes on
+// the pads of U6, a font chip that is not fitted (EE04 schematic V1.2):
+// they carry the second SPI bus of the on-board flash chip, which this
+// firmware never uses and which ignores the bus while its chip select
+// (GPIO40, pulled up on the board) is high.
+//   U6 pad 8  3V3   (VCC_3V3, switched together with the panel supply)
+//   U6 pad 6  SCL   GPIO11
+//   U6 pad 5  SDA   GPIO13
+//   U6 pad 4  GND
+const uint8_t PIN_BME_SDA = 13;
+const uint8_t PIN_BME_SCL = 11;
+const uint8_t PIN_BME_PWR = PIN_EPD_PWR; // one load switch for both
+const uint8_t BME_ADDRESS = 0x44;
 #elif defined(BOARD_XIAO_EE05)
 // Seeed XIAO ePaper Display Board EE05 (XIAO ESP32-S3 Plus soldered on) --
 // fixed wiring, do not change. From Seeed's EE05 schematic (V1.0), which

@@ -282,6 +282,8 @@ static void handleGetInfo()
   doc["board"] = "Seeed XIAO EE02, GDEB0709E01 1600x1200";
 #elif defined(BOARD_XIAO_EE05)
   doc["board"] = "Seeed XIAO EE05, 4.26in 800x480";
+#elif defined(BOARD_XIAO_EE04)
+  doc["board"] = "Seeed XIAO EE04 (TRMNL kit), 7.5in 800x480";
 #elif defined(BOARD_RETERMINAL_E1001)
   doc["board"] = "Seeed reTerminal E1001";
 #elif defined(BOARD_RETERMINAL_E1002)
