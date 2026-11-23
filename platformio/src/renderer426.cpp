@@ -62,6 +62,7 @@
 #include "history.h"
 #include "text426.h"
 #include "sun.h"
+#include "smooth.h"
 
 #if defined(FONT_INCLUDE_Heebo)
 // a Hebrew build: Heebo, whose high slots carry the Hebrew alphabet, in
@@ -1642,19 +1643,15 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     }
     yHi += step;
   }
-  // the samples sit mid-hour; between them the line is straight
+  // the samples sit mid-hour; between them a smooth curve (smooth.h)
+  float tU[OWM_NUM_HOURLY], dU[OWM_NUM_HOURLY];
+  for (int i = 0; i < hours; ++i)
+  {
+    tU[i] = std::isnan(hourly[i].temp) ? NAN : toTempUnit(hourly[i].temp);
+    dU[i] = std::isnan(hourly[i].dew_point) ? NAN : toTempUnit(hourly[i].dew_point);
+  }
   auto sample = [&](int col, bool dew) -> float {
-    const float h = col / perHour - 0.5f;
-    const int a = std::max(0, std::min(hours - 1, static_cast<int>(std::floor(h))));
-    const int b = std::min(hours - 1, a + 1);
-    const float f = std::max(0.0f, std::min(1.0f, h - a));
-    const float va = dew ? hourly[a].dew_point : hourly[a].temp;
-    const float vb = dew ? hourly[b].dew_point : hourly[b].temp;
-    if (std::isnan(va) || std::isnan(vb))
-    {
-      return NAN;
-    }
-    return toTempUnit(va + (vb - va) * f);
+    return smoothGapsAt(dew ? dU : tU, hours, col / perHour - 0.5f);
   };
   static int16_t temp[GX1 - GX0 + 1];
   static int16_t dew[GX1 - GX0 + 1];
@@ -2129,13 +2126,9 @@ static void columns(const float *v, int n, int w, int16_t *out, F Y)
 {
   const float per = w / static_cast<float>(n);
   for (int c = 0; c < w; ++c)
-  {
-    const float h = c / per - 0.5f;
-    const int a = std::max(0, std::min(n - 1, static_cast<int>(std::floor(h))));
-    const int b = std::min(n - 1, a + 1);
-    const float f = std::max(0.0f, std::min(1.0f, h - a));
-    out[c] = (std::isnan(v[a]) || std::isnan(v[b]))
-           ? INT16_MIN : Y(v[a] + (v[b] - v[a]) * f);
+  { // a smooth curve through the mid-hour samples (smooth.h)
+    const float y = smoothGapsAt(v, n, c / per - 0.5f);
+    out[c] = std::isnan(y) ? INT16_MIN : Y(y);
   }
 }
 

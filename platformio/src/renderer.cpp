@@ -34,10 +34,19 @@
 #include "rtl.h"
 #include "hebcal.h"
 #include "sun.h"
+#include "smooth.h"
 
 // fonts: every compiled-in family, and the FONT_*pt8b names resolved at
 // runtime through FONT_FAMILY_INDEX
 #include "fonts/font_table.h"
+#if defined(GREYS_75)
+// the sizes the pages KEY3 turns to use beyond the font table's
+#include "fonts/Bitter/Bitter_10pt8b.h"
+#include "fonts/Bitter/Bitter_18pt8b.h"
+#if !FONT_TABLE_HAS_9pt8b
+#include "fonts/Bitter/Bitter_9pt8b.h"
+#endif
+#endif
 
 // icon header files
 #include "icons/icons_pollen.h" // line-art pollen flower, all panel types
@@ -51,8 +60,78 @@
 #include "icons/icons_160x160.h"
 #include "icons/icons_196x196.h"
 #include "icons/icons_40x40.h" // 6-row widget layout (widget_rows = 6)
+#if defined(GREYS_75)
+#include "assets426/moon426.h"   // the moon's near side, for its photo
+#endif
 
-#ifdef DISP_BW_V2
+#if defined(DISP_BW_V2) && defined(GREYS_75)
+  struct Grey75Bw {static void drawPixel75(int16_t x, int16_t y, uint16_t color);};
+  void Grey75Display::drawPixel(int16_t x, int16_t y, uint16_t color)
+  {
+    if (bw)
+    { // the pages in black and white: dark tones black, light ones white
+      // (the pages draw their own black rules there, see pageInk75)
+      Grey75Bw::drawPixel75(x, y, color);
+      return;
+    }
+    switch (color)
+    {
+    case G75_KDG:
+      color = ((x + y) & 1) ? GxEPD_BLACK : GxEPD_DARKGREY;
+      break;
+    case G75_LGW:
+      color = ((x + y) & 1) ? GxEPD_LIGHTGREY : GxEPD_WHITE;
+      break;
+    case G75_DGLG:
+      color = ((x + y) & 1) ? GxEPD_DARKGREY : GxEPD_LIGHTGREY;
+      break;
+    case G75_LGW4:
+      color = ((x & 1) == 0 && ((y + (x >> 1)) & 1) == 0)
+              ? GxEPD_LIGHTGREY : GxEPD_WHITE;
+      break;
+    default:
+      break;
+    }
+    Grey75Base::drawPixel(x, y, color);
+  }
+  Grey75Display display(
+    GxEPD2_BW_V2_PANEL(PIN_EPD_CS,
+                       PIN_EPD_DC,
+                       PIN_EPD_RST,
+                       PIN_EPD_BUSY));
+  // Black and white in two halves of 240 rows on the same driver (not the
+  // whole page: GxEPD2_4G indexes the buffer with an int16_t, as on the
+  // EE05's 4.26in, see renderer426.cpp).
+  static GxEPD2_4G_BW_R<GxEPD2_BW_V2_PANEL,
+                        GxEPD2_BW_V2_PANEL::HEIGHT / 2> bw75(display.epd2);
+  void Grey75Bw::drawPixel75(int16_t x, int16_t y, uint16_t color)
+  {
+    const bool white = color == GxEPD_WHITE || color == GxEPD_LIGHTGREY
+                       || color == G75_LGW || color == G75_LGW4;
+    bw75.drawPixel(x, y, white ? GxEPD_WHITE : GxEPD_BLACK);
+  }
+  void Grey75Display::init(uint32_t b, bool initial, uint16_t r, bool p)
+  {
+    if (bw) {bw75.init(b, initial, r, p);} else {Grey75Base::init(b, initial, r, p);}
+  }
+  void Grey75Display::setRotation(uint8_t r)
+  {
+    Grey75Base::setRotation(r);
+    bw75.setRotation(r);
+  }
+  void Grey75Display::setFullWindow()
+  {
+    if (bw) {bw75.setFullWindow();} else {Grey75Base::setFullWindow();}
+  }
+  void Grey75Display::firstPage()
+  {
+    if (bw) {bw75.firstPage();} else {Grey75Base::firstPage();}
+  }
+  bool Grey75Display::nextPage()
+  {
+    return bw ? bw75.nextPage() : Grey75Base::nextPage();
+  }
+#elif defined(DISP_BW_V2)
   GxEPD2_BW<GxEPD2_BW_V2_PANEL,
             GxEPD2_BW_V2_PANEL::HEIGHT> display(
     GxEPD2_BW_V2_PANEL(PIN_EPD_CS,
@@ -137,6 +216,575 @@
 #endif
 #ifndef ACCENT_COLOR
   #define ACCENT_COLOR GxEPD_BLACK
+#endif
+
+#if defined(GREYS_75)
+/* GREYS_75: the 7.5in black-and-white panel in its four greys. The layout
+ * is the same; the greys go where they make the page easier to read: the
+ * rain bars filled, the dew point a grey curve, the widget labels in grey
+ * under their black values, the lows grey, every other forecast day
+ * shaded, clouds filled and the moon drawn as it looks. Two greys dot by dot make the tones
+ * between them (G75_* in renderer.h). In dark mode the page stays black
+ * and white.
+ */
+static const uint16_t G_DG = GxEPD_DARKGREY;
+static const uint16_t G_LG = GxEPD_LIGHTGREY;
+// greys on this page: not in dark mode, nor on the black-and-white pages
+static inline bool greys() {return !DARK_MODE && !display.bw;}
+#endif
+
+#if defined(GREYS_75)
+#include "fonts/Bitter_2bit.h"
+/* 2-bit text (tools/fontconvert2.py): each 1-bit face that has a twin in 2
+ * bits is known by its signature (line height and the metrics of H a g 0),
+ * so whichever family table it came from, the twin is found. The twin keeps
+ * the 1-bit face's advances: text measures (getTextBounds) and lines up as
+ * before; only the ink differs.
+ */
+struct Font2Face
+{
+  const GFXfont *grey;
+  const int16_t *sig;
+};
+static const Font2Face FONT2[] = {FONT2_FACES};
+
+static bool font2Matches(const GFXfont *f, const int16_t *sig)
+{
+  if (pgm_read_byte(&f->yAdvance) != sig[0]) return false;
+  static const char SIG_CHARS[] = "Hag0";
+  const uint16_t first = pgm_read_word(&f->first);
+  for (int k = 0; k < 4; ++k)
+  {
+    const uint8_t c = static_cast<uint8_t>(SIG_CHARS[k]);
+    if (c < first || c > pgm_read_word(&f->last)) return false;
+    const GFXglyph *g = &f->glyph[c - first];
+    const int16_t *e = sig + 1 + 5 * k;
+    if (pgm_read_byte(&g->xAdvance) != e[0]
+        || pgm_read_byte(&g->width) != e[1]
+        || pgm_read_byte(&g->height) != e[2]
+        || static_cast<int8_t>(pgm_read_byte(&g->xOffset)) != e[3]
+        || static_cast<int8_t>(pgm_read_byte(&g->yOffset)) != e[4])
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
+static const GFXfont *font2For(const GFXfont *f)
+{
+  static const GFXfont *lastMono = nullptr, *lastGrey = nullptr;
+  if (f == lastMono) return lastGrey;
+  lastMono = f;
+  lastGrey = nullptr;
+  for (const Font2Face &t : FONT2)
+  {
+    if (font2Matches(f, t.sig))
+    {
+      lastGrey = t.grey;
+      break;
+    }
+  }
+  return lastGrey;
+}
+
+#include "icons/icons_2bit.h"
+/* The 2-bit twin of a 1-bit icon (tools/icons2bit.py), or null. Every source
+ * file has its own copy of the icon arrays, so a twin is found by a hash of
+ * the 1-bit bytes (FNV-1a, as the tool computes it), and remembered by
+ * address.
+ */
+static const uint8_t *icon2Twin(const uint8_t *mono, int16_t size)
+{
+  if (size != 196 && size != 64 && size != 48) return nullptr;
+  struct Seen { const uint8_t *mono; int16_t size; const uint8_t *twin; };
+  static Seen seen[16] = {};
+  static int next = 0;
+  for (const Seen &e : seen)
+  {
+    if (e.mono == mono && e.size == size) return e.twin;
+  }
+  uint32_t h = 0x811C9DC5u;
+  const int n = ((size + 7) / 8) * size;
+  for (int i = 0; i < n; ++i)
+  {
+    h = (h ^ pgm_read_byte(&mono[i])) * 0x01000193u;
+  }
+  const uint8_t *twin = nullptr;
+  for (const Icon2Twin &t : ICON2_TWINS)
+  {
+    if (t.size == size && t.hash == h)
+    {
+      twin = t.dots;
+      break;
+    }
+  }
+  seen[next] = {mono, size, twin};
+  next = (next + 1) % 16;
+  return twin;
+}
+
+static inline uint8_t icon2At(const uint8_t *dots, int i)
+{
+  return (pgm_read_byte(&dots[i >> 2]) >> (6 - 2 * (i & 3))) & 3;
+}
+
+void Grey75Display::drawInvertedBitmap(int16_t x, int16_t y,
+                                       const uint8_t bitmap[], int16_t w,
+                                       int16_t h, uint16_t color)
+{
+  const uint8_t *twin = (color == GxEPD_BLACK && w == h && !DARK_MODE && !bw)
+                        ? icon2Twin(bitmap, w) : nullptr;
+  if (!twin)
+  {
+    Grey75Base::drawInvertedBitmap(x, y, bitmap, w, h, color);
+    return;
+  }
+  for (int i = 0; i < w * h; ++i)
+  {
+    const uint8_t v = icon2At(twin, i);
+    if (v) drawPixel(x + i % w, y + i / w, v == 2 ? GxEPD_BLACK : GxEPD_LIGHTGREY);
+  }
+}
+
+// the 2-bit twin of the face in use, when this page is in greys
+const GFXfont *Grey75Display::twin2()
+{
+  return (gfxFont && textsize_x == 1 && textsize_y == 1 && !DARK_MODE && !bw)
+         ? font2For(gfxFont) : nullptr;
+}
+
+// measured with the twin's advances and ink, as write() draws it
+void Grey75Display::getTextBounds(const char *s, int16_t x, int16_t y,
+                                  int16_t *x1, int16_t *y1, uint16_t *w,
+                                  uint16_t *h)
+{
+  const GFXfont *t = twin2();
+  GFXfont *mono = gfxFont;
+  if (t) gfxFont = const_cast<GFXfont *>(t);
+  Grey75Base::getTextBounds(s, x, y, x1, y1, w, h);
+  gfxFont = mono;
+}
+
+void Grey75Display::getTextBounds(const String &s, int16_t x, int16_t y,
+                                  int16_t *x1, int16_t *y1, uint16_t *w,
+                                  uint16_t *h)
+{
+  getTextBounds(s.c_str(), x, y, x1, y1, w, h);
+}
+
+size_t Grey75Display::write(uint8_t c)
+{
+  const GFXfont *grey = twin2();
+  if (!grey || c == '\n' || c == '\r')
+  {
+    return Grey75Base::write(c);
+  }
+  const uint16_t first = pgm_read_word(&grey->first);
+  if (c < first || c > pgm_read_word(&grey->last))
+  {
+    return 1;
+  }
+  // black text: black core, light-grey edge. The grey labels (G75_DGLG, a
+  // dark/light-grey mix): that mix for the core, light grey and white mixed
+  // for the edge. Any other colour (white on black, say): one ink, core and
+  // edge alike.
+  // A point, comma or colon in the grey mix is a dot or two, which the
+  // mix's checker can leave all light grey (the rain amounts' decimal
+  // point vanished): those are drawn black.
+  const bool dot = c == '.' || c == ',' || c == ':';
+  const bool mid = textcolor == G75_DGLG && !dot;
+  const bool black = textcolor == GxEPD_BLACK || (textcolor == G75_DGLG && dot);
+  const bool dg = textcolor == GxEPD_DARKGREY;
+  const GFXglyph *g = &grey->glyph[c - first];
+  const uint8_t w = pgm_read_byte(&g->width), h = pgm_read_byte(&g->height);
+  if (w > 0 && h > 0)
+  {
+    const uint8_t *dots = grey->bitmap + pgm_read_word(&g->bitmapOffset);
+    const int16_t x0 = cursor_x + static_cast<int8_t>(pgm_read_byte(&g->xOffset));
+    const int16_t y0 = cursor_y + static_cast<int8_t>(pgm_read_byte(&g->yOffset));
+    int i = 0;
+    for (int y = 0; y < h; ++y)
+    {
+      for (int x = 0; x < w; ++x, ++i)
+      {
+        const uint8_t v = (pgm_read_byte(&dots[i >> 2]) >> (6 - 2 * (i & 3))) & 3;
+        if (!v) continue;
+        uint16_t ink = textcolor;
+        if (black) ink = (v == 2) ? GxEPD_BLACK : GxEPD_LIGHTGREY;
+        else if (mid) ink = (v == 2) ? G75_DGLG : G75_LGW;
+        else if (dg) ink = (v == 2) ? GxEPD_DARKGREY : GxEPD_LIGHTGREY;
+        drawPixel(x0 + x, y0 + y, ink);
+      }
+    }
+  }
+  cursor_x += pgm_read_byte(&g->xAdvance);
+  return 1;
+}
+#endif
+
+#if defined(GREYS_75)
+/* An icon (a 1-bit outline, GxEPD2's inverted bitmap) in `ink`, with the
+ * largest area its outline closes in filled with `fill` -- or, `every`,
+ * each closed area of some size (a house split by the thermometer in it).
+ * Gaps in the outline up to about twice R dots wide count as closed.
+ */
+static std::vector<uint8_t> fillMask(const uint8_t *bmp, int16_t size,
+                                     int R, bool every);
+
+static const uint8_t *icon2Twin(const uint8_t *mono, int16_t size);
+static inline uint8_t icon2At(const uint8_t *dots, int i);
+
+/* A cloud that rains or snows is open along its base, between the drops,
+ * and its fill stops where the drops begin. This carries each column of the
+ * fill on down, over white dots only, to the lowest row the fill reaches
+ * anywhere (inside the cloud's lobes): the base of the cloud.
+ */
+static void fillToBase(std::vector<uint8_t> &mask, const uint8_t *bmp,
+                       int16_t size)
+{
+  if (mask.empty()) return;
+  const int stride = (size + 7) / 8;
+  auto ink = [&](int i, int j) {
+    return !(pgm_read_byte(&bmp[j * stride + i / 8]) & (0x80 >> (i & 7)));
+  };
+  int base = -1;
+  for (int p = 0; p < size * size; ++p)
+  {
+    if (mask[p]) base = std::max(base, p / size);
+  }
+  for (int i = 0; i < size; ++i)
+  {
+    int j = base;
+    while (j >= 0 && !mask[j * size + i]) --j;   // the column's lowest fill
+    if (j < 0) continue;
+    for (++j; j <= base && !ink(i, j); ++j)
+    {
+      mask[j * size + i] = 1;
+    }
+  }
+}
+
+static void drawFilledIcon(int16_t x, int16_t y, const uint8_t *bmp,
+                           int16_t size, uint16_t ink, uint16_t fill,
+                           int R, bool every, bool toBase = false)
+{
+  // with a 2-bit twin the outline goes on last, over the fill (below)
+  const uint8_t *twin = (ink == GxEPD_BLACK) ? icon2Twin(bmp, size) : nullptr;
+  if (!twin)
+  {
+    display.drawInvertedBitmap(x, y, bmp, size, size, ink);
+  }
+  // Worked out once a wake: the page is drawn a band at a time, so each
+  // icon comes here once for every band, and the working buffers of the
+  // big icon live in PSRAM, where this took seconds.
+  struct Cached
+  {
+    const uint8_t *bmp;
+    int16_t size;
+    int R;
+    bool every;
+    bool toBase;
+    std::vector<uint8_t> mask;
+  };
+  static std::vector<Cached> cache;
+  const std::vector<uint8_t> *mask = nullptr;
+  for (const Cached &c : cache)
+  {
+    if (c.bmp == bmp && c.size == size && c.R == R && c.every == every
+        && c.toBase == toBase)
+    {
+      mask = &c.mask;
+      break;
+    }
+  }
+  if (!mask)
+  {
+    cache.push_back({bmp, size, R, every, toBase,
+                     fillMask(bmp, size, R, every)});
+    if (toBase)
+    {
+      fillToBase(cache.back().mask, bmp, size);
+    }
+    mask = &cache.back().mask;
+  }
+  if (twin)
+  {
+    // The fill reaches under the 1-bit outline's inner edge, where the
+    // thinner 2-bit outline may leave a dot white; an edge dot (light grey)
+    // over the fill keeps the fill's tone.
+    const int stride = (size + 7) / 8;
+    auto ink1 = [&](int i, int j) {
+      return !(pgm_read_byte(&bmp[j * stride + i / 8]) & (0x80 >> (i & 7)));
+    };
+    auto filled = [&](int p) {
+      if (mask->empty()) return false;
+      if ((*mask)[p]) return true;
+      const int i = p % size, j = p / size;
+      if (!ink1(i, j)) return false;
+      return (i > 0 && (*mask)[p - 1]) || (i < size - 1 && (*mask)[p + 1])
+             || (j > 0 && (*mask)[p - size])
+             || (j < size - 1 && (*mask)[p + size]);
+    };
+    for (int p = 0; p < size * size; ++p)
+    {
+      const bool f = filled(p);
+      const uint8_t v = icon2At(twin, p);
+      uint16_t c;
+      if (v == 2) c = GxEPD_BLACK;
+      else if (f) c = fill;
+      else if (v == 1) c = GxEPD_LIGHTGREY;
+      else continue;
+      display.drawPixel(x + p % size, y + p / size, c);
+    }
+    return;
+  }
+  if (mask->empty())
+  {
+    return;
+  }
+  for (int p = 0; p < size * size; ++p)
+  {
+    if ((*mask)[p]) display.drawPixel(x + p % size, y + p / size, fill);
+  }
+}
+
+/* The dots of `bmp` its fill covers (empty: none), see drawFilledIcon. */
+static std::vector<uint8_t> fillMask(const uint8_t *bmp, int16_t size,
+                                     int R, bool every)
+{
+  const int w = size, h = size, stride = (size + 7) / 8;
+  auto inkAt = [&](int i, int j) {
+    return !(pgm_read_byte(&bmp[j * stride + i / 8]) & (0x80 >> (i & 7)));
+  };
+  // The outline thickened by R dots closes the small gaps where rain or
+  // snow leaves a cloud's bottom open; the fill grows back after.
+  std::vector<uint8_t> wall(w * h, 0);
+  for (int j = 0; j < h; ++j)
+  {
+    for (int i = 0; i < w; ++i)
+    {
+      if (!inkAt(i, j)) continue;
+      for (int v = std::max(0, j - R); v <= std::min(h - 1, j + R); ++v)
+        for (int u = std::max(0, i - R); u <= std::min(w - 1, i + R); ++u)
+          wall[v * w + u] = 1;
+    }
+  }
+  auto isInk = [&](int i, int j) {return wall[j * w + i] != 0;};
+  // each blank dot's area, by four-way neighbours (a diagonal step between
+  // two dots of ink is a wall): -1 open to the icon's edge, 1.. closed
+  std::vector<int16_t> area(w * h, 0);
+  std::vector<int32_t> stack;
+  auto flood = [&](int start, int16_t label) {
+    int n = 0;
+    area[start] = label;
+    stack.push_back(start);
+    while (!stack.empty())
+    {
+      const int p = stack.back();
+      stack.pop_back();
+      ++n;
+      const int i = p % w, j = p / w;
+      const int nb[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+      for (const auto &d : nb)
+      {
+        const int ii = i + d[0], jj = j + d[1];
+        if (ii < 0 || jj < 0 || ii >= w || jj >= h) continue;
+        const int q = jj * w + ii;
+        if (area[q] || isInk(ii, jj)) continue;
+        area[q] = label;
+        stack.push_back(q);
+      }
+    }
+    return n;
+  };
+  for (int j = 0; j < h; ++j)
+  {
+    for (int i = 0; i < w; ++i)
+    {
+      const bool edge = i == 0 || j == 0 || i == w - 1 || j == h - 1;
+      if (edge && !area[j * w + i] && !isInk(i, j)) flood(j * w + i, -1);
+    }
+  }
+  int16_t label = 0, best = 0;
+  int bestN = 0;
+  std::vector<int> sizes(1, 0);
+  for (int p = 0; p < w * h; ++p)
+  {
+    if (area[p] || isInk(p % w, p / w)) continue;
+    const int n = flood(p, ++label);
+    sizes.push_back(n);
+    if (n > bestN) {bestN = n; best = label;}
+  }
+  if (bestN * 60 < w * h)
+  {
+    return {};   // nothing big enough to be a cloud
+  }
+  std::vector<uint8_t> in(w * h, 0);
+  for (int p = 0; p < w * h; ++p)
+  {
+    in[p] = area[p] > 0
+            && (every ? sizes[area[p]] * 60 >= w * h : area[p] == best);
+  }
+  // back out to the outline: all eight neighbours (the thickening was a
+  // square, so a cross would leave a ring of white along every curve), and
+  // a step more than it took away
+  for (int step = 0; step <= R; ++step)
+  {
+    std::vector<uint8_t> grown(in);
+    for (int p = 0; p < w * h; ++p)
+    {
+      const int i = p % w, j = p / w;
+      if (in[p] || inkAt(i, j)) continue;
+      bool next = false;
+      for (int dj = -1; dj <= 1 && !next; ++dj)
+      {
+        for (int di = -1; di <= 1 && !next; ++di)
+        {
+          const int ii = i + di, jj = j + dj;
+          next = ii >= 0 && jj >= 0 && ii < w && jj < h && in[jj * w + ii];
+        }
+      }
+      if (next) grown[p] = 1;
+    }
+    in.swap(grown);
+  }
+  return in;
+}
+#endif
+
+/* A condition icon in `ink`. In greys its cloud is filled: dark grey for a
+ * thunderstorm, light grey for drizzle, rain and snow, and light grey dotted
+ * with white for any other cloud. A clear sky is left white: its largest
+ * closed area is the sun.
+ */
+static void drawConditionIcon(int16_t x, int16_t y, const uint8_t *bmp,
+                              int16_t size, uint16_t ink, int id)
+{
+#if defined(GREYS_75)
+  if (greys() && id != 800 && id != 0)
+  {
+    // one dot of thickening closes a rain cloud at every size; more
+    // shrinks a small cloud's inside to nothing (measured on the icons)
+    const uint16_t fill = (id >= 200 && id < 300) ? G_DG
+                        : (id >= 300 && id < 700) ? G_LG
+                        : G75_LGW;
+    // a cloud that rains or snows: filled down to its base (fillToBase)
+    drawFilledIcon(x, y, bmp, size, ink, fill, 1, false,
+                   id >= 200 && id < 700);
+    return;
+  }
+#endif
+  (void)id;
+  display.drawInvertedBitmap(x, y, bmp, size, size, ink);
+}
+
+#if defined(GREYS_75)
+/* The moon as it is tonight, `size` dots across: NASA's map of the near
+ * side (moon426.h, as on the 4.26in page), lit for the phase and
+ * error-diffused into the four greys. The night side is a dark grey, as
+ * earthshine shows it; a light grey ring keeps the lit limb apart from the white page. `frac` is
+ * moonPhaseFraction(); `south` turns it over for the southern hemisphere.
+ */
+static void drawPhotoMoon75(int16_t x0, int16_t y0, int N, double frac,
+                            bool south)
+{
+  const int M = MOON426_PX;
+  // the levels' brightness relative to white (the 7.5in's, measured:
+  // tools/sim480/measured_75.json)
+  static const float REFL[4] = {0.028f, 0.078f, 0.367f, 1.0f};
+  static const uint16_t INK[4] = {GxEPD_BLACK, G_DG, G_LG, GxEPD_WHITE};
+  static float tone[MOON426_PX * MOON426_PX];
+  const float OUTSIDE = -1000.0f;
+  const float NIGHT = -500.0f;   // the night side, in earthshine
+  const float e = static_cast<float>(2.0 * M_PI * frac);
+  const float se = std::sin(e), ce = std::cos(e);
+  for (int j = 0; j < N; ++j)
+  {
+    for (int i = 0; i < N; ++i)
+    {
+      const float x = (i + 0.5f) / N * 2 - 1, y = (j + 0.5f) / N * 2 - 1;
+      const float r2 = x * x + y * y;
+      if (r2 > 1.0f)
+      {
+        tone[j * N + i] = OUTSIDE;
+        continue;
+      }
+      const float z = std::sqrt(1.0f - r2);
+      const float ndl = x * se - z * ce;
+      if (ndl <= 0.0f)
+      {
+        tone[j * N + i] = NIGHT;
+        continue;
+      }
+      const float lit = std::max(0.0f, std::min(1.0f, ndl * 6))
+                      * (0.72f + 0.28f * std::max(0.0f, ndl));
+      // the map's dots under this one, averaged
+      int sum = 0, cnt = 0;
+      const int v0 = j * M / N, v1 = std::max(v0 + 1, (j + 1) * M / N);
+      const int u0 = i * M / N, u1 = std::max(u0 + 1, (i + 1) * M / N);
+      for (int v = v0; v < v1; ++v)
+      {
+        for (int u = u0; u < u1; ++u)
+        {
+          sum += pgm_read_byte(&MOON426_ALBEDO[v * M + u]);
+          ++cnt;
+        }
+      }
+      const float alb = sum / (255.0f * cnt);
+      // the maria dark, the highlands bright: at 40 dots the plain albedo
+      // (0.30 + 0.70 alb) came out mostly light grey and white, too faint
+      tone[j * N + i] = std::pow(0.12f + 0.88f * alb, 1.6f) * lit;
+    }
+  }
+  const float limb = (N / 2.0f - 1.0f) * (N / 2.0f - 1.0f);
+  for (int j = 0; j < N; ++j)
+  {
+    for (int i = 0; i < N; ++i)
+    {
+      const float v = tone[j * N + i];
+      if (v <= OUTSIDE) continue;
+      const int px = south ? N - 1 - i : i, py = south ? N - 1 - j : j;
+      const float ex = i + 0.5f - N / 2.0f, ey = j + 0.5f - N / 2.0f;
+      if (ex * ex + ey * ey > limb)
+      { // a black rim all round, as the other widget icons are outlined
+        display.drawPixel(x0 + px, y0 + py, GxEPD_BLACK);
+        continue;
+      }
+      if (v <= NIGHT)
+      { // earthshine: a dark grey, so the whole disc shows
+        display.drawPixel(x0 + px, y0 + py, G_DG);
+        continue;
+      }
+      int k = 0;
+      for (int l = 1; l < 4; ++l)
+      {
+        if (std::fabs(REFL[l] - v) < std::fabs(REFL[k] - v)) {k = l;}
+      }
+      const float err = v - REFL[k];
+      auto spread = [&](int ii, int jj, float wgt) {
+        if (ii >= 0 && ii < N && jj < N && tone[jj * N + ii] > NIGHT)
+        {
+          tone[jj * N + ii] += err * wgt;
+        }
+      };
+      spread(i + 1, j, 7 / 16.0f);
+      spread(i - 1, j + 1, 3 / 16.0f);
+      spread(i, j + 1, 5 / 16.0f);
+      spread(i + 1, j + 1, 1 / 16.0f);
+      display.drawPixel(x0 + px, y0 + py, INK[k]);
+    }
+  }
+}
+  #define WGT_LABEL_INK DM_FG   // black: in greys, smoothed (2-bit text)
+  // the lows in grey beside the black highs, as the colour panels draw
+  // them in blue beside red
+  // (the panel's solid dark grey, L* 34 against black's 19: the dark/light
+  // mix, L* 54, read too faint)
+  #define LO_INK (greys() ? G_DG : DM_TEXT(COLOR_TEMP_LO))
+#else
+  #define WGT_LABEL_INK DM_FG
+  #define LO_INK DM_TEXT(COLOR_TEMP_LO)
 #endif
 
 /* Fills the page buffer with the background color. Must be called at the
@@ -251,6 +899,14 @@ static void drawWidgetIcon(int16_t x, int16_t y, const uint8_t *lineArt48,
   }
 #else
   (void)colorName;
+#endif
+#if defined(GREYS_75)
+  if (greys())
+  { // the house, the thermometer, the sun's disc: a light tone inside
+    drawFilledIcon(x, y, (size == 40) ? lineArt40 : lineArt48, size,
+                   lineColor, G75_LGW, 1, true);
+    return;
+  }
 #endif
   display.drawInvertedBitmap(x, y, (size == 40) ? lineArt40 : lineArt48,
                              size, size, lineColor);
@@ -643,7 +1299,7 @@ void initDisplay()
 #ifdef DRIVER_WAVESHARE
   display.init(115200, true, 2, false);
 #endif
-#if defined(DRIVER_DESPI_C02) && defined(PANEL_GDEQ0426T82)
+#if defined(DRIVER_DESPI_C02)     && (defined(PANEL_GDEQ0426T82) || defined(GREYS_75))
   // not "initial": GxEPD2 would first wipe the panel white with a full
   // refresh of its own, and then draw the page with a second -- on every
   // wake, since the panel loses its power while the board sleeps. A full
@@ -761,7 +1417,7 @@ static void drawWidgetLabelWithTag(int PosX, int PosY, const char *label,
   if (tag.isEmpty())
   {
     display.setFont(&FONT_7pt8b);
-    drawString(x, y, label, LEFT);
+    drawString(x, y, label, LEFT, WGT_LABEL_INK);
     return;
   }
 
@@ -785,12 +1441,12 @@ static void drawWidgetLabelWithTag(int PosX, int PosY, const char *label,
   }
 
   display.setFont(&FONT_7pt8b);
-  drawString(x, y, label, LEFT);
+  drawString(x, y, label, LEFT, WGT_LABEL_INK);
   display.setFont(&FONT_5pt8b);
   const int16_t tagX = display.getCursorX() + 3;
   if (tagX + getStringWidth(tag) <= rightLimit)
   {
-    drawString(tagX, y, tag, LEFT);
+    drawString(tagX, y, tag, LEFT, WGT_LABEL_INK);
   }
   display.setFont(&FONT_7pt8b);
 }
@@ -811,7 +1467,7 @@ void drawCurrentSunrise(const owm_current_t &current)
 
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_SUNRISE, LEFT);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_SUNRISE, LEFT, WGT_LABEL_INK);
 
   // sunrise
   display.setFont(&FONT_12pt8b);
@@ -879,7 +1535,7 @@ void drawCurrentSunset(const owm_current_t &current)
 
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), wgtLabelY(PosY), label, LEFT);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), label, LEFT, WGT_LABEL_INK);
 
   // sunset (or the candle lighting / close that stands in for it)
   display.setFont(&FONT_12pt8b);
@@ -914,7 +1570,7 @@ void drawCurrentWind(const owm_current_t &current)
 
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_WIND, LEFT);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_WIND, LEFT, WGT_LABEL_INK);
 
   // wind
   display.setFont(&FONT_12pt8b);
@@ -1002,7 +1658,7 @@ void drawCurrentUVI(const owm_current_t &current)
 
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_UV_INDEX, LEFT);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_UV_INDEX, LEFT, WGT_LABEL_INK);
 
   // spacing between end of index value and start of descriptor text
   const int sp = 8;
@@ -1048,6 +1704,15 @@ void drawCurrentMoonPhase()
   int phase = calcMoonPhase(static_cast<int64_t>(pageTime()), &illum);
 
   // icons
+#if defined(GREYS_75)
+  if (greys())
+  {
+    drawPhotoMoon75(162 * PosX, wgtY(PosY), wgtIconSize(),
+                    moonPhaseFraction(static_cast<int64_t>(pageTime())),
+                    LAT.toFloat() < 0);
+  }
+  else
+#endif
   drawDitheredIcon(162 * PosX, wgtY(PosY),
                    getMoonPhaseDithered(phase, wgtIconSize()),
                    wgtIconSize());
@@ -1055,7 +1720,7 @@ void drawCurrentMoonPhase()
   // labels
   display.setFont(&FONT_7pt8b);
   drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_MOONPHASE,
-             LEFT);
+             LEFT, WGT_LABEL_INK);
 
   // spacing between end of value and start of descriptor text
   const int sp = 8;
@@ -1232,7 +1897,7 @@ void drawCurrentInTemp(float inTemp, int trend)
 
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_INDOOR_TEMPERATURE, LEFT);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_INDOOR_TEMPERATURE, LEFT, WGT_LABEL_INK);
 
   // indoor temperature
   display.setFont(&FONT_12pt8b);
@@ -1279,7 +1944,7 @@ void drawCurrentHumidity(const owm_current_t &current)
 
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_HUMIDITY, LEFT);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_HUMIDITY, LEFT, WGT_LABEL_INK);
 
   // humidity
   display.setFont(&FONT_12pt8b);
@@ -1308,7 +1973,7 @@ void drawCurrentPressure(const owm_current_t &current, int trend)
 
   //  labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_PRESSURE, LEFT);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_PRESSURE, LEFT, WGT_LABEL_INK);
 
   // 0 = not available (the "nws" current-conditions source, or a failed
   // fetch with nothing cached): show a placeholder rather than a fabricated
@@ -1392,7 +2057,7 @@ void drawCurrentVisibility(const owm_current_t &current)
 
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_VISIBILITY, LEFT);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_VISIBILITY, LEFT, WGT_LABEL_INK);
 
   // -1 = not available, see drawCurrentPressure
   if (current.visibility < 0)
@@ -1549,7 +2214,7 @@ void drawCurrentInHumidity(float inHumidity)
 
   // current weather data labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_INDOOR_HUMIDITY, LEFT);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_INDOOR_HUMIDITY, LEFT, WGT_LABEL_INK);
 
   // indoor humidity
   display.setFont(&FONT_12pt8b);
@@ -1591,7 +2256,7 @@ void drawCurrentHeatStress(const owm_current_t &current)
 
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_HEAT_STRESS, LEFT);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_HEAT_STRESS, LEFT, WGT_LABEL_INK);
 
   // IMS reports the index and its level itself; any other source (and a
   // page held through an outage) gets them computed from temperature and
@@ -1649,7 +2314,7 @@ void drawCurrentDewpoint(const owm_current_t &current)
   
   // labels
   display.setFont(&FONT_7pt8b);
-  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_DEWPOINT, LEFT);
+  drawString(48 + (162 * PosX), wgtLabelY(PosY), TXT_DEWPOINT, LEFT, WGT_LABEL_INK);
 
   // Dew point
   display.setFont(&FONT_12pt8b);
@@ -1700,9 +2365,9 @@ void drawCurrentConditions(const owm_current_t &current,
   }
   else
 #endif
-  display.drawInvertedBitmap(0, 0,
-                             getCurrentConditionsBitmap196(current, today),
-                             196, 196, getCurrentConditionsColor196(current));
+  drawConditionIcon(0, 0, getCurrentConditionsBitmap196(current, today),
+                    196, getCurrentConditionsColor196(current),
+                    current.weather.id);
 
   // current temp
 #ifdef UNITS_TEMP_KELVIN
@@ -1825,7 +2490,11 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
   // day's high. A faint dotted divider between columns keeps the days
   // separated. (Multicolor panels don't need it -- red highs and blue lows
   // alternate, which separates the pairs on their own.)
+#if defined(GREYS_75)
+  if (days > 5 && !greys())
+#else
   if (days > 5)
+#endif
   {
     for (int i = 1; i < days; ++i)
     {
@@ -1886,6 +2555,14 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
     int cx = xStart + static_cast<int>(col * colW + colW / 2);
     int iconX = cx - iconSize / 2;
     int iconY = 98 + 69 / 2 - 6 - iconSize / 2;
+#if defined(GREYS_75)
+    if (greys() && (col & 1))
+    { // every other day shaded: the days apart without dividing lines
+      const int x0 = xStart + static_cast<int>(col * colW);
+      const int x1 = xStart + static_cast<int>((col + 1) * colW);
+      display.fillRect(x0, 58, x1 - x0, 142, G75_LGW4);
+    }
+#endif
     // icons
 #ifdef MULTICOLOR_DISPLAY
     const uint8_t *colorIcon = getColorIconDaily(daily[i], iconSize);
@@ -1895,12 +2572,12 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
     }
     else
 #endif
-    display.drawInvertedBitmap(iconX, iconY,
-                               (iconSize == 64)
-                                   ? getDailyForecastBitmap64(daily[i])
-                                   : getDailyForecastBitmap48(daily[i]),
-                               iconSize, iconSize,
-                               getDailyForecastColor64(daily[i]));
+    drawConditionIcon(iconX, iconY,
+                      (iconSize == 64)
+                          ? getDailyForecastBitmap64(daily[i])
+                          : getDailyForecastBitmap48(daily[i]),
+                      iconSize, getDailyForecastColor64(daily[i]),
+                      daily[i].weather.id);
     // day of week label (see above)
     display.setFont(&FONT_11pt8b);
     char dayBuffer[32] = {};
@@ -1950,11 +2627,11 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
       drawString(cx - 4 + pass, 98 + 69 / 2 + 38 - 6 + 12, hiStr, RIGHT,
                  DM_TEXT(COLOR_TEMP_HI));
       drawString(cx + 5 + pass, 98 + 69 / 2 + 38 - 6 + 12, loStr, LEFT,
-                 DM_TEXT(COLOR_TEMP_LO));
+                 LO_INK);
 #endif
 #ifdef TEMP_ORDER_LH
       drawString(cx - 4 + pass, 98 + 69 / 2 + 38 - 6 + 12, loStr, RIGHT,
-                 DM_TEXT(COLOR_TEMP_LO));
+                 LO_INK);
       drawString(cx + 5 + pass, 98 + 69 / 2 + 38 - 6 + 12, hiStr, LEFT,
                  DM_TEXT(COLOR_TEMP_HI));
 #endif
@@ -2367,17 +3044,18 @@ static void drawAlertIcon(int16_t x, int16_t y, const owm_alerts_t &alert,
 void drawLocationDate(const String &city, const String &date)
 {
   // location, date
+  const int right = DISP_WIDTH - 2;
   display.setFont(&FONT_16pt8b);
 #ifdef MULTICOLOR_DISPLAY
   // On multicolor panels red carries meaning (temperature, alerts, warnings),
   // so a red city name reads out of place -- keep it black there. The
   // single-accent panels keep the upstream red-accent look.
-  drawString(DISP_WIDTH - 2, 23, city, RIGHT, DM_FG);
+  drawString(right, 23, city, RIGHT, DM_FG);
 #else
-  drawString(DISP_WIDTH - 2, 23, city, RIGHT, ACCENT_COLOR);
+  drawString(right, 23, city, RIGHT, ACCENT_COLOR);
 #endif
   display.setFont(&FONT_12pt8b);
-  drawString(DISP_WIDTH - 2, 30 + 4 + 17, date, RIGHT);
+  drawString(right, 30 + 4 + 17, date, RIGHT);
   return;
 } // end drawLocationDate
 
@@ -2391,6 +3069,103 @@ inline int modulo(int a, int b)
   const int result = a % b;
   return result >= 0 ? result : result + b;
 }
+
+#if defined(GREYS_75)
+/* The temperature curve, anti-aliased in the panel's greys: each pixel near
+ * the curve takes the share of it a stroke halfW * 2 wide would cover. Of the
+ * panel's four levels (measured, tools/sim480/measured_75.json) only light
+ * grey sits between: it reads as about two thirds covered; dark grey is
+ * barely lighter than black. So a pixel is black from 82 % covered, light grey
+ * from 35 %, and untouched below. x_t / yf: the hours' points, as drawn by
+ * the straight pieces (pixel rows y and y + 1, columns x - 1 and x).
+ */
+static inline void aaInk75(int x, int y, float cov, float lo, float hi)
+{
+  if (cov >= hi)
+  {
+    display.drawPixel(x, y, GxEPD_BLACK);
+  }
+  else if (cov >= lo)
+  {
+    display.drawPixel(x, y, G_LG);
+  }
+}
+
+static void drawRunAA75(const float *px, const float *py, int m, float halfW,
+                        float lo, float hi);
+
+static void drawCurveAA75(const std::vector<int> &x_t,
+                          const std::vector<float> &yf, int n, float halfW,
+                          float lo = 0.35f, float hi = 0.82f)
+{
+  if (n < 2) return;
+  // the curve, four points per pixel column; an hour with no temperature
+  // (NaN) breaks it, and each unbroken stretch is drawn on its own
+  std::vector<float> px, py;
+  for (int k = 0; k < n - 1; ++k)
+  {
+    const int dx = x_t[k + 1] - x_t[k];
+    const int steps = std::max(1, dx * 4);
+    for (int s = 0; s < steps; ++s)
+    {
+      const float u = s / static_cast<float>(steps);
+      px.push_back(x_t[k] + dx * u - 0.5f);
+      py.push_back(smoothGapsAt(yf.data(), n, k + u) + 0.5f);
+    }
+  }
+  px.push_back(x_t[n - 1] - 0.5f);
+  py.push_back(yf[n - 1] + 0.5f);
+  for (size_t r0 = 0; r0 < px.size();)
+  {
+    while (r0 < px.size() && std::isnan(py[r0])) ++r0;
+    size_t r1 = r0;
+    while (r1 < px.size() && !std::isnan(py[r1])) ++r1;
+    if (r1 - r0 >= 2)
+    {
+      drawRunAA75(px.data() + r0, py.data() + r0,
+                  static_cast<int>(r1 - r0), halfW, lo, hi);
+    }
+    r0 = r1;
+  }
+} // end drawCurveAA75
+
+// one unbroken stretch of drawCurveAA75's curve: px rising
+static void drawRunAA75(const float *px, const float *py, int m, float halfW,
+                        float lo, float hi)
+{
+  const float reach = halfW + 1.0f;
+  int j0 = 0;
+  for (int x = static_cast<int>(px[0] - reach);
+       x <= static_cast<int>(px[m - 1] + reach) + 1; ++x)
+  {
+    while (j0 < m - 2 && px[j0 + 1] < x - reach) ++j0;
+    int j1 = j0 + 1;
+    while (j1 < m - 1 && px[j1] <= x + reach) ++j1;
+    float ylo = 1e9f, yhi = -1e9f;
+    for (int j = j0; j <= j1; ++j)
+    {
+      ylo = std::min(ylo, py[j]);
+      yhi = std::max(yhi, py[j]);
+    }
+    for (int y = static_cast<int>(std::floor(ylo - reach));
+         y <= static_cast<int>(std::ceil(yhi + reach)); ++y)
+    {
+      float d2 = 1e9f;
+      for (int j = j0; j < j1; ++j)
+      { // distance to the piece j .. j + 1
+        const float ax = px[j], ay = py[j];
+        const float bx = px[j + 1] - ax, by = py[j + 1] - ay;
+        const float l2 = bx * bx + by * by;
+        float t = l2 > 0 ? ((x - ax) * bx + (y - ay) * by) / l2 : 0;
+        t = std::max(0.0f, std::min(1.0f, t));
+        const float ex = x - (ax + t * bx), ey = y - (ay + t * by);
+        d2 = std::min(d2, ex * ex + ey * ey);
+      }
+      aaInk75(x, y, halfW + 0.5f - std::sqrt(d2), lo, hi);
+    }
+  }
+} // end drawRunAA75
+#endif
 
 /* Convert kelvin to the temperature unit the graph's axis is drawn in.
  */
@@ -2599,10 +3374,17 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
 #endif
 #endif
 
-      drawString(xPos1 + 8, yTick + 4, dataStr, LEFT, DM_TEXT(COLOR_PRECIP));
+#if defined(GREYS_75)
+      // in greys, the temperature scale's ink: both are read off the graph
+      const uint16_t precipInk = greys() ? DM_TEXT(ACCENT_COLOR)
+                                         : DM_TEXT(COLOR_PRECIP);
+#else
+      const uint16_t precipInk = DM_TEXT(COLOR_PRECIP);
+#endif
+      drawString(xPos1 + 8, yTick + 4, dataStr, LEFT, precipInk);
       display.setFont(&FONT_5pt8b);
       drawString(display.getCursorX(), yTick + 4, precipUnit, LEFT,
-                 DM_TEXT(COLOR_PRECIP));
+                 precipInk);
     } // end draw labels if precip is >0
 
     // draw dotted line
@@ -2610,7 +3392,11 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     {
       for (int x = xPos0; x <= xPos1 + 1; x += 3)
       {
+#if defined(GREYS_75)
+        display.drawPixel(x, yTick + (yTick % 2), greys() ? G_LG : DM_FG);
+#else
         display.drawPixel(x, yTick + (yTick % 2), DM_FG);
+#endif
       }
     }
   }
@@ -2635,7 +3421,15 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     {
       uint16_t bw = getStringWidth(label);
       legendX -= bw;
+#if defined(GREYS_75)
+      // in greys the dew point's name is in the temperature's ink; only
+      // its swatch is light grey, as its curve
+      drawString(legendX, legendY, label, LEFT,
+                 (greys() && color == G_LG) ? DM_TEXT(ACCENT_COLOR)
+                                            : DM_TEXT(color));
+#else
       drawString(legendX, legendY, label, LEFT, DM_TEXT(color));
+#endif
       legendX -= 4 + 14; // gap, then the swatch
       for (int t = 0; t < thickness; ++t)
       {
@@ -2644,8 +3438,10 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
       }
       legendX -= 12; // gap before the next item to the left
     };
-#ifdef MULTICOLOR_DISPLAY
+#if defined(MULTICOLOR_DISPLAY)
     legendItem(TXT_DEWPOINT, COLOR_DEWPOINT, 3);
+#elif defined(GREYS_75)
+    legendItem(TXT_DEWPOINT, greys() ? G_LG : COLOR_DEWPOINT, greys() ? 3 : 2);
 #else
     legendItem(TXT_DEWPOINT, COLOR_DEWPOINT, 2);
 #endif
@@ -2680,6 +3476,16 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
                                 yPos1);
     }
   }
+  // the same heights as floats (NaN: no dew point) for the smooth curves
+  // drawn between the hours (smooth.h)
+  std::vector<float> yf_t(HOURLY_GRAPH_MAX), yf_d(HOURLY_GRAPH_MAX);
+  for (int i = 0; i < HOURLY_GRAPH_MAX; ++i)
+  {
+    yf_t[i] = (y_t[i] == INT_MIN) ? NAN : static_cast<float>(y_t[i]);
+    yf_d[i] = (y_d[i] == INT_MIN) ? NAN : static_cast<float>(y_d[i]);
+  }
+  // pieces per hour: short enough that the curve shows no corners
+  const int SMOOTH_STEPS = 6;
 
 #if DISPLAY_HOURLY_ICONS
   int day_idx = 0;
@@ -2725,6 +3531,17 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     y1_t = yPos1;
 
     // graph Precipitation
+#if defined(GREYS_75)
+    if (greys())
+    { // a pale bar with a light grey top, a dot apart from the next
+      if (y0_t < y1_t - 1)
+      {
+        display.fillRect(x0_t, y0_t + 1, x1_t - x0_t - 1, y1_t - 1 - y0_t - 1, G75_LGW);
+        display.drawFastHLine(x0_t, y0_t + 1, x1_t - x0_t - 1, G_LG);
+      }
+    }
+    else
+#endif
     for (int y = y1_t - 1; y > y0_t; y -= 2)
     {
       for (int x = x0_t + (x0_t % 2); x < x1_t; x += 2)
@@ -2733,13 +3550,20 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
       }
     }
 
-    if (i > 0)
+    // both curves, as SMOOTH_STEPS short pieces of a smooth curve per hour
+    if (i > 0) for (int s = 0; s < SMOOTH_STEPS; ++s)
     {
-      // temperature
-      x0_t = x_t[i - 1];
-      x1_t = x_t[i    ];
-      y0_t = y_t[i - 1];
-      y1_t = y_t[i    ];
+      const float f0 = (i - 1) + s / static_cast<float>(SMOOTH_STEPS);
+      const float f1 = (i - 1) + (s + 1) / static_cast<float>(SMOOTH_STEPS);
+      const int dx = x_t[i] - x_t[i - 1];
+      x0_t = x_t[i - 1] + (dx * s) / SMOOTH_STEPS;
+      x1_t = x_t[i - 1] + (dx * (s + 1)) / SMOOTH_STEPS;
+      const float t0 = smoothGapsAt(yf_t.data(), HOURLY_GRAPH_MAX, f0);
+      const float t1 = smoothGapsAt(yf_t.data(), HOURLY_GRAPH_MAX, f1);
+      y0_t = std::isnan(t0) ? INT_MIN : static_cast<int>(std::lround(t0));
+      y1_t = std::isnan(t1) ? INT_MIN : static_cast<int>(std::lround(t1));
+      const float d0 = smoothGapsAt(yf_d.data(), HOURLY_GRAPH_MAX, f0);
+      const float d1 = smoothGapsAt(yf_d.data(), HOURLY_GRAPH_MAX, f1);
       // graph dew point -- over the bars, under the temperature: where the
       // two curves meet (saturated air: fog, drizzle) the temperature paints
       // on top. On a black/white panel the dew point stays the thinner
@@ -2748,17 +3572,28 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
       // blue as the precipitation bars, so it gets a one-pixel halo in the
       // background colour on each side; without it a 2 px blue stroke
       // through 50 % blue dither reads as slightly denser dither, not a line.
-      if (y_d[i - 1] != INT_MIN && y_d[i] != INT_MIN)
+      if (!std::isnan(d0) && !std::isnan(d1))
       {
-        const int y0_d = y_d[i - 1];
-        const int y1_d = y_d[i];
+        const int y0_d = static_cast<int>(std::lround(d0));
+        const int y1_d = static_cast<int>(std::lround(d1));
         // dark mode: colour ink is dim on a black ground, so the line is 3 px
         // (as the temperature's is thickened) and the halo sits one further out
         const int below = DARK_MODE ? 2 : 1;
         display.drawLine(x0_t, y0_d - below, x1_t, y1_d - below, DM_BG);
         display.drawLine(x0_t, y0_d + 2    , x1_t, y1_d + 2    , DM_BG);
-        display.drawLine(x0_t, y0_d        , x1_t, y1_d        , DM_GFX(COLOR_DEWPOINT));
-        display.drawLine(x0_t, y0_d + 1    , x1_t, y1_d + 1    , DM_GFX(COLOR_DEWPOINT));
+#if defined(GREYS_75)
+        const uint16_t dewInk = greys() ? G_LG : DM_GFX(COLOR_DEWPOINT);
+#else
+        const uint16_t dewInk = DM_GFX(COLOR_DEWPOINT);
+#endif
+        display.drawLine(x0_t, y0_d        , x1_t, y1_d        , dewInk);
+        display.drawLine(x0_t, y0_d + 1    , x1_t, y1_d + 1    , dewInk);
+#if defined(GREYS_75)
+        if (greys())
+        { // as thick as the temperature: the grey tells them apart
+          display.drawLine(x0_t - 1, y0_d, x1_t - 1, y1_d, dewInk);
+        }
+#endif
 #ifdef MULTICOLOR_DISPLAY
         display.drawLine(x0_t - 1, y0_d    , x1_t - 1, y1_d    , DM_GFX(COLOR_DEWPOINT));
 #endif
@@ -2767,7 +3602,10 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
           display.drawLine(x0_t, y0_d - 1, x1_t, y1_d - 1, DM_GFX(COLOR_DEWPOINT));
         }
       }
-      // graph temperature
+      // graph temperature (in greys: drawn whole, anti-aliased, below)
+#if defined(GREYS_75)
+      if (greys()) continue;
+#endif
       if (y0_t != INT_MIN && y1_t != INT_MIN)
       {
         display.drawLine(x0_t    , y0_t    , x1_t    , y1_t    , DM_GFX(ACCENT_COLOR));
@@ -2779,7 +3617,10 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
           display.drawLine(x0_t    , y0_t + 2, x1_t    , y1_t + 2, DM_GFX(ACCENT_COLOR));
         }
       }
+    } // the curves' pieces
 
+    if (i > 0)
+    {
       // draw hourly bitmap
 #if DISPLAY_HOURLY_ICONS
       if (day_idx + 1 < OWM_NUM_DAILY && daily[day_idx].dt > 0
@@ -2825,8 +3666,9 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
         {
         const uint8_t *bitmap = getHourlyForecastBitmap32(hourly[i],
                                                           daily[day_idx]);
-        display.drawInvertedBitmap(xTick - 16, y_b - 32, bitmap, 32, 32,
-                                   getHourlyForecastColor32(hourly[i]));
+        drawConditionIcon(xTick - 16, y_b - 32, bitmap, 32,
+                          getHourlyForecastColor32(hourly[i]),
+                          hourly[i].weather.id);
         }
       }
 #endif
@@ -2847,6 +3689,13 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
 
   }
 
+#if defined(GREYS_75)
+  if (greys())
+  {
+    drawCurveAA75(x_t, yf_t, HOURLY_GRAPH_MAX, 1.1f);
+  }
+#endif
+
   // draw the last tick mark
   if ((HOURLY_GRAPH_MAX % hourInterval) == 0)
   {
@@ -2866,6 +3715,224 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
   return;
 } // end drawOutlookGraph
 
+
+#if defined(GREYS_75)
+/* ------------------------------------------- the pages KEY3 turns to */
+
+/* The page KEY3 turns to: weather.gov's forecast in words (forecastPage75),
+ * in greys like the home page (main.cpp, turnPage), from the weather the
+ * last update kept. setGreyMode426(false) would draw it in black and white
+ * for the panel's quicker refresh, 1.4 s less.
+ */
+void setGreyMode426(bool grey) {display.bw = !grey;}
+// a rule or a quiet word: grey on a grey page, black on a black-and-white one
+static inline uint16_t pageInk75(uint16_t tone) {return greys() ? tone : GxEPD_BLACK;}
+
+static const int PAGE75_HEADER_H = 54;
+
+static String fitted75(const String &text, int maxW)
+{
+  if (text.isEmpty() || getStringWidth(text) <= maxW)
+  {
+    return text;
+  }
+  String s = text;
+  while (s.length() > 1 && getStringWidth(s + "..") > maxW)
+  {
+    s.remove(s.length() - 1);
+  }
+  s.trim();
+  return s + "..";
+}
+
+
+
+static String deg75(float kelvin)
+{
+  if (std::isnan(kelvin))
+  {
+    return "--";
+  }
+  return String(static_cast<int>(std::lround(kelvin_to_graph_units(kelvin))))
+         + "\260";
+}
+
+
+
+
+/* The top of the forecast page: two tabs, "Now" (the home page) and
+ * "Forecast", this page's underlined; on the right the city and date, and
+ * under them when the weather was updated.
+ */
+static void tabs75(const String &city, const String &date,
+                   const String &refreshTime, int page)
+{
+  const uint16_t K = GxEPD_BLACK;
+  const char *const TABS[2] = {TXT_TAB_NOW, TXT_TAB_FORECAST};
+  display.setFont(&Bitter_14pt8b);
+  int x = 14;
+  for (int i = 0; i < 2; ++i)
+  {
+    drawString(x, 34, TABS[i], LEFT, (i == page) ? K : pageInk75(G75_DGLG));
+    const int w = getStringWidth(TABS[i]);
+    if (i == page)
+    {
+      display.fillRect(x, 42, w, 4, K);
+    }
+    x += w + 30;
+  }
+  display.setFont(&Bitter_9pt8b);
+  drawString(DISP_WIDTH - 14, 22, fitted75(city + "  \267  " + date, 420),
+             RIGHT, K);
+  display.setFont(&Bitter_7pt8b);
+  drawString(DISP_WIDTH - 14, 41, String(TXT_UPDATED) + " " + refreshTime,
+             RIGHT, pageInk75(G_DG));
+  display.fillRect(0, 49, DISP_WIDTH, 2, pageInk75(G_LG));
+}
+
+/* The forecast page: weather.gov's forecast in words, its next six 12-hour
+ * periods in two columns of three: the sky, the period's name, its high or
+ * low, and what it says (four lines at most). Another forecast source has
+ * no words: the page says so.
+ */
+static void forecastPage75(const owm_current_t &current)
+{
+  const uint16_t K = GxEPD_BLACK;
+  if (NWS_PERIODS.empty())
+  {
+    display.setFont(&Bitter_12pt8b);
+    drawMultiLnString(60, 220, TXT_FORECAST_WORDS_NWS_ONLY, LEFT, 680, 3, 32,
+                      K);
+    return;
+  }
+  const int top = 62, colW = 372;
+  const int xs[2] = {14, 414};
+  const int slotH = (DISP_HEIGHT - top) / 3;
+  static const owm_daily_t NO_DAY = {};
+  const int n = std::min<int>(NWS_PERIODS.size(), NWS_NUM_PERIODS);
+  for (int k = 0; k < n; ++k)
+  {
+    const nws_period_t &p = NWS_PERIODS[k];
+    const int x0 = xs[k / 3], y0 = top + (k % 3) * slotH;
+    if (k % 3)
+    {
+      display.drawFastHLine(x0, y0 - 9, colW, pageInk75(G_LG));
+      display.drawFastHLine(x0, y0 - 8, colW, pageInk75(G_LG));
+    }
+    // the icon of a day or a night: an hour of it, by the sun's times
+    owm_hourly_t h = {};
+    h.weather = p.weather;
+    h.clouds = p.clouds;
+    h.dt = p.day ? current.sunrise + 3 * 3600 : current.sunset + 3 * 3600;
+    drawConditionIcon(x0, y0 - 2, getHourlyForecastBitmap32(h, NO_DAY), 32, K,
+                      p.weather.id);
+    display.setFont(&Bitter_11pt8b);
+    const String temp = String(p.day ? TXT_PERIOD_HIGH : TXT_PERIOD_LOW)
+                      + " " + deg75(p.temp);
+    drawString(x0 + colW, y0 + 22, temp, RIGHT, p.day ? K : pageInk75(G_DG));
+    drawString(x0 + 40, y0 + 22,
+               fitted75(p.name, colW - 48 - getStringWidth(temp)), LEFT, K);
+    display.setFont(&Bitter_9pt8b);
+    drawMultiLnString(x0, y0 + 54, p.text, LEFT, colW, 4, 22, K);
+  }
+  display.drawFastVLine(400, top, DISP_HEIGHT - top - 10, pageInk75(G_LG));
+}
+
+void drawPage426(int page, const owm_current_t &current,
+                 const owm_hourly_t *hourly, const owm_daily_t *daily,
+                 const owm_resp_air_pollution_t &air,
+                 const pollen_info_t &pollen, float inTemp,
+                 float inHumidity, const String &city,
+                 const String &date, const String &refreshTime,
+                 uint32_t batVoltage)
+{
+  (void)hourly;
+  (void)daily;
+  (void)air;
+  (void)pollen;
+  (void)inTemp;
+  (void)inHumidity;
+  (void)batVoltage;
+  tabs75(city, date, refreshTime, page);
+  forecastPage75(current);
+}
+#endif
+
+#if defined(GREYS_75)
+/* A test card for the 7.5in panel in its four greys (-D GREY75_TEST_CARD,
+ * the seeed_xiao_ee04_grey_testcard build): the levels, the six checkers
+ * of two levels, and text and lines on each level, laid out as the 4.26in
+ * card (renderer426.cpp drawTestCard426) so the same measuring works. For
+ * a flatbed scan or a raw photo beside white paper, to set the simulator's
+ * greys for this panel.
+ */
+void drawTestCard75()
+{
+  static const uint16_t LEVEL[4] = {GxEPD_BLACK, G_DG, G_LG, GxEPD_WHITE};
+  static const char *const NAME[4] = {"black", "dark grey", "light grey",
+                                      "white"};
+  const uint16_t K = GxEPD_BLACK, W = GxEPD_WHITE;
+  display.setFont(&FONT_9pt8b);
+  drawString(8, 18, "top left", LEFT, K);
+  drawString(DISP_WIDTH - 8, 18, "top right", RIGHT, K);
+  drawString(8, DISP_HEIGHT - 6, "bottom left", LEFT, K);
+  drawString(DISP_WIDTH - 8, DISP_HEIGHT - 6, "bottom right", RIGHT, K);
+  display.setFont(&FONT_11pt8b);
+  drawString(DISP_WIDTH / 2, 20, "7.5in GDEY075T7: the four greys", CENTER, K);
+
+  // the levels: 4 patches 180 x 130, white with an outline
+  for (int i = 0; i < 4; ++i)
+  {
+    const int x = 20 + i * 192, y = 30;
+    display.fillRect(x, y, 180, 130, LEVEL[i]);
+    if (LEVEL[i] == W)
+    {
+      display.drawRect(x - 1, y - 1, 182, 132, K);
+    }
+    display.setFont(&FONT_9pt8b);
+    drawString(x + 90, y + 148, String(i) + "  " + NAME[i], CENTER, K);
+  }
+
+  // the checkers: every pair of levels, 6 patches 116 x 90
+  static const int PAIR[6][2] = {{0, 1}, {0, 2}, {0, 3}, {1, 2}, {1, 3},
+                                 {2, 3}};
+  for (int p = 0; p < 6; ++p)
+  {
+    const int x = 20 + p * 128, y = 200;
+    for (int j = 0; j < 90; ++j)
+    {
+      for (int i = 0; i < 116; ++i)
+      {
+        display.drawPixel(x + i, y + j, LEVEL[PAIR[p][(i + j) & 1]]);
+      }
+    }
+    display.setFont(&FONT_8pt8b);
+    drawString(x + 58, y + 106, String(PAIR[p][0]) + " + " + String(PAIR[p][1]),
+               CENTER, K);
+  }
+
+  // text and lines on each level
+  for (int i = 0; i < 4; ++i)
+  {
+    const int x = 20 + i * 192, y = 322;
+    display.fillRect(x, y, 180, 128, LEVEL[i]);
+    display.drawRect(x - 1, y - 1, 182, 130, K);
+    display.setFont(&FONT_14pt8b);
+    drawString(x + 8, y + 30, "Rain 72\260", LEFT, K);
+    drawString(x + 8, y + 62, "Rain 72\260", LEFT, W);
+    display.setFont(&FONT_8pt8b);
+    drawString(x + 8, y + 84, "small 8pt black", LEFT, K);
+    drawString(x + 8, y + 102, "small 8pt white", LEFT, W);
+    for (int k = 0; k < 4; ++k)
+    {
+      display.drawFastVLine(x + 140 + k * 4, y + 72, 46, K);
+      display.drawFastVLine(x + 142 + k * 4, y + 72, 46, W);
+    }
+    display.drawFastHLine(x + 8, y + 116, 120, K);
+    display.drawFastHLine(x + 8, y + 120, 120, W);
+  }
+}
+#endif
 
 #if defined(DISP_7C_E6)
 /* A test card for the 7.3in Spectra 6 panel (-D E6_TEST_CARD, the
@@ -2964,6 +4031,21 @@ void drawStatusBar(const String &statusStr, const String &refreshTimeStr,
   pos -= getStringWidth(dataStr) + 1;
 #endif
   pos -= 24;
+#if defined(GREYS_75)
+  if (greys())
+  { // a thin outline, filled in light grey as far as the charge goes, where
+    // the bitmap's body and terminal are
+    const int bx = pos + 4, by = DISP_HEIGHT - 1 - 17 + 7;
+    display.drawRect(bx, by, 18, 10, dataColor);
+    display.fillRect(bx + 18, by + 3, 2, 4, dataColor);
+    const int fillW = static_cast<int>(std::round(14 * std::min<uint32_t>(batPercent, 100) / 100.0f));
+    if (fillW > 0)
+    {
+      display.fillRect(bx + 2, by + 2, fillW, 6, G_LG);
+    }
+  }
+  else
+#endif
   display.drawInvertedBitmap(pos, DISP_HEIGHT - 1 - 17,
                              getBatBitmap24(batPercent), 24, 24, dataColor);
   pos -= sp + 9;

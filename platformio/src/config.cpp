@@ -85,7 +85,8 @@ const uint8_t PIN_EPD_PWR  = 43; // panel supply load switch (the UART0 TX pin)
 const uint8_t PIN_SD_EN    = PIN_UNUSED; // no microSD slot
 const uint8_t PIN_SD_CS    = PIN_UNUSED;
 // Three buttons, active low: KEY0 (GPIO2) wakes into the configuration
-// portal, KEY1 (GPIO3) into an immediate refresh; KEY2 (GPIO5) is unused.
+// portal, KEY1 (GPIO3) into an immediate refresh; KEY2 (GPIO5) turns the
+// pages of the grey build (PAGE_TURNING).
 const uint8_t PIN_BTN_PORTAL  = 2;
 const uint8_t PIN_BTN_REFRESH = 3;
 const uint8_t PIN_BTN_PAGE    = 5;
@@ -164,12 +165,13 @@ const uint8_t PIN_SD_EN    = 16; // active high, powers the slot
 const uint8_t PIN_SD_CS    = 14;
 // Front buttons (active low). Middle button wakes into the config portal,
 // the right (green) button wakes into an immediate refresh. KEY2 (GPIO5,
-// left) is unassigned: the 4.26in layout keeps to its home page
-// here, as a turned page would cost a full refresh (~28 s) each way.
+// left) turns the pages of the E1001's grey build (PAGE_TURNING); on the
+// E1002 it is unassigned: the 4.26in layout keeps to its home page there,
+// as a turned page would cost a full refresh (~28 s) each way.
 const uint8_t PIN_BTN_PORTAL  = 4;  // KEY1, middle
 const uint8_t PIN_BTN_REFRESH = 3;  // KEY0, right (green)
-#if defined(DISP_4G_426)
-const uint8_t PIN_BTN_PAGE    = 5;  // KEY2, left; not a wake source
+#if defined(PAGE_TURNING)
+const uint8_t PIN_BTN_PAGE    = 5;  // KEY2, left
 #endif
 // Onboard SHT4x temperature/humidity sensor
 const uint8_t PIN_BME_SDA = 19;

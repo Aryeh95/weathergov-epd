@@ -103,6 +103,12 @@ const char *TXT_PORTAL_PAUSED[3] = {"Konfiguracja wstrzymana, by oszczędzać ba
 
 // CURRENT CONDITIONS
 const char *TXT_FEELS_LIKE         = "Odczuwalna";
+const char *TXT_TAB_NOW            = "Teraz";
+const char *TXT_TAB_FORECAST       = "Prognoza";
+const char *TXT_PERIOD_HIGH        = "Maks.";
+const char *TXT_PERIOD_LOW         = "Min.";
+const char *TXT_UPDATED            = "zaktualizowano";
+const char *TXT_FORECAST_WORDS_NWS_ONLY = "Prognoza tekstowa pochodzi z weather.gov (tylko USA).";
 const char *TXT_SUNRISE            = "Wschód słońca";
 const char *TXT_SUNSET             = "Zachód słońca";
 const char *TXT_MOONRISE           = "Wschód Księżyca";

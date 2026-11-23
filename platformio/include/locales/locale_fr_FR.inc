@@ -106,6 +106,12 @@ const char *TXT_PORTAL_PAUSED[3] = {"Setup paused to save power.", "Press the re
 
 // CURRENT CONDITIONS
 const char *TXT_FEELS_LIKE         = "Temperature Ressentie";
+const char *TXT_TAB_NOW            = "Maintenant";
+const char *TXT_TAB_FORECAST       = "Pr\351visions";
+const char *TXT_PERIOD_HIGH        = "Max";
+const char *TXT_PERIOD_LOW         = "Min";
+const char *TXT_UPDATED            = "mis \340 jour";
+const char *TXT_FORECAST_WORDS_NWS_ONLY = "Les pr\351visions en texte viennent de weather.gov (\311tats-Unis seulement).";
 const char *TXT_SUNRISE            = "Lever de Soleil";
 const char *TXT_SUNSET             = "Coucher de Soleil";
 const char *TXT_MOONRISE           = "Lever de Lune";

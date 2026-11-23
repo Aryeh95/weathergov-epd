@@ -100,6 +100,12 @@ extern const bool LC_PREFER_HEAT_STRESS;
 
 // CURRENT CONDITIONS
 extern const char *TXT_FEELS_LIKE;
+extern const char *TXT_TAB_NOW;
+extern const char *TXT_TAB_FORECAST;
+extern const char *TXT_PERIOD_HIGH;
+extern const char *TXT_PERIOD_LOW;
+extern const char *TXT_UPDATED;
+extern const char *TXT_FORECAST_WORDS_NWS_ONLY;
 extern const char *TXT_SUNRISE;
 extern const char *TXT_SUNSET;
 extern const char *TXT_MOONRISE;

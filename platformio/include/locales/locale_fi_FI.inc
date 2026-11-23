@@ -106,6 +106,12 @@ const char *TXT_PORTAL_PAUSED[3] = {"Setup paused to save power.", "Press the re
 
 // CURRENT CONDITIONS
 const char *TXT_FEELS_LIKE         = "Tuntuu kuin";
+const char *TXT_TAB_NOW            = "Nyt";
+const char *TXT_TAB_FORECAST       = "Ennuste";
+const char *TXT_PERIOD_HIGH        = "Ylin";
+const char *TXT_PERIOD_LOW         = "Alin";
+const char *TXT_UPDATED            = "p\344ivitetty";
+const char *TXT_FORECAST_WORDS_NWS_ONLY = "Tekstiennuste tulee weather.gov:sta (vain USA).";
 const char *TXT_SUNRISE            = "Auringon nousu";
 const char *TXT_SUNSET             = "Auringon lasku";
 const char *TXT_MOONRISE           = "Kuut\xF5usu";

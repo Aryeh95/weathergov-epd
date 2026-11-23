@@ -95,6 +95,15 @@
 #define DRIVER_DESPI_C02
 // #define DRIVER_WAVESHARE
 
+// PAGE_TURNING: KEY3 turns to more pages and back home: the EE05's 4.26in
+// layout (the next 24 hours, the week), and the 7.5in in greys on the EE04
+// (KEY3) and the reTerminal E1001 (KEY2, the left button): the forecast in
+// words.
+#if defined(DISP_4G_426) || (defined(GREYS_75) \
+    && (defined(BOARD_XIAO_EE04) || defined(BOARD_RETERMINAL_E1001)))
+  #define PAGE_TURNING
+#endif
+
 // Seeed's XIAO ePaper Display Boards (EE02, EE04, EE05) share the XIAO
 // ESP32-S3 Plus, its USB port as Serial, its user LED and their two wake
 // buttons.
@@ -597,8 +606,8 @@ extern const uint8_t PIN_BAT_EN;
 // REFRESH wakes into an immediate weather refresh.
 extern const uint8_t PIN_BTN_PORTAL;
 extern const uint8_t PIN_BTN_REFRESH;
-#if defined(DISP_4G_426)
-// KEY3 (KEY2 on the E1002): turns the pages of the 4.26in layout
+#if defined(PAGE_TURNING)
+// KEY3 (KEY2 on the E1002): turns the pages (PAGE_TURNING)
 extern const uint8_t PIN_BTN_PAGE;
 #endif
 extern const uint8_t PIN_EPD_BUSY;

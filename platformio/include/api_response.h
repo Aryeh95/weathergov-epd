@@ -139,6 +139,23 @@ typedef struct owm_daily
 } owm_daily_t;
 
 /*
+ * weather.gov's forecast in words: its 12-hour periods ("Tonight",
+ * "Saturday", ...), the first NWS_NUM_PERIODS of them. Filled by
+ * deserializeNWSForecastDaily; empty with another forecast source.
+ */
+#define NWS_NUM_PERIODS 6
+typedef struct nws_period
+{
+  String        name;       // "This Afternoon", "Saturday Night", ...
+  bool          day;        // a daytime period: its temperature is a high
+  float         temp;       // Kelvin
+  int           clouds;     // estimated from the icon, as for the days
+  String        text;       // detailedForecast
+  owm_weather_t weather;    // from the icon, as for the days
+} nws_period_t;
+extern std::vector<nws_period_t> NWS_PERIODS;
+
+/*
  * Active weather alerts, from weather.gov's CAP alert feed.
  */
 typedef struct owm_alerts

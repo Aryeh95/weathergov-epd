@@ -105,6 +105,12 @@ const char *TXT_PORTAL_PAUSED[3] = {"Setup paused to save power.", "Press the re
 
 // CURRENT CONDITIONS
 const char *TXT_FEELS_LIKE         = "Tunnetuslik";
+const char *TXT_TAB_NOW            = "Praegu";
+const char *TXT_TAB_FORECAST       = "Prognoos";
+const char *TXT_PERIOD_HIGH        = "Max";
+const char *TXT_PERIOD_LOW         = "Min";
+const char *TXT_UPDATED            = "uuendatud";
+const char *TXT_FORECAST_WORDS_NWS_ONLY = "Tekstiprognoos tuleb weather.gov-ist (ainult USA).";
 const char *TXT_SUNRISE            = "P\xE4ikeset\xF5us";
 const char *TXT_SUNSET             = "Loojang";
 const char *TXT_MOONRISE           = "Kuut\xF5us";

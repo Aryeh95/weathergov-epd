@@ -45,6 +45,9 @@ PANELS = {
     "bwv2": ["BOARD_RETERMINAL_E1002", "BOARD_RETERMINAL_E1001"],
     "3c":   ["DISP_3C_B"],
     "4g426": ["BOARD_XIAO_EE05"],
+    # the 7.5in layout in four greys (GREYS_75), in the 7.5in panel's
+    # measured greys (measured_75.json, the TRMNL kit's GDEY075T7)
+    "4g75": ["BOARD_RETERMINAL_E1002", "BOARD_RETERMINAL_E1001", "GREYS_75"],
     # the 4.26in layout on the E1002's colours (renderer426.cpp,
     # -e seeed_reterminal_e1002_426c)
     "e6_426": ["BOARD_XIAO_EE05", "COLOR_426"],
@@ -136,9 +139,9 @@ def main():
         if panel in ("e6", "e6_426") and os.path.exists(idx_path):
             idx = np.fromfile(idx_path, dtype=np.uint8).reshape(h, w)
             view = blend_measured(idx)
-        elif panel == "4g426" and os.path.exists(idx_path):
+        elif panel in ("4g426", "4g75") and os.path.exists(idx_path):
             idx = np.fromfile(idx_path, dtype=np.uint8).reshape(h, w)
-            view = blend_greys(idx)
+            view = blend_greys(idx, "measured_75.json" if panel == "4g75" else "measured_426.json")
         else:
             # each dot with its right and lower neighbours, averaged as
             # light (in linear sRGB): full resolution, the dots blended
@@ -244,8 +247,8 @@ def blend_measured(idx):
 # them at its share, interpolated in linear light toward the pure levels
 # (dot gain makes a black/white checker 40 % of white, not 51 %); of more,
 # the dots averaged.
-def blend_greys(idx):
-    m = json.load(open(os.path.join(HERE, "measured_426.json")))
+def blend_greys(idx, table="measured_426.json"):
+    m = json.load(open(os.path.join(HERE, table)))
     lut = np.array([m["level"][str(i)] for i in range(4)])
     idx = np.minimum(idx, 3)
     q = windows2x2(idx)

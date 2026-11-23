@@ -106,12 +106,18 @@ static const uint8_t INK_RGB_3C[8][3] = {
   {30, 32, 34},    {30, 32, 34}, {30, 32, 34},    {30, 32, 34}};
 static const uint8_t (*INK_RGB)[3] = INK_RGB_E6;
 
-#if defined(DISP_4G_426)
+#if defined(DISP_4G_426) || defined(GREYS_75)
 // The 4.26in panel's greys, black .. white, as they look beside white paper
 // (255): measured on the seeed_xiao_ee05_testcard card (measured_426.json).
 // Dark grey is far lighter than its name: L* 69, against black's 16.
+#if defined(GREYS_75)
+// the 7.5in GDEY075T7's (measured_75.json): its dark grey is nearly black
+static const uint8_t GREY_RGB_426[4][3] = {
+  {33, 38, 40}, {61, 66, 68}, {133, 139, 138}, {211, 217, 214}};
+#else
 static const uint8_t GREY_RGB_426[4][3] = {
   {28, 32, 34}, {135, 144, 145}, {166, 172, 174}, {211, 217, 214}};
+#endif
 
 static void savePpm(const char *path)
 {
@@ -547,6 +553,20 @@ static int mainUS(const std::string &outDir)
   }
 #else
   savePpm((outDir + "/sim_us_now.ppm").c_str());
+#if defined(GREYS_75)
+  // the page KEY3 turns to on the EE04 (renderer.cpp, drawPage426): the
+  // forecast in words, in greys as on the device
+  for (int page = 1; page < PAGES_426; ++page)
+  {
+    initDisplay();
+    do
+    {
+      drawPage426(page, current, hourly, daily, air, pollen, inTemp, inHum,
+                  CITY_STRING, dateStr, refreshTimeStr, 4050);
+    } while (display.nextPage());
+    savePpm((outDir + "/sim_us_forecast.ppm").c_str());
+  }
+#endif
 #endif
   printf("  %d hourly, %d alerts, AQI %d, pollen %d\n", got, (int)alerts.size(), air.us_aqi, pollen.max_upi);
   return 0;

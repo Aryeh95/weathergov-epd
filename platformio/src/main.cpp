@@ -98,7 +98,7 @@ static void enableButtonWake()
   {
     rtc_gpio_pullup_en(static_cast<gpio_num_t>(PIN_BTN_REFRESH));
     rtc_gpio_pulldown_dis(static_cast<gpio_num_t>(PIN_BTN_REFRESH));
-#if defined(DISP_4G_426) && !defined(DISP_426_ON_E6)
+#if defined(PAGE_TURNING) && !defined(DISP_426_ON_E6)
     // KEY3 as well: on the ESP32-S3, EXT1 wakes when any of its pins is low
     rtc_gpio_pullup_en(static_cast<gpio_num_t>(PIN_BTN_PAGE));
     rtc_gpio_pulldown_dis(static_cast<gpio_num_t>(PIN_BTN_PAGE));
@@ -116,7 +116,7 @@ static void enableButtonWake()
 static void enableButtonWake() {}
 #endif
 
-#if defined(DISP_4G_426)
+#if defined(PAGE_TURNING)
 // The page on the panel (0 the home page, see renderer426.cpp) and when the
 // next update of the weather is due by the clock, both kept through deep
 // sleep. A press of KEY3 while the board waits awake on a computer's USB
@@ -195,7 +195,7 @@ RTC_DATA_ATTR static uint32_t s_waitSecs = 0;
 
 static void sleepOrWait(uint64_t seconds)
 {
-#if defined(DISP_4G_426)
+#if defined(PAGE_TURNING)
   if (s_pageKeyPressed)
   { // KEY3 was pressed while the board was busy: the next page, now
     s_pageKeyPressed = false;
@@ -213,7 +213,7 @@ static void sleepOrWait(uint64_t seconds)
     Serial.flush();
     pinMode(PIN_BTN_PORTAL, INPUT_PULLUP);
     pinMode(PIN_BTN_REFRESH, INPUT_PULLUP);
-#if defined(DISP_4G_426)
+#if defined(PAGE_TURNING)
     pinMode(PIN_BTN_PAGE, INPUT_PULLUP);
 #endif
     const unsigned long t0 = millis();
@@ -262,11 +262,11 @@ static void sleepOrWait(uint64_t seconds)
         s_waitEnd = 2;
         break;
       }
-#if defined(DISP_4G_426)
+#if defined(PAGE_TURNING)
       if (s_pageKeyPressed)
       {
         s_pageKeyPressed = false;
-        left = 1;                    // the next page: wake in a second
+        left = 0;                    // the next page: wake at once (100 ms)
         timed = true;
         s_turnAsked = true;
         s_waitEnd = 4;
@@ -278,7 +278,8 @@ static void sleepOrWait(uint64_t seconds)
     s_waitSecs = (millis() - t0) / 1000;
     if (timed)
     {
-      esp_sleep_enable_timer_wakeup(left * 1000000ULL);
+      // left 0: a page turn, which someone is waiting for
+      esp_sleep_enable_timer_wakeup(left ? left * 1000000ULL : 100000ULL);
     }
     enableButtonWake();
   }
@@ -359,7 +360,7 @@ static void drawWeatherPage(const tm &timeInfo, const String &dateStr,
                   historyBatteryDaysLeft(), stale);
   } while (display.nextPage());
   powerOffDisplay();
-#if defined(DISP_4G_426)
+#if defined(PAGE_TURNING)
   s_page = 0;
 #endif
 } // end drawWeatherPage
@@ -522,7 +523,7 @@ void beginDeepSleep(unsigned long startTime, tm *timeInfo)
 
   countOutage(startTime, sleepDuration);
   diagSave(startTime, static_cast<uint32_t>(sleepDuration));
-#if defined(DISP_4G_426)
+#if defined(PAGE_TURNING)
   s_nextUpdate = static_cast<int64_t>(time(nullptr)) + sleepDuration;
 #endif
   esp_sleep_enable_timer_wakeup(sleepDuration * 1000000ULL);
@@ -548,7 +549,7 @@ void beginFixedSleep(unsigned long startTime, unsigned long minutes)
   disarmDoubleReset();
   countOutage(startTime, minutes * 60ULL);
   diagSave(startTime, static_cast<uint32_t>(minutes * 60UL));
-#if defined(DISP_4G_426)
+#if defined(PAGE_TURNING)
   s_nextUpdate = static_cast<int64_t>(time(nullptr)) + minutes * 60LL;
 #endif
   esp_sleep_enable_timer_wakeup(minutes * 60ULL * 1000000ULL);
@@ -560,7 +561,7 @@ void beginFixedSleep(unsigned long startTime, unsigned long minutes)
   sleepOrWait(minutes * 60ULL);
 } // end beginFixedSleep
 
-#if defined(DISP_4G_426)
+#if defined(PAGE_TURNING)
 /* A wake that only changes the page. KEY3 turns to the next page (after
  * the last, the home page again); a turned page goes back to the home page
  * after PAGE_HOLD_SECONDS, or with the next update, whichever is sooner.
@@ -585,6 +586,11 @@ static void turnPage(bool next, unsigned long startTime,
   const time_t when = static_cast<time_t>(meta.when);
   setSunTimes(current.sunrise, current.sunset);
   setPageTime(when);
+  // someone is waiting for this page: draw it at full speed (the board
+  // runs at 80 MHz to save the battery, and drawing took 0.8 s for a black
+  // and white page, 2.4 s for the grey home page at that speed)
+  const uint32_t cpuMhz = getCpuFrequencyMhz();
+  setCpuFrequencyMhz(240);
   const unsigned long drawStart = millis();
   if (page == 0)
   {
@@ -601,7 +607,11 @@ static void turnPage(bool next, unsigned long startTime,
   }
   else
   {
+#if !defined(GREYS_75)
+    // black and white, for the panel's quicker refresh (the 7.5in's
+    // forecast page stays in greys: its words are smoothed)
     setGreyMode426(false);
+#endif
     initDisplay();
     do
     {
@@ -614,6 +624,7 @@ static void turnPage(bool next, unsigned long startTime,
   }
   s_page = page;
   Serial.printf("[page] drawn in %lu ms\n", millis() - drawStart);
+  setCpuFrequencyMhz(cpuMhz);
 
   // a key still held would wake the board again at once
   pinMode(PIN_BTN_PAGE, INPUT_PULLUP);
@@ -658,7 +669,7 @@ void setup()
   // rest are dropped at once.
   Serial.setTxTimeoutMs(20);
 #endif
-#if defined(DISP_4G_426)
+#if defined(PAGE_TURNING)
 #if !defined(DISP_426_ON_E6)
   watchPageKey();
 #endif
@@ -712,6 +723,18 @@ void setup()
   } while (display.nextPage());
   powerOffDisplay();
   Serial.println("[epd709] test card drawn, sleeping");
+  sleepOrWait(0);
+#endif
+#if defined(GREYS_75) && defined(GREY75_TEST_CARD)
+  // The 7.5in greys card: no WiFi, no settings; then it waits (on USB) or
+  // sleeps until reset.
+  initDisplay();
+  do
+  {
+    drawTestCard75();
+  } while (display.nextPage());
+  powerOffDisplay();
+  Serial.println("[grey75] test card drawn");
   sleepOrWait(0);
 #endif
 #if defined(DISP_4G_426) && defined(EE05_TEST_CARD)
@@ -919,7 +942,7 @@ void setup()
   // handling -- proceeding with a normal update IS the response.
   if (wakeCause == ESP_SLEEP_WAKEUP_EXT1)
   {
-#if defined(DISP_4G_426) && !defined(DISP_426_ON_E6)
+#if defined(PAGE_TURNING) && !defined(DISP_426_ON_E6)
     if (esp_sleep_get_ext1_wakeup_status() & (1ULL << PIN_BTN_PAGE))
     {
       Serial.println("Woken by page button.");
@@ -968,7 +991,7 @@ void setup()
   // All data should have been loaded from NVS. Close filesystem.
   prefs.end();
 
-#if defined(DISP_4G_426)
+#if defined(PAGE_TURNING)
   // KEY3, or a turned page whose time is up: a new page, not new weather
   {
     const bool byKey = (wakeCause == ESP_SLEEP_WAKEUP_EXT1)

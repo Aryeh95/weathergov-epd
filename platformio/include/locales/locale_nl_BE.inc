@@ -105,6 +105,12 @@ const char *TXT_PORTAL_PAUSED[3] = {"Setup paused to save power.", "Press the re
 
 // CURRENT CONDITIONS
 const char *TXT_FEELS_LIKE         = "Voelt als";
+const char *TXT_TAB_NOW            = "Nu";
+const char *TXT_TAB_FORECAST       = "Verwachting";
+const char *TXT_PERIOD_HIGH        = "Max";
+const char *TXT_PERIOD_LOW         = "Min";
+const char *TXT_UPDATED            = "bijgewerkt";
+const char *TXT_FORECAST_WORDS_NWS_ONLY = "De tekstverwachting komt van weather.gov (alleen VS).";
 const char *TXT_SUNRISE            = "Zonsopgang";
 const char *TXT_SUNSET             = "Zonsondergang";
 const char *TXT_MOONRISE           = "Maansopkomst";

@@ -26,8 +26,9 @@ const char *const PATH = "/last.bin";
 const char *const PATH_TMP = "/last.tmp";
 const char *const PATH_OLD = "/last.old"; // the previous file, while the new one takes its place
 const uint32_t MAGIC = 0x31584557; // "WEX1"
-const uint16_t VERSION = 3;    // 3: Israeli AQI + IMS heat stress (2026-11-17)
-const size_t   MAX_TEXT = 200;     // longest string kept
+const uint16_t VERSION = 4;    // 3: Israeli AQI + IMS heat stress (2026-11-17)
+                               // 4: the forecast in words (2026-11-23)
+const size_t   MAX_TEXT = 600;     // longest string kept (a period's words)
 const size_t   MAX_BYTES = 32768;  // a file larger than this is not ours
 
 // Anything that changes how the fields below are laid out changes this
@@ -230,6 +231,36 @@ void io(Archive &a, std::vector<owm_alerts_t> &alerts)
   }
 }
 
+void io(Archive &a, nws_period_t &p)
+{
+  a.str(p.name);
+  a.pod(p.day);
+  a.pod(p.temp);
+  a.pod(p.clouds);
+  a.str(p.text);
+  io(a, p.weather);
+}
+
+void io(Archive &a, std::vector<nws_period_t> &periods)
+{
+  uint16_t n = static_cast<uint16_t>(
+                 std::min<size_t>(periods.size(), NWS_NUM_PERIODS));
+  a.pod(n);
+  if (a.reading())
+  {
+    if (!a.good() || n > NWS_NUM_PERIODS)
+    {
+      n = 0;
+    }
+    periods.clear();
+    periods.resize(n);
+  }
+  for (uint16_t i = 0; i < n; ++i)
+  {
+    io(a, periods[i]);
+  }
+}
+
 void io(Archive &a, owm_resp_air_pollution_t &r)
 {
   a.pod(r.coord);
@@ -269,6 +300,7 @@ void everything(Archive &a, owm_current_t &current, owm_hourly_t *hourly,
   }
   io(a, alerts);
   io(a, air);
+  io(a, NWS_PERIODS);
 }
 
 } // namespace

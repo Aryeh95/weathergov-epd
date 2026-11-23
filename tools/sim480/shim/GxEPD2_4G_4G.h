@@ -15,6 +15,15 @@ struct GxEPD2_426_GDEQ0426T82
   void hibernate() {}
 };
 
+// GREYS_75: the 7.5in black-and-white panel in GxEPD2_4G's four greys,
+// the same 800x480 frame
+struct GxEPD2_750_GDEY075T7
+{
+  static const uint16_t WIDTH = 800, HEIGHT = 480;
+  GxEPD2_750_GDEY075T7(int16_t, int16_t, int16_t, int16_t) {}
+  void hibernate() {}
+};
+
 // the frame: a grey level a dot, as the board sits (rotation is applied)
 inline uint8_t *host426Frame()
 {
@@ -47,6 +56,15 @@ public:
   bool nextPage() { return false; }
   void hibernate() {}
   void powerOff() {}
+  // GxEPD2's: the bitmap's clear bits are drawn in `color`, set bits left alone
+  void drawInvertedBitmap(int16_t x, int16_t y, const uint8_t *bitmap, int16_t w, int16_t h, uint16_t color)
+  {
+    const int16_t byteWidth = (w + 7) / 8;
+    for (int16_t j = 0; j < h; ++j)
+      for (int16_t i = 0; i < w; ++i)
+        if (!(bitmap[j * byteWidth + i / 8] & (0x80 >> (i & 7))))
+          drawPixel(x + i, y + j, color);
+  }
   void drawPixel(int16_t x, int16_t y, uint16_t color) override
   {
     if (x < 0 || y < 0 || x >= width() || y >= height()) return;

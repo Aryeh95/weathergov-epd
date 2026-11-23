@@ -100,6 +100,12 @@ const char *TXT_PORTAL_PAUSED[3] = {"ההתקנה הושהתה לחיסכון ב
 
 // CURRENT CONDITIONS
 const char *TXT_FEELS_LIKE         = "מרגיש כמו";
+const char *TXT_TAB_NOW            = "עכשיו";
+const char *TXT_TAB_FORECAST       = "תחזית";
+const char *TXT_PERIOD_HIGH        = "גבוהה";
+const char *TXT_PERIOD_LOW         = "נמוכה";
+const char *TXT_UPDATED            = "עודכן";
+const char *TXT_FORECAST_WORDS_NWS_ONLY = "התחזית המילולית מגיעה מ-weather.gov (ארה\"ב בלבד).";
 const char *TXT_SUNRISE            = "זריחה";
 const char *TXT_SUNSET             = "שקיעה";
 const char *TXT_MOONRISE           = "זריחת ירח";

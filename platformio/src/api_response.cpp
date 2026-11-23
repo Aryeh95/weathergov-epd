@@ -313,6 +313,8 @@ DeserializationError deserializeNWSPoints(WiFiClient &json, String &forecastUrl,
  * OWM_NUM_DAILY owm_daily_t entries, merging each day/night period pair into
  * a single day.
  */
+std::vector<nws_period_t> NWS_PERIODS;
+
 DeserializationError deserializeNWSForecastDaily(WiFiClient &json,
                                                  owm_daily_t *daily)
 {
@@ -324,6 +326,8 @@ DeserializationError deserializeNWSForecastDaily(WiFiClient &json,
   period["probabilityOfPrecipitation"]["value"] = true;
   period["windSpeed"]                          = true;
   period["windDirection"]                      = true;
+  period["name"]                               = true;
+  period["detailedForecast"]                   = true;
   period["icon"]                               = true;
 
   JsonDocument doc;
@@ -349,12 +353,25 @@ DeserializationError deserializeNWSForecastDaily(WiFiClient &json,
 
   String curDate;
   int dayIdx = -1;
+  NWS_PERIODS.clear();
   for (JsonObject p : doc["properties"]["periods"].as<JsonArray>())
   {
     String startTime = p["startTime"].as<const char *>();
     if (startTime.length() < 10 || p["temperature"].isNull())
     { // a period without a date or a temperature cannot be placed
       continue;
+    }
+    if (NWS_PERIODS.size() < NWS_NUM_PERIODS)
+    { // the forecast in words (the second page on the 7.5in in greys)
+      nws_period_t w;
+      w.name = p["name"].as<const char *>();
+      w.day  = p["isDaytime"].as<bool>();
+      w.temp = fahrenheit_to_kelvin(p["temperature"].as<float>());
+      w.text = p["detailedForecast"].as<const char *>();
+      String dn, code;
+      parseIconUrl(p["icon"].as<const char *>(), dn, code);
+      applyNwsIcon(code, dn, w.weather, w.clouds);
+      NWS_PERIODS.push_back(w);
     }
     String date = startTime.substring(0, 10);
     if (date != curDate)

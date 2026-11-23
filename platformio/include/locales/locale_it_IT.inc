@@ -106,6 +106,12 @@ const char *TXT_PORTAL_PAUSED[3] = {"Setup paused to save power.", "Press the re
 
 // CURRENT CONDITIONS
 const char *TXT_FEELS_LIKE         = "Percepiti";
+const char *TXT_TAB_NOW            = "Ora";
+const char *TXT_TAB_FORECAST       = "Previsioni";
+const char *TXT_PERIOD_HIGH        = "Max";
+const char *TXT_PERIOD_LOW         = "Min";
+const char *TXT_UPDATED            = "aggiornato";
+const char *TXT_FORECAST_WORDS_NWS_ONLY = "Le previsioni in testo vengono da weather.gov (solo USA).";
 const char *TXT_SUNRISE            = "Alba";
 const char *TXT_SUNSET             = "Tramonto";
 const char *TXT_MOONRISE           = "Sorgere della Luna";
