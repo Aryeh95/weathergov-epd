@@ -66,7 +66,7 @@ This is a fork of [lmarzen/esp32-weather-epd](https://github.com/lmarzen/esp32-w
 
 | Device | Panel | Layout | Assembly | Build target |
 |---|---|---|---|---|
-| DFRobot FireBeetle 2 ESP32-E + DESPI-C02 adapter | 7.5" 800×480 black and white (Waveshare v2, Good Display GDEY075T7) | 800×480 (1-bit) | [Wiring](#diy-firebeetle-esp32-and-a-75-or-73-panel) | `dfrobot_firebeetle2_esp32e` |
+| DFRobot FireBeetle 2 ESP32-E + DESPI-C02 adapter | 7.5" 800×480 black and white (Waveshare v2, Good Display GDEY075T7) | [7.5" black and white (1-bit)](#75-black-and-white-1-bit) | [Wiring](#diy-firebeetle-esp32-and-a-75-or-73-panel) | `dfrobot_firebeetle2_esp32e` |
 | the same | 7.5" 800×480 black/white/red (Waveshare B, Good Display GDEY075Z08) | [7.5" three-colour](#75-three-colour-blackwhitered) | Wiring | `dfrobot_firebeetle2_esp32e` |
 | the same | 7.5" 640×384 black and white (v1, GDEW075T8) | reduced 800×480 layout | Wiring | `dfrobot_firebeetle2_esp32e` |
 | FireBeetle 2 ESP32-E + **DESPI-C73** adapter | 7.3" 800×480 seven-colour (Waveshare F / GDEY073D46, Spectra 6 GDEP073E01) | [7.3" full colour](#73-full-colour-reterminal-e1002) | Wiring | `dfrobot_firebeetle2_esp32e` |
@@ -100,7 +100,13 @@ The 800×480 layout drawn in the 7.5" monochrome panel's four greys (`seeed_xiao
 - **Four-greyscale widgets and shading:** dedicated multi-tone widget icons at both 5- and 6-row sizes (including pollen, visibility, humidity, dew point, air quality, indoor pair, heat stress and barometer), a moon shaded from NASA's lunar map, contrast-coded precipitation bars, rounded alternating forecast cards, rounded nighttime shading behind the graph, and 4-level anti-aliased temperature and dew point curves with high/low peak callouts.
 - **Two pages:** **Now** (left) and **Forecast** (right), which shows weather.gov's forecast in words across six periods in two columns of rounded day and night cards, toggled with a button (`KEY2` on the TRMNL kit, the left button on the E1001). It renders from the weather saved on the last update without WiFi and returns to Now five minutes after the last press. The text comes from weather.gov only, so other forecast sources say so.
 
-A refresh takes about 4 seconds. The greys were measured on the panel: black, dark grey, light grey and white come out at L\* 19, 34, 67 and 100. For the DIY FireBeetle build or plain 1-bit line art, the 1-bit targets (`dfrobot_firebeetle2_esp32e`, `seeed_xiao_ee04`, `seeed_reterminal_e1001`, `seeed_xiao_ee05_classic`) remain available; dark mode (white on black) is supported on the full-colour panels.
+A refresh takes about 4 seconds. The greys were measured on the panel: black, dark grey, light grey and white come out at L\* 19, 34, 67 and 100.
+
+### 7.5" black and white (1-bit)
+
+<img src="showcase/preview-75-bw.png" width="80%" />
+
+The same 800×480 layout in 1-bit line art. Used on the DIY FireBeetle 2 ESP32-E build (`dfrobot_firebeetle2_esp32e`, where 4 MB flash and no PSRAM rule out the four-grey build), and available as an optional 1-bit build on the reTerminal E1001 (`seeed_reterminal_e1001`), the TRMNL kit (`seeed_xiao_ee04`), and the EE05 (`seeed_xiao_ee05_classic`).
 
 ### 7.5" three-colour (black/white/red)
 
@@ -112,7 +118,7 @@ The same layout with one accent colour, red by default (`ACCENT_COLOR` in config
 
 <img src="showcase/preview-e1002.png" width="80%" />
 
-On the seven-colour and Spectra 6 panels the same layout uses full-colour weather and widget icons. The icons are drawn from the [InkyPi](https://github.com/fatihak/InkyPi) set and reduced to the panel's inks. Highs are red and lows blue, the dew point is a blue curve, and UV, air quality and pollen sit on colour-coded chips. A full refresh takes about 28 seconds. Its white reflects about 40 % as much light as paper, against about 70 % for a black-and-white panel, so next to one it looks greyer than the preview.
+On the seven-colour and Spectra 6 panels the same layout uses full-colour weather and widget icons. The icons are drawn from the [InkyPi](https://github.com/fatihak/InkyPi) set and reduced to the panel's inks. Highs are red and lows blue, the dew point is a blue curve, and UV, air quality and pollen sit on colour-coded chips. A full refresh takes about 28 seconds. Its white reflects about 40 % as much light as paper, against about 70 % for a black-and-white panel, so next to one it looks greyer than the preview. A dark mode (white on black) is also available.
 
 ### 7.09" high-resolution colour (XIAO EE02)
 
