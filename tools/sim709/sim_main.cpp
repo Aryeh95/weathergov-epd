@@ -175,6 +175,7 @@ static float dewAt(float h)
 // picture shows a 24-hour graph, which the rain at hour 33 would miss
 static float g_rainLead = 0;
 static bool g_dryWeek = false; // the week without rain (the hours keep theirs)
+static float g_uviDay = 5;     // the afternoon's UV index
 static float popAt(float h)
 {
   h += g_rainLead;
@@ -232,7 +233,7 @@ static void sample(bool night)
   current.humidity = night ? 78 : 64;
   current.dew_point = f2k(47);
   current.pressure = night ? 1021 : 1020;
-  current.uvi = night ? 0 : 5;
+  current.uvi = night ? 0 : g_uviDay;
   current.visibility = 16000;
   current.wind_speed = (night ? 4 : 7) * 0.44704f;
   current.wind_deg = night ? 0 : 315;
@@ -330,6 +331,12 @@ static std::vector<owm_alerts_t> alertsOf(int n)
 static const uint8_t INK_RGB[8][3] = {
   {22, 17, 28}, {177, 194, 207}, {223, 194, 59}, {155, 12, 21},
   {255, 0, 255}, {30, 82, 152}, {69, 97, 84}, {255, 0, 255}};
+// The two-pass extra inks of EPD709_EXTRA_INKS builds (codes 9-11: orange,
+// lime, tan), from a flatbed scan of the lab's two-pass card, against the
+// same white. Kept apart from INK_RGB, which build.py reads.
+static const uint8_t EXTRA_RGB[8][3] = {
+  {255, 0, 255}, {225, 160, 55}, {205, 207, 106}, {205, 187, 145},
+  {255, 0, 255}, {255, 0, 255}, {255, 0, 255}, {255, 0, 255}};
 
 // what each dot was drawn as (renderer709.cpp, host builds): written beside
 // each picture as <name>.tag, uint32 per pixel, so build.py can colour the
@@ -382,11 +389,22 @@ static void save(const char *path)
       }
       const uint8_t b = frame[ny * (Epd709::WIDTH / 2) + (nx >> 1)];
       const uint8_t ink = (nx & 1) ? (b & 0x0F) : (b >> 4);
-      fwrite(INK_RGB[ink & 7], 1, 3, f);
+      fwrite((ink & 8) ? EXTRA_RGB[ink & 7] : INK_RGB[ink], 1, 3, f);
     }
   }
   fclose(f);
   printf("wrote %s\n", path);
+  if (getenv("SIM_RAW"))
+  { // the frame in controller order, for the bench firmware's img command
+    std::string r(path);
+    r = r.substr(0, r.size() - 4) + ".raw";
+    FILE *g = fopen(r.c_str(), "wb");
+    if (g)
+    {
+      fwrite(frame, 1, Epd709::FRAME_BYTES, g);
+      fclose(g);
+    }
+  }
 }
 
 // What a wake looks like when the smaller requests failed and the forecast
@@ -535,6 +553,12 @@ int main(int argc, char **argv)
     return 0;
   }
   weather((out + "/sim_day.ppm").c_str(), false, 0);
+  // UV 6 ("High"): an orange chip beside the green one -- in builds with
+  // the extra inks all three of them (orange, lime, the tan of the mostly
+  // sunny spell), to compare with the same picture without
+  g_uviDay = 6;
+  weather((out + "/sim_extra.ppm").c_str(), false, 0);
+  g_uviDay = 5;
   // the README's picture: a 24-hour graph, as the panel is usually set, with
   // the sample's rain brought forward to fall tonight
   HOURLY_GRAPH_MAX = 24;

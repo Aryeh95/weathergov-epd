@@ -709,6 +709,14 @@ void setup()
   Serial.println("[e6] test card drawn, sleeping");
   esp_deep_sleep_start();
 #endif
+#if defined(DISP_7C_709) && defined(EPD709_LAB)
+  // Bench build: commands over USB serial, never sleeps (epd709_lab.cpp)
+  {
+    extern void epd709Lab();
+    initDisplay();
+    epd709Lab();
+  }
+#endif
 #if defined(DISP_7C_709) && defined(EPD709_TEST_CARD)
   // Bring-up build: no WiFi, no settings, just the test card, then sleep
   // until the reset button is pressed.

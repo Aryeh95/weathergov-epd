@@ -53,6 +53,11 @@ uint8_t Epd709::inkOf(uint16_t color)
   case GxEPD_YELLOW: return INK_YELLOW;
   case GxEPD_GREEN:  return INK_GREEN;
   case GxEPD_BLUE:   return INK_BLUE;
+#if defined(EPD709_EXTRA_INKS)
+  case COLOR_ORANGE: return INK_ORANGE;
+  case COLOR_LIME:   return INK_LIME;
+  case COLOR_TAN:    return INK_TAN;
+#endif
   default:
     // Anything else is not an ink. The panel does answer to an "orange"
     // code, but it is an uncalibrated state that renders as a blotchy brown
@@ -212,6 +217,11 @@ void Epd709::init(uint32_t, bool, uint16_t, bool)
   SPI.end();
   SPI.begin(PIN_EPD_SCK, -1, PIN_EPD_MOSI, -1); // write-only, chip selects by hand
 
+  resetAndConfigure();
+}
+
+void Epd709::resetAndConfigure()
+{
   digitalWrite(_rst, LOW);
   delay(20);
   digitalWrite(_rst, HIGH);
@@ -297,6 +307,14 @@ void Epd709::sendFrame()
   // Master takes the left 600 columns, slave the right 600. Each gets its
   // half row by row, chip select low for the whole of it.
   const uint32_t half = WIDTH / 4; // bytes of one half row
+#if defined(EPD709_EXTRA_INKS)
+  // the extra inks go out as their base inks: orange as red, lime as green,
+  // tan as black (a byte table, two pixels at a time)
+  static const uint8_t BASE[16] = {0, 1, 2, 3, 4, 5, 6, 7,
+                                   0, INK_RED, INK_GREEN, INK_BLACK, 4, 5, 6, 7};
+  uint8_t lut[256], rowBuf[WIDTH / 4];
+  for (int b = 0; b < 256; ++b) lut[b] = (BASE[b >> 4] << 4) | BASE[b & 15];
+#endif
   for (uint8_t chip = 0; chip < 2; ++chip)
   {
     SPI.beginTransaction(EPD709_SPI);
@@ -306,7 +324,13 @@ void Epd709::sendFrame()
     digitalWrite(_dc, HIGH);
     for (uint32_t row = 0; row < HEIGHT; ++row)
     {
+#if defined(EPD709_EXTRA_INKS)
+      const uint8_t *src = _frame + row * (WIDTH / 2) + chip * half;
+      for (uint32_t i = 0; i < half; ++i) rowBuf[i] = lut[src[i]];
+      SPI.writeBytes(rowBuf, half);
+#else
       SPI.writeBytes(_frame + row * (WIDTH / 2) + chip * half, half);
+#endif
     }
     select(false, false);
     SPI.endTransaction();
@@ -331,12 +355,82 @@ void Epd709::refresh()
   delay(30);
 }
 
+#if defined(EPD709_EXTRA_INKS)
+bool Epd709::hasExtraInks() const
+{
+  for (uint32_t i = 0; i < FRAME_BYTES; ++i)
+  {
+    const uint8_t b = _frame[i];
+    if ((b & 0x80) || (b & 0x08)) return true; // a code of 8 or more
+  }
+  return false;
+}
+
+/* The second pass: code 2 where an extra ink goes, code 4 (hold) everywhere
+ * else, over the whole panel; the refresh is ended 300 ms after it starts by
+ * a hardware reset, and the registers are loaded again.
+ */
+void Epd709::extraInkPass()
+{
+  static const uint8_t CODE[16] = {4, 4, 4, 4, 4, 4, 4, 4,
+                                   4, 2, 2, 2, 4, 4, 4, 4};
+  uint8_t lut[256], rowBuf[WIDTH / 4];
+  for (int b = 0; b < 256; ++b) lut[b] = (CODE[b >> 4] << 4) | CODE[b & 15];
+  // a reset first: straight after the full refresh the cut pass changed
+  // nothing (bench, 2026-11-22); after a reset it works
+  resetAndConfigure();
+  static const uint8_t ccset = 0x01;
+  command(true, true, 0xE0, &ccset, 1);
+  waitReady(EPD709_BUSY_TIMEOUT_MS);
+  // the partial window over all of each controller's half (1200 x 800 as it
+  // counts it); window rules as in OSPTEK's EPD0709A02 example (CC BY 4.0)
+  static const uint8_t ptl[9] = {0, 0, 0x04, 0xAF, 0, 0, 0x03, 0x1F, 0x01};
+  command(true, true, 0x83, ptl, sizeof(ptl));
+  const uint32_t half = WIDTH / 4;
+  for (uint8_t chip = 0; chip < 2; ++chip)
+  {
+    SPI.beginTransaction(EPD709_SPI);
+    select(chip == 0, chip == 1);
+    digitalWrite(_dc, LOW);
+    SPI.transfer(0x10);
+    digitalWrite(_dc, HIGH);
+    for (uint32_t row = 0; row < HEIGHT; ++row)
+    {
+      const uint8_t *src = _frame + row * (WIDTH / 2) + chip * half;
+      for (uint32_t i = 0; i < half; ++i) rowBuf[i] = lut[src[i]];
+      SPI.writeBytes(rowBuf, half);
+    }
+    select(false, false);
+    SPI.endTransaction();
+  }
+  static const uint8_t drf = 0x01; // only the window
+  command(true, true, 0x04, nullptr, 0);
+  waitReady(EPD709_BUSY_TIMEOUT_MS);
+  delay(50);
+  command(true, true, 0x12, &drf, 1);
+  const uint32_t t = millis();
+  while (digitalRead(_busy) == HIGH && millis() - t < 500) {}
+  const uint32_t active = millis();
+  while (millis() - active < 300) {}
+  digitalWrite(_rst, LOW);
+  delay(10);
+  resetAndConfigure();
+  Serial.println("[epd709] extra inks pass done");
+}
+#endif
+
 bool Epd709::nextPage()
 {
   if (_frame && _started)
   {
     sendFrame();
     refresh();
+#if defined(EPD709_EXTRA_INKS)
+    if (hasExtraInks())
+    {
+      extraInkPass();
+    }
+#endif
   }
   return false;
 }

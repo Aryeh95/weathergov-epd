@@ -33,6 +33,8 @@ INCLUDES = [os.path.join(HERE, "shim"), os.path.join(PIO, "include"),
             os.path.join(PIO, "lib", "esp32-weather-epd-assets"),
             os.path.join(PIO, "lib", "pollutant-concentration-to-aqi")]
 DEFINES = ["BOARD_XIAO_EE02", "EPD709_HOST", "ARDUINOJSON_ENABLE_COMMENTS=1", "_USE_MATH_DEFINES"]
+# more, space separated, e.g. SIM_DEFINES=EPD709_EXTRA_INKS
+DEFINES += os.environ.get("SIM_DEFINES", "").split()
 
 
 def compiler():

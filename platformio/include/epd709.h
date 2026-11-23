@@ -66,6 +66,22 @@ public:
   enum : uint8_t { INK_BLACK = 0, INK_WHITE = 1, INK_YELLOW = 2, INK_RED = 3,
                    INK_BLUE = 5, INK_GREEN = 6 };
 
+#if defined(EPD709_EXTRA_INKS)
+  /* Three more solid colours, made in two passes (found on the bench,
+   * epd709_lab.cpp, 2026-11-21): the full refresh lays down a base ink, then
+   * a refresh cut 300 ms in with pixel code 2 moves it on, while code 4
+   * leaves every other pixel as it is. Scanned: orange L* 58 a* +11 b* +52
+   * (from red), lime 67 -14 +43 (from green), tan 63 -2 +22 (from black).
+   * Experimental: the cut refresh leaves its pixels' drive unbalanced.
+   * In the frame they are codes the panel never sees (8 and up repeat 0-7
+   * in the controller); the driver turns them into their base inks for the
+   * first pass.
+   */
+  enum : uint8_t { INK_ORANGE = 9, INK_LIME = 10, INK_TAN = 11 };
+  static const uint16_t COLOR_ORANGE = 0xFC00; // GxEPD_ORANGE
+  static const uint16_t COLOR_LIME = 0xAFE5, COLOR_TAN = 0xD5B1;
+#endif
+
   Epd709(uint8_t csMaster, uint8_t csSlave, uint8_t dc, uint8_t rst,
          uint8_t busy);
 
@@ -114,6 +130,15 @@ private:
                size_t len);
   void sendFrame();
   void refresh();
+  void resetAndConfigure(); // hardware reset, then the register table
+#if defined(EPD709_EXTRA_INKS)
+  bool hasExtraInks() const;
+  void extraInkPass();      // the second pass for INK_ORANGE/LIME/TAN
+#endif
+
+#if defined(EPD709_LAB)
+  friend void epd709Lab();
+#endif
 };
 
 #endif

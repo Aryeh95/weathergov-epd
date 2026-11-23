@@ -44,6 +44,7 @@
 #include "conversions.h"
 #include "display_utils.h"
 #include "history.h"
+#include "smooth.h"
 #include "renderer.h"
 #include "sun.h"
 #include "text709.h"
@@ -149,7 +150,16 @@ static const int FOOTER_Y = 1154;
 // Orange: half red, half yellow. Scanned on the panel (test card 1,
 // 2026-10-25) it measures hue 62 -- the EPA's orange is 60 -- and stays well
 // apart from red, where a 35 % mix reads as a mustard.
+#if defined(EPD709_EXTRA_INKS)
+// With the two-pass extra inks (epd709.h) orange, lime and tan are solid.
+// Orange scans L* 58 a* +11 b* +52: an amber, warmer than yellow and well
+// clear of red; it replaces the red-in-yellow screen.
+static const uint16_t O = Epd709::COLOR_ORANGE, LIME = Epd709::COLOR_LIME,
+                      TAN = Epd709::COLOR_TAN;
+static const Tone T_ORANGE    = {O, 1.0f, O, 1.0f};
+#else
 static const Tone T_ORANGE    = {R, 0.50f, Y, 1.0f};
+#endif
 static const Tone T_ADVISORY  = {Y, 0.55f, W, 1.0f};
 // The rain bars in the blue ink itself, a clear mid blue; the dew point
 // line keeps its paper halo, so it still reads over them.
@@ -1156,6 +1166,8 @@ static void drawChip(int x, int y, const char *word, int level)
   // red in yellow (T_ORANGE).
   switch (level)
   {
+  // (the two-pass lime was tried here: too yellow, hue 108 against the
+  // EPA's 136, and too near Moderate's yellow)
   case RISK_GREEN:  fillBox(x, y, x + w, y + h, 8, G);              break;
   case RISK_YELLOW: fillBox(x, y, x + w, y + h, 8, Y); ink = K_ABS; break;
   case RISK_AMBER:  fillTone(x, y, x + w, y + h, 8, T_ORANGE); ink = K_ABS; break;
@@ -1844,36 +1856,7 @@ static const int WEEK_BAND_FILL = 1;
 // smooth curves through the days, no dots (false: straight segments, dots)
 static const bool WEEK_BAND_SMOOTH = true;
 
-/* A smooth curve through values at 0, 1, .. n-1 (cubic Hermite). Where
- * the values turn -- a high or a low -- the curve is flat there, so it does
- * not run past the figure that labels it. Elsewhere the slope is the mean
- * of its two sides, held to three times the gentler one: forecasts come in
- * whole degrees (64, 64, 65 ..), and flattening at every repeat, as strict
- * monotone curves do, terraced a steady warm-up into steps. Across a
- * plateau the curve may stray a few hundredths of a degree.
- */
-static float smoothAt(const float *v, int n, float f)
-{
-  const int i = std::max(0, std::min(static_cast<int>(f), n - 2));
-  const float u = f - i;
-  auto slope = [&](int k) {
-    if (k <= 0) return v[1] - v[0];
-    if (k >= n - 1) return v[n - 1] - v[n - 2];
-    const float a = v[k] - v[k - 1], b = v[k + 1] - v[k];
-    if (a * b < 0 || (a == 0 && b == 0)) return 0.0f;   // a turn, or level
-    float m = (a + b) / 2;
-    if (a != 0 && b != 0)
-    {
-      const float lim = 3 * std::min(std::fabs(a), std::fabs(b));
-      m = std::max(-lim, std::min(lim, m));
-    }
-    return m;
-  };
-  const float m0 = slope(i), m1 = slope(i + 1);
-  const float h00 = (1 + 2 * u) * (1 - u) * (1 - u), h10 = u * (1 - u) * (1 - u);
-  const float h01 = u * u * (3 - 2 * u), h11 = u * u * (u - 1);
-  return h00 * v[i] + h10 * m0 + h01 * v[i + 1] + h11 * m1;
-}
+// smoothAt: the curve through the days and hours (smooth.h)
 
 static void drawWeekBand(const owm_daily_t *daily, int days, float cw, int y0)
 {
@@ -2168,7 +2151,11 @@ struct Ribbon
 // g_stormStyle); clear nights navy and slate, with white words.
 static const Ribbon RIBBON[13] = {
   /* sunny   */ {{Y, 1.00f, W_ABS, 1}, false, K, 1, K_ABS},
+#if defined(EPD709_EXTRA_INKS)
+  /* msunny  */ {{TAN, 1.00f, TAN, 1}, false, K, 1, K_ABS}, // solid tan
+#else
   /* msunny  */ {{Y, 0.55f, W_ABS, 1}, false, K, 1, K_ABS},
+#endif
   /* clear   */ {{K_ABS, 0.50f, B, 1}, false, K, 1, W_ABS},
   /* mclear  */ {{K_ABS, 0.30f, B, 1}, false, K, 1, W_ABS},
   /* partly  */ {{K, 0.10f, W, 1}, false, K, 1, K},
