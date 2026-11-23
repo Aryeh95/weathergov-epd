@@ -59,7 +59,8 @@ jobs:
       matrix:
         env: [dfrobot_firebeetle2_esp32e, seeed_reterminal_e1002, seeed_reterminal_e1001, firebeetle32,
               seeed_xiao_ee02_709, seeed_xiao_ee02_709_testcard, seeed_xiao_ee05, seeed_xiao_ee05_classic,
-              seeed_reterminal_e1002_426c, seeed_reterminal_e1002_426c_he]
+              seeed_reterminal_e1002_426c, seeed_reterminal_e1002_426c_he,
+              seeed_xiao_ee04, seeed_xiao_ee04_grey, seeed_reterminal_e1001_grey]
 
     steps:
       - uses: actions/checkout@v4
