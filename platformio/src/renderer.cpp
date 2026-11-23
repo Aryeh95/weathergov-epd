@@ -3430,32 +3430,49 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
     tempMin = 0.0f;
     tempMax = 10.0f;
   }
-  int tempBoundMin = static_cast<int>(tempMin - 1)
-                      - modulo(static_cast<int>(tempMin - 1), yTempMajorTicks);
-  int tempBoundMax = static_cast<int>(tempMax + 1)
-   + (yTempMajorTicks - modulo(static_cast<int>(tempMax + 1), yTempMajorTicks));
-
-  // while we have to many major ticks then increase the step
-  while ((tempBoundMax - tempBoundMin) / yTempMajorTicks > yMajorTicks)
+  // The temperature scale shares the graph's yMajorTicks gridlines with the
+  // rain scale, so it spans exactly yMajorTicks steps. It keeps to the
+  // curves: the finest step whose span still covers them, labelled on
+  // multiples of the step (of 5 for the larger steps), and of the bounds
+  // that do, the one that centres them. 20.6..65 gets 20..70, not 0..75.
+  static const int TEMP_STEPS[] = {2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30,
+                                   40, 50, 100, 200};
+  int tempBoundMin = 0, tempBoundMax = 0;
+  for (int step : TEMP_STEPS)
   {
-    yTempMajorTicks += 5;
-    tempBoundMin = static_cast<int>(tempMin - 1)
-                      - modulo(static_cast<int>(tempMin - 1), yTempMajorTicks);
-    tempBoundMax = static_cast<int>(tempMax + 1) + (yTempMajorTicks
-                      - modulo(static_cast<int>(tempMax + 1), yTempMajorTicks));
+    yTempMajorTicks = step;
+    const int align = (step % 5 == 0) ? 5 : step;
+    const int span = step * yMajorTicks;
+    // the aligned lower bounds that cover both ends: lo (the top just in)
+    // up to hi (the bottom just in), with half a degree to spare at each
+    // end, so the curve keeps off the axis and the top line
+    int hi = static_cast<int>(std::floor(tempMin - 0.5f));
+    hi -= modulo(hi, align);
+    int lo = static_cast<int>(std::ceil(tempMax + 0.5f)) - span;
+    lo += modulo(-lo, align);
+    if (lo > hi)
+    {
+      continue;
+    }
+    // of the aligned bounds from lo to hi, the one nearest centring
+    const float ideal = (tempMin + tempMax - span) / 2.0f;
+    int best = lo;
+    for (int c = lo; c <= hi; c += align)
+    {
+      if (std::fabs(c - ideal) < std::fabs(best - ideal))
+      {
+        best = c;
+      }
+    }
+    tempBoundMin = best;
+    tempBoundMax = best + span;
+    break;
   }
-  // while we have not enough major ticks, add to either bound
-  while ((tempBoundMax - tempBoundMin) / yTempMajorTicks < yMajorTicks)
-  {
-    // add to whatever bound is closer to the actual min/max
-    if (tempMin - tempBoundMin <= tempBoundMax - tempMax)
-    {
-      tempBoundMin -= yTempMajorTicks;
-    }
-    else
-    {
-      tempBoundMax += yTempMajorTicks;
-    }
+  if (tempBoundMax <= tempBoundMin)
+  { // nothing fitted (no temperatures at all): any scale
+    yTempMajorTicks = 2;
+    tempBoundMin = 0;
+    tempBoundMax = 2 * yMajorTicks;
   }
 
 #ifdef UNITS_HOURLY_PRECIP_POP
