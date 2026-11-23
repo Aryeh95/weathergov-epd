@@ -81,6 +81,7 @@ const uint8_t *getDailyForecastBitmap64(const owm_daily_t &daily);
 const uint8_t *getDailyForecastBitmap48(const owm_daily_t &daily);
 const uint8_t *getCurrentConditionsBitmap128(const owm_current_t &current);
 const uint8_t *getHourlyForecastBitmap48(const owm_hourly_t &hourly);
+const uint8_t *getPeriodBitmap48(const nws_period_t &p);
 uint16_t getConditionsColor(int id, bool day, bool moon, bool cloudy,
                             bool windy);
 #ifdef MULTICOLOR_DISPLAY
@@ -95,6 +96,7 @@ uint16_t getCurrentConditionsColor196(const owm_current_t &current);
 const char *getMoonPhaseDesc(int phase);
 const uint8_t *getMoonPhaseDithered(int phase, int size);
 void setSunTimes(int64_t sunrise, int64_t sunset);
+bool isDaytimeAt(int64_t t, bool fallback);
 // The moment the page being drawn belongs to: now, unless the page is the
 // last weather drawn again during an outage, which keeps its own time --
 // its moon and its day or night icons included. 0 goes back to the clock.

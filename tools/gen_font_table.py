@@ -75,7 +75,10 @@ def scan_uses():
                 stack = []  # per #if level: [current branch cond, [earlier branch conds]]
                 with open(os.path.join(root, fn), encoding="utf-8",
                           errors="replace") as f:
-                    for line in f:
+                    it = iter(f)
+                    for line in it:
+                        while line.rstrip("\r\n").endswith("\\"):
+                            line = line.rstrip("\r\n")[:-1] + " " + next(it, "")
                         s = line.strip()
                         if s.startswith("#"):
                             m = DIRECTIVE_RE.match(s[1:].strip())

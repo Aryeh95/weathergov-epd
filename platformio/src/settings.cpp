@@ -460,7 +460,12 @@ bool loadSettings()
     }
     return fallback;
   };
-  FONT_FAMILY_INDEX       = fontIndex(doc["font"] | "", 0);
+#if defined(GREYS_75)
+  const int defaultFont   = fontIndex("Bitter", 0);
+#else
+  const int defaultFont   = 0;
+#endif
+  FONT_FAMILY_INDEX       = fontIndex(doc["font"] | "", defaultFont);
   FONT_SMALL_FAMILY_INDEX = fontIndex(doc["font_small"] | "",
                                       FONT_FAMILY_INDEX);
   // A locale whose strings are UTF-8 Hebrew or Central European text is

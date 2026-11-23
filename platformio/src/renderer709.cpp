@@ -45,6 +45,7 @@
 #include "display_utils.h"
 #include "history.h"
 #include "renderer.h"
+#include "smooth.h"
 #include "sun.h"
 #include "text709.h"
 
@@ -1843,37 +1844,6 @@ static const bool WEEK_BAND = true;
 static const int WEEK_BAND_FILL = 1;
 // smooth curves through the days, no dots (false: straight segments, dots)
 static const bool WEEK_BAND_SMOOTH = true;
-
-/* A smooth curve through values at 0, 1, .. n-1 (cubic Hermite). Where
- * the values turn -- a high or a low -- the curve is flat there, so it does
- * not run past the figure that labels it. Elsewhere the slope is the mean
- * of its two sides, held to three times the gentler one: forecasts come in
- * whole degrees (64, 64, 65 ..), and flattening at every repeat, as strict
- * monotone curves do, terraced a steady warm-up into steps. Across a
- * plateau the curve may stray a few hundredths of a degree.
- */
-static float smoothAt(const float *v, int n, float f)
-{
-  const int i = std::max(0, std::min(static_cast<int>(f), n - 2));
-  const float u = f - i;
-  auto slope = [&](int k) {
-    if (k <= 0) return v[1] - v[0];
-    if (k >= n - 1) return v[n - 1] - v[n - 2];
-    const float a = v[k] - v[k - 1], b = v[k + 1] - v[k];
-    if (a * b < 0 || (a == 0 && b == 0)) return 0.0f;   // a turn, or level
-    float m = (a + b) / 2;
-    if (a != 0 && b != 0)
-    {
-      const float lim = 3 * std::min(std::fabs(a), std::fabs(b));
-      m = std::max(-lim, std::min(lim, m));
-    }
-    return m;
-  };
-  const float m0 = slope(i), m1 = slope(i + 1);
-  const float h00 = (1 + 2 * u) * (1 - u) * (1 - u), h10 = u * (1 - u) * (1 - u);
-  const float h01 = u * u * (3 - 2 * u), h11 = u * u * (u - 1);
-  return h00 * v[i] + h10 * m0 + h01 * v[i + 1] + h11 * m1;
-}
 
 static void drawWeekBand(const owm_daily_t *daily, int days, float cw, int y0)
 {

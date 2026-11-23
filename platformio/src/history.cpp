@@ -67,25 +67,31 @@ static int calcTrend(const hour_rec_t *r, int n, time_t now, bool usePres,
   return TREND_UNKNOWN;
 } // end calcTrend
 
-void historyUpdate(time_t now, float pressureHpa, float inTempC,
-                   uint32_t batMv, Preferences &prefs)
+static void computeHistory(time_t now, bool write, float pressureHpa,
+                           float inTempC, uint32_t batMv, Preferences &prefs)
 {
+  const uint32_t maxTs = (now > 0)
+                           ? static_cast<uint32_t>(now) + (write ? 0U : 300U)
+                           : 0U;
+
   // ---- hourly pressure/indoor ring
   hour_rec_t ring[HOUR_SLOTS] = {};
-  int n = prefs.getBytes("wxhist", ring, sizeof(ring)) / sizeof(hour_rec_t);
+  const size_t wxBytes = prefs.isKey("wxhist")
+                           ? prefs.getBytes("wxhist", ring, sizeof(ring))
+                           : 0;
+  int n = static_cast<int>(wxBytes / sizeof(hour_rec_t));
   n = constrain(n, 0, HOUR_SLOTS);
   // drop records from the future (clock jumped back) or older than a day
   int w = 0;
   for (int i = 0; i < n; ++i)
   {
-    if (ring[i].ts <= static_cast<uint32_t>(now)
-        && now - ring[i].ts < 86400L)
+    if (ring[i].ts <= maxTs && now - ring[i].ts < 86400L)
     {
       ring[w++] = ring[i];
     }
   }
   n = w;
-  if (n == 0 || now - ring[n - 1].ts >= HOUR_INTERVAL)
+  if (write && (n == 0 || now - ring[n - 1].ts >= HOUR_INTERVAL))
   {
     if (n == HOUR_SLOTS)
     { // evict the oldest
@@ -109,13 +115,16 @@ void historyUpdate(time_t now, float pressureHpa, float inTempC,
   // ---- daily battery log
 #if BATTERY_MONITORING
   bat_rec_t log[BAT_SLOTS] = {};
-  int bn = prefs.getBytes("bathist", log, sizeof(log)) / sizeof(bat_rec_t);
+  const size_t batBytes = prefs.isKey("bathist")
+                            ? prefs.getBytes("bathist", log, sizeof(log))
+                            : 0;
+  int bn = static_cast<int>(batBytes / sizeof(bat_rec_t));
   bn = constrain(bn, 0, BAT_SLOTS);
   const uint32_t nowU = (now > 0) ? static_cast<uint32_t>(now) : 0U;
   int bw = 0;
   for (int i = 0; i < bn; ++i)
   {
-    if (log[i].ts <= nowU && (bw == 0 || log[i].ts >= log[bw - 1].ts))
+    if (log[i].ts <= maxTs && (bw == 0 || log[i].ts >= log[bw - 1].ts))
     {
       log[bw++] = log[i];
     }
@@ -125,18 +134,21 @@ void historyUpdate(time_t now, float pressureHpa, float inTempC,
   { // voltage jumped up: the battery was charged, old slope is meaningless
     bn = 0;
   }
-  if (nowU > 0 && (bn == 0
-      || static_cast<int64_t>(nowU) - static_cast<int64_t>(log[bn - 1].ts) >= 86400LL))
+  if (write)
   {
-    if (bn == BAT_SLOTS)
+    if (nowU > 0 && (bn == 0
+        || static_cast<int64_t>(nowU) - static_cast<int64_t>(log[bn - 1].ts) >= 86400LL))
     {
-      memmove(log, log + 1, sizeof(bat_rec_t) * (BAT_SLOTS - 1));
-      bn = BAT_SLOTS - 1;
+      if (bn == BAT_SLOTS)
+      {
+        memmove(log, log + 1, sizeof(bat_rec_t) * (BAT_SLOTS - 1));
+        bn = BAT_SLOTS - 1;
+      }
+      log[bn].ts = nowU;
+      log[bn].mv = static_cast<uint16_t>(batMv);
+      ++bn;
+      prefs.putBytes("bathist", log, sizeof(bat_rec_t) * bn);
     }
-    log[bn].ts = nowU;
-    log[bn].mv = static_cast<uint16_t>(batMv);
-    ++bn;
-    prefs.putBytes("bathist", log, sizeof(bat_rec_t) * bn);
   }
   // least-squares slope in mV/day over the log; needs >=4 points spanning
   // >=3 days to say anything
@@ -170,7 +182,18 @@ void historyUpdate(time_t now, float pressureHpa, float inTempC,
     }
   }
 #endif // BATTERY_MONITORING
-} // end historyUpdate
+} // end computeHistory
+
+void historyUpdate(time_t now, float pressureHpa, float inTempC,
+                   uint32_t batMv, Preferences &prefs)
+{
+  computeHistory(now, true, pressureHpa, inTempC, batMv, prefs);
+}
+
+void historyLoad(time_t now, uint32_t batMv, Preferences &prefs)
+{
+  computeHistory(now, false, NAN, NAN, batMv, prefs);
+}
 
 int historyPressureTrend() {return pressureTrend;}
 int historyIndoorTrend()   {return indoorTrend;}

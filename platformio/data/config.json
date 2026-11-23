@@ -266,11 +266,10 @@
   "dark_mode": false,
 
   // Typeface for all text, by family name. Only families compiled into the
-  // firmware are available (config.h FONT_INCLUDE_<Family>: FreeSans
-  // everywhere, plus Bitter on the reTerminal E1002 build); anything else
-  // falls back to the first compiled-in family. Also a dropdown in the
-  // portal, with a preview.
-  "font": "FreeSans",
+  // firmware are available (config.h FONT_INCLUDE_<Family>); empty uses the
+  // target's default ("Bitter" on GREYS_75 builds, "FreeSans" elsewhere).
+  // Also a dropdown in the portal, with a preview.
+  "font": "",
 
   // Family for the small text: widget labels, graph axis, source tags
   // (everything under 11 pt). Empty = same as "font". At these sizes the

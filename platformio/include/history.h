@@ -41,6 +41,12 @@
 void historyUpdate(time_t now, float pressureHpa, float inTempC,
                    uint32_t batMv, Preferences &prefs);
 
+/* Read-only counterpart to historyUpdate() for cached/page-flip wakes: loads
+ * the existing NVS history (if any) without writing and recomputes the
+ * trends/estimate below.
+ */
+void historyLoad(time_t now, uint32_t batMv, Preferences &prefs);
+
 int historyPressureTrend();   // TREND_* over ~3h
 int historyIndoorTrend();     // TREND_* over ~3h
 int historyBatteryDaysLeft(); // days until LOW_BATTERY_VOLTAGE, -1 unknown

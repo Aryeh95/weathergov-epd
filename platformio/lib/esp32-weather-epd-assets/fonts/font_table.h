@@ -17,371 +17,791 @@
 
 #define FONT_SMALL_BELOW_PT 11
 
-#define FONT_TABLE_HAS_5pt8b 1
-#define FONT_TABLE_HAS_6pt8b 1
-#define FONT_TABLE_HAS_7pt8b 1
-#define FONT_TABLE_HAS_8pt8b 1
-#if (!(!defined(DISP_BW_V1)))
+#if ((!defined(DISP_7C_709) && !defined(DISP_4G_426))) || ((!defined(DISP_7C_709) && !defined(DISP_4G_426)) && (defined(GREYS_75)))
+  #define FONT_TABLE_HAS_5pt8b 1
+#else
+  #define FONT_TABLE_HAS_5pt8b 0
+#endif
+#if ((!defined(DISP_7C_709) && !defined(DISP_4G_426))) || ((!defined(DISP_7C_709) && !defined(DISP_4G_426)) && (DISPLAY_DAILY_PRECIP))
+  #define FONT_TABLE_HAS_6pt8b 1
+#else
+  #define FONT_TABLE_HAS_6pt8b 0
+#endif
+#if ((!defined(DISP_7C_709) && !defined(DISP_4G_426))) || ((!defined(DISP_7C_709) && !defined(DISP_4G_426)) && (defined(DISP_7C_E6))) || ((!defined(DISP_7C_709) && !defined(DISP_4G_426)) && (defined(GREYS_75)))
+  #define FONT_TABLE_HAS_7pt8b 1
+#else
+  #define FONT_TABLE_HAS_7pt8b 0
+#endif
+#if ((!defined(DISP_7C_709) && !defined(DISP_4G_426))) || ((!defined(DISP_7C_709) && !defined(DISP_4G_426)) && !(defined(WIND_INDICATOR_ARROW))) || ((!defined(DISP_7C_709) && !defined(DISP_4G_426)) && (defined(GREYS_75))) || ((!defined(DISP_7C_709) && !defined(DISP_4G_426)) && defined(WIND_INDICATOR_ARROW))
+  #define FONT_TABLE_HAS_8pt8b 1
+#else
+  #define FONT_TABLE_HAS_8pt8b 0
+#endif
+#if ((!defined(DISP_7C_709) && !defined(DISP_4G_426)) && !(!defined(DISP_BW_V1))) || ((!defined(DISP_7C_709) && !defined(DISP_4G_426)) && (defined(GREYS_75)))
   #define FONT_TABLE_HAS_9pt8b 1
 #else
   #define FONT_TABLE_HAS_9pt8b 0
 #endif
-#define FONT_TABLE_HAS_11pt8b 1
-#define FONT_TABLE_HAS_12pt8b 1
-#define FONT_TABLE_HAS_14pt8b 1
-#define FONT_TABLE_HAS_16pt8b 1
-#if (!(!defined(DISP_BW_V1)))
+#if ((!defined(DISP_7C_709) && !defined(DISP_4G_426))) || ((!defined(DISP_7C_709) && !defined(DISP_4G_426)) && (defined(GREYS_75)))
+  #define FONT_TABLE_HAS_11pt8b 1
+#else
+  #define FONT_TABLE_HAS_11pt8b 0
+#endif
+#if ((!defined(DISP_7C_709) && !defined(DISP_4G_426))) || ((!defined(DISP_7C_709) && !defined(DISP_4G_426)) && !(!defined(DISP_BW_V1))) || ((!defined(DISP_7C_709) && !defined(DISP_4G_426)) && !(defined(WIND_INDICATOR_ARROW))) || ((!defined(DISP_7C_709) && !defined(DISP_4G_426)) && !defined(DISP_BW_V1)) || ((!defined(DISP_7C_709) && !defined(DISP_4G_426)) && (defined(DISP_7C_E6))) || ((!defined(DISP_7C_709) && !defined(DISP_4G_426)) && (defined(GREYS_75))) || ((!defined(DISP_7C_709) && !defined(DISP_4G_426)) && (defined(MULTICOLOR_DISPLAY) || defined(GREYS_75))) || ((!defined(DISP_7C_709) && !defined(DISP_4G_426)) && (defined(WIND_INDICATOR_CPN_CARDINAL)                  || defined(WIND_INDICATOR_CPN_INTERCARDINAL)             || defined(WIND_INDICATOR_CPN_SECONDARY_INTERCARDINAL)   || defined(WIND_INDICATOR_CPN_TERTIARY_INTERCARDINAL))) || ((!defined(DISP_7C_709) && !defined(DISP_4G_426)) && (defined(WIND_INDICATOR_NUMBER))) || ((!defined(DISP_7C_709) && !defined(DISP_4G_426)) && defined(WIND_INDICATOR_ARROW))
+  #define FONT_TABLE_HAS_12pt8b 1
+#else
+  #define FONT_TABLE_HAS_12pt8b 0
+#endif
+#if ((!defined(DISP_7C_709) && !defined(DISP_4G_426))) || ((!defined(DISP_7C_709) && !defined(DISP_4G_426)) && (defined(GREYS_75))) || ((!defined(DISP_7C_709) && !defined(DISP_4G_426)) && (defined(MULTICOLOR_DISPLAY) || defined(GREYS_75)))
+  #define FONT_TABLE_HAS_14pt8b 1
+#else
+  #define FONT_TABLE_HAS_14pt8b 0
+#endif
+#if ((!defined(DISP_7C_709) && !defined(DISP_4G_426))) || ((!defined(DISP_7C_709) && !defined(DISP_4G_426)) && !defined(DISP_BW_V1))
+  #define FONT_TABLE_HAS_16pt8b 1
+#else
+  #define FONT_TABLE_HAS_16pt8b 0
+#endif
+#if ((!defined(DISP_7C_709) && !defined(DISP_4G_426)) && !(!defined(DISP_BW_V1)))
   #define FONT_TABLE_HAS_22pt8b 1
 #else
   #define FONT_TABLE_HAS_22pt8b 0
 #endif
-#define FONT_TABLE_HAS_26pt8b 1
-#define FONT_TABLE_HAS_48pt8b_temperature 1
+#if ((!defined(DISP_7C_709) && !defined(DISP_4G_426))) || ((!defined(DISP_7C_709) && !defined(DISP_4G_426)) && !defined(DISP_BW_V1))
+  #define FONT_TABLE_HAS_26pt8b 1
+#else
+  #define FONT_TABLE_HAS_26pt8b 0
+#endif
+#if ((!defined(DISP_7C_709) && !defined(DISP_4G_426)))
+  #define FONT_TABLE_HAS_48pt8b_temperature 1
+#else
+  #define FONT_TABLE_HAS_48pt8b_temperature 0
+#endif
 
 #if defined(FONT_INCLUDE_FreeSans) && FONT_INCLUDE_FreeSans
-#include "FreeSans/FreeSans_5pt8b.h"
-#include "FreeSans/FreeSans_6pt8b.h"
-#include "FreeSans/FreeSans_7pt8b.h"
-#include "FreeSans/FreeSans_8pt8b.h"
+#if FONT_TABLE_HAS_5pt8b
+  #include "FreeSans/FreeSans_5pt8b.h"
+#endif
+#if FONT_TABLE_HAS_6pt8b
+  #include "FreeSans/FreeSans_6pt8b.h"
+#endif
+#if FONT_TABLE_HAS_7pt8b
+  #include "FreeSans/FreeSans_7pt8b.h"
+#endif
+#if FONT_TABLE_HAS_8pt8b
+  #include "FreeSans/FreeSans_8pt8b.h"
+#endif
 #if FONT_TABLE_HAS_9pt8b
   #include "FreeSans/FreeSans_9pt8b.h"
 #endif
-#include "FreeSans/FreeSans_11pt8b.h"
-#include "FreeSans/FreeSans_12pt8b.h"
-#include "FreeSans/FreeSans_14pt8b.h"
-#include "FreeSans/FreeSans_16pt8b.h"
+#if FONT_TABLE_HAS_11pt8b
+  #include "FreeSans/FreeSans_11pt8b.h"
+#endif
+#if FONT_TABLE_HAS_12pt8b
+  #include "FreeSans/FreeSans_12pt8b.h"
+#endif
+#if FONT_TABLE_HAS_14pt8b
+  #include "FreeSans/FreeSans_14pt8b.h"
+#endif
+#if FONT_TABLE_HAS_16pt8b
+  #include "FreeSans/FreeSans_16pt8b.h"
+#endif
 #if FONT_TABLE_HAS_22pt8b
   #include "FreeSans/FreeSans_22pt8b.h"
 #endif
-#include "FreeSans/FreeSans_26pt8b.h"
-#include "FreeSans/FreeSans_48pt8b_temperature.h"
+#if FONT_TABLE_HAS_26pt8b
+  #include "FreeSans/FreeSans_26pt8b.h"
+#endif
+#if FONT_TABLE_HAS_48pt8b_temperature
+  #include "FreeSans/FreeSans_48pt8b_temperature.h"
+#endif
 #endif
 
 #if defined(FONT_INCLUDE_Bitter) && FONT_INCLUDE_Bitter
-#include "Bitter/Bitter_5pt8b.h"
-#include "Bitter/Bitter_6pt8b.h"
-#include "Bitter/Bitter_7pt8b.h"
-#include "Bitter/Bitter_8pt8b.h"
+#if FONT_TABLE_HAS_5pt8b
+  #include "Bitter/Bitter_5pt8b.h"
+#endif
+#if FONT_TABLE_HAS_6pt8b
+  #include "Bitter/Bitter_6pt8b.h"
+#endif
+#if FONT_TABLE_HAS_7pt8b
+  #include "Bitter/Bitter_7pt8b.h"
+#endif
+#if FONT_TABLE_HAS_8pt8b
+  #include "Bitter/Bitter_8pt8b.h"
+#endif
 #if FONT_TABLE_HAS_9pt8b
   #include "Bitter/Bitter_9pt8b.h"
 #endif
-#include "Bitter/Bitter_11pt8b.h"
-#include "Bitter/Bitter_12pt8b.h"
-#include "Bitter/Bitter_14pt8b.h"
-#include "Bitter/Bitter_16pt8b.h"
+#if FONT_TABLE_HAS_11pt8b
+  #include "Bitter/Bitter_11pt8b.h"
+#endif
+#if FONT_TABLE_HAS_12pt8b
+  #include "Bitter/Bitter_12pt8b.h"
+#endif
+#if FONT_TABLE_HAS_14pt8b
+  #include "Bitter/Bitter_14pt8b.h"
+#endif
+#if FONT_TABLE_HAS_16pt8b
+  #include "Bitter/Bitter_16pt8b.h"
+#endif
 #if FONT_TABLE_HAS_22pt8b
   #include "Bitter/Bitter_22pt8b.h"
 #endif
-#include "Bitter/Bitter_26pt8b.h"
-#include "Bitter/Bitter_48pt8b_temperature.h"
+#if FONT_TABLE_HAS_26pt8b
+  #include "Bitter/Bitter_26pt8b.h"
+#endif
+#if FONT_TABLE_HAS_48pt8b_temperature
+  #include "Bitter/Bitter_48pt8b_temperature.h"
+#endif
 #endif
 
 #if defined(FONT_INCLUDE_FreeMono) && FONT_INCLUDE_FreeMono
-#include "FreeMono/FreeMono_5pt8b.h"
-#include "FreeMono/FreeMono_6pt8b.h"
-#include "FreeMono/FreeMono_7pt8b.h"
-#include "FreeMono/FreeMono_8pt8b.h"
+#if FONT_TABLE_HAS_5pt8b
+  #include "FreeMono/FreeMono_5pt8b.h"
+#endif
+#if FONT_TABLE_HAS_6pt8b
+  #include "FreeMono/FreeMono_6pt8b.h"
+#endif
+#if FONT_TABLE_HAS_7pt8b
+  #include "FreeMono/FreeMono_7pt8b.h"
+#endif
+#if FONT_TABLE_HAS_8pt8b
+  #include "FreeMono/FreeMono_8pt8b.h"
+#endif
 #if FONT_TABLE_HAS_9pt8b
   #include "FreeMono/FreeMono_9pt8b.h"
 #endif
-#include "FreeMono/FreeMono_11pt8b.h"
-#include "FreeMono/FreeMono_12pt8b.h"
-#include "FreeMono/FreeMono_14pt8b.h"
-#include "FreeMono/FreeMono_16pt8b.h"
+#if FONT_TABLE_HAS_11pt8b
+  #include "FreeMono/FreeMono_11pt8b.h"
+#endif
+#if FONT_TABLE_HAS_12pt8b
+  #include "FreeMono/FreeMono_12pt8b.h"
+#endif
+#if FONT_TABLE_HAS_14pt8b
+  #include "FreeMono/FreeMono_14pt8b.h"
+#endif
+#if FONT_TABLE_HAS_16pt8b
+  #include "FreeMono/FreeMono_16pt8b.h"
+#endif
 #if FONT_TABLE_HAS_22pt8b
   #include "FreeMono/FreeMono_22pt8b.h"
 #endif
-#include "FreeMono/FreeMono_26pt8b.h"
-#include "FreeMono/FreeMono_48pt8b_temperature.h"
+#if FONT_TABLE_HAS_26pt8b
+  #include "FreeMono/FreeMono_26pt8b.h"
+#endif
+#if FONT_TABLE_HAS_48pt8b_temperature
+  #include "FreeMono/FreeMono_48pt8b_temperature.h"
+#endif
 #endif
 
 #if defined(FONT_INCLUDE_FreeSerif) && FONT_INCLUDE_FreeSerif
-#include "FreeSerif/FreeSerif_5pt8b.h"
-#include "FreeSerif/FreeSerif_6pt8b.h"
-#include "FreeSerif/FreeSerif_7pt8b.h"
-#include "FreeSerif/FreeSerif_8pt8b.h"
+#if FONT_TABLE_HAS_5pt8b
+  #include "FreeSerif/FreeSerif_5pt8b.h"
+#endif
+#if FONT_TABLE_HAS_6pt8b
+  #include "FreeSerif/FreeSerif_6pt8b.h"
+#endif
+#if FONT_TABLE_HAS_7pt8b
+  #include "FreeSerif/FreeSerif_7pt8b.h"
+#endif
+#if FONT_TABLE_HAS_8pt8b
+  #include "FreeSerif/FreeSerif_8pt8b.h"
+#endif
 #if FONT_TABLE_HAS_9pt8b
   #include "FreeSerif/FreeSerif_9pt8b.h"
 #endif
-#include "FreeSerif/FreeSerif_11pt8b.h"
-#include "FreeSerif/FreeSerif_12pt8b.h"
-#include "FreeSerif/FreeSerif_14pt8b.h"
-#include "FreeSerif/FreeSerif_16pt8b.h"
+#if FONT_TABLE_HAS_11pt8b
+  #include "FreeSerif/FreeSerif_11pt8b.h"
+#endif
+#if FONT_TABLE_HAS_12pt8b
+  #include "FreeSerif/FreeSerif_12pt8b.h"
+#endif
+#if FONT_TABLE_HAS_14pt8b
+  #include "FreeSerif/FreeSerif_14pt8b.h"
+#endif
+#if FONT_TABLE_HAS_16pt8b
+  #include "FreeSerif/FreeSerif_16pt8b.h"
+#endif
 #if FONT_TABLE_HAS_22pt8b
   #include "FreeSerif/FreeSerif_22pt8b.h"
 #endif
-#include "FreeSerif/FreeSerif_26pt8b.h"
-#include "FreeSerif/FreeSerif_48pt8b_temperature.h"
+#if FONT_TABLE_HAS_26pt8b
+  #include "FreeSerif/FreeSerif_26pt8b.h"
+#endif
+#if FONT_TABLE_HAS_48pt8b_temperature
+  #include "FreeSerif/FreeSerif_48pt8b_temperature.h"
+#endif
 #endif
 
 #if defined(FONT_INCLUDE_Heebo) && FONT_INCLUDE_Heebo
-#include "Heebo/Heebo_5pt8b.h"
-#include "Heebo/Heebo_6pt8b.h"
-#include "Heebo/Heebo_7pt8b.h"
-#include "Heebo/Heebo_8pt8b.h"
+#if FONT_TABLE_HAS_5pt8b
+  #include "Heebo/Heebo_5pt8b.h"
+#endif
+#if FONT_TABLE_HAS_6pt8b
+  #include "Heebo/Heebo_6pt8b.h"
+#endif
+#if FONT_TABLE_HAS_7pt8b
+  #include "Heebo/Heebo_7pt8b.h"
+#endif
+#if FONT_TABLE_HAS_8pt8b
+  #include "Heebo/Heebo_8pt8b.h"
+#endif
 #if FONT_TABLE_HAS_9pt8b
   #include "Heebo/Heebo_9pt8b.h"
 #endif
-#include "Heebo/Heebo_11pt8b.h"
-#include "Heebo/Heebo_12pt8b.h"
-#include "Heebo/Heebo_14pt8b.h"
-#include "Heebo/Heebo_16pt8b.h"
+#if FONT_TABLE_HAS_11pt8b
+  #include "Heebo/Heebo_11pt8b.h"
+#endif
+#if FONT_TABLE_HAS_12pt8b
+  #include "Heebo/Heebo_12pt8b.h"
+#endif
+#if FONT_TABLE_HAS_14pt8b
+  #include "Heebo/Heebo_14pt8b.h"
+#endif
+#if FONT_TABLE_HAS_16pt8b
+  #include "Heebo/Heebo_16pt8b.h"
+#endif
 #if FONT_TABLE_HAS_22pt8b
   #include "Heebo/Heebo_22pt8b.h"
 #endif
-#include "Heebo/Heebo_26pt8b.h"
-#include "Heebo/Heebo_48pt8b_temperature.h"
+#if FONT_TABLE_HAS_26pt8b
+  #include "Heebo/Heebo_26pt8b.h"
+#endif
+#if FONT_TABLE_HAS_48pt8b_temperature
+  #include "Heebo/Heebo_48pt8b_temperature.h"
+#endif
 #endif
 
 #if defined(FONT_INCLUDE_Lato_CE) && FONT_INCLUDE_Lato_CE
-#include "Lato_CE/Lato_CE_5pt8b.h"
-#include "Lato_CE/Lato_CE_6pt8b.h"
-#include "Lato_CE/Lato_CE_7pt8b.h"
-#include "Lato_CE/Lato_CE_8pt8b.h"
+#if FONT_TABLE_HAS_5pt8b
+  #include "Lato_CE/Lato_CE_5pt8b.h"
+#endif
+#if FONT_TABLE_HAS_6pt8b
+  #include "Lato_CE/Lato_CE_6pt8b.h"
+#endif
+#if FONT_TABLE_HAS_7pt8b
+  #include "Lato_CE/Lato_CE_7pt8b.h"
+#endif
+#if FONT_TABLE_HAS_8pt8b
+  #include "Lato_CE/Lato_CE_8pt8b.h"
+#endif
 #if FONT_TABLE_HAS_9pt8b
   #include "Lato_CE/Lato_CE_9pt8b.h"
 #endif
-#include "Lato_CE/Lato_CE_11pt8b.h"
-#include "Lato_CE/Lato_CE_12pt8b.h"
-#include "Lato_CE/Lato_CE_14pt8b.h"
-#include "Lato_CE/Lato_CE_16pt8b.h"
+#if FONT_TABLE_HAS_11pt8b
+  #include "Lato_CE/Lato_CE_11pt8b.h"
+#endif
+#if FONT_TABLE_HAS_12pt8b
+  #include "Lato_CE/Lato_CE_12pt8b.h"
+#endif
+#if FONT_TABLE_HAS_14pt8b
+  #include "Lato_CE/Lato_CE_14pt8b.h"
+#endif
+#if FONT_TABLE_HAS_16pt8b
+  #include "Lato_CE/Lato_CE_16pt8b.h"
+#endif
 #if FONT_TABLE_HAS_22pt8b
   #include "Lato_CE/Lato_CE_22pt8b.h"
 #endif
-#include "Lato_CE/Lato_CE_26pt8b.h"
-#include "Lato_CE/Lato_CE_48pt8b_temperature.h"
+#if FONT_TABLE_HAS_26pt8b
+  #include "Lato_CE/Lato_CE_26pt8b.h"
+#endif
+#if FONT_TABLE_HAS_48pt8b_temperature
+  #include "Lato_CE/Lato_CE_48pt8b_temperature.h"
+#endif
 #endif
 
 #if defined(FONT_INCLUDE_Lato_Regular) && FONT_INCLUDE_Lato_Regular
-#include "Lato_Regular/Lato_Regular_5pt8b.h"
-#include "Lato_Regular/Lato_Regular_6pt8b.h"
-#include "Lato_Regular/Lato_Regular_7pt8b.h"
-#include "Lato_Regular/Lato_Regular_8pt8b.h"
+#if FONT_TABLE_HAS_5pt8b
+  #include "Lato_Regular/Lato_Regular_5pt8b.h"
+#endif
+#if FONT_TABLE_HAS_6pt8b
+  #include "Lato_Regular/Lato_Regular_6pt8b.h"
+#endif
+#if FONT_TABLE_HAS_7pt8b
+  #include "Lato_Regular/Lato_Regular_7pt8b.h"
+#endif
+#if FONT_TABLE_HAS_8pt8b
+  #include "Lato_Regular/Lato_Regular_8pt8b.h"
+#endif
 #if FONT_TABLE_HAS_9pt8b
   #include "Lato_Regular/Lato_Regular_9pt8b.h"
 #endif
-#include "Lato_Regular/Lato_Regular_11pt8b.h"
-#include "Lato_Regular/Lato_Regular_12pt8b.h"
-#include "Lato_Regular/Lato_Regular_14pt8b.h"
-#include "Lato_Regular/Lato_Regular_16pt8b.h"
+#if FONT_TABLE_HAS_11pt8b
+  #include "Lato_Regular/Lato_Regular_11pt8b.h"
+#endif
+#if FONT_TABLE_HAS_12pt8b
+  #include "Lato_Regular/Lato_Regular_12pt8b.h"
+#endif
+#if FONT_TABLE_HAS_14pt8b
+  #include "Lato_Regular/Lato_Regular_14pt8b.h"
+#endif
+#if FONT_TABLE_HAS_16pt8b
+  #include "Lato_Regular/Lato_Regular_16pt8b.h"
+#endif
 #if FONT_TABLE_HAS_22pt8b
   #include "Lato_Regular/Lato_Regular_22pt8b.h"
 #endif
-#include "Lato_Regular/Lato_Regular_26pt8b.h"
-#include "Lato_Regular/Lato_Regular_48pt8b_temperature.h"
+#if FONT_TABLE_HAS_26pt8b
+  #include "Lato_Regular/Lato_Regular_26pt8b.h"
+#endif
+#if FONT_TABLE_HAS_48pt8b_temperature
+  #include "Lato_Regular/Lato_Regular_48pt8b_temperature.h"
+#endif
 #endif
 
 #if defined(FONT_INCLUDE_Montserrat_Regular) && FONT_INCLUDE_Montserrat_Regular
-#include "Montserrat_Regular/Montserrat_Regular_5pt8b.h"
-#include "Montserrat_Regular/Montserrat_Regular_6pt8b.h"
-#include "Montserrat_Regular/Montserrat_Regular_7pt8b.h"
-#include "Montserrat_Regular/Montserrat_Regular_8pt8b.h"
+#if FONT_TABLE_HAS_5pt8b
+  #include "Montserrat_Regular/Montserrat_Regular_5pt8b.h"
+#endif
+#if FONT_TABLE_HAS_6pt8b
+  #include "Montserrat_Regular/Montserrat_Regular_6pt8b.h"
+#endif
+#if FONT_TABLE_HAS_7pt8b
+  #include "Montserrat_Regular/Montserrat_Regular_7pt8b.h"
+#endif
+#if FONT_TABLE_HAS_8pt8b
+  #include "Montserrat_Regular/Montserrat_Regular_8pt8b.h"
+#endif
 #if FONT_TABLE_HAS_9pt8b
   #include "Montserrat_Regular/Montserrat_Regular_9pt8b.h"
 #endif
-#include "Montserrat_Regular/Montserrat_Regular_11pt8b.h"
-#include "Montserrat_Regular/Montserrat_Regular_12pt8b.h"
-#include "Montserrat_Regular/Montserrat_Regular_14pt8b.h"
-#include "Montserrat_Regular/Montserrat_Regular_16pt8b.h"
+#if FONT_TABLE_HAS_11pt8b
+  #include "Montserrat_Regular/Montserrat_Regular_11pt8b.h"
+#endif
+#if FONT_TABLE_HAS_12pt8b
+  #include "Montserrat_Regular/Montserrat_Regular_12pt8b.h"
+#endif
+#if FONT_TABLE_HAS_14pt8b
+  #include "Montserrat_Regular/Montserrat_Regular_14pt8b.h"
+#endif
+#if FONT_TABLE_HAS_16pt8b
+  #include "Montserrat_Regular/Montserrat_Regular_16pt8b.h"
+#endif
 #if FONT_TABLE_HAS_22pt8b
   #include "Montserrat_Regular/Montserrat_Regular_22pt8b.h"
 #endif
-#include "Montserrat_Regular/Montserrat_Regular_26pt8b.h"
-#include "Montserrat_Regular/Montserrat_Regular_48pt8b_temperature.h"
+#if FONT_TABLE_HAS_26pt8b
+  #include "Montserrat_Regular/Montserrat_Regular_26pt8b.h"
+#endif
+#if FONT_TABLE_HAS_48pt8b_temperature
+  #include "Montserrat_Regular/Montserrat_Regular_48pt8b_temperature.h"
+#endif
 #endif
 
 #if defined(FONT_INCLUDE_OpenSans_Regular) && FONT_INCLUDE_OpenSans_Regular
-#include "OpenSans_Regular/OpenSans_Regular_5pt8b.h"
-#include "OpenSans_Regular/OpenSans_Regular_6pt8b.h"
-#include "OpenSans_Regular/OpenSans_Regular_7pt8b.h"
-#include "OpenSans_Regular/OpenSans_Regular_8pt8b.h"
+#if FONT_TABLE_HAS_5pt8b
+  #include "OpenSans_Regular/OpenSans_Regular_5pt8b.h"
+#endif
+#if FONT_TABLE_HAS_6pt8b
+  #include "OpenSans_Regular/OpenSans_Regular_6pt8b.h"
+#endif
+#if FONT_TABLE_HAS_7pt8b
+  #include "OpenSans_Regular/OpenSans_Regular_7pt8b.h"
+#endif
+#if FONT_TABLE_HAS_8pt8b
+  #include "OpenSans_Regular/OpenSans_Regular_8pt8b.h"
+#endif
 #if FONT_TABLE_HAS_9pt8b
   #include "OpenSans_Regular/OpenSans_Regular_9pt8b.h"
 #endif
-#include "OpenSans_Regular/OpenSans_Regular_11pt8b.h"
-#include "OpenSans_Regular/OpenSans_Regular_12pt8b.h"
-#include "OpenSans_Regular/OpenSans_Regular_14pt8b.h"
-#include "OpenSans_Regular/OpenSans_Regular_16pt8b.h"
+#if FONT_TABLE_HAS_11pt8b
+  #include "OpenSans_Regular/OpenSans_Regular_11pt8b.h"
+#endif
+#if FONT_TABLE_HAS_12pt8b
+  #include "OpenSans_Regular/OpenSans_Regular_12pt8b.h"
+#endif
+#if FONT_TABLE_HAS_14pt8b
+  #include "OpenSans_Regular/OpenSans_Regular_14pt8b.h"
+#endif
+#if FONT_TABLE_HAS_16pt8b
+  #include "OpenSans_Regular/OpenSans_Regular_16pt8b.h"
+#endif
 #if FONT_TABLE_HAS_22pt8b
   #include "OpenSans_Regular/OpenSans_Regular_22pt8b.h"
 #endif
-#include "OpenSans_Regular/OpenSans_Regular_26pt8b.h"
-#include "OpenSans_Regular/OpenSans_Regular_48pt8b_temperature.h"
+#if FONT_TABLE_HAS_26pt8b
+  #include "OpenSans_Regular/OpenSans_Regular_26pt8b.h"
+#endif
+#if FONT_TABLE_HAS_48pt8b_temperature
+  #include "OpenSans_Regular/OpenSans_Regular_48pt8b_temperature.h"
+#endif
 #endif
 
 #if defined(FONT_INCLUDE_Poppins_Regular) && FONT_INCLUDE_Poppins_Regular
-#include "Poppins_Regular/Poppins_Regular_5pt8b.h"
-#include "Poppins_Regular/Poppins_Regular_6pt8b.h"
-#include "Poppins_Regular/Poppins_Regular_7pt8b.h"
-#include "Poppins_Regular/Poppins_Regular_8pt8b.h"
+#if FONT_TABLE_HAS_5pt8b
+  #include "Poppins_Regular/Poppins_Regular_5pt8b.h"
+#endif
+#if FONT_TABLE_HAS_6pt8b
+  #include "Poppins_Regular/Poppins_Regular_6pt8b.h"
+#endif
+#if FONT_TABLE_HAS_7pt8b
+  #include "Poppins_Regular/Poppins_Regular_7pt8b.h"
+#endif
+#if FONT_TABLE_HAS_8pt8b
+  #include "Poppins_Regular/Poppins_Regular_8pt8b.h"
+#endif
 #if FONT_TABLE_HAS_9pt8b
   #include "Poppins_Regular/Poppins_Regular_9pt8b.h"
 #endif
-#include "Poppins_Regular/Poppins_Regular_11pt8b.h"
-#include "Poppins_Regular/Poppins_Regular_12pt8b.h"
-#include "Poppins_Regular/Poppins_Regular_14pt8b.h"
-#include "Poppins_Regular/Poppins_Regular_16pt8b.h"
+#if FONT_TABLE_HAS_11pt8b
+  #include "Poppins_Regular/Poppins_Regular_11pt8b.h"
+#endif
+#if FONT_TABLE_HAS_12pt8b
+  #include "Poppins_Regular/Poppins_Regular_12pt8b.h"
+#endif
+#if FONT_TABLE_HAS_14pt8b
+  #include "Poppins_Regular/Poppins_Regular_14pt8b.h"
+#endif
+#if FONT_TABLE_HAS_16pt8b
+  #include "Poppins_Regular/Poppins_Regular_16pt8b.h"
+#endif
 #if FONT_TABLE_HAS_22pt8b
   #include "Poppins_Regular/Poppins_Regular_22pt8b.h"
 #endif
-#include "Poppins_Regular/Poppins_Regular_26pt8b.h"
-#include "Poppins_Regular/Poppins_Regular_48pt8b_temperature.h"
+#if FONT_TABLE_HAS_26pt8b
+  #include "Poppins_Regular/Poppins_Regular_26pt8b.h"
+#endif
+#if FONT_TABLE_HAS_48pt8b_temperature
+  #include "Poppins_Regular/Poppins_Regular_48pt8b_temperature.h"
+#endif
 #endif
 
 #if defined(FONT_INCLUDE_Quicksand_Regular) && FONT_INCLUDE_Quicksand_Regular
-#include "Quicksand_Regular/Quicksand_Regular_5pt8b.h"
-#include "Quicksand_Regular/Quicksand_Regular_6pt8b.h"
-#include "Quicksand_Regular/Quicksand_Regular_7pt8b.h"
-#include "Quicksand_Regular/Quicksand_Regular_8pt8b.h"
+#if FONT_TABLE_HAS_5pt8b
+  #include "Quicksand_Regular/Quicksand_Regular_5pt8b.h"
+#endif
+#if FONT_TABLE_HAS_6pt8b
+  #include "Quicksand_Regular/Quicksand_Regular_6pt8b.h"
+#endif
+#if FONT_TABLE_HAS_7pt8b
+  #include "Quicksand_Regular/Quicksand_Regular_7pt8b.h"
+#endif
+#if FONT_TABLE_HAS_8pt8b
+  #include "Quicksand_Regular/Quicksand_Regular_8pt8b.h"
+#endif
 #if FONT_TABLE_HAS_9pt8b
   #include "Quicksand_Regular/Quicksand_Regular_9pt8b.h"
 #endif
-#include "Quicksand_Regular/Quicksand_Regular_11pt8b.h"
-#include "Quicksand_Regular/Quicksand_Regular_12pt8b.h"
-#include "Quicksand_Regular/Quicksand_Regular_14pt8b.h"
-#include "Quicksand_Regular/Quicksand_Regular_16pt8b.h"
+#if FONT_TABLE_HAS_11pt8b
+  #include "Quicksand_Regular/Quicksand_Regular_11pt8b.h"
+#endif
+#if FONT_TABLE_HAS_12pt8b
+  #include "Quicksand_Regular/Quicksand_Regular_12pt8b.h"
+#endif
+#if FONT_TABLE_HAS_14pt8b
+  #include "Quicksand_Regular/Quicksand_Regular_14pt8b.h"
+#endif
+#if FONT_TABLE_HAS_16pt8b
+  #include "Quicksand_Regular/Quicksand_Regular_16pt8b.h"
+#endif
 #if FONT_TABLE_HAS_22pt8b
   #include "Quicksand_Regular/Quicksand_Regular_22pt8b.h"
 #endif
-#include "Quicksand_Regular/Quicksand_Regular_26pt8b.h"
-#include "Quicksand_Regular/Quicksand_Regular_48pt8b_temperature.h"
+#if FONT_TABLE_HAS_26pt8b
+  #include "Quicksand_Regular/Quicksand_Regular_26pt8b.h"
+#endif
+#if FONT_TABLE_HAS_48pt8b_temperature
+  #include "Quicksand_Regular/Quicksand_Regular_48pt8b_temperature.h"
+#endif
 #endif
 
 #if defined(FONT_INCLUDE_Raleway_Regular) && FONT_INCLUDE_Raleway_Regular
-#include "Raleway_Regular/Raleway_Regular_5pt8b.h"
-#include "Raleway_Regular/Raleway_Regular_6pt8b.h"
-#include "Raleway_Regular/Raleway_Regular_7pt8b.h"
-#include "Raleway_Regular/Raleway_Regular_8pt8b.h"
+#if FONT_TABLE_HAS_5pt8b
+  #include "Raleway_Regular/Raleway_Regular_5pt8b.h"
+#endif
+#if FONT_TABLE_HAS_6pt8b
+  #include "Raleway_Regular/Raleway_Regular_6pt8b.h"
+#endif
+#if FONT_TABLE_HAS_7pt8b
+  #include "Raleway_Regular/Raleway_Regular_7pt8b.h"
+#endif
+#if FONT_TABLE_HAS_8pt8b
+  #include "Raleway_Regular/Raleway_Regular_8pt8b.h"
+#endif
 #if FONT_TABLE_HAS_9pt8b
   #include "Raleway_Regular/Raleway_Regular_9pt8b.h"
 #endif
-#include "Raleway_Regular/Raleway_Regular_11pt8b.h"
-#include "Raleway_Regular/Raleway_Regular_12pt8b.h"
-#include "Raleway_Regular/Raleway_Regular_14pt8b.h"
-#include "Raleway_Regular/Raleway_Regular_16pt8b.h"
+#if FONT_TABLE_HAS_11pt8b
+  #include "Raleway_Regular/Raleway_Regular_11pt8b.h"
+#endif
+#if FONT_TABLE_HAS_12pt8b
+  #include "Raleway_Regular/Raleway_Regular_12pt8b.h"
+#endif
+#if FONT_TABLE_HAS_14pt8b
+  #include "Raleway_Regular/Raleway_Regular_14pt8b.h"
+#endif
+#if FONT_TABLE_HAS_16pt8b
+  #include "Raleway_Regular/Raleway_Regular_16pt8b.h"
+#endif
 #if FONT_TABLE_HAS_22pt8b
   #include "Raleway_Regular/Raleway_Regular_22pt8b.h"
 #endif
-#include "Raleway_Regular/Raleway_Regular_26pt8b.h"
-#include "Raleway_Regular/Raleway_Regular_48pt8b_temperature.h"
+#if FONT_TABLE_HAS_26pt8b
+  #include "Raleway_Regular/Raleway_Regular_26pt8b.h"
+#endif
+#if FONT_TABLE_HAS_48pt8b_temperature
+  #include "Raleway_Regular/Raleway_Regular_48pt8b_temperature.h"
+#endif
 #endif
 
 #if defined(FONT_INCLUDE_RobotoMono_Regular) && FONT_INCLUDE_RobotoMono_Regular
-#include "RobotoMono_Regular/RobotoMono_Regular_5pt8b.h"
-#include "RobotoMono_Regular/RobotoMono_Regular_6pt8b.h"
-#include "RobotoMono_Regular/RobotoMono_Regular_7pt8b.h"
-#include "RobotoMono_Regular/RobotoMono_Regular_8pt8b.h"
+#if FONT_TABLE_HAS_5pt8b
+  #include "RobotoMono_Regular/RobotoMono_Regular_5pt8b.h"
+#endif
+#if FONT_TABLE_HAS_6pt8b
+  #include "RobotoMono_Regular/RobotoMono_Regular_6pt8b.h"
+#endif
+#if FONT_TABLE_HAS_7pt8b
+  #include "RobotoMono_Regular/RobotoMono_Regular_7pt8b.h"
+#endif
+#if FONT_TABLE_HAS_8pt8b
+  #include "RobotoMono_Regular/RobotoMono_Regular_8pt8b.h"
+#endif
 #if FONT_TABLE_HAS_9pt8b
   #include "RobotoMono_Regular/RobotoMono_Regular_9pt8b.h"
 #endif
-#include "RobotoMono_Regular/RobotoMono_Regular_11pt8b.h"
-#include "RobotoMono_Regular/RobotoMono_Regular_12pt8b.h"
-#include "RobotoMono_Regular/RobotoMono_Regular_14pt8b.h"
-#include "RobotoMono_Regular/RobotoMono_Regular_16pt8b.h"
+#if FONT_TABLE_HAS_11pt8b
+  #include "RobotoMono_Regular/RobotoMono_Regular_11pt8b.h"
+#endif
+#if FONT_TABLE_HAS_12pt8b
+  #include "RobotoMono_Regular/RobotoMono_Regular_12pt8b.h"
+#endif
+#if FONT_TABLE_HAS_14pt8b
+  #include "RobotoMono_Regular/RobotoMono_Regular_14pt8b.h"
+#endif
+#if FONT_TABLE_HAS_16pt8b
+  #include "RobotoMono_Regular/RobotoMono_Regular_16pt8b.h"
+#endif
 #if FONT_TABLE_HAS_22pt8b
   #include "RobotoMono_Regular/RobotoMono_Regular_22pt8b.h"
 #endif
-#include "RobotoMono_Regular/RobotoMono_Regular_26pt8b.h"
-#include "RobotoMono_Regular/RobotoMono_Regular_48pt8b_temperature.h"
+#if FONT_TABLE_HAS_26pt8b
+  #include "RobotoMono_Regular/RobotoMono_Regular_26pt8b.h"
+#endif
+#if FONT_TABLE_HAS_48pt8b_temperature
+  #include "RobotoMono_Regular/RobotoMono_Regular_48pt8b_temperature.h"
+#endif
 #endif
 
 #if defined(FONT_INCLUDE_RobotoSlab_Regular) && FONT_INCLUDE_RobotoSlab_Regular
-#include "RobotoSlab_Regular/RobotoSlab_Regular_5pt8b.h"
-#include "RobotoSlab_Regular/RobotoSlab_Regular_6pt8b.h"
-#include "RobotoSlab_Regular/RobotoSlab_Regular_7pt8b.h"
-#include "RobotoSlab_Regular/RobotoSlab_Regular_8pt8b.h"
+#if FONT_TABLE_HAS_5pt8b
+  #include "RobotoSlab_Regular/RobotoSlab_Regular_5pt8b.h"
+#endif
+#if FONT_TABLE_HAS_6pt8b
+  #include "RobotoSlab_Regular/RobotoSlab_Regular_6pt8b.h"
+#endif
+#if FONT_TABLE_HAS_7pt8b
+  #include "RobotoSlab_Regular/RobotoSlab_Regular_7pt8b.h"
+#endif
+#if FONT_TABLE_HAS_8pt8b
+  #include "RobotoSlab_Regular/RobotoSlab_Regular_8pt8b.h"
+#endif
 #if FONT_TABLE_HAS_9pt8b
   #include "RobotoSlab_Regular/RobotoSlab_Regular_9pt8b.h"
 #endif
-#include "RobotoSlab_Regular/RobotoSlab_Regular_11pt8b.h"
-#include "RobotoSlab_Regular/RobotoSlab_Regular_12pt8b.h"
-#include "RobotoSlab_Regular/RobotoSlab_Regular_14pt8b.h"
-#include "RobotoSlab_Regular/RobotoSlab_Regular_16pt8b.h"
+#if FONT_TABLE_HAS_11pt8b
+  #include "RobotoSlab_Regular/RobotoSlab_Regular_11pt8b.h"
+#endif
+#if FONT_TABLE_HAS_12pt8b
+  #include "RobotoSlab_Regular/RobotoSlab_Regular_12pt8b.h"
+#endif
+#if FONT_TABLE_HAS_14pt8b
+  #include "RobotoSlab_Regular/RobotoSlab_Regular_14pt8b.h"
+#endif
+#if FONT_TABLE_HAS_16pt8b
+  #include "RobotoSlab_Regular/RobotoSlab_Regular_16pt8b.h"
+#endif
 #if FONT_TABLE_HAS_22pt8b
   #include "RobotoSlab_Regular/RobotoSlab_Regular_22pt8b.h"
 #endif
-#include "RobotoSlab_Regular/RobotoSlab_Regular_26pt8b.h"
-#include "RobotoSlab_Regular/RobotoSlab_Regular_48pt8b_temperature.h"
+#if FONT_TABLE_HAS_26pt8b
+  #include "RobotoSlab_Regular/RobotoSlab_Regular_26pt8b.h"
+#endif
+#if FONT_TABLE_HAS_48pt8b_temperature
+  #include "RobotoSlab_Regular/RobotoSlab_Regular_48pt8b_temperature.h"
+#endif
 #endif
 
 #if defined(FONT_INCLUDE_Roboto_Regular) && FONT_INCLUDE_Roboto_Regular
-#include "Roboto_Regular/Roboto_Regular_5pt8b.h"
-#include "Roboto_Regular/Roboto_Regular_6pt8b.h"
-#include "Roboto_Regular/Roboto_Regular_7pt8b.h"
-#include "Roboto_Regular/Roboto_Regular_8pt8b.h"
+#if FONT_TABLE_HAS_5pt8b
+  #include "Roboto_Regular/Roboto_Regular_5pt8b.h"
+#endif
+#if FONT_TABLE_HAS_6pt8b
+  #include "Roboto_Regular/Roboto_Regular_6pt8b.h"
+#endif
+#if FONT_TABLE_HAS_7pt8b
+  #include "Roboto_Regular/Roboto_Regular_7pt8b.h"
+#endif
+#if FONT_TABLE_HAS_8pt8b
+  #include "Roboto_Regular/Roboto_Regular_8pt8b.h"
+#endif
 #if FONT_TABLE_HAS_9pt8b
   #include "Roboto_Regular/Roboto_Regular_9pt8b.h"
 #endif
-#include "Roboto_Regular/Roboto_Regular_11pt8b.h"
-#include "Roboto_Regular/Roboto_Regular_12pt8b.h"
-#include "Roboto_Regular/Roboto_Regular_14pt8b.h"
-#include "Roboto_Regular/Roboto_Regular_16pt8b.h"
+#if FONT_TABLE_HAS_11pt8b
+  #include "Roboto_Regular/Roboto_Regular_11pt8b.h"
+#endif
+#if FONT_TABLE_HAS_12pt8b
+  #include "Roboto_Regular/Roboto_Regular_12pt8b.h"
+#endif
+#if FONT_TABLE_HAS_14pt8b
+  #include "Roboto_Regular/Roboto_Regular_14pt8b.h"
+#endif
+#if FONT_TABLE_HAS_16pt8b
+  #include "Roboto_Regular/Roboto_Regular_16pt8b.h"
+#endif
 #if FONT_TABLE_HAS_22pt8b
   #include "Roboto_Regular/Roboto_Regular_22pt8b.h"
 #endif
-#include "Roboto_Regular/Roboto_Regular_26pt8b.h"
-#include "Roboto_Regular/Roboto_Regular_48pt8b_temperature.h"
+#if FONT_TABLE_HAS_26pt8b
+  #include "Roboto_Regular/Roboto_Regular_26pt8b.h"
+#endif
+#if FONT_TABLE_HAS_48pt8b_temperature
+  #include "Roboto_Regular/Roboto_Regular_48pt8b_temperature.h"
+#endif
 #endif
 
 #if defined(FONT_INCLUDE_UbuntuMono_R) && FONT_INCLUDE_UbuntuMono_R
-#include "UbuntuMono_R/UbuntuMono_R_5pt8b.h"
-#include "UbuntuMono_R/UbuntuMono_R_6pt8b.h"
-#include "UbuntuMono_R/UbuntuMono_R_7pt8b.h"
-#include "UbuntuMono_R/UbuntuMono_R_8pt8b.h"
+#if FONT_TABLE_HAS_5pt8b
+  #include "UbuntuMono_R/UbuntuMono_R_5pt8b.h"
+#endif
+#if FONT_TABLE_HAS_6pt8b
+  #include "UbuntuMono_R/UbuntuMono_R_6pt8b.h"
+#endif
+#if FONT_TABLE_HAS_7pt8b
+  #include "UbuntuMono_R/UbuntuMono_R_7pt8b.h"
+#endif
+#if FONT_TABLE_HAS_8pt8b
+  #include "UbuntuMono_R/UbuntuMono_R_8pt8b.h"
+#endif
 #if FONT_TABLE_HAS_9pt8b
   #include "UbuntuMono_R/UbuntuMono_R_9pt8b.h"
 #endif
-#include "UbuntuMono_R/UbuntuMono_R_11pt8b.h"
-#include "UbuntuMono_R/UbuntuMono_R_12pt8b.h"
-#include "UbuntuMono_R/UbuntuMono_R_14pt8b.h"
-#include "UbuntuMono_R/UbuntuMono_R_16pt8b.h"
+#if FONT_TABLE_HAS_11pt8b
+  #include "UbuntuMono_R/UbuntuMono_R_11pt8b.h"
+#endif
+#if FONT_TABLE_HAS_12pt8b
+  #include "UbuntuMono_R/UbuntuMono_R_12pt8b.h"
+#endif
+#if FONT_TABLE_HAS_14pt8b
+  #include "UbuntuMono_R/UbuntuMono_R_14pt8b.h"
+#endif
+#if FONT_TABLE_HAS_16pt8b
+  #include "UbuntuMono_R/UbuntuMono_R_16pt8b.h"
+#endif
 #if FONT_TABLE_HAS_22pt8b
   #include "UbuntuMono_R/UbuntuMono_R_22pt8b.h"
 #endif
-#include "UbuntuMono_R/UbuntuMono_R_26pt8b.h"
-#include "UbuntuMono_R/UbuntuMono_R_48pt8b_temperature.h"
+#if FONT_TABLE_HAS_26pt8b
+  #include "UbuntuMono_R/UbuntuMono_R_26pt8b.h"
+#endif
+#if FONT_TABLE_HAS_48pt8b_temperature
+  #include "UbuntuMono_R/UbuntuMono_R_48pt8b_temperature.h"
+#endif
 #endif
 
 #if defined(FONT_INCLUDE_Ubuntu_R) && FONT_INCLUDE_Ubuntu_R
-#include "Ubuntu_R/Ubuntu_R_5pt8b.h"
-#include "Ubuntu_R/Ubuntu_R_6pt8b.h"
-#include "Ubuntu_R/Ubuntu_R_7pt8b.h"
-#include "Ubuntu_R/Ubuntu_R_8pt8b.h"
+#if FONT_TABLE_HAS_5pt8b
+  #include "Ubuntu_R/Ubuntu_R_5pt8b.h"
+#endif
+#if FONT_TABLE_HAS_6pt8b
+  #include "Ubuntu_R/Ubuntu_R_6pt8b.h"
+#endif
+#if FONT_TABLE_HAS_7pt8b
+  #include "Ubuntu_R/Ubuntu_R_7pt8b.h"
+#endif
+#if FONT_TABLE_HAS_8pt8b
+  #include "Ubuntu_R/Ubuntu_R_8pt8b.h"
+#endif
 #if FONT_TABLE_HAS_9pt8b
   #include "Ubuntu_R/Ubuntu_R_9pt8b.h"
 #endif
-#include "Ubuntu_R/Ubuntu_R_11pt8b.h"
-#include "Ubuntu_R/Ubuntu_R_12pt8b.h"
-#include "Ubuntu_R/Ubuntu_R_14pt8b.h"
-#include "Ubuntu_R/Ubuntu_R_16pt8b.h"
+#if FONT_TABLE_HAS_11pt8b
+  #include "Ubuntu_R/Ubuntu_R_11pt8b.h"
+#endif
+#if FONT_TABLE_HAS_12pt8b
+  #include "Ubuntu_R/Ubuntu_R_12pt8b.h"
+#endif
+#if FONT_TABLE_HAS_14pt8b
+  #include "Ubuntu_R/Ubuntu_R_14pt8b.h"
+#endif
+#if FONT_TABLE_HAS_16pt8b
+  #include "Ubuntu_R/Ubuntu_R_16pt8b.h"
+#endif
 #if FONT_TABLE_HAS_22pt8b
   #include "Ubuntu_R/Ubuntu_R_22pt8b.h"
 #endif
-#include "Ubuntu_R/Ubuntu_R_26pt8b.h"
-#include "Ubuntu_R/Ubuntu_R_48pt8b_temperature.h"
+#if FONT_TABLE_HAS_26pt8b
+  #include "Ubuntu_R/Ubuntu_R_26pt8b.h"
+#endif
+#if FONT_TABLE_HAS_48pt8b_temperature
+  #include "Ubuntu_R/Ubuntu_R_48pt8b_temperature.h"
+#endif
 #endif
 
 // one slot per face in use; nullptr where this build never draws it
-#define FONT_FACE_5pt8b(F) &F##_5pt8b
-#define FONT_FACE_6pt8b(F) &F##_6pt8b
-#define FONT_FACE_7pt8b(F) &F##_7pt8b
-#define FONT_FACE_8pt8b(F) &F##_8pt8b
+#if FONT_TABLE_HAS_5pt8b
+  #define FONT_FACE_5pt8b(F) &F##_5pt8b
+#else
+  #define FONT_FACE_5pt8b(F) nullptr
+#endif
+#if FONT_TABLE_HAS_6pt8b
+  #define FONT_FACE_6pt8b(F) &F##_6pt8b
+#else
+  #define FONT_FACE_6pt8b(F) nullptr
+#endif
+#if FONT_TABLE_HAS_7pt8b
+  #define FONT_FACE_7pt8b(F) &F##_7pt8b
+#else
+  #define FONT_FACE_7pt8b(F) nullptr
+#endif
+#if FONT_TABLE_HAS_8pt8b
+  #define FONT_FACE_8pt8b(F) &F##_8pt8b
+#else
+  #define FONT_FACE_8pt8b(F) nullptr
+#endif
 #if FONT_TABLE_HAS_9pt8b
   #define FONT_FACE_9pt8b(F) &F##_9pt8b
 #else
   #define FONT_FACE_9pt8b(F) nullptr
 #endif
-#define FONT_FACE_11pt8b(F) &F##_11pt8b
-#define FONT_FACE_12pt8b(F) &F##_12pt8b
-#define FONT_FACE_14pt8b(F) &F##_14pt8b
-#define FONT_FACE_16pt8b(F) &F##_16pt8b
+#if FONT_TABLE_HAS_11pt8b
+  #define FONT_FACE_11pt8b(F) &F##_11pt8b
+#else
+  #define FONT_FACE_11pt8b(F) nullptr
+#endif
+#if FONT_TABLE_HAS_12pt8b
+  #define FONT_FACE_12pt8b(F) &F##_12pt8b
+#else
+  #define FONT_FACE_12pt8b(F) nullptr
+#endif
+#if FONT_TABLE_HAS_14pt8b
+  #define FONT_FACE_14pt8b(F) &F##_14pt8b
+#else
+  #define FONT_FACE_14pt8b(F) nullptr
+#endif
+#if FONT_TABLE_HAS_16pt8b
+  #define FONT_FACE_16pt8b(F) &F##_16pt8b
+#else
+  #define FONT_FACE_16pt8b(F) nullptr
+#endif
 #if FONT_TABLE_HAS_22pt8b
   #define FONT_FACE_22pt8b(F) &F##_22pt8b
 #else
   #define FONT_FACE_22pt8b(F) nullptr
 #endif
-#define FONT_FACE_26pt8b(F) &F##_26pt8b
-#define FONT_FACE_48pt8b_temperature(F) &F##_48pt8b_temperature
+#if FONT_TABLE_HAS_26pt8b
+  #define FONT_FACE_26pt8b(F) &F##_26pt8b
+#else
+  #define FONT_FACE_26pt8b(F) nullptr
+#endif
+#if FONT_TABLE_HAS_48pt8b_temperature
+  #define FONT_FACE_48pt8b_temperature(F) &F##_48pt8b_temperature
+#else
+  #define FONT_FACE_48pt8b_temperature(F) nullptr
+#endif
 
 #include "font_encoding.h"
 

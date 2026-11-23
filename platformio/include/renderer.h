@@ -32,7 +32,6 @@
   // GREYS_75: the GDEY075T7 in its four greys, through GxEPD2_4G (the
   // classic layout with grey fills; see renderer.cpp)
   #include <GxEPD2_4G_4G.h>
-  #include <GxEPD2_4G_BW.h>
 #else
   #include <GxEPD2_BW.h>
 #endif
@@ -40,6 +39,19 @@
   // (XIAO EE05) is Good Display's GDEQ0426T82 glass, an SSD1677.
   #if defined(PANEL_GDEQ0426T82)
     #define GxEPD2_BW_V2_PANEL GxEPD2_426_GDEQ0426T82
+  #elif defined(GREYS_75) && defined(ESP32)
+    class GxEPD2_750_GDEY075T7_Patient : public GxEPD2_750_GDEY075T7
+    {
+    public:
+      using GxEPD2_750_GDEY075T7::GxEPD2_750_GDEY075T7;
+      void refresh(bool partial_update_mode = false) override;
+      void refresh(int16_t x, int16_t y, int16_t w, int16_t h) override;
+
+    private:
+      bool _canLightSleep = false;
+      static void busySleepCb(const void *param);
+    };
+    #define GxEPD2_BW_V2_PANEL GxEPD2_750_GDEY075T7_Patient
   #else
     #define GxEPD2_BW_V2_PANEL GxEPD2_750_GDEY075T7
   #endif
@@ -51,16 +63,17 @@
   #define G75_LGW  0x0002  // light grey + white
   #define G75_LGW4 0x0003  // light grey on one dot in four, the faintest
   #define G75_DGLG 0x0004  // dark + light grey, a mid grey (L* 54 measured)
-  // a quarter of the page per band: 24000 bytes of buffer
+  // Half of the page per band: 48000 bytes of buffer, 2 draw passes.
   typedef GxEPD2_4G_4G<GxEPD2_BW_V2_PANEL,
-                       GxEPD2_BW_V2_PANEL::HEIGHT / 4> Grey75Base;
+                       GxEPD2_BW_V2_PANEL::HEIGHT / 2> Grey75Base;
   class Grey75Display : public Grey75Base
   {
   public:
     using Grey75Base::Grey75Base;
     void drawPixel(int16_t x, int16_t y, uint16_t color) override;
+    void fillScreen(uint16_t color) override;
     // Text in a face that has a 2-bit twin (tools/fontconvert2.py) is drawn
-    // and measured with the twin: black text with its edges in light grey.
+    // and measured with the twin.
     size_t write(uint8_t c) override;
     void getTextBounds(const char *s, int16_t x, int16_t y, int16_t *x1,
                        int16_t *y1, uint16_t *w, uint16_t *h);
@@ -68,21 +81,18 @@
                        int16_t *y1, uint16_t *w, uint16_t *h);
     const GFXfont *twin2();
     // A condition, alert or error icon at 196, 64 or 48 dots in black is
-    // drawn from its 2-bit twin (icons_2bit.h), its edges in light grey.
+    // drawn from its 2-bit twin (icons_2bit.h).
     using Grey75Base::drawInvertedBitmap;
     void drawInvertedBitmap(int16_t x, int16_t y, const uint8_t bitmap[],
                             int16_t w, int16_t h, uint16_t color);
-    // Black and white instead of the greys, on the same panel driver: the
-    // panel's quicker refresh, for the pages KEY3 turns to. Set it (with
-    // setGreyMode426) before initDisplay(); these then go to the black-
-    // and-white buffer.
-    bool bw = false;
-    void init(uint32_t serial_diag_bitrate, bool initial,
-              uint16_t reset_duration = 10, bool pulldown_rst_mode = false);
-    void setRotation(uint8_t r) override;
-    void setFullWindow();
     void firstPage();
     bool nextPage();
+    int16_t bandTop() const;
+    int16_t bandBottom() const;
+    bool inBand(int16_t y, int16_t h) const;
+
+  private:
+    int16_t bandY0 = 0, bandY1 = DISP_HEIGHT;
   };
   extern Grey75Display display;
 #else
@@ -148,7 +158,6 @@
   // The pages KEY3 turns to (main.cpp, turnPage): 0 the home page, 1 the
   // forecast in words.
   #define PAGES_426 2
-  void setGreyMode426(bool grey);
   void drawPage426(int page, const owm_current_t &current,
                    const owm_hourly_t *hourly, const owm_daily_t *daily,
                    const owm_resp_air_pollution_t &air,

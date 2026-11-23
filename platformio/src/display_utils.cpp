@@ -638,7 +638,7 @@ void setSunTimes(int64_t sunrise, int64_t sunset)
  * (folded to the nearest day, so tomorrow's forecast hours work too).
  * Falls back to the given NWS-derived flag when sun times are unknown.
  */
-static bool isDaytimeAt(int64_t t, bool fallback)
+bool isDaytimeAt(int64_t t, bool fallback)
 {
   if (sunriseTime <= 0 || sunsetTime <= sunriseTime)
   {
@@ -910,6 +910,12 @@ const uint8_t *getHourlyForecastBitmap48(const owm_hourly_t &hourly)
                                  false, isCloudy(hourly.clouds),
                                  isWindy(hourly.wind_speed,
                                          hourly.wind_gust));
+}
+
+const uint8_t *getPeriodBitmap48(const nws_period_t &p)
+{
+  return getConditionsBitmap<48>(p.weather.id, p.day, !p.day,
+                                 isCloudy(p.clouds), false);
 }
 
 /* Returns the color a weather condition icon should be drawn in, mirroring

@@ -43,6 +43,7 @@ public:
   void init(uint32_t = 0, bool = true, uint16_t = 10, bool = false) {}
   template <class S, class T>
   void init(uint32_t, bool, uint16_t, bool, S &, T) {}
+  uint16_t pageHeight() const { return static_cast<uint16_t>(height()); }
   void setFullWindow() {}
   void firstPage()
   {

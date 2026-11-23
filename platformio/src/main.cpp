@@ -124,10 +124,13 @@ static void enableButtonWake() {}
 RTC_DATA_ATTR static uint8_t s_page = 0;
 RTC_DATA_ATTR static int64_t s_nextUpdate = 0;
 RTC_DATA_ATTR static bool s_turnAsked = false;
+RTC_DATA_ATTR static int16_t s_lastRssi = 0;
+#if defined(DISP_4G_426)
 // The indoor trend of the last update, for a home page drawn again from the
 // snapshot (a page turned back home), which does not read the history.
 RTC_DATA_ATTR static int8_t s_inTrend = TREND_UNKNOWN;
 static bool s_historyRead = false;   // this wake updated the history
+#endif
 
 // KEY3, watched every 10 ms by a task of its own from the start of each
 // wake. A press is a release of 30 ms then a press of 30 ms, so the press
@@ -344,6 +347,13 @@ static void drawWeatherPage(const tm &timeInfo, const String &dateStr,
   INDOOR_TREND_426 = s_inTrend;
   ALERT_426 = !alerts.empty();
 #endif
+#if defined(GREYS_75)
+  const uint32_t cpuMhz = getCpuFrequencyMhz();
+  if (cpuMhz < 240)
+  {
+    setCpuFrequencyMhz(240);
+  }
+#endif
   initDisplay();
   do
   {
@@ -360,6 +370,12 @@ static void drawWeatherPage(const tm &timeInfo, const String &dateStr,
                   historyBatteryDaysLeft(), stale);
   } while (display.nextPage());
   powerOffDisplay();
+#if defined(GREYS_75)
+  if (getCpuFrequencyMhz() != cpuMhz)
+  {
+    setCpuFrequencyMhz(cpuMhz);
+  }
+#endif
 #if defined(PAGE_TURNING)
   s_page = 0;
 #endif
@@ -598,10 +614,15 @@ static void turnPage(bool next, unsigned long startTime,
     Preferences store;
     store.begin(NVS_NAMESPACE, true);
     const bool stale = store.getBool("staleShown", false);
+#if BATTERY_MONITORING
+    historyLoad(when, batteryVoltage, store);
+#else
+    historyLoad(when, 0, store);
+#endif
     store.end();
     tm timeInfo = {};
     localtime_r(&when, &timeInfo);
-    drawWeatherPage(timeInfo, meta.date, meta.refreshTime, "", 0,
+    drawWeatherPage(timeInfo, meta.date, meta.refreshTime, "", s_lastRssi,
                     batteryVoltage, meta.pollen, meta.inTemp,
                     meta.inHumidity, stale);
   }
@@ -620,7 +641,9 @@ static void turnPage(bool next, unsigned long startTime,
                   meta.refreshTime, batteryVoltage);
     } while (display.nextPage());
     powerOffDisplay();
+#if !defined(GREYS_75)
     setGreyMode426(true);
+#endif
   }
   s_page = page;
   Serial.printf("[page] drawn in %lu ms\n", millis() - drawStart);
@@ -1679,6 +1702,9 @@ void setup()
                  + ", battery days left " + String(historyBatteryDaysLeft()));
 
   phaseStart = millis();
+#if defined(PAGE_TURNING)
+  s_lastRssi = static_cast<int16_t>(wifiRSSI);
+#endif
   drawWeatherPage(timeInfo, dateStr, refreshTimeStr, statusStr, wifiRSSI,
                   batteryVoltage, pollen, inTemp, inHumidity, false);
   wakeDiag.drawMs = millis() - phaseStart;

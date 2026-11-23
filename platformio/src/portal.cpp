@@ -319,10 +319,27 @@ static void handleGetInfo()
   doc["default_timezone"] = DEFAULT_TIMEZONE;
   // font families compiled into this firmware, for the Font dropdown
   JsonArray fonts = doc["fonts"].to<JsonArray>();
+#if defined(GREYS_75)
+  for (int i = 0; i < FONT_FAMILY_NAME_COUNT; ++i)
+  {
+    if (strcmp(FONT_FAMILY_NAMES[i], "Bitter") == 0)
+    {
+      fonts.add(FONT_FAMILY_NAMES[i]);
+    }
+  }
+  for (int i = 0; i < FONT_FAMILY_NAME_COUNT; ++i)
+  {
+    if (strcmp(FONT_FAMILY_NAMES[i], "Bitter") != 0)
+    {
+      fonts.add(FONT_FAMILY_NAMES[i]);
+    }
+  }
+#else
   for (int i = 0; i < FONT_FAMILY_NAME_COUNT; ++i)
   {
     fonts.add(FONT_FAMILY_NAMES[i]);
   }
+#endif
   String out;
   serializeJson(doc, out);
   server.send(200, "application/json", out);
