@@ -2995,8 +2995,12 @@ static void hourAxis(const Frame &f, int every, const Font709 &font)
 }
 
 // the turns worth a label: a high or a low that is the furthest within six
-// hours either side
-static int turns(const float *v, int n, int *at, bool *high, int most)
+// hours either side, and that the curve moves at least minSwing away from
+// on both sides within them (or runs off the graph's end on one side). With
+// no swing asked for, a flat day of 48-51 degrees got four dots for its
+// wiggles.
+static int turns(const float *v, int n, int *at, bool *high, int most,
+                 float minSwing = 0)
 {
   int k = 0;
   for (int i = 1; i < n - 1 && k < most; ++i)
@@ -3005,17 +3009,33 @@ static int turns(const float *v, int n, int *at, bool *high, int most)
     const bool lo = v[i] < v[i - 1] && v[i] <= v[i + 1];
     if (!hi && !lo) continue;
     bool furthest = true;
+    float leftAway = 0, rightAway = 0;
     for (int j = std::max(0, i - 6); j <= std::min(n - 1, i + 6); ++j)
     {
       if ((hi && v[j] > v[i]) || (lo && v[j] < v[i])) furthest = false;
+      const float away = hi ? v[i] - v[j] : v[j] - v[i];
+      if (j < i) leftAway = std::max(leftAway, away);
+      if (j > i) rightAway = std::max(rightAway, away);
     }
-    if (furthest)
+    const bool leftOk = leftAway >= minSwing || i - 6 < 0;
+    const bool rightOk = rightAway >= minSwing || i + 6 > n - 1;
+    if (furthest && leftOk && rightOk)
     {
       at[k] = i;
       high[k++] = hi;
     }
   }
   return k;
+}
+
+// a temperature turn worth a dot: 3 degrees F, 1.5 C or K
+static float tempSwing()
+{
+#if defined(UNITS_TEMP_CELSIUS) || defined(UNITS_TEMP_KELVIN)
+  return 1.5f;
+#else
+  return 3.0f;
+#endif
 }
 
 static void dotLabel(const Frame &f, float h, float v, const String &s,
@@ -3187,7 +3207,7 @@ static void chart(Met m, const owm_hourly_t *hourly, Frame f, int yTitle,
     if (t) line(f, vt, look.lineW, tempInk());
     const float *v = t ? vt : vd;
     int at[6]; bool up[6];
-    const int k = turns(v, n, at, up, 6);
+    const int k = turns(v, n, at, up, 6, tempSwing());
     for (int i = 0; i < k; ++i)
       dotLabel(f, at[i] + 0.5f, v[at[i]], I(v[at[i]]) + "\xB0", !up[i],
                K, *look.label);
@@ -3365,7 +3385,7 @@ static void chart(Met m, const owm_hourly_t *hourly, Frame f, int yTitle,
     if (both) line(f, vt, look.lineW, tempInk());
     const float *v = both ? vt : vf;
     int at[6]; bool up[6];
-    const int k = turns(v, n, at, up, 6);
+    const int k = turns(v, n, at, up, 6, tempSwing());
     for (int i = 0; i < k; ++i)
       dotLabel(f, at[i] + 0.5f, v[at[i]], I(v[at[i]]) + "\xB0", !up[i],
                K, *look.label);
@@ -3503,7 +3523,8 @@ static void sparkRow(Met m, const owm_hourly_t *hourly, Frame f, int nameX)
     else if (!std::isnan(v2[0])) line(f, v2, 5, dewInk());
     line(f, v, 5, ink);
     int ats[6]; bool up[6];
-    const int k = turns(v, n, ats, up, 6);
+    const bool degrees = (m == TEMP || m == TEMP_DEW || m == DEW || m == FEELS || m == TEMP_FEELS);
+    const int k = turns(v, n, ats, up, 6, degrees ? tempSwing() : 0);
     for (int i = 0; i < k; ++i)
       dotLabel(f, ats[i] + 0.5f, v[ats[i]], I(v[ats[i]]) + ((m == TEMP || m == TEMP_DEW || m == DEW || m == FEELS || m == TEMP_FEELS) ? "\xB0" : ""),
                !up[i], K, F_SANS_26);
@@ -3819,7 +3840,19 @@ void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
         furthest = false;
       }
     }
-    if (!furthest)
+    // and only if the curve moves tempSwing() away from it on both sides
+    // within six hours (or the graph ends first): a flat afternoon of
+    // 48-51 degrees otherwise got four labels
+    float leftAway = 0, rightAway = 0;
+    for (int j = std::max(0, i - 6); j <= std::min(n - 1, i + 6); ++j)
+    {
+      const float other = toUnitsF(hourly[j].temp);
+      const float away = high ? t - other : other - t;
+      if (j < i) leftAway = std::max(leftAway, away);
+      if (j > i) rightAway = std::max(rightAway, away);
+    }
+    if (!furthest || (leftAway < sg::tempSwing() && i - 6 >= 0)
+        || (rightAway < sg::tempSwing() && i + 6 <= n - 1))
     {
       continue;
     }
