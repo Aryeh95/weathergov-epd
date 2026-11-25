@@ -1246,17 +1246,15 @@ static int pollenLevel426(int upi)
 int INDOOR_TREND_426 = TREND_UNKNOWN;
 bool ALERT_426 = false;
 
-/* With an alert (in colour) its band runs under the header, and what is
- * between the header and the graph moves down by its height.
+/* With an alert its band runs under the header, and what is between the
+ * header and the graph moves down by its height (the graph gets shorter).
+ * In greys it used to sit in the graph legend's place, where it covered
+ * the scale's top labels ("50°", "100%").
  */
 static const int ALERT_H = 26;
 static int topShift()
 {
-#if defined(COLOR_426)
   return ALERT_426 ? ALERT_H : 0;
-#else
-  return 0;
-#endif
 }
 
 /* The home page tile in place `slot` (0 to 2, left to right), showing the
@@ -1512,7 +1510,7 @@ void drawCurrentConditions(const owm_current_t &current,
   g->fillCircle(hx, 186 + dy, 6, GxEPD_BLUE);
   g->fillTriangle(hx - 6, 185 + dy, hx + 6, 185 + dy, hx, 172 + dy, GxEPD_BLUE);
 #else
-  drawString(150, 196, "H " + deg(today.temp.max) + "   L "
+  drawString(150, 196 + dy, "H " + deg(today.temp.max) + "   L "
              + deg(today.temp.min), LEFT, K);
 #endif
 
@@ -1956,13 +1954,9 @@ void drawAlerts(std::vector<owm_alerts_t> &alerts, const String &city,
   {
     return;
   }
-#if defined(COLOR_426)
   // under the header, where the page has made room for it (topShift); the
   // words a little high, as Hebrew letters hang below the line
   const int y = HEADER_H, h = ALERT_H, tb = y + 18;
-#else
-  const int y = gy0() - 32, h = 26, tb = y + 20;
-#endif
 #if defined(COLOR_426)
   uint16_t fill, ink;
   alertColours(alerts[0], fill, ink);
