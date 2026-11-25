@@ -28,6 +28,8 @@ extern Epd709 display;
 static uint8_t s_pll = 0x08;
 static uint8_t s_drf = 0x00;
 static uint8_t s_ccset = 0x01;
+// clock for the second (cut) passes of pcard / ppass; 0 = the same as pll
+static uint8_t s_ppll = 0;
 static uint8_t s_cdi = 0x37;
 // counter codes: white to blue, blue to white, unchanged
 static uint8_t s_wb = 1, s_bw = 2, s_hold = 4;
@@ -214,6 +216,8 @@ void epd709Lab()
                  "                    a full refresh every N steps\n"
                  "  codes WB BW HOLD  the counter's codes (default 1 2 4)\n"
                  "  pll HH | drf HH | ccset HH | cdi HH   set and keep\n"
+                 "  ppll HH           clock of pcard's cut passes (00 = pll's)\n"
+                 "  img [lab]         a frame over USB; lab = at pll's clock\n"
                  "  reset             hardware reset + register table");
   reconfigure();
 
@@ -424,6 +428,7 @@ void epd709Lab()
       for (int pi = 0; pi < npass; ++pi)
       {
         const uint16_t pms = passes[pi];
+        if (s_ppll) cmd1(true, true, 0x30, s_ppll); // reconfigure set pll's
         // master half: hold everywhere, the pass's patches get their code
         for (int y = 0; y < Epd709::HEIGHT; ++y)
           memset(f + y * (Epd709::WIDTH / 2), 0x44, HALF_BYTES);
@@ -462,6 +467,7 @@ void epd709Lab()
       s_wb = hex(1) & 15; s_bw = hex(2) & 15; s_hold = hex(3) & 15;
       Serial.printf("[lab] codes WB %X BW %X hold %X\n", s_wb, s_bw, s_hold);
     }
+    else if (o == "ppll" && nt >= 2) { s_ppll = hex(1); Serial.printf("[lab] ppll %02X\n", s_ppll); }
     else if (o == "pll" && nt >= 2) { s_pll = hex(1); reconfigure(); Serial.printf("[lab] pll %02X\n", s_pll); }
     else if (o == "drf" && nt >= 2) { s_drf = hex(1); Serial.printf("[lab] drf %02X\n", s_drf); }
     else if (o == "ccset" && nt >= 2) { s_ccset = hex(1); Serial.printf("[lab] ccset %02X\n", s_ccset); }
@@ -488,7 +494,12 @@ void epd709Lab()
         Serial.flush();
       }
       Serial.printf("[lab] img got %u bytes\n", (unsigned)n);
-      if (n == Epd709::FRAME_BYTES)
+      if (n == Epd709::FRAME_BYTES && nt >= 2 && tok[1] == "lab")
+      { // the bench's own path: the clock set with pll, no extra-ink pass
+        sendAll();
+        Serial.printf("[lab] img done %u ms (pll %02X)\n", refresh(0, false), s_pll);
+      }
+      else if (n == Epd709::FRAME_BYTES)
       {
         const uint32_t t0 = millis();
         d.sendFrame();

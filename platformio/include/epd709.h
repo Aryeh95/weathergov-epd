@@ -111,6 +111,16 @@ public:
    * on a panel whose darkest and lightest inks have nothing in between.
    */
   void setStipple(uint8_t density) { _stipple = density; }
+  /* The controllers' clock (register 0x30) for the next refreshes. The
+   * stored waveform plays faster at a higher setting: on this panel
+   * (2026-11-24, scans) 0x08 = 30 s, the colours the inks were measured
+   * with; 0x04 = 20 s, black/yellow/blue/red within dE 1-5 and the green
+   * lighter and truer; 0x07 = 13 s, black only a dark grey and the colours
+   * washed out (fine for the setup and error pages). On the EE02, VGH held
+   * 26.6-26.8 V through the refresh at all three, and peaked at 28.8 V at
+   * the end of it at 0x08 as at 0x07 (multimeter MIN/MAX, webcam). */
+  enum : uint8_t { CLOCK_NORMAL = 0x08, CLOCK_FAST = 0x04, CLOCK_QUICK = 0x07 };
+  void setClock(uint8_t pll) { _pll = pll; }
 
   bool ready() const { return _frame != nullptr; }
   const uint8_t *frame() const { return _frame; }
@@ -120,6 +130,7 @@ private:
   uint8_t _csM, _csS, _dc, _rst, _busy;
   uint8_t _stipple = 0;
   uint8_t _rotation = 0;
+  uint8_t _pll = CLOCK_NORMAL;
   int16_t _width = WIDTH, _height = HEIGHT;
   bool _started = false;
 

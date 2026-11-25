@@ -258,6 +258,8 @@
         <select id="g_layout"><option value="one">One graph: temperature and rain</option><option value="stacked">Stacked graphs</option></select>
         <label>Weather strip above the graph</label>
         <select id="g_strip"><option value="1">On (named weather: Showers 12am – 8am)</option><option value="0">Off (more room for the graphs)</option></select>
+        <label>Refresh speed</label>
+        <select id="g_fast"><option value="0">Normal (30 s, the measured colours)</option><option value="1">Faster (20 s, blue and green a little lighter)</option></select>
         <div class="hint">Stacked: up to four smaller graphs on one time scale,
           top to bottom. With weather.gov, an hour's rain amount is its share
           of weather.gov's 6-hour total, shared out by the hours' chance of rain.</div>
@@ -824,6 +826,7 @@ function showGraphSlots() {
 function populateGraphs() {
   el('g_layout').value = (cfg?.graph_layout === 'stacked') ? 'stacked' : 'one';
   el('g_strip').value = (cfg?.graph_strip === false) ? '0' : '1';
+  el('g_fast').value = cfg?.fast_refresh ? '1' : '0';
   const g = Array.isArray(cfg?.graph_slots) ? cfg.graph_slots : GRAPH_DEFAULT;
   for (let i = 0; i < 4; i++) el('gslot_' + i).value = g[i] ?? '';
   showGraphSlots();
@@ -972,6 +975,7 @@ function collect() {
   if (graphChoice) {
     cfg.graph_layout = el('g_layout').value;
     cfg.graph_strip = el('g_strip').value === '1';
+    cfg.fast_refresh = el('g_fast').value === '1';
     cfg.graph_slots = [0, 1, 2, 3].map(i => el('gslot_' + i).value);
   }
 }

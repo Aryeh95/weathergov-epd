@@ -295,6 +295,9 @@
   "graph_slots": ["temp_dew", "wind", "rain_both", ""],
   // The strip of named weather above the graph(s): "Showers 12am - 8am".
   "graph_strip": true,
+  // 7.09in: the weather page in 20 s instead of 30. Blue and green come out
+  // a little lighter; the setup and error pages always take 13 s.
+  "fast_refresh": false,
 
   // Which of the ten slots in the left-hand panel each widget occupies:
   //

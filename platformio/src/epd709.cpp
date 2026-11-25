@@ -341,6 +341,7 @@ void Epd709::refresh()
 {
   static const uint8_t drf = 0x00;
   static const uint8_t pof = 0x01;
+  command(true, true, 0x30, &_pll, 1);   // the clock: how fast the waveform plays
   command(true, true, 0x04, nullptr, 0); // power on
   waitReady(EPD709_BUSY_TIMEOUT_MS);
   delay(50);

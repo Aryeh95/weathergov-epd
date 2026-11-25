@@ -3937,6 +3937,7 @@ void initDisplay()
     delay(100); // let the panel's supply come up before it is spoken to
   }
   display.init();
+  display.setClock(FAST_REFRESH ? Epd709::CLOCK_FAST : Epd709::CLOCK_NORMAL);
   display.setRotation(EPD709_ROTATION);
   display.setFullWindow();
   display.firstPage();
@@ -3960,6 +3961,7 @@ static void centred(int y, const String &s,
 void drawConfigPortalScreen(const String &line1, const String &line2,
                             const String &line3)
 {
+  display.setClock(Epd709::CLOCK_QUICK); // text to read once: 13 s, not 30
   drawBitmap2x(DISP_WIDTH / 2 - 196, 110, wifi_196x196, 196, 196, R);
   centred(560, TXT709_SETUP_MODE, {&F_BITTERSB_72});
   const String lines[3] = {line1, line2, line3};
@@ -3977,6 +3979,7 @@ void drawConfigPortalScreen(const String &line1, const String &line2,
 void drawError(const uint8_t *bitmap_196x196, const String &errMsgLn1,
                const String &errMsgLn2, bool mono)
 {
+  display.setClock(Epd709::CLOCK_QUICK); // text to read once: 13 s, not 30
   // mono: the icon in black too, one pigment
   drawBitmap2x(DISP_WIDTH / 2 - 196, 230, bitmap_196x196, 196, 196,
                mono ? K_ABS : R);

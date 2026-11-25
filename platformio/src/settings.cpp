@@ -610,6 +610,7 @@ bool loadSettings()
     GRAPH_LAYOUT = (String(doc["graph_layout"] | "") == "stacked") ? 1 : 0;
   }
   GRAPH_STRIP = doc["graph_strip"] | GRAPH_STRIP;
+  FAST_REFRESH = doc["fast_refresh"] | FAST_REFRESH;
   JsonArrayConst graphs = doc["graph_slots"];
   if (!graphs.isNull())
   {

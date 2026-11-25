@@ -466,6 +466,10 @@ String GRAPH_SLOTS[4] = {"temp_dew", "wind", "rain_both", ""};
 // The strip of named weather above the hourly graph(s) ("Showers 12am -
 // 8am"), config.json "graph_strip". Off, the graphs take its room.
 bool GRAPH_STRIP = true;
+// The weather page's refresh: false, the 30 s the inks were measured with;
+// true, 20 s with the controllers' clock raised (config.json
+// "fast_refresh"; the setup and error pages always take the 13 s clock).
+bool FAST_REFRESH = false;
 #endif
 
 // BATTERY
