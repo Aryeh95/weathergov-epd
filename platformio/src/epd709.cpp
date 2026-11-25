@@ -316,7 +316,13 @@ void Epd709::sendFrame()
 void Epd709::refresh()
 {
   static const uint8_t drf = 0x00;
-  static const uint8_t pof = 0x01;
+  // POF with data byte 00. With 01 (as this driver sent until 2026-11-26)
+  // the controllers kept the gate pump running unloaded for about 1 s: VGH
+  // rose from 26.7 to 28.8 V, over the panel's 28 V maximum, and was then
+  // left floating near 10 V. With 00 it stays at 26.7 V and drops to 0 at
+  // once (multimeter on the EE02's TP16; byte as in Jonas Niesner's "E-paper
+  // LUT research" and GxEPD2's GDEP073E01 driver).
+  static const uint8_t pof = 0x00;
   command(true, true, 0x04, nullptr, 0); // power on
   waitReady(EPD709_BUSY_TIMEOUT_MS);
   delay(50);
