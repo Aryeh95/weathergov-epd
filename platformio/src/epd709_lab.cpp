@@ -30,6 +30,17 @@ static uint8_t s_drf = 0x00;
 static uint8_t s_ccset = 0x01;
 // clock for the second (cut) passes of pcard / ppass; 0 = the same as pll
 static uint8_t s_ppll = 0;
+// power-off data byte (refresh ends with 0x02 and this): 00. 01 left VGH
+// at 28.8 V for 1 s and then floating (epd709.cpp)
+static uint8_t s_pof = 0x00;
+/* A register waveform table (LUT), after "E-paper LUT research" by Jonas
+ * Niesner (https://github.com/jonasniesner/epaper-lut-research, docs CC BY
+ * 4.0): 800 B written to 0x20 on both controllers, used when PSR byte 2
+ * bit 7 is set; the rails then come from PWR (0x01, master only). Volatile:
+ * a reset brings the stored (OTP) waveform back. */
+static uint8_t s_lut[800];
+static bool s_lutOn = false;
+static uint8_t s_pwr[6] = {0x0F, 0x00, 0x28, 0x2C, 0x28, 0x38};
 static uint8_t s_cdi = 0x37;
 // counter codes: white to blue, blue to white, unchanged
 static uint8_t s_wb = 1, s_bw = 2, s_hold = 4;
@@ -120,7 +131,19 @@ void epd709Lab()
   };
 
   // all of the frame to both controllers
+  // the uploaded table, when switched on: PSR with the select bit, its
+  // rails, the table to both controllers (no TSC read may follow: it
+  // reloads 0x20 from OTP)
+  auto applyLut = [&]() {
+    if (!s_lutOn) return;
+    const uint8_t psr[] = {0xDF, 0xEB}; // the driver's DF 6B + bit 7
+    cmd(true, true, 0x00, psr, 2);
+    cmd(true, false, 0x01, s_pwr, 6);
+    cmd(true, true, 0x20, s_lut, 800);
+  };
+
   auto sendAll = [&]() {
+    applyLut();
     cmd1(true, true, 0xE0, s_ccset);
     d.waitReady(60000);
     for (uint8_t chip = 0; chip < 2; ++chip)
@@ -187,7 +210,7 @@ void epd709Lab()
     d.waitReady(60000);
     const uint32_t took = millis() - active;
     delay(30);
-    cmd1(true, true, 0x02, 0x01);
+    cmd1(true, true, 0x02, s_pof);
     d.waitReady(60000);
     if (partial)
     { // window off again (PTLW with the enable byte 0)
@@ -218,6 +241,8 @@ void epd709Lab()
                  "  pll HH | drf HH | ccset HH | cdi HH   set and keep\n"
                  "  ppll HH           clock of pcard's cut passes (00 = pll's)\n"
                  "  img [lab]         a frame over USB; lab = at pll's clock\n"
+                 "  pof HH | pwr B0..B5 | lut | lutmode 0/1   register waveform table\n"
+                 "  rd CMD N m/s [busy]  read N bytes after CMD (hex dump)\n"
                  "  reset             hardware reset + register table");
   reconfigure();
 
@@ -466,6 +491,77 @@ void epd709Lab()
     {
       s_wb = hex(1) & 15; s_bw = hex(2) & 15; s_hold = hex(3) & 15;
       Serial.printf("[lab] codes WB %X BW %X hold %X\n", s_wb, s_bw, s_hold);
+    }
+    else if (o == "pof" && nt >= 2) { s_pof = hex(1); Serial.printf("[lab] pof %02X\n", s_pof); }
+    else if (o == "pwr" && nt >= 7)
+    {
+      for (int i = 0; i < 6; ++i) s_pwr[i] = hex(1 + i);
+      Serial.printf("[lab] pwr %02X %02X %02X %02X %02X %02X\n", s_pwr[0], s_pwr[1],
+                    s_pwr[2], s_pwr[3], s_pwr[4], s_pwr[5]);
+    }
+    else if (o == "lutmode" && nt >= 2)
+    {
+      s_lutOn = tok[1] == "1";
+      reconfigure(); // the stored waveform's registers; sendAll adds the table
+      Serial.printf("[lab] lutmode %d\n", s_lutOn ? 1 : 0);
+    }
+    else if (o == "lut")
+    { // 800 bytes over USB, answered with '#'
+      Serial.println("[lab] lut ready");
+      Serial.setTimeout(5000);
+      const size_t got = Serial.readBytes(s_lut, sizeof(s_lut));
+      Serial.write('#');
+      uint32_t sum = 0;
+      for (uint8_t b : s_lut) sum += b;
+      Serial.printf("[lab] lut got %u bytes, sum %u\n", (unsigned)got, (unsigned)sum);
+      if (got != sizeof(s_lut)) s_lutOn = false;
+    }
+    else if (o == "rd" && nt >= 4)
+    { // rd CMD N CHIP(m/s) [busy]: send CMD, optionally wait for BUSY, clock
+      // in N bytes on SI1 (as the temp read), print them as hex. Reads only.
+      const uint8_t c = hex(1);
+      const uint32_t n = dec(2);
+      const bool master = tok[3] != "s", waitBusy = nt >= 5 && tok[4] == "busy";
+      const uint8_t SCK = PIN_EPD_SCK, MOSI_ = PIN_EPD_MOSI, SI1 = 8;
+      SPI.end();
+      pinMode(SCK, OUTPUT); pinMode(MOSI_, OUTPUT); pinMode(SI1, INPUT);
+      digitalWrite(SCK, LOW);
+      d.select(master, !master);
+      digitalWrite(d._dc, LOW);
+      for (int b = 7; b >= 0; --b)
+      {
+        digitalWrite(MOSI_, (c >> b) & 1);
+        delayMicroseconds(2); digitalWrite(SCK, HIGH);
+        delayMicroseconds(2); digitalWrite(SCK, LOW);
+      }
+      delay(1);
+      if (waitBusy)
+      {
+        const uint32_t t0 = millis();
+        while (digitalRead(d._busy) == LOW && millis() - t0 < 2000) {}
+      }
+      digitalWrite(d._dc, HIGH);
+      char line[80];
+      int pos = 0;
+      for (uint32_t i = 0; i < n; ++i)
+      {
+        uint8_t v = 0;
+        for (int b = 7; b >= 0; --b)
+        {
+          delayMicroseconds(1); digitalWrite(SCK, HIGH);
+          delayMicroseconds(1); v |= digitalRead(SI1) << b;
+          digitalWrite(SCK, LOW);
+        }
+        pos += sprintf(line + pos, "%02X", v);
+        if ((i % 32) == 31 || i == n - 1)
+        {
+          Serial.printf("[rd] %05u %s\n", (unsigned)(i - (i % 32)), line);
+          pos = 0;
+        }
+      }
+      d.select(false, false);
+      SPI.begin(SCK, -1, MOSI_, -1);
+      Serial.printf("[lab] rd %02X %u done\n", c, (unsigned)n);
     }
     else if (o == "ppll" && nt >= 2) { s_ppll = hex(1); Serial.printf("[lab] ppll %02X\n", s_ppll); }
     else if (o == "pll" && nt >= 2) { s_pll = hex(1); reconfigure(); Serial.printf("[lab] pll %02X\n", s_pll); }
