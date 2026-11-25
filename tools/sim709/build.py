@@ -7,7 +7,10 @@ sample weather; and turns what it drew into PNGs. Each picture comes in two
 versions: the dots exactly as the panel is told to set them, and
 "_blended", averaged 2x2, which is closer to what the eye sees from a desk.
 
-    python tools/sim709/build.py [output folder]
+    python tools/sim709/build.py [output folder] [--balance] [--weather=<file>]
+
+--weather= draws the weather in a file sim480 wrote (SIM480_DUMP, see
+weather_dump.h) instead of the sample, as sim_weather.png.
 
 Needs a C++17 compiler. The ZIG environment variable names one if it is
 set (any Zig works: `pip install ziglang` brings zig.exe); otherwise
@@ -29,7 +32,7 @@ SOURCES = [os.path.join(PIO, "src", n) for n in
            ("renderer709.cpp", "epd709.cpp", "_strftime.cpp", "hebcal.cpp", "locale.cpp", "conversions.cpp",
             "sun.cpp", "config.cpp")] + [os.path.join(HERE, "sim_main.cpp")]
 C_SOURCES = [os.path.join(PIO, "lib", "pollutant-concentration-to-aqi", "aqi.c")]
-INCLUDES = [os.path.join(HERE, "shim"), os.path.join(PIO, "include"),
+INCLUDES = [os.path.join(HERE, "shim"), os.path.join(ROOT, "tools", "sim480"), os.path.join(PIO, "include"),
             os.path.join(PIO, "lib", "esp32-weather-epd-assets"),
             os.path.join(PIO, "lib", "pollutant-concentration-to-aqi")]
 DEFINES = ["BOARD_XIAO_EE02", "EPD709_HOST", "ARDUINOJSON_ENABLE_COMMENTS=1", "_USE_MATH_DEFINES"]
@@ -59,7 +62,11 @@ def main():
         objects.append(obj)
     exe = os.path.join(out, "sim709.exe" if os.name == "nt" else "sim709")
     subprocess.check_call(cxx + ["-std=gnu++17"] + flags + SOURCES + objects + ["-o", exe])
-    subprocess.check_call([exe, out])
+    env = dict(os.environ)
+    for a in sys.argv[1:]:
+        if a.startswith("--weather="):
+            env["SIM709_WEATHER"] = os.path.abspath(a.split("=", 1)[1])
+    subprocess.check_call([exe, out], env=env)
     for name in sorted(os.listdir(out)):
         if not name.endswith(".ppm"):
             continue

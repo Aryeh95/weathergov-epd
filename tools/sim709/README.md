@@ -14,8 +14,13 @@ headers the code mentions (`shim/`).
 
 ```
 pip install pillow numpy
-python tools/sim709/build.py [output folder] [--balance]
+python tools/sim709/build.py [output folder] [--balance] [--weather=<file>]
 ```
+
+`--weather=` draws the weather in a file sim480 wrote (`SIM480_DUMP`, see
+`tools/sim480/weather_dump.h`) instead of the sample, as `sim_weather.png`,
+with a 24-hour graph (`SIM709_HOURS` for another length): the same weather
+as the 800x480 previews. `tools/showcase.py` uses it for the README.
 
 `--balance` white-balances the pictures to the same white as sim480's
 (see its README): the panel's own white becomes that white and the inks

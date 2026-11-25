@@ -1,0 +1,27 @@
+// The settings the README's previews are drawn with (tools/sim480,
+// --locale=en_US, SIM480_FS=tools/sim480/data/newyork), and the location
+// fetch_us.py saved the replies beside it for: New York, New York.
+{
+  "location": {"lat": "40.7128", "lon": "-74.0060", "city": "New York"},
+  "time": {
+    "timezone": "EST5EDT,M3.2.0,M11.1.0",
+    "time_format": "%l:%M%P",
+    "hour_format": "%l%P",
+    "date_format": "%a, %B %e",
+    "refresh_time_format": "%x %l:%M%P"
+  },
+  "sleep": {"hourly_graph_max": 24},
+  "api": {"current_source": "open-meteo", "forecast_source": "nws", "aqi_source": "auto"},
+  "forecast_days": 7,
+  "widget_rows": 6,
+  "dark_mode": false,
+  "font": "Bitter",
+  "font_small": "Bitter",
+  "graph_dewpoint": true,
+  "widget_positions": {
+    "sunrise": 0, "sunset": 1, "humidity": 2, "dewpoint": 3, "wind": 4,
+    "uvi": 5, "pressure": 6, "air_quality": 7, "moon_phase": 8,
+    "visibility": 9, "intemp": 10, "inhumidity": 11,
+    "pollen": -1, "heat_stress": -1
+  }
+}

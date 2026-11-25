@@ -82,6 +82,19 @@ The sample has no indoor sensor, so the indoor cells show `--`; pressure
 and visibility show `--` because IMS reports neither (the Open-Meteo or
 Google current-conditions source fills them on the device).
 
+## The README's previews (`data/newyork`)
+
+`data/newyork` holds the replies `fetch_us.py` saved for New York at
+3:30 pm EST on 2026-11-25 (weather.gov's forecasts and alerts,
+Open-Meteo's current conditions and air quality; no AirNow or pollen key),
+the settings the previews use, in `config.json` beside them, and `NOW`, the
+Unix time they were saved.
+`python tools/showcase.py` draws every preview from them: this tool for
+each panel, and `tools/sim709` for the 7.09in from the weather this tool
+parsed. Set `SIM480_DUMP=<file>` (with `--locale=en_US`) to write that
+weather yourself; `weather_dump.h` is its format. `SIM480_ERRORS=1` also
+draws the four error screens (`sim_error_*`), as the firmware writes them.
+
 ## Your own device's page (`--locale=en_US`)
 
 A US build draws the page a real device would show, from its own settings

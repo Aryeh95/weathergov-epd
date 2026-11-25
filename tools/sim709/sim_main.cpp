@@ -3,7 +3,9 @@
  * Builds the firmware's own renderer (renderer709.cpp) and display class
  * (epd709.cpp) for a PC, feeds them sample weather, and writes what they
  * drew as a picture in the panel's measured ink colours -- so the layout
- * can be checked, and changed, without the panel. See build.py.
+ * can be checked, and changed, without the panel. See build.py. With
+ * SIM709_WEATHER naming a file sim480 wrote (weather_dump.h), it draws that
+ * weather instead: the same as the 800x480 previews.
  *
  * Part of esp32-weather-epd; GNU General Public License v3 or later.
  */
@@ -24,6 +26,7 @@
 #include "renderer.h"
 #include "sun.h"
 #include "icons/icons_196x196.h"
+#include "weather_dump.h"
 
 SerialStub Serial;
 extern time_t hostNow;
@@ -216,8 +219,23 @@ static owm_daily_t daily[OWM_NUM_DAILY];
 static owm_resp_air_pollution_t air;
 static pollen_info_t pollen;
 
+// the weather of SIM709_WEATHER, when it names a file: drawn instead of the
+// sample below
+static weather_dump_t g_file;
+static bool g_fromFile = false;
+
 static void sample(bool night)
 {
+  if (g_fromFile)
+  {
+    hostNow = static_cast<time_t>(g_file.now);
+    current = g_file.current;
+    for (int i = 0; i < OWM_NUM_HOURLY; ++i) hourly[i] = g_file.hourly[i];
+    for (int i = 0; i < OWM_NUM_DAILY; ++i) daily[i] = g_file.daily[i];
+    air = g_file.air;
+    pollen = g_file.pollen;
+    return;
+  }
   // 2026-09-28, Eastern Daylight Time (UTC-4): 3:40 pm, or 11:40 pm
   const int shift = night ? 8 : 0;
   hostNow = utc(2026, 9, 28, 19 + shift, 40);
@@ -300,6 +318,10 @@ static void sample(bool night)
 
 static std::vector<owm_alerts_t> alertsOf(int n)
 {
+  if (g_fromFile)
+  {
+    return g_file.alerts;
+  }
   static const struct { const char *event; int endDay, endHour, endMin; } A[4] = {
     {"Air Quality Alert", 29, 4, 0},            // midnight
     {"Heat Advisory", 30, 0, 0},                // 8 pm Tuesday
@@ -432,7 +454,14 @@ static void weather(const char *path, bool night, int alertCount, const char *st
   do
   {
     fillDisplayBackground();
-    drawCurrentConditions(current, daily[0], air, pollen, night ? 20.0f : 20.6f, night ? 47 : 46);
+    if (g_fromFile)
+    {
+      drawCurrentConditions(current, daily[0], air, pollen, g_file.inTemp, g_file.inHumidity);
+    }
+    else
+    {
+      drawCurrentConditions(current, daily[0], air, pollen, night ? 20.0f : 20.6f, night ? 47 : 46);
+    }
     drawOutlookGraph(hourly, daily, timeInfo);
     drawForecast(daily, timeInfo);
     drawLocationDate(CITY_STRING, date);
@@ -461,6 +490,59 @@ int main(int argc, char **argv)
   FORECAST_DAYS = 7;
   LAT = "40.0";
   LON = "-75.0";
+
+  if (const char *file = getenv("SIM709_WEATHER"))
+  { // the weather sim480 parsed from saved replies, drawn as the README's
+    // previews are: a 24-hour graph
+    if (!readWeatherDump(file, g_file))
+    {
+      return 1;
+    }
+    g_fromFile = true;
+    CITY_STRING = g_file.city.c_str();
+    LAT = g_file.lat.c_str();
+    LON = g_file.lon.c_str();
+    std::string tz = g_file.tz;
+#ifdef _WIN32
+    // the C library here knows "EST5EDT" and US daylight time, not the
+    // POSIX rules after the comma
+    tz = tz.substr(0, tz.find(','));
+    _putenv_s("TZ", tz.c_str());
+    _tzset();
+#else
+    setenv("TZ", tz.c_str(), 1);
+    tzset();
+#endif
+    // replies saved without a pollen key have no pollen: its cell shows
+    // the visibility instead of "--", as the 800x480 previews' settings do
+    if (g_file.pollen.max_upi < 0)
+    {
+      for (String &slot : PANEL_SLOTS)
+      {
+        if (slot == "pollen") slot = "visibility";
+      }
+    }
+    HOURLY_GRAPH_MAX = getenv("SIM709_HOURS") ? atoi(getenv("SIM709_HOURS")) : 24;
+    weather((out + "/sim_weather.ppm").c_str(), false, 0);
+    // and with the stacked hourly graphs (portal: Hourly graph -> Stacked):
+    // temperature and dew point, wind and gusts, rain amount and chance over
+    // the cloud cover, with no weather strip above them
+    const int keepLayout = GRAPH_LAYOUT;
+    const bool keepStrip = GRAPH_STRIP;
+    String keepSlots[4];
+    for (int i = 0; i < 4; ++i) keepSlots[i] = GRAPH_SLOTS[i];
+    GRAPH_LAYOUT = 1;
+    GRAPH_STRIP = false;
+    GRAPH_SLOTS[0] = "temp_dew";
+    GRAPH_SLOTS[1] = "wind";
+    GRAPH_SLOTS[2] = "rain_clouds";
+    GRAPH_SLOTS[3] = "";
+    weather((out + "/sim_weather_stacked.ppm").c_str(), false, 0);
+    GRAPH_LAYOUT = keepLayout;
+    GRAPH_STRIP = keepStrip;
+    for (int i = 0; i < 4; ++i) GRAPH_SLOTS[i] = keepSlots[i];
+    return 0;
+  }
 
   if (getenv("SIM_GRAPHS"))
   { // the small-graphs preview only (2026-10-17)

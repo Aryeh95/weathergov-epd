@@ -9,27 +9,27 @@ This is a fork of [lmarzen/esp32-weather-epd](https://github.com/lmarzen/esp32-w
 <table>
   <tr>
     <td width="33%" align="center"><a href="#75-four-greys-trmnl-kit-reterminal-e1001"><img src="showcase/preview-75-grey.png" width="280" alt="7.5&quot; four greys" /></a></td>
+    <td width="33%" align="center"><a href="#75-black-and-white-1-bit"><img src="showcase/preview-75-bw.png" width="280" alt="7.5&quot; black and white" /></a></td>
     <td width="33%" align="center"><a href="#75-three-colour-blackwhitered"><img src="showcase/preview-75-3c.png" width="280" alt="7.5&quot; three-colour" /></a></td>
-    <td width="33%" align="center"><a href="#73-full-colour-reterminal-e1002"><img src="showcase/preview-e1002.png" width="280" alt="7.3&quot; full colour (reTerminal E1002)" /></a></td>
   </tr>
   <tr>
     <td width="33%" align="center">7.5" four greys</td>
+    <td width="33%" align="center">7.5" black and white</td>
     <td width="33%" align="center">7.5" three-colour</td>
-    <td width="33%" align="center">7.3" full colour (reTerminal E1002)</td>
   </tr>
   <tr>
+    <td width="33%" align="center"><a href="#73-full-colour-reterminal-e1002"><img src="showcase/preview-e1002.png" width="280" alt="7.3&quot; full colour (reTerminal E1002)" /></a></td>
     <td width="33%" align="center"><a href="#709-high-resolution-colour-xiao-ee02"><img src="showcase/preview-gdeb0709e01.png" width="280" alt="7.09&quot; high-resolution colour (XIAO EE02)" /></a></td>
     <td width="33%" align="center"><a href="#426-four-greys-xiao-ee05"><img src="showcase/preview-ee05-426-home.png" width="280" alt="4.26&quot; four greys (XIAO EE05)" /></a></td>
-    <td width="33%" align="center"><a href="#426-four-greys-xiao-ee05"><img src="showcase/preview-ee05-426-hours.png" width="280" alt="4.26&quot; hours page" /></a></td>
   </tr>
   <tr>
+    <td width="33%" align="center">7.3" full colour (reTerminal E1002)</td>
     <td width="33%" align="center">7.09" high-resolution colour (XIAO EE02)</td>
     <td width="33%" align="center">4.26" four greys (XIAO EE05)</td>
-    <td width="33%" align="center">4.26" hours page</td>
   </tr>
 </table>
 
-*The previews are drawn by the firmware's own rendering code on a PC (see [Previewing layouts on a PC](#previewing-layouts-on-a-pc)), with sample weather and a made-up afternoon of showers. They use each panel's measured inks, white-balanced to one common white, the way your eye adjusts to a panel in a room. Side by side, the colour panels look darker than the monochrome ones: they reflect less light.*
+*The previews are drawn by the firmware's own rendering code on a PC (see [Previewing layouts on a PC](#previewing-layouts-on-a-pc)), all from the same weather: New York, at 3:30 pm on November 25, 2026, under a high wind warning, as weather.gov and Open-Meteo forecast it then. They use each panel's measured inks, white-balanced to one common white, the way your eye adjusts to a panel in a room. Side by side, the colour panels look darker than the monochrome ones: they reflect less light.*
 
 ## Contents
 
@@ -122,7 +122,16 @@ On the seven-colour and Spectra 6 panels the same layout uses full-colour weathe
 
 ### 7.09" high-resolution colour (XIAO EE02)
 
-<img src="showcase/preview-gdeb0709e01.png" width="80%" />
+<table>
+  <tr>
+    <td width="50%" align="center"><img src="showcase/preview-gdeb0709e01.png" width="400" alt="7.09&quot; — one graph" /></td>
+    <td width="50%" align="center"><img src="showcase/preview-gdeb0709e01-stacked.png" width="400" alt="7.09&quot; — stacked graphs" /></td>
+  </tr>
+  <tr>
+    <td align="center">One graph: temperature, dew point and rain</td>
+    <td align="center">Stacked graphs (portal: Hourly graph → Stacked)</td>
+  </tr>
+</table>
 
 Good Display's GDEB0709E01 has four times the dots of the 7.3" panels (1600×1200, 282 ppi), so it has a layout of its own:
 
@@ -275,6 +284,17 @@ The new image goes into a spare flash slot and takes effect only once it has bee
 
 A device without WiFi settings starts its own hotspot and shows how to reach it on the panel:
 
+<table>
+  <tr>
+    <td width="50%" align="center"><img src="showcase/setup-screen.png" width="400" alt="The panel in setup mode" /></td>
+    <td width="50%" align="center"><img src="showcase/portal-setup.png" width="300" alt="The setup page: WiFi and location" /></td>
+  </tr>
+  <tr>
+    <td align="center">The panel in setup mode</td>
+    <td align="center">The setup page on a phone</td>
+  </tr>
+</table>
+
 1. On your phone, join **`WeatherEPD-Setup`** (password **`weatherepd`**).
 2. The setup page should open by itself. If it doesn't, browse to **http://192.168.4.1/**.
 3. Fill in the page:
@@ -298,10 +318,32 @@ If setup isn't finished within 10 minutes, the device shows "Setup paused" and s
 
 What the portal offers:
 
-- **Every setting**, in a form: WiFi with a scan, location with phone GPS, time zone and formats, schedule and bedtime, forecast days, and the widget layout as a picture of the panel.
+- **Every setting**, in a form:
+  - **WiFi** with a scan, and an optional static IP.
+  - **Location** with phone GPS.
+  - **Time:** time zone, clock style and date format, each with a live example; in a Hebrew build, Shabbat and holiday times.
+  - **Schedule:** refresh interval, bed and wake hours, WiFi retry, how long to keep the last weather when offline, graph hours, forecast days, widget rows, light or dark theme, the dew point on the graph, and the fonts, with a live preview.
+  - **API:** the weather.gov contact, AirNow and Google keys, the local relay, and the sources for the forecast, air quality and current conditions.
+  - **Widgets:** a dropdown for each slot. On the 7.09" the eight readings and the hourly graph's layout (one graph or stacked, the slots, the weather strip); on the 4.26" the three home tiles.
+- **Backup & Restore:** download the settings as a JSON file, or restore a saved one.
 - **A raw JSON editor** for the rest (battery thresholds, NTP servers, portal options). Saves are checked on the device and keep a backup (`config.bak`).
 - **Diagnostics:** what the display did on its last wake and on the last one that failed: the result, how long WiFi, the weather requests and the screen took, the battery voltage and the WiFi signal.
 - **Firmware update** ([above](#updates-over-wifi)).
+
+<table>
+  <tr>
+    <td width="33%" align="center"><img src="showcase/portal-schedule.png" width="260" alt="Portal: schedule, theme and fonts" /></td>
+    <td width="33%" align="center"><img src="showcase/portal-widgets.png" width="260" alt="Portal: widget slots" /></td>
+    <td width="33%" align="center"><img src="showcase/portal-update-diag.png" width="260" alt="Portal: firmware update and diagnostics" /></td>
+  </tr>
+  <tr>
+    <td align="center">Schedule, theme and fonts</td>
+    <td align="center">Widget slots</td>
+    <td align="center">Firmware update and diagnostics</td>
+  </tr>
+</table>
+
+The screenshots come from `python tools/portal_preview.py`, which serves the real page on a PC with made-up device answers.
 
 ## Configuration reference (config.json)
 
@@ -525,13 +567,13 @@ The lid's labels are the buttons: **SETUP** (KEY1, portal), **REFRESH** (KEY2), 
 
 ## Previewing layouts on a PC
 
-Two tools build the firmware's own drawing code for a computer and save what it draws as pictures, in each panel's measured inks. That's how the previews above were made, with `--balance`, which white-balances every panel to the same white.
+Two tools build the firmware's own drawing code for a computer and save what it draws as pictures, in each panel's measured inks. That's how the previews above were made, with `--balance`, which white-balances every panel to the same white. `python tools/showcase.py` redraws all of them from the weather saved in `tools/sim480/data/newyork`.
 
 - **[tools/sim480](tools/sim480/README.md):** the 800×480 layouts, plus the 4.26" pages.
   - `--panel=` picks the panel: `e6` (Spectra 6), `bwv2` (black and white), `3c` (three-colour), `4g426` (EE05) or `4g75` (the 7.5" in four greys).
   - `--locale=en_US` draws a real device's page from its own config.json and replies saved by `fetch_us.py`. Other locales draw saved sample data for Israel or Kraków.
   - `SIM480_RAIN=1` adds made-up showers.
-- **[tools/sim709](tools/sim709/README.md):** the 7.09" layout, with sample weather: day, night, alerts, dark mode, errors.
+- **[tools/sim709](tools/sim709/README.md):** the 7.09" layout, with sample weather: day, night, alerts, dark mode, errors. `--weather=` draws the weather sim480 parsed instead (`SIM480_DUMP`), so the two show the same.
 
 Both need Python with Pillow (and numpy for sim480) and a C++17 compiler: g++ or clang++, or MinGW-w64 on Windows.
 
@@ -539,33 +581,45 @@ Both need Python with Pillow (and numpy for sim480) and a C++17 compiler: g++ or
 
 During an outage, the last weather stays on screen, marked as old, for `sleep.outage_grace_minutes` (default 3 hours). Only then do the error screens below replace it. After a button press or reset, an error shows at once. The portal's **Diagnostics** section has the details of the last failure. To see the outage behaviour without unplugging your router, build once with `SIMULATE_OUTAGE` defined.
 
-<img src="showcase/demo-error-low-battery.jpg" align="left" width="22%" />
+<table>
+<tr>
+<td width="30%"><img src="showcase/error-battery.png" alt="Low battery screen" /></td>
+<td>
 
 **Low battery.**
-
 - **When:** below `low_voltage_mv` (default 3.462 V, about 10 %).
 - **What happens:** the low-battery page stays until the battery is charged, drawn in black on white and redrawn once a day. While low, the device checks every 30 minutes, or every 120 minutes below `very_low_voltage_mv`.
 - **Critical:** below `crit_low_voltage_mv` (3.404 V) it hibernates until reset.
 
-<br clear="left"/>
-
-<img src="showcase/demo-error-wifi.jpg" align="left" width="22%" />
+</td>
+</tr>
+<tr>
+<td><img src="showcase/error-wifi.png" alt="WiFi connection failed screen" /></td>
+<td>
 
 **WiFi connection.** The second line says why: wrong password, network not found, no response, and so on. The device retries every `wifi_retry_interval_minutes` (default 15) and recovers by itself. On mesh networks it picks the strongest access point.
 
-<br clear="left"/>
+</td>
+</tr>
+<tr>
+<td><img src="showcase/error-api.png" alt="API error screen" /></td>
+<td>
 
-<img src="showcase/demo-error-api.jpg" align="left" width="22%" />
+**API error.** A request to weather.gov or Open-Meteo failed. The first line names the service and the step, the second the HTTP status, or a client error if it's 0 or less. The device retries at the next update. AirNow failures never show here: the air quality falls back to Open-Meteo.
 
-**API error.** A request to weather.gov or Open-Meteo failed. The code is the HTTP status, or a client error if it's 0 or less. The device retries at the next update. AirNow failures never show here: the air quality falls back to Open-Meteo.
-
-<br clear="left"/>
-
-<img src="showcase/demo-error-time.jpg" align="left" width="22%" />
+</td>
+</tr>
+<tr>
+<td><img src="showcase/error-time.png" alt="Time synchronization failed screen" /></td>
+<td>
 
 **Time server error.** The time couldn't be fetched from `ntp_server_1`/`_2`. This sometimes happens right after a flash; press reset or wait for the retry. If it persists, choose closer time servers or raise `ntp_timeout_ms`.
 
-<br clear="left"/>
+</td>
+</tr>
+</table>
+
+The pictures are the firmware's own error screens, drawn by the simulator on the 7.3" colour panel (`SIM480_ERRORS=1`).
 
 ## Licensing and credits
 
@@ -576,6 +630,7 @@ weathergov-epd is a fork of [esp32-weather-epd](https://github.com/lmarzen/esp32
 | [Adafruit-GFX-Library: fontconvert](https://github.com/adafruit/Adafruit-GFX-Library/tree/master/fontconvert) | [BSD License](fonts/fontconvert/license.txt) | Preprocesses fonts for the Adafruit_GFX library. |
 | [pollutant-concentration-to-aqi](https://github.com/lmarzen/pollutant-concentration-to-aqi) | [GNU LGPL v2.1](platformio/lib/pollutant-concentration-to-aqi/LICENSE) | Converts pollutant concentrations to an AQI. |
 | [InkyPi weather icons](https://github.com/fatihak/InkyPi) | [GNU GPL v3.0](https://github.com/fatihak/InkyPi/blob/main/LICENSE) | Full-colour icon artwork by Faith Akici, reduced to e-paper inks by tools/generate_color_icons.py. |
+| Saved weather for the previews (tools/sim480/data) | weather.gov: public domain; [Open-Meteo](https://open-meteo.com/): [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); IMS and Google as their services allow | Forecasts and readings the simulators draw from. |
 | [NASA LRO lunar map](https://svs.gsfc.nasa.gov/4720) | Public domain | The moon on the 7.5" four-grey, 7.09" and 4.26" layouts (tools/moon). |
 | [Bitter](https://fonts.google.com/specimen/Bitter), [Lato](https://fonts.google.com/specimen/Lato), [Montserrat](https://fonts.google.com/specimen/Montserrat), [Open Sans](https://fonts.google.com/specimen/Open+Sans), [Poppins](https://fonts.google.com/specimen/Poppins), [Quicksand](https://fonts.google.com/specimen/Quicksand), [Raleway](https://fonts.google.com/specimen/Raleway), [Heebo](https://fonts.google.com/specimen/Heebo) | [SIL OFL v1.1](http://scripts.sil.org/OFL) | Font families |
 | [GNU FreeFont](https://www.gnu.org/software/freefont/) | [GNU GPL v3.0](https://www.gnu.org/software/freefont/license.html) | Font family |

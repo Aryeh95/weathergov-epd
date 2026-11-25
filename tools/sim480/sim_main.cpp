@@ -29,6 +29,8 @@
 #include "fonts/font_names.h"
 #include "precip.h"
 #include "settings.h"
+#include "weather_dump.h"
+#include "icons/icons_196x196.h"
 #include <WiFi.h>
 #if defined(DISP_4G_426)
   #include "GxEPD2_4G_4G.h" // host426Frame()
@@ -440,6 +442,60 @@ static int mainUS(const std::string &outDir)
   {
     sscanf(in, "%f,%f", &inTemp, &inHum);
   }
+  // the weather as parsed, for sim709 to draw the same (weather_dump.h)
+  if (const char *dump = getenv("SIM480_DUMP"))
+  {
+    weather_dump_t w;
+    w.now = now;
+    w.city = CITY_STRING.c_str();
+    w.tz = TIMEZONE;
+    w.lat = LAT.c_str();
+    w.lon = LON.c_str();
+    w.inTemp = inTemp;
+    w.inHumidity = inHum;
+    w.current = current;
+    for (int i = 0; i < OWM_NUM_HOURLY; ++i) w.hourly[i] = hourly[i];
+    for (int i = 0; i < OWM_NUM_DAILY; ++i) w.daily[i] = daily[i];
+    // what the firmware adds to the hours when the 7.09in's stacked graphs
+    // are on (client_utils.cpp, getNWSWeather): the hours' rain amounts,
+    // shared out of the gridpoint's 6-hour QPF by chance of rain, and the
+    // gridpoint's gusts, sky cover and feels-like. Only for sim709: the
+    // 800x480 layouts are drawn above without them, as on their devices.
+    {
+      std::vector<qpf_bucket_t> q;
+      grid_series_t series;
+      if (parse("nws_gridpoint.json", [&](WiFiClient &c) {
+            return deserializeNWSGridpointQPF(c, q, &series); }))
+      {
+        int64_t start[OWM_NUM_HOURLY];
+        float pop[OWM_NUM_HOURLY], mm[OWM_NUM_HOURLY];
+        int n = 0;
+        while (n < OWM_NUM_HOURLY && w.hourly[n].dt > 0)
+        {
+          start[n] = w.hourly[n].dt;
+          pop[n] = w.hourly[n].pop;
+          ++n;
+        }
+        spreadQpf(q, start, pop, n, mm);
+        for (int i = 0; i < n; ++i)
+        {
+          const int64_t mid = w.hourly[i].dt + 1800;
+          w.hourly[i].precip = mm[i];
+          const float gust = bucketAt(series.gust, mid);
+          if (!std::isnan(gust))
+            w.hourly[i].wind_gust = std::max(w.hourly[i].wind_speed, gust / 3.6f);
+          const float sky = bucketAt(series.sky, mid);
+          if (!std::isnan(sky)) w.hourly[i].clouds = static_cast<int>(std::round(sky));
+          const float feel = bucketAt(series.feel, mid);
+          if (!std::isnan(feel)) w.hourly[i].feels_like = feel + 273.15f;
+        }
+      }
+    }
+    w.air = air;
+    w.pollen = pollen;
+    w.alerts = alerts;
+    if (writeWeatherDump(dump, w)) printf("  weather written to %s\n", dump);
+  }
   tm timeInfo;
   localtime_r(&hostNow, &timeInfo);
   String dateStr, refreshTimeStr;
@@ -553,6 +609,39 @@ static int mainUS(const std::string &outDir)
   }
 #else
   savePpm((outDir + "/sim_us_now.ppm").c_str());
+  if (getenv("SIM480_ERRORS"))
+  { // the error screens (main.cpp), with the texts the firmware writes:
+    // the README's Troubleshooting pictures
+    struct E { const char *name; const uint8_t *icon; String l1, l2; bool mono; };
+    const E errs[] = {
+      {"battery", battery_alert_0deg_196x196, TXT_LOW_BATTERY, "", true},
+      {"wifi", wifi_x_196x196, TXT_WIFI_CONNECTION_FAILED, TXT_WIFI_REASON_AUTH_FAIL, false},
+      {"api", wi_cloud_down_196x196, "weather.gov API (forecast)",
+       "503: Service Unavailable", false},
+      {"time", wi_time_4_196x196, TXT_TIME_SYNCHRONIZATION_FAILED, "", false},
+    };
+    for (const E &e : errs)
+    {
+      initDisplay();
+      do
+      {
+        fillDisplayBackground();
+        drawError(e.icon, e.l1, e.l2, e.mono);
+      } while (display.nextPage());
+      savePpm((outDir + "/sim_error_" + e.name + ".ppm").c_str());
+    }
+    // and the setup hotspot's screen (portal.cpp), with its default name
+    // and password
+    initDisplay();
+    do
+    {
+      fillDisplayBackground();
+      drawConfigPortalScreen(String(TXT_PORTAL_JOIN) + "WeatherEPD-Setup",
+                             String(TXT_PORTAL_PASSWORD) + "weatherepd",
+                             String(TXT_PORTAL_THEN_OPEN) + "http://192.168.4.1/");
+    } while (display.nextPage());
+    savePpm((outDir + "/sim_portal.ppm").c_str());
+  }
 #if defined(GREYS_75)
   // the page KEY3 turns to on the EE04 (renderer.cpp, drawPage426): the
   // forecast in words, in greys as on the device
