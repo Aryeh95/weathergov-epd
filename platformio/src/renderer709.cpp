@@ -3948,10 +3948,18 @@ void initDisplay()
     Preferences store;
     store.begin(NVS_NAMESPACE, true);
     const uint8_t lutCount = store.getUChar("lut709n", 0);
+    // BUSY time of the last stock refresh at PLL 08: which stock set the
+    // chip really ran (checked against the set read back below)
+    const uint32_t stockMs = store.getUInt("stk709ms", 0);
     store.end();
     if (lutCount >= 9)
     {
       Serial.println("[epd709] fast LUT scrub (10th wake), using stock OTP");
+      display.setClock(Epd709::CLOCK_NORMAL);
+    }
+    else if (stockMs == 0)
+    { // no stock refresh measured yet: do one, so the next wake can check
+      Serial.println("[epd709] no stock refresh time yet, using stock OTP");
       display.setClock(Epd709::CLOCK_NORMAL);
     }
     else
@@ -3963,9 +3971,18 @@ void initDisplay()
       int8_t setIdx = display.readTempC(tempC)
                         ? Epd709Lut::setForTempC(tempC) : -1;
       Epd709Lut::BuildInfo info{};
-      if (setIdx >= 0 && display.readOtpSet(setIdx, rawSet)
-          && Epd709Lut::buildFast709(rawSet, fastLut, fastPwr, true, &info)
-          && display.setCustomLut(fastLut, fastPwr))
+      const bool built = setIdx >= 0 && display.readOtpSet(setIdx, rawSet)
+          && Epd709Lut::buildFast709(rawSet, fastLut, fastPwr, true, &info);
+      if (built && !Epd709Lut::framesMatchStock(info.stockFrames, stockMs))
+      { // the set read back is not the one the chip ran last time (a band
+        // change, or a wrong set number): a stock refresh, which also
+        // measures the time again for the next wake
+        Serial.printf("[epd709] set %d (%u fr) does not match the last stock "
+                      "refresh (%u ms), using stock OTP\n", setIdx,
+                      info.stockFrames, (unsigned)stockMs);
+        display.setClock(Epd709::CLOCK_NORMAL);
+      }
+      else if (built && display.setCustomLut(fastLut, fastPwr))
       {
         display.setClock(Epd709::CLOCK_NORMAL);
         Serial.printf("[epd709] fast G13 set %d (%.1f C, %u fr, max|q| %.3f)\n",
@@ -4010,6 +4027,12 @@ void powerOffDisplay()
       if (store.getUChar("lut709n", 0) != 0)
       {
         store.putUChar("lut709n", 0);
+      }
+      const uint32_t ms = display.lastRefreshMs();
+      const uint32_t was = store.getUInt("stk709ms", 0);
+      if (ms > 0 && (was == 0 || ms > was + was / 100 || ms + was / 100 < was))
+      {
+        store.putUInt("stk709ms", ms); // only when it moved by over 1 %
       }
       store.end();
     }

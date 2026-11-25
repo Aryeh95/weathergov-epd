@@ -505,8 +505,9 @@ void Epd709::refresh()
   const uint32_t start = millis();
   command(true, true, 0x12, &drf, 1);    // refresh
   waitReady(EPD709_BUSY_TIMEOUT_MS, true);
+  _lastRefreshMs = millis() - start;
   Serial.println("[epd709] refresh took "
-                 + String((millis() - start) / 1000.0, 1) + " s");
+                 + String(_lastRefreshMs / 1000.0, 1) + " s");
   delay(30);
   command(true, true, 0x02, &pof, 1);    // power off
   waitReady(EPD709_BUSY_TIMEOUT_MS);

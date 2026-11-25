@@ -132,6 +132,8 @@ public:
   void clearCustomLut();
   bool lastRefreshUsedLut() const { return _lastUsedLut; }
   bool lastRefreshWasStockNormal() const { return _lastWasStockNormal; }
+  // BUSY time of the last refresh (ms), from DRF to ready
+  uint32_t lastRefreshMs() const { return _lastRefreshMs; }
 
   bool ready() const { return _frame != nullptr; }
   const uint8_t *frame() const { return _frame; }
@@ -149,6 +151,7 @@ private:
   bool _useLut = false;
   bool _lastUsedLut = false;
   bool _lastWasStockNormal = false;
+  uint32_t _lastRefreshMs = 0;
 
   static uint8_t inkOf(uint16_t color);
   bool waitReady(uint32_t timeoutMs, bool lightSleep = false);

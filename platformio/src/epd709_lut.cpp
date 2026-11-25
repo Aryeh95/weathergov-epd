@@ -409,12 +409,19 @@ bool setBlockLiveRows(Block &blk, const RowList &rows)
 
 } // namespace
 
-int8_t setForTempC(float tempC)
+int8_t setForTempC(float tempC, bool allowWarm)
 {
   if (isnan(tempC)) return -1;
-  if (tempC >= 20.5f && tempC < 25.5f) return 4;
-  if (tempC >= 25.5f && tempC <= 30.0f) return 5;
+  if (tempC >= 21.0f && tempC < 25.5f) return 4;
+  if (allowWarm && tempC >= 25.5f && tempC <= 30.0f) return 5;
   return -1;
+}
+
+bool framesMatchStock(uint16_t frames, uint32_t stockMs)
+{
+  if (frames == 0 || stockMs == 0) return false;
+  const float expected = frames * 20.35f;
+  return fabsf(stockMs - expected) <= 0.03f * expected;
 }
 
 bool validateStockSet(const uint8_t in[TABLE_LEN], uint16_t *framesOut)
