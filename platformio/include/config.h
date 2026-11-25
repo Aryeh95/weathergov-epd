@@ -258,6 +258,11 @@
 #ifndef DEFAULT_TIMEZONE
   #define DEFAULT_TIMEZONE "EST5EDT,M3.2.0,M11.1.0"
 #endif
+// The forecast source a device starts with until config.json or the portal
+// sets one (FORECAST_SOURCE in config.cpp). A Hebrew build starts with IMS.
+#ifndef DEFAULT_FORECAST_SOURCE
+  #define DEFAULT_FORECAST_SOURCE "nws"
+#endif
 
 // UNITS
 // Define exactly one macro for each measurement type below.

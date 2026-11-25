@@ -32,3 +32,7 @@
 #ifndef DEFAULT_TIMEZONE
   #define DEFAULT_TIMEZONE "IST-2IDT,M3.4.4/26,M10.5.0"
 #endif
+// and the Israel Meteorological Service for the forecast
+#ifndef DEFAULT_FORECAST_SOURCE
+  #define DEFAULT_FORECAST_SOURCE "ims"
+#endif

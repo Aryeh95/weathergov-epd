@@ -21,6 +21,7 @@
 #include <ArduinoJson.h>
 #include <LittleFS.h>
 #include "config.h"
+#include "coverage.h"
 #include "settings.h"
 #include "api_response.h" // OWM_NUM_HOURLY
 #include "fonts/font_names.h"
@@ -637,6 +638,30 @@ bool loadSettings()
     }
   }
 #endif
+
+  // A country's own service only where it answers (coverage.h): weather.gov
+  // and AirNow in the US, IMS and the Ministry's stations in Israel. A
+  // config that names one for coordinates outside its country (a Hebrew
+  // build's IMS default used abroad, a device moved, a config file copied
+  // from another device) gets the service that covers the spot, or the
+  // world-wide one, instead of a failed fetch on every wake.
+  const float lat = atof(LAT.c_str()), lon = atof(LON.c_str());
+  if ((FORECAST_SOURCE == "nws" && !inUS(lat, lon))
+      || (FORECAST_SOURCE == "ims" && !inIsrael(lat, lon)))
+  {
+    const char *instead = inUS(lat, lon) ? "nws"
+                        : inIsrael(lat, lon) ? "ims" : "open-meteo";
+    Serial.println("[settings] forecast_source " + FORECAST_SOURCE
+                   + " does not cover these coordinates; using " + instead);
+    FORECAST_SOURCE = instead;
+  }
+  if ((AQI_SOURCE == "airnow" && !inUS(lat, lon))
+      || (AQI_SOURCE == "israel" && !inIsrael(lat, lon)))
+  {
+    Serial.println("[settings] aqi_source " + AQI_SOURCE
+                   + " does not cover these coordinates; using auto");
+    AQI_SOURCE = "auto";
+  }
 
   Serial.println("[settings] Loaded /config.json");
   return true;

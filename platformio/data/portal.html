@@ -196,20 +196,20 @@
   </fieldset>
 
   <fieldset><legend>API</legend>
-    <div data-region="us" data-feature="nws">
+    <div id="uabox">
     <label>NWS contact (User-Agent)</label><input id="a_ua">
     <div class="hint">weather.gov asks for a contact email in case your device misbehaves.</div>
     </div>
-    <div data-region="us" data-feature="airnow">
+    <div data-cover="us">
     <label>AirNow API key (optional)</label><input id="a_airnow" autocomplete="off">
     </div>
     <label>Google API key (optional: pollen, Google current conditions)</label><input id="a_pollen" autocomplete="off">
-    <div class="hint" data-region="us" data-feature="airnow">Free key from <a href="https://docs.airnowapi.org/" target="_blank"
+    <div class="hint" data-cover="us">Free key from <a href="https://docs.airnowapi.org/" target="_blank"
       rel="noopener">docs.airnowapi.org</a> for the EPA's official AQI.
       Leave empty to use Open-Meteo instead. The Google key is a Maps
       Platform key with the Pollen API (and, for the source below, the
       Weather API) enabled.</div>
-    <div class="hint" data-region="il" data-unless="airnow">The Google key is a Maps
+    <div class="hint" data-cover-else="us">The Google key is a Maps
       Platform key with the Pollen API (and, for the source below, the
       Weather API) enabled.</div>
     <label>Local relay (optional)</label><input id="a_relay" autocomplete="off" placeholder="192.168.1.50:8080">
@@ -220,25 +220,26 @@
       to fetch directly.</div>
     <label>Forecast source</label>
     <select id="a_fcsrc">
-      <option value="nws" data-region="us" data-feature="nws">weather.gov (United States)</option>
+      <option value="nws">weather.gov (United States)</option>
       <option value="open-meteo">Open-Meteo (anywhere in the world)</option>
-      <option value="ims" data-region="il" data-feature="ims">Israel Meteorological Service (Israel)</option>
+      <option value="ims">Israel Meteorological Service (Israel)</option>
     </select>
     <label>IMS location id (0 = nearest to the coordinates)</label><input id="a_imslid" type="number" min="0" step="1">
-    <div class="hint" data-region="us" data-feature="nws">Forecasts, condition icons and weather alerts.
+    <div class="hint" data-source="us">Forecasts, condition icons and weather alerts.
       weather.gov covers US locations; Open-Meteo covers the whole world
       (no alerts).</div>
-    <div class="hint" data-region="il" data-feature="ims">Forecasts, condition icons and weather alerts.
+    <div class="hint" data-source="il">Forecasts, condition icons and weather alerts.
       The Israel Meteorological Service (ims.gov.il) covers Israel, in
       Hebrew; Open-Meteo covers the whole world (no alerts). Location ids
       are listed at
       <a href="https://ims.gov.il/en/locations_info" target="_blank"
       rel="noopener">ims.gov.il/en/locations_info</a>.</div>
+    <div class="hint" id="covernote" style="display:none;color:#b35c00"></div>
     <label>Air quality index source</label>
     <select id="a_aqisrc">
       <option value="auto" id="aqi_auto">Automatic (Israel with IMS, else AirNow with a key, else model)</option>
-      <option value="airnow" data-region="us" data-feature="airnow">AirNow, US EPA (needs the AirNow key)</option>
-      <option value="israel" data-region="il" data-feature="israel-aq">Israel Ministry of Environmental Protection (no key)</option>
+      <option value="airnow">AirNow, US EPA (needs the AirNow key)</option>
+      <option value="israel">Israel Ministry of Environmental Protection (no key)</option>
       <option value="model">Open-Meteo model</option>
     </select>
     <label>Ministry station id (0 = the stations within 15 km)</label><input id="a_ilsid" type="number" min="0" step="1">
@@ -252,11 +253,11 @@
       <option value="google">Google Weather API (needs Google key)</option>
       <option value="nws">the forecast source's own (no key)</option>
     </select>
-    <div class="hint" data-region="us" data-feature="nws">Where the big temperature and the humidity, dew point,
+    <div class="hint" data-source="us">Where the big temperature and the humidity, dew point,
       pressure, wind and visibility widgets come from. The last option is
       weather.gov's hourly forecast for the current hour; pressure and
       visibility then come from Open-Meteo.</div>
-    <div class="hint" data-region="il" data-feature="ims">Where the big temperature and the humidity, dew point,
+    <div class="hint" data-source="il">Where the big temperature and the humidity, dew point,
       pressure, wind and visibility widgets come from. The last option is
       IMS's own current conditions; pressure and visibility then come from
       Open-Meteo.</div>
@@ -415,6 +416,14 @@ const I18N_HE = {
     'תחזיות, סמלי מזג אוויר והתרעות. weather.gov מכסה את ארה"ב; Open-Meteo מכסה את כל העולם (ללא התרעות).',
   'Forecasts, condition icons and weather alerts. The Israel Meteorological Service (ims.gov.il) covers Israel, in Hebrew; Open-Meteo covers the whole world (no alerts). Location ids are listed at':
     'תחזיות, סמלי מזג אוויר והתרעות. השירות המטאורולוגי (ims.gov.il) מכסה את ישראל, בעברית; Open-Meteo מכסה את כל העולם (ללא התרעות). רשימת מזהי המיקומים:',
+  'weather.gov covers only the US.': 'weather.gov מכסה רק את ארה"ב.',
+  'IMS covers only Israel.': 'השירות המטאורולוגי מכסה רק את ישראל.',
+  'The forecast now comes from weather.gov.': 'התחזית מגיעה עכשיו מ-weather.gov.',
+  'The forecast now comes from IMS.': 'התחזית מגיעה עכשיו מהשירות המטאורולוגי.',
+  'The forecast now comes from Open-Meteo.': 'התחזית מגיעה עכשיו מ-Open-Meteo.',
+  'AirNow covers only the US.': 'AirNow מכסה רק את ארה"ב.',
+  'The Ministry\'s stations cover only Israel.': 'תחנות המשרד להגנת הסביבה מכסות רק את ישראל.',
+  'Air quality is now Automatic.': 'מקור איכות האוויר הוא עכשיו אוטומטי.',
   'Automatic (AirNow with a key, else model)': 'אוטומטי (AirNow עם מפתח, אחרת מודל)',
   'Automatic (the Ministry with IMS, else model)': 'אוטומטי (המשרד להגנת הסביבה עם השירות המטאורולוגי, אחרת מודל)',
   'Where the big temperature and the humidity, dew point, pressure, wind and visibility widgets come from. The last option is weather.gov\'s hourly forecast for the current hour; pressure and visibility then come from Open-Meteo.':
@@ -885,6 +894,8 @@ function updateSlotVisibility() {
 }
 
 function populate() {
+  // every source back in its list first (applyCoverage takes some out)
+  for (const [id, opts] of Object.entries(ALL_OPTIONS)) el(id).replaceChildren(...opts);
   el('w_ssid').value = cfg.wifi?.ssid ?? '';
   el('w_pass').value = cfg.wifi?.password ?? '';
   el('w_static_ip').value = cfg.wifi?.static_ip ?? '';
@@ -920,7 +931,7 @@ function populate() {
   el('a_pollen').value = cfg.api?.pollen_api_key ?? '';
   el('a_relay').value = cfg.api?.local_relay ?? '';
   el('a_cursrc').value = cfg.api?.current_source ?? 'open-meteo';
-  el('a_fcsrc').value = cfg.api?.forecast_source ?? 'nws';
+  el('a_fcsrc').value = cfg.api?.forecast_source ?? info.default_forecast_source ?? 'nws';
   el('a_imslid').value = String(cfg.api?.ims_location_id ?? 0);
   el('a_aqisrc').value = cfg.api?.aqi_source ?? 'auto';
   el('a_ilsid').value = String(cfg.api?.il_aq_station_id ?? 0);
@@ -1073,6 +1084,7 @@ async function detectLocation() {
     el('l_lat').value = (+lat).toFixed(4);
     el('l_lon').value = (+lon).toFixed(4);
     if (city && !el('l_city').value) el('l_city').value = city;
+    applyCoverage();
     setStatus('ok', note);
   };
   try {
@@ -1209,8 +1221,8 @@ el('s_wrows').addEventListener('change', updateSlotVisibility);
 // still the shipped US default moves the zone along (and back, the other way)
 el('a_fcsrc').addEventListener('change', () => {
   const tz = el('t_tz');
-  if (el('a_fcsrc').value === 'ims' && tz.value === US_TZ) tz.value = ISRAEL_TZ;
-  else if (el('a_fcsrc').value === 'nws' && tz.value === ISRAEL_TZ) tz.value = US_TZ;
+  if (el('a_fcsrc').value === 'ims' && tz.value === US_TZ) selectOrAppend(tz, ISRAEL_TZ);
+  else if (el('a_fcsrc').value === 'nws' && tz.value === ISRAEL_TZ) selectOrAppend(tz, US_TZ);
 });
 
 // A static IP belongs to the network it was set for: choosing another
@@ -1296,39 +1308,79 @@ function hideLayoutSettings() {
   el('fixednote').style.display = 'block';
 }
 
-// A Hebrew build is for Israel: its page leaves out what only the US has
-// (weather.gov, AirNow); the others leave out what only Israel has (IMS,
-// the Ministry's air quality). A part stays when the device's config uses
-// it (data-feature), and a part made for the other region's alternative
-// goes when that is in use (data-unless).
+// A Hebrew build is for Israel: hints written for one country (data-region)
+// show in that country's build only. The sources themselves follow the
+// coordinates (applyCoverage), and the source hints the chosen source
+// (data-source, updateSourceFields).
 function isIsraelBuild() { return (info.locale ?? '').startsWith('he'); }
-function featureInUse(f) {
-  const api = cfg?.api ?? {};
-  // an unset source is the firmware's default, weather.gov, in every build
-  const fc = api.forecast_source ?? 'nws';
-  if (f === 'nws') return fc === 'nws';
-  if (f === 'ims') return fc === 'ims';
-  if (f === 'airnow') return !!api.airnow_api_key || api.aqi_source === 'airnow';
-  if (f === 'israel-aq') return api.aqi_source === 'israel';
-  return false;
-}
 function applyRegion() {
   const region = isIsraelBuild() ? 'il' : 'us';
-  for (const e of document.querySelectorAll('[data-region]')) {
-    const show = (e.dataset.region === region
-                  || (e.dataset.feature && featureInUse(e.dataset.feature)))
-                 && !(e.dataset.unless && featureInUse(e.dataset.unless));
-    if (e.tagName === 'OPTION') {
-      // a hidden option still shows in iOS Safari's picker: take it out
-      if (!show && !e.selected) e.remove();
-    } else {
-      e.style.display = show ? '' : 'none';
-    }
-  }
+  for (const e of document.querySelectorAll('[data-region]'))
+    e.style.display = e.dataset.region === region ? '' : 'none';
   el('aqi_auto').textContent = t(region === 'il'
     ? 'Automatic (the Ministry with IMS, else model)'
     : 'Automatic (AirNow with a key, else model)');
 }
+
+// Where the country services answer, by coordinates: the same boxes as the
+// firmware's coverage.h (keep the two alike). weather.gov and AirNow in the
+// US and its territories, IMS and the Ministry's stations in Israel. Boxes,
+// so generous along borders.
+const COVERAGE = {
+  us: [[24.3, 49.5, -125.0, -66.8], [51.0, 71.6, -180.0, -129.9], [51.0, 53.5, 172.0, 180.0],
+       [18.8, 22.4, -160.4, -154.6], [17.6, 18.6, -67.4, -64.5], [13.2, 20.6, 144.6, 146.1],
+       [-14.6, -14.1, -171.1, -168.1]],
+  il: [[29.45, 33.35, 34.25, 35.90]],
+};
+function covers(country) {
+  const lat = parseFloat(el('l_lat').value), lon = parseFloat(el('l_lon').value);
+  // no coordinates yet: the build's own country
+  if (!isFinite(lat) || !isFinite(lon)) return country === (isIsraelBuild() ? 'il' : 'us');
+  return COVERAGE[country].some(([a, b, c, d]) => lat >= a && lat <= b && lon >= c && lon <= d);
+}
+// the sources' full lists, before any is taken out
+const ALL_OPTIONS = {};
+for (const id of ['a_fcsrc', 'a_aqisrc'])
+  ALL_OPTIONS[id] = [...el(id).options];
+function offerOnly(id, allowed) {
+  const sel = el(id), keep = sel.value;
+  sel.replaceChildren(...ALL_OPTIONS[id].filter(o => allowed(o.value)));
+  if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
+  return [...sel.options].some(o => o.value === keep);
+}
+// Called when the coordinates change and once the page is filled in: a
+// country's service is offered only for coordinates in that country, and
+// one already chosen for elsewhere is swapped for the one that covers the
+// spot (or Open-Meteo), as the firmware would do at its next start.
+function applyCoverage() {
+  const us = covers('us'), il = covers('il');
+  const notes = [];
+  const fc = el('a_fcsrc').value;
+  if (!offerOnly('a_fcsrc', v => v === 'nws' ? us : v === 'ims' ? il : true)) {
+    const instead = us ? 'nws' : il ? 'ims' : 'open-meteo';
+    el('a_fcsrc').value = instead;
+    el('a_fcsrc').dispatchEvent(new Event('change'));
+    notes.push(t(fc === 'nws' ? 'weather.gov covers only the US.' : 'IMS covers only Israel.')
+               + ' ' + t({'nws': 'The forecast now comes from weather.gov.',
+                          'ims': 'The forecast now comes from IMS.',
+                          'open-meteo': 'The forecast now comes from Open-Meteo.'}[instead]));
+  }
+  const aq = el('a_aqisrc').value;
+  if (!offerOnly('a_aqisrc', v => v === 'airnow' ? us : v === 'israel' ? il : true)) {
+    el('a_aqisrc').value = 'auto';
+    el('a_aqisrc').dispatchEvent(new Event('change'));
+    notes.push(t(aq === 'airnow' ? 'AirNow covers only the US.' : 'The Ministry\'s stations cover only Israel.')
+               + ' ' + t('Air quality is now Automatic.'));
+  }
+  const usKey = us || !!el('a_airnow').value.trim();
+  for (const e of document.querySelectorAll('[data-cover]')) e.style.display = usKey ? '' : 'none';
+  for (const e of document.querySelectorAll('[data-cover-else]')) e.style.display = usKey ? 'none' : '';
+  const note = el('covernote');
+  note.textContent = notes.join(' ');
+  note.style.display = notes.length ? '' : 'none';
+  updateSourceFields();
+}
+for (const id of ['l_lat', 'l_lon']) el(id).addEventListener('change', applyCoverage);
 
 // The IMS location and the Ministry station only matter when those sources
 // are in use; their fields (and their hints) show only then.
@@ -1342,6 +1394,13 @@ function updateSourceFields() {
     input.previousElementSibling.style.display = on ? '' : 'none';
   }
   el('a_ilsid').nextElementSibling.style.display = il ? '' : 'none';
+  el('uabox').style.display = el('a_fcsrc').value === 'nws' ? '' : 'none';
+  // the forecast and current-conditions hints of the chosen source's country
+  // (with Open-Meteo, the build's own)
+  const fcs = el('a_fcsrc').value;
+  const country = fcs === 'nws' ? 'us' : fcs === 'ims' ? 'il' : (isIsraelBuild() ? 'il' : 'us');
+  for (const e of document.querySelectorAll('[data-source]'))
+    e.style.display = e.dataset.source === country ? '' : 'none';
 }
 el('a_fcsrc').addEventListener('change', updateSourceFields);
 el('a_aqisrc').addEventListener('change', updateSourceFields);
@@ -1509,10 +1568,12 @@ fetch('/config', { headers: { 'X-Requested-With': 'WeatherEPD' } })
     }
     populate();
     applyRegion();
+    applyCoverage();
   })).catch(e => infoLoaded.then(() => {
     cfg = {};
     populate();
     applyRegion();
+    applyCoverage();
     setStatus('err', t('Failed to load current config:') + ' ' + e.message);
   }));
 </script>

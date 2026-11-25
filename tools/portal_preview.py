@@ -64,6 +64,7 @@ def info(board, locale="en_US"):
          "heat_stress_default": locale.startswith("he"),
          "default_timezone": ("IST-2IDT,M3.4.4/26,M10.5.0" if locale.startswith("he")
                               else "EST5EDT,M3.2.0,M11.1.0"),
+         "default_forecast_source": "ims" if locale.startswith("he") else "nws",
          "fonts": ["Bitter", "FreeSans", "Lato", "Montserrat", "Ubuntu"],
          "last_wake": wake}
     d.update(BOARDS[board])

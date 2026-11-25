@@ -357,13 +357,15 @@ All runtime settings live in [`platformio/data/config.json`](platformio/data/con
 <summary><b>Weather sources and API keys</b></summary>
 
 - `api.forecast_source`: where the forecasts, condition icons and alerts come from.
-  - `"nws"` (default) is weather.gov, US only.
+  - `"nws"` (the default) is weather.gov, US only.
   - `"open-meteo"` is worldwide and keyless, with a 7-day forecast, hourly temperature, humidity, rain chance, wind and condition codes, and daily rain totals. It has no alerts.
-  - `"ims"` is the Israel Meteorological Service: hourly forecasts and regional warnings, Israel only. Replies follow the firmware's language. `api.ims_location_id` picks one of IMS's ~160 locations ([list](https://ims.gov.il/en/locations_info)); `0` takes the nearest. IMS times are Israel time, so set `timezone` to match.
+  - `"ims"` is the Israel Meteorological Service: hourly forecasts and regional warnings, Israel only. Replies follow the firmware's language. `api.ims_location_id` picks one of IMS's ~160 locations ([list](https://ims.gov.il/en/locations_info)); `0` takes the nearest. IMS times are Israel time, so set `timezone` to match. The default in a Hebrew build.
+
+  A source that doesn't cover your coordinates is replaced when the settings load: weather.gov outside the US and its territories, IMS outside Israel. The display then uses the one that does cover them, or Open-Meteo. The portal offers each one only for coordinates it covers, and says so when it switches. AirNow and the Ministry's air quality follow the same rule (`aqi_source` goes back to `"auto"`).
 - `api.current_source`: where the current conditions come from.
   - `"open-meteo"` (default) is Open-Meteo's model at your coordinates, updated about every 15 minutes.
   - `"google"` is the [Google Weather API](https://developers.google.com/maps/documentation/weather)'s station-blended nowcast, using `pollen_api_key`.
-  - `"nws"` is weather.gov's forecast for the current hour: no extra request, but no pressure or visibility.
+  - `"nws"` is the forecast source's own: weather.gov's forecast for the current hour, or IMS's current conditions. Pressure and visibility then come from Open-Meteo.
 
   If the source fails, the display falls back to the hourly forecast and the last cached values.
 - `api.aqi_source`: where the air quality index comes from.

@@ -317,7 +317,7 @@ String CURRENT_SOURCE = "open-meteo";
 // FORECAST SOURCE
 // Where the hourly and daily forecasts, the condition icons and the weather
 // alerts come from.
-//   "nws" (default) - weather.gov (US National Weather Service). United
+//   "nws"           - weather.gov (US National Weather Service). United
 //                     States only. Free, no key.
 //   "open-meteo"    - Open-Meteo (open-meteo.com), anywhere in the world.
 //                     Free, no key. 7-day forecast with hourly temperature,
@@ -332,7 +332,10 @@ String CURRENT_SOURCE = "open-meteo";
 //                     The CURRENT_SOURCE option "nws" then means IMS's own
 //                     current conditions. IMS times are Israel local time, so
 //                     TIMEZONE should be Israel's.
-String FORECAST_SOURCE = "nws";
+// The default is DEFAULT_FORECAST_SOURCE (config.h): "nws", or "ims" in a
+// Hebrew build. A source that does not cover LAT/LON (coverage.h) is replaced
+// by the one that does, or by "open-meteo", when the settings load.
+String FORECAST_SOURCE = DEFAULT_FORECAST_SOURCE;
 // IMS forecast location (lid from https://ims.gov.il/en/locations_info):
 // 0 picks the one nearest LAT/LON automatically.
 int IMS_LOCATION_ID = 0;

@@ -317,6 +317,7 @@ static void handleGetInfo()
   doc["rtl"] = LC_RTL;
   doc["heat_stress_default"] = LC_PREFER_HEAT_STRESS;
   doc["default_timezone"] = DEFAULT_TIMEZONE;
+  doc["default_forecast_source"] = DEFAULT_FORECAST_SOURCE;
   // font families compiled into this firmware, for the Font dropdown
   JsonArray fonts = doc["fonts"].to<JsonArray>();
 #if defined(GREYS_75)
