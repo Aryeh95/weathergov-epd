@@ -21,6 +21,7 @@
 
 #include <SPI.h>
 #include "epd709.h"
+#include "epd709_lut.h"
 #include <Wire.h>
 
 extern Epd709 display;
@@ -242,6 +243,7 @@ void epd709Lab()
                  "  ppll HH           clock of pcard's cut passes (00 = pll's)\n"
                  "  img [lab]         a frame over USB; lab = at pll's clock\n"
                  "  pof HH | pwr B0..B5 | lut | lutmode 0/1   register waveform table\n"
+                 "  g13 [SET] | f3c [SET]  build & arm on-device fast709 LUT from 0x93\n"
                  "  rd CMD N m/s [busy]  read N bytes after CMD (hex dump)\n"
                  "  reset             hardware reset + register table");
   reconfigure();
@@ -507,6 +509,7 @@ void epd709Lab()
     }
     else if (o == "lut")
     { // 800 bytes over USB, answered with '#'
+      Serial.setRxBufferSize(2048); // default 256 can drop bursts
       Serial.println("[lab] lut ready");
       Serial.setTimeout(5000);
       const size_t got = Serial.readBytes(s_lut, sizeof(s_lut));
@@ -515,6 +518,54 @@ void epd709Lab()
       for (uint8_t b : s_lut) sum += b;
       Serial.printf("[lab] lut got %u bytes, sum %u\n", (unsigned)got, (unsigned)sum);
       if (got != sizeof(s_lut)) s_lutOn = false;
+    }
+    else if (o == "g13" || o == "f3c")
+    {
+      const bool isG13 = (o == "g13");
+      float tempC = 0.0f;
+      int8_t setIdx = (nt >= 2) ? static_cast<int8_t>(dec(1)) : -1;
+      if (setIdx < 0)
+      {
+        if (!d.readTempC(tempC))
+        {
+          Serial.println("[lab] temp read failed");
+          continue;
+        }
+        setIdx = Epd709Lut::setForTempC(tempC);
+        if (setIdx < 0)
+        {
+          Serial.printf("[lab] %.1f C outside 20.5..30.0 C; pass set index (e.g. %s 3)\n",
+                        tempC, o.c_str());
+          continue;
+        }
+      }
+      static uint8_t rawSet[Epd709Lut::TABLE_LEN];
+      Epd709Lut::BuildInfo info{};
+      if (!d.readOtpSet(static_cast<uint8_t>(setIdx), rawSet))
+      {
+        Serial.printf("[lab] 0x93 read/validate failed for set %d\n", setIdx);
+        continue;
+      }
+      if (!Epd709Lut::buildFast709(rawSet, s_lut, s_pwr, isG13, &info))
+      {
+        Serial.printf("[lab] %s build/lint failed for set %d\n", o.c_str(), setIdx);
+        continue;
+      }
+      s_pll = 0x08;
+      s_lutOn = true;
+      reconfigure();
+      if (nt >= 2)
+        Serial.printf("[lab] %s set %d (manual): %u fr (from %u), "
+                      "PWR %02X %02X %02X %02X %02X %02X, max|q| %.3f, ready\n",
+                      o.c_str(), setIdx, info.fastFrames, info.stockFrames,
+                      s_pwr[0], s_pwr[1], s_pwr[2], s_pwr[3], s_pwr[4], s_pwr[5],
+                      info.maxAbsQ);
+      else
+        Serial.printf("[lab] %s set %d (%.1f C): %u fr (from %u), "
+                      "PWR %02X %02X %02X %02X %02X %02X, max|q| %.3f, ready\n",
+                      o.c_str(), setIdx, tempC, info.fastFrames, info.stockFrames,
+                      s_pwr[0], s_pwr[1], s_pwr[2], s_pwr[3], s_pwr[4], s_pwr[5],
+                      info.maxAbsQ);
     }
     else if (o == "rd" && nt >= 4)
     { // rd CMD N CHIP(m/s) [busy]: send CMD, optionally wait for BUSY, clock

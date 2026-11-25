@@ -14,6 +14,7 @@
 #if defined(DISP_7C_709)
 
 #include "epd709.h"
+#include "epd709_lut.h"
 
 #ifndef EPD709_HOST
 #include <SPI.h>
@@ -132,6 +133,10 @@ void Epd709::init(uint32_t, bool, uint16_t, bool)
 }
 bool Epd709::nextPage() { return false; }
 void Epd709::hibernate() {}
+bool Epd709::readTempC(float &) { return false; }
+bool Epd709::readOtpSet(uint8_t, uint8_t *) { return false; }
+bool Epd709::setCustomLut(const uint8_t *, const uint8_t *) { return false; }
+void Epd709::clearCustomLut() { _useLut = false; }
 
 #else
 // ---- the panel
@@ -293,8 +298,152 @@ void Epd709::resetAndConfigure()
   _started = true;
 }
 
+bool Epd709::readTempC(float &tempC)
+{
+  if (PIN_EPD_MISO == PIN_UNUSED || !_started)
+  {
+    return false;
+  }
+  const uint8_t sck = PIN_EPD_SCK, mosi = PIN_EPD_MOSI, miso = PIN_EPD_MISO;
+  SPI.end();
+  pinMode(sck, OUTPUT);
+  pinMode(mosi, OUTPUT);
+  pinMode(miso, INPUT);
+  digitalWrite(sck, LOW);
+
+  uint8_t r[2] = {0, 0};
+  // 0x40 TSC lags by one read on GDEB0709E01; prime first, keep second.
+  for (int pass = 0; pass < 2; ++pass)
+  {
+    select(true, false);
+    digitalWrite(_dc, LOW);
+    for (int b = 7; b >= 0; --b)
+    {
+      digitalWrite(mosi, (0x40 >> b) & 1);
+      delayMicroseconds(2);
+      digitalWrite(sck, HIGH);
+      delayMicroseconds(2);
+      digitalWrite(sck, LOW);
+    }
+    delay(1);
+    const uint32_t t0 = millis();
+    while (digitalRead(_busy) == LOW && millis() - t0 < 2000) {}
+    digitalWrite(_dc, HIGH);
+    for (int k = 0; k < 2; ++k)
+    {
+      uint8_t v = 0;
+      for (int b = 7; b >= 0; --b)
+      {
+        delayMicroseconds(2);
+        digitalWrite(sck, HIGH);
+        delayMicroseconds(2);
+        v |= static_cast<uint8_t>(digitalRead(miso) << b);
+        digitalWrite(sck, LOW);
+      }
+      r[k] = v;
+    }
+    select(false, false);
+    delay(2);
+  }
+  SPI.begin(sck, -1, mosi, -1);
+  resetAndConfigure();
+
+  tempC = static_cast<int8_t>(r[0]) + ((r[1] & 0x80) ? 0.5f : 0.0f);
+  return tempC >= -25.0f && tempC <= 50.0f;
+}
+
+bool Epd709::readOtpSet(uint8_t setIdx, uint8_t out[800])
+{
+  if (PIN_EPD_MISO == PIN_UNUSED || !_started || setIdx > 9 || !out)
+  {
+    return false;
+  }
+  const uint32_t start = 799U * setIdx;
+  const uint32_t end = start + Epd709Lut::TABLE_LEN;
+  const uint8_t sck = PIN_EPD_SCK, mosi = PIN_EPD_MOSI, miso = PIN_EPD_MISO;
+
+  SPI.end();
+  pinMode(sck, OUTPUT);
+  pinMode(mosi, OUTPUT);
+  pinMode(miso, INPUT);
+  digitalWrite(sck, LOW);
+  select(true, false);
+  digitalWrite(_dc, LOW);
+  for (int b = 7; b >= 0; --b)
+  {
+    digitalWrite(mosi, (0x93 >> b) & 1);
+    delayMicroseconds(2);
+    digitalWrite(sck, HIGH);
+    delayMicroseconds(2);
+    digitalWrite(sck, LOW);
+  }
+  delay(1);
+  digitalWrite(_dc, HIGH);
+
+  // GDEB0709E01 returns 0x93 as 6-byte words: 1 prefix + 4 LUT bytes
+  // (i%6 in 1..4) + 2 chip-specific bytes. Stripping to 1..4 gives sets
+  // 0..9 at exact stride 799 starting at offset 0.
+  uint32_t sIdx = 0;
+  uint32_t rawIdx = 0;
+  uint32_t collected = 0;
+  while (collected < Epd709Lut::TABLE_LEN)
+  {
+    uint8_t v = 0;
+    for (int b = 7; b >= 0; --b)
+    {
+      delayMicroseconds(1);
+      digitalWrite(sck, HIGH);
+      delayMicroseconds(1);
+      v |= static_cast<uint8_t>(digitalRead(miso) << b);
+      digitalWrite(sck, LOW);
+    }
+    const uint8_t m6 = static_cast<uint8_t>(rawIdx % 6U);
+    if (m6 >= 1 && m6 <= 4)
+    {
+      if (sIdx >= start && sIdx < end)
+      {
+        out[sIdx - start] = v;
+        ++collected;
+      }
+      ++sIdx;
+    }
+    ++rawIdx;
+  }
+
+  select(false, false);
+  SPI.begin(sck, -1, mosi, -1);
+  resetAndConfigure();
+  return Epd709Lut::validateStockSet(out);
+}
+
+bool Epd709::setCustomLut(const uint8_t lut[800], const uint8_t pwr[6])
+{
+  if (!Epd709Lut::lintCustom(lut, pwr))
+  {
+    _useLut = false;
+    return false;
+  }
+  memcpy(_lutBuf, lut, sizeof(_lutBuf));
+  memcpy(_lutPwr, pwr, sizeof(_lutPwr));
+  _useLut = true;
+  return true;
+}
+
+void Epd709::clearCustomLut()
+{
+  _useLut = false;
+}
+
 void Epd709::sendFrame()
 {
+  if (_useLut)
+  { // select register table in PSR (bit 7 of byte 2), set matching weak
+    // rails (master only), and upload 800 B waveform to 0x20 on both chips
+    static const uint8_t psrLut[] = {0xDF, 0xEB};
+    command(true, true, 0x00, psrLut, sizeof(psrLut));
+    command(true, false, 0x01, _lutPwr, sizeof(_lutPwr));
+    command(true, true, 0x20, _lutBuf, sizeof(_lutBuf));
+  }
   // CCSET picks the waveform group stored in the controllers and has to go
   // out before every frame, not once at start-up.
   static const uint8_t ccset = 0x01;
@@ -340,13 +489,15 @@ void Epd709::sendFrame()
 void Epd709::refresh()
 {
   static const uint8_t drf = 0x00;
-  // POF with data byte 00. With 01 (as this driver sent until 2026-11-26)
+  // POF with data byte 00. With 01 (as this driver sent until 2026-11-25)
   // the controllers kept the gate pump running unloaded for about 1 s: VGH
   // rose from 26.7 to 28.8 V, over the panel's 28 V maximum, and was then
   // left floating near 10 V. With 00 it stays at 26.7 V and drops to 0 at
   // once (multimeter on the EE02's TP16; byte as in Jonas Niesner's "E-paper
   // LUT research" and GxEPD2's GDEP073E01 driver).
   static const uint8_t pof = 0x00;
+  _lastUsedLut = _useLut;
+  _lastWasStockNormal = (!_useLut && _pll == CLOCK_NORMAL);
   command(true, true, 0x30, &_pll, 1);   // the clock: how fast the waveform plays
   command(true, true, 0x04, nullptr, 0); // power on
   waitReady(EPD709_BUSY_TIMEOUT_MS);

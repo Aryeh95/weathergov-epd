@@ -38,6 +38,10 @@
 #include <cmath>
 #include <cstdlib>
 #include <vector>
+#ifndef EPD709_HOST
+#include <Preferences.h>
+#include "epd709_lut.h"
+#endif
 #include "_locale.h"
 #include "_strftime.h"
 #include "api_response.h"
@@ -3937,7 +3941,51 @@ void initDisplay()
     delay(100); // let the panel's supply come up before it is spoken to
   }
   display.init();
+  display.clearCustomLut();
+#if !defined(EPD709_HOST) && !defined(EPD709_LAB) && !defined(EPD709_TEST_CARD)
+  if (FAST_REFRESH)
+  {
+    Preferences store;
+    store.begin(NVS_NAMESPACE, true);
+    const uint8_t lutCount = store.getUChar("lut709n", 0);
+    store.end();
+    if (lutCount >= 9)
+    {
+      Serial.println("[epd709] fast LUT scrub (10th wake), using stock OTP");
+      display.setClock(Epd709::CLOCK_NORMAL);
+    }
+    else
+    {
+      static uint8_t rawSet[Epd709Lut::TABLE_LEN];
+      static uint8_t fastLut[Epd709Lut::TABLE_LEN];
+      uint8_t fastPwr[6];
+      float tempC = 0.0f;
+      int8_t setIdx = display.readTempC(tempC)
+                        ? Epd709Lut::setForTempC(tempC) : -1;
+      Epd709Lut::BuildInfo info{};
+      if (setIdx >= 0 && display.readOtpSet(setIdx, rawSet)
+          && Epd709Lut::buildFast709(rawSet, fastLut, fastPwr, true, &info)
+          && display.setCustomLut(fastLut, fastPwr))
+      {
+        display.setClock(Epd709::CLOCK_NORMAL);
+        Serial.printf("[epd709] fast G13 set %d (%.1f C, %u fr, max|q| %.3f)\n",
+                      setIdx, tempC, info.fastFrames, info.maxAbsQ);
+      }
+      else
+      {
+        Serial.printf("[epd709] fast G13 unavailable (%.1f C, set %d), using PLL 0x04\n",
+                      tempC, setIdx);
+        display.setClock(Epd709::CLOCK_FAST);
+      }
+    }
+  }
+  else
+  {
+    display.setClock(Epd709::CLOCK_NORMAL);
+  }
+#else
   display.setClock(FAST_REFRESH ? Epd709::CLOCK_FAST : Epd709::CLOCK_NORMAL);
+#endif
   display.setRotation(EPD709_ROTATION);
   display.setFullWindow();
   display.firstPage();
@@ -3945,6 +3993,28 @@ void initDisplay()
 
 void powerOffDisplay()
 {
+#if !defined(EPD709_HOST) && !defined(EPD709_LAB) && !defined(EPD709_TEST_CARD)
+  if (FAST_REFRESH)
+  {
+    if (display.lastRefreshUsedLut())
+    {
+      Preferences store;
+      store.begin(NVS_NAMESPACE, false);
+      store.putUChar("lut709n", store.getUChar("lut709n", 0) + 1);
+      store.end();
+    }
+    else if (display.lastRefreshWasStockNormal())
+    {
+      Preferences store;
+      store.begin(NVS_NAMESPACE, false);
+      if (store.getUChar("lut709n", 0) != 0)
+      {
+        store.putUChar("lut709n", 0);
+      }
+      store.end();
+    }
+  }
+#endif
   display.hibernate();
   if (PIN_EPD_PWR != PIN_UNUSED)
   {
@@ -3961,6 +4031,7 @@ static void centred(int y, const String &s,
 void drawConfigPortalScreen(const String &line1, const String &line2,
                             const String &line3)
 {
+  display.clearCustomLut();
   display.setClock(Epd709::CLOCK_QUICK); // text to read once: 13 s, not 30
   drawBitmap2x(DISP_WIDTH / 2 - 196, 110, wifi_196x196, 196, 196, R);
   centred(560, TXT709_SETUP_MODE, {&F_BITTERSB_72});
@@ -3979,6 +4050,7 @@ void drawConfigPortalScreen(const String &line1, const String &line2,
 void drawError(const uint8_t *bitmap_196x196, const String &errMsgLn1,
                const String &errMsgLn2, bool mono)
 {
+  display.clearCustomLut();
   display.setClock(Epd709::CLOCK_QUICK); // text to read once: 13 s, not 30
   // mono: the icon in black too, one pigment
   drawBitmap2x(DISP_WIDTH / 2 - 196, 230, bitmap_196x196, 196, 196,
