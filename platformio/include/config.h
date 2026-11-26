@@ -730,6 +730,8 @@ extern String GRAPH_SLOTS[4];
 // The strip of named weather above the hourly graph(s) (config.json
 // "graph_strip").
 extern bool GRAPH_STRIP;
+// The weather page in 15-20 s instead of 30-49 (config.json "fast_refresh").
+extern bool FAST_REFRESH;
 #endif
 #if defined(DISP_4G_426)
 // The 4.26in home page's three tiles, left to right, by widget key

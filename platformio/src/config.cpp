@@ -42,7 +42,8 @@ const uint8_t PIN_EPD_CS2  = 41; // slave, right half
 const uint8_t PIN_EPD_RST  = 38;
 const uint8_t PIN_EPD_DC   = 10;
 const uint8_t PIN_EPD_SCK  = 7;
-const uint8_t PIN_EPD_MISO = 8;  // wired to the panel's SI1, never read
+const uint8_t PIN_EPD_MISO = 8;  // the panel's SI1: its temperature and stored
+                                 // waveform are read on it (fast_refresh)
 const uint8_t PIN_EPD_MOSI = 9;
 const uint8_t PIN_EPD_PWR  = 43; // panel supply load switch (the UART0 TX pin)
 const uint8_t PIN_SD_EN    = PIN_UNUSED; // no microSD slot
@@ -469,6 +470,12 @@ String GRAPH_SLOTS[4] = {"temp_dew", "wind", "rain_both", ""};
 // The strip of named weather above the hourly graph(s) ("Showers 12am -
 // 8am"), config.json "graph_strip". Off, the graphs take its room.
 bool GRAPH_STRIP = true;
+// The weather page's refresh: false, the stock 30-49 s the inks were measured
+// with; true, faster (config.json "fast_refresh"): G13 (about 15 s at
+// 17-21 C, 17.5 s at 21-25.5 C, the same colours), else the controllers'
+// clock raised (20 s); every 10th wake stock. The setup and error pages
+// always take the 13 s clock.
+bool FAST_REFRESH = false;
 #endif
 
 // BATTERY

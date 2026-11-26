@@ -95,6 +95,30 @@ public:
    * on a panel whose darkest and lightest inks have nothing in between.
    */
   void setStipple(uint8_t density) { _stipple = density; }
+  /* The controllers' clock (register 0x30) for the next refreshes. The
+   * stored waveform plays faster at a higher setting: on this panel
+   * (2026-11-24, scans) 0x08 = 30 s, the colours the inks were measured
+   * with; 0x04 = 20 s, black/yellow/blue/red within dE 1-5 and the green
+   * lighter and truer; 0x07 = 13 s, black only a dark grey and the colours
+   * washed out (fine for the setup and error pages). On the EE02, VGH held
+   * 26.6-26.8 V through the refresh at all three, and peaked at 28.8 V at
+   * the end of it at 0x08 as at 0x07 (multimeter MIN/MAX, webcam). */
+  enum : uint8_t { CLOCK_NORMAL = 0x08, CLOCK_FAST = 0x04, CLOCK_QUICK = 0x07 };
+  void setClock(uint8_t pll) { _pll = pll; }
+
+  // Read master controller temperature (0x40, primed) and stripped 0x93 OTP
+  // set (6-byte words, LUT bytes at i%6 in {1..4}). Both return false on
+  // the PC preview.
+  bool readTempC(float &tempC);
+  bool readOtpSet(uint8_t setIdx, uint8_t out[800]);
+  // Stage a register LUT (0x20) + PWR (0x01) for subsequent refreshes;
+  // rejected if Epd709Lut::lintCustom() fails.
+  bool setCustomLut(const uint8_t lut[800], const uint8_t pwr[6]);
+  void clearCustomLut();
+  bool lastRefreshUsedLut() const { return _lastUsedLut; }
+  bool lastRefreshWasStockNormal() const { return _lastWasStockNormal; }
+  // BUSY time of the last refresh (ms), from DRF to ready
+  uint32_t lastRefreshMs() const { return _lastRefreshMs; }
 
   bool ready() const { return _frame != nullptr; }
   const uint8_t *frame() const { return _frame; }
@@ -104,8 +128,15 @@ private:
   uint8_t _csM, _csS, _dc, _rst, _busy;
   uint8_t _stipple = 0;
   uint8_t _rotation = 0;
+  uint8_t _pll = CLOCK_NORMAL;
+  uint8_t _lutBuf[800] = {};
+  uint8_t _lutPwr[6] = {};
   int16_t _width = WIDTH, _height = HEIGHT;
   bool _started = false;
+  bool _useLut = false;
+  bool _lastUsedLut = false;
+  bool _lastWasStockNormal = false;
+  uint32_t _lastRefreshMs = 0;
 
   static uint8_t inkOf(uint16_t color);
   bool waitReady(uint32_t timeoutMs, bool lightSleep = false);
@@ -114,6 +145,7 @@ private:
                size_t len);
   void sendFrame();
   void refresh();
+  void resetAndConfigure(); // hardware reset, then the register table
 };
 
 #endif
