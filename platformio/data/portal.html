@@ -279,12 +279,13 @@
         <label>Weather strip above the graph</label>
         <select id="g_strip"><option value="1">On (named weather: Showers 12am – 8am)</option><option value="0">Off (more room for the graphs)</option></select>
         <label>Refresh speed</label>
-        <select id="g_fast"><option value="0">Normal (30 s, the measured colours)</option><option value="1">Faster (15-18 s at 17-25.5 °C, else 20 s)</option></select>
+        <select id="g_fast"><option value="0">Normal (30-49 s, the measured colours)</option><option value="1">Faster (15-18 s at 17-25.5 °C, else 20 s)</option></select>
         <div class="hint">Faster builds a quicker version of the panel's own waveform on the
           device: about 15 s at 17-21 °C and 17.5 s at 21-25.5 °C, with the same
           colours. Elsewhere it plays the normal waveform faster, 20 s, with blue
           and green a little lighter. Every 10th update is a normal one, to keep
-          the panel clean.</div>
+          the panel clean. All times depend on the panel's own temperature: the
+          normal refresh takes about 30 s at 21-25.5 °C and up to 49 s below 21 °C.</div>
         <div class="hint">Stacked: up to four smaller graphs on one time scale,
           top to bottom. With weather.gov, an hour's rain amount is its share
           of weather.gov's 6-hour total, shared out by the hours' chance of rain.</div>
