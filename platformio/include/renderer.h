@@ -63,6 +63,8 @@
   #define G75_LGW  0x0002  // light grey + white
   #define G75_LGW4 0x0003  // light grey on one dot in four, the faintest
   #define G75_DGLG 0x0004  // dark + light grey, a mid grey (L* 54 measured)
+  // Whether the page has an alert (drawAlerts): set before drawing the page.
+  extern bool ALERT_75;
   // Half of the page per band: 48000 bytes of buffer, 2 draw passes.
   typedef GxEPD2_4G_4G<GxEPD2_BW_V2_PANEL,
                        GxEPD2_BW_V2_PANEL::HEIGHT / 2> Grey75Base;

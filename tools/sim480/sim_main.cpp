@@ -259,6 +259,9 @@ static void drawPage(const char *out, const String &status, bool stale)
 #if defined(DISP_4G_426)
     ALERT_426 = !alerts.empty();   // as main.cpp sets it
 #endif
+#if defined(GREYS_75)
+    ALERT_75 = !alerts.empty();    // as main.cpp sets it
+#endif
     drawCurrentConditions(current, daily[0], air, pollen, NAN, NAN);
     drawOutlookGraph(hourly, daily, timeInfo);
     drawForecast(daily, timeInfo);
@@ -547,6 +550,9 @@ static int mainUS(const std::string &outDir)
 #if defined(DISP_4G_426)
     ALERT_426 = !alerts.empty();   // as main.cpp sets it
 #endif
+#if defined(GREYS_75)
+    ALERT_75 = !alerts.empty();    // as main.cpp sets it
+#endif
     drawCurrentConditions(current, daily[0], air, pollen, inTemp, inHum);
     drawOutlookGraph(hourly, daily, timeInfo);
     drawForecast(daily, timeInfo);
@@ -566,6 +572,9 @@ static int mainUS(const std::string &outDir)
   {
 #if defined(DISP_4G_426)
     ALERT_426 = !alerts.empty();   // as main.cpp sets it
+#endif
+#if defined(GREYS_75)
+    ALERT_75 = !alerts.empty();    // as main.cpp sets it
 #endif
     drawCurrentConditions(current, daily[0], air, pollen, inTemp, inHum);
     drawOutlookGraph(hourly, daily, timeInfo);

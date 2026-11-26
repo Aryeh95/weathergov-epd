@@ -279,8 +279,12 @@
  */
 static const uint16_t G_DG = GxEPD_DARKGREY;
 static const uint16_t G_LG = GxEPD_LIGHTGREY;
+bool ALERT_75 = false;
 // greys on this page: not in dark mode
 static inline bool greys() {return !DARK_MODE;}
+static inline bool alertRibbon75() {return greys() && ALERT_75;}
+#else
+static inline bool alertRibbon75() {return false;}
 #endif
 
 #if defined(GREYS_75)
@@ -442,8 +446,9 @@ size_t Grey75Display::write(uint8_t c)
   }
   // black text: black core, light-grey edge. The grey labels (G75_DGLG, a
   // dark/light-grey mix): that mix for the core, light grey and white mixed
-  // for the edge. Any other colour (white on black, say): one ink, core and
-  // edge alike.
+  // for the edge. White text (warning banners, dark tabs): white core with
+  // light-grey anti-aliased edge. Any other colour: one ink, core and edge
+  // alike.
   // A point, comma or colon in the grey mix is a dot or two, which the
   // mix's checker can leave all light grey (the rain amounts' decimal
   // point vanished): those are drawn black.
@@ -482,6 +487,10 @@ size_t Grey75Display::write(uint8_t c)
           else if (dg)
           {
             ink = (v == 3) ? GxEPD_DARKGREY : (v == 2) ? G75_DGLG : GxEPD_LIGHTGREY;
+          }
+          else if (textcolor == GxEPD_WHITE)
+          {
+            ink = (v == 3) ? GxEPD_WHITE : GxEPD_LIGHTGREY;
           }
           drawPixel(x0 + x, y0 + y, ink);
         }
@@ -2504,9 +2513,12 @@ void drawCurrentConditions(const owm_current_t &current,
   }
   else
 #endif
-  drawConditionIcon(0, 0, getCurrentConditionsBitmap196(current, today),
+  drawConditionIcon(0, alertRibbon75() ? 16 : 0,
+                    getCurrentConditionsBitmap196(current, today),
                     196, getCurrentConditionsColor196(current),
                     current.weather.id);
+
+  const int16_t tempDy = alertRibbon75() ? 10 : 0;
 
   // current temp
 #ifdef UNITS_TEMP_KELVIN
@@ -2527,12 +2539,12 @@ void drawCurrentConditions(const owm_current_t &current,
   // temperature (0123456789.-\260)
   display.setFont(&FONT_48pt8b_temperature);
 #ifndef DISP_BW_V1
-    drawString(196 + 164 / 2 - 20, 196 / 2 + 69 / 2, dataStr, CENTER);
+    drawString(196 + 164 / 2 - 20, 196 / 2 + 69 / 2 + tempDy, dataStr, CENTER);
 #elif defined(DISP_BW_V1)
-    drawString(156 + 164 / 2 - 20, 196 / 2 + 69 / 2, dataStr, CENTER);
+    drawString(156 + 164 / 2 - 20, 196 / 2 + 69 / 2 + tempDy, dataStr, CENTER);
 #endif
   display.setFont(&FONT_14pt8b);
-  drawString(display.getCursorX(), 196 / 2 - 69 / 2 + 20, unitStr, LEFT,
+  drawString(display.getCursorX(), 196 / 2 - 69 / 2 + 20 + tempDy, unitStr, LEFT,
              G75_SUB_INK);
 
   // current feels like
@@ -2554,10 +2566,10 @@ void drawCurrentConditions(const owm_current_t &current,
 #endif
   display.setFont(&FONT_12pt8b);
 #ifndef DISP_BW_V1
-  drawString(196 + 164 / 2, 98 + 69 / 2 + 12 + 17, dataStr, CENTER,
+  drawString(196 + 164 / 2, 98 + 69 / 2 + 12 + 17 + tempDy, dataStr, CENTER,
              G75_SUB_INK);
 #elif defined(DISP_BW_V1)
-  drawString(156 + 164 / 2, 98 + 69 / 2 + 12 + 17, dataStr, CENTER,
+  drawString(156 + 164 / 2, 98 + 69 / 2 + 12 + 17 + tempDy, dataStr, CENTER,
              G75_SUB_INK);
 #endif
 
@@ -2568,10 +2580,10 @@ void drawCurrentConditions(const owm_current_t &current,
   {
     display.setFont(&FONT_7pt8b);
 #ifndef DISP_BW_V1
-    drawString(196 + 164 / 2, 98 + 69 / 2 + 12 + 17 + 17,
+    drawString(196 + 164 / 2, 98 + 69 / 2 + 12 + 17 + 17 + tempDy,
                current.weather.description, CENTER);
 #elif defined(DISP_BW_V1)
-    drawString(156 + 164 / 2, 98 + 69 / 2 + 12 + 17 + 17,
+    drawString(156 + 164 / 2, 98 + 69 / 2 + 12 + 17 + 17 + tempDy,
                current.weather.description, CENTER);
 #endif
   }
@@ -2694,15 +2706,18 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
     // Right to left, today takes the rightmost column and the days run
     // leftwards, as a Hebrew calendar row reads.
     const int col = LC_RTL ? (days - 1 - i) : i;
+    const int fcDy = alertRibbon75() ? 4 : 0;
     int cx = xStart + static_cast<int>(col * colW + colW / 2);
     int iconX = cx - iconSize / 2;
-    int iconY = 98 + 69 / 2 - 6 - iconSize / 2;
+    int iconY = 98 + 69 / 2 - 6 - iconSize / 2 + fcDy;
 #if defined(GREYS_75)
     if (greys() && (col & 1))
     { // rounded cards on alternating days
       const int x0 = xStart + static_cast<int>(col * colW);
       const int x1 = xStart + static_cast<int>((col + 1) * colW);
-      display.fillRoundRect(x0 + 1, 58, x1 - x0 - 2, 140, 4, G75_LGW4);
+      const int cardY = alertRibbon75() ? 66 : 58;
+      const int cardH = alertRibbon75() ? 131 : 140;
+      display.fillRoundRect(x0 + 1, cardY, x1 - x0 - 2, cardH, 4, G75_LGW4);
     }
 #endif
     // icons
@@ -2735,16 +2750,16 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
       }
       display.setFont(rtlDayFont);
     }
-    drawString(cx - 2, 98 + 69 / 2 - 32 - 26 - 6 + 16, dayStr, CENTER);
+    drawString(cx - 2, 98 + 69 / 2 - 32 - 26 - 6 + 16 + fcDy, dayStr, CENTER);
     timeInfo.tm_wday = (timeInfo.tm_wday + 1) % 7; // increment to next day
 
     // high | low
     display.setFont(tempFont);
 #if defined(GREYS_75)
-    drawString(cx, 98 + 69 / 2 + 38 - 6 + 12, "|", CENTER,
+    drawString(cx, 98 + 69 / 2 + 38 - 6 + 12 + fcDy, "|", CENTER,
                greys() ? G_LG : DM_FG);
 #else
-    drawString(cx, 98 + 69 / 2 + 38 - 6 + 12, "|", CENTER);
+    drawString(cx, 98 + 69 / 2 + 38 - 6 + 12 + fcDy, "|", CENTER);
 #endif
 #ifdef UNITS_TEMP_KELVIN
     hiStr = String(static_cast<int>(std::round(daily[i].temp.max)));
@@ -2771,15 +2786,15 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
     for (int pass = 0; pass <= (DARK_MODE ? 1 : 0); ++pass)
     {
 #ifdef TEMP_ORDER_HL
-      drawString(cx - 4 + pass, 98 + 69 / 2 + 38 - 6 + 12, hiStr, RIGHT,
+      drawString(cx - 4 + pass, 98 + 69 / 2 + 38 - 6 + 12 + fcDy, hiStr, RIGHT,
                  DM_TEXT(COLOR_TEMP_HI));
-      drawString(cx + 5 + pass, 98 + 69 / 2 + 38 - 6 + 12, loStr, LEFT,
+      drawString(cx + 5 + pass, 98 + 69 / 2 + 38 - 6 + 12 + fcDy, loStr, LEFT,
                  LO_INK);
 #endif
 #ifdef TEMP_ORDER_LH
-      drawString(cx - 4 + pass, 98 + 69 / 2 + 38 - 6 + 12, loStr, RIGHT,
+      drawString(cx - 4 + pass, 98 + 69 / 2 + 38 - 6 + 12 + fcDy, loStr, RIGHT,
                  LO_INK);
-      drawString(cx + 5 + pass, 98 + 69 / 2 + 38 - 6 + 12, hiStr, LEFT,
+      drawString(cx + 5 + pass, 98 + 69 / 2 + 38 - 6 + 12 + fcDy, hiStr, LEFT,
                  DM_TEXT(COLOR_TEMP_HI));
 #endif
     }
@@ -2827,7 +2842,7 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
     if (showPrecip)
     {
       display.setFont(&FONT_6pt8b);
-      drawString(cx, 98 + 69 / 2 + 38 - 6 + 26,
+      drawString(cx, 98 + 69 / 2 + 38 - 6 + 26 + fcDy,
                  dataStr + unitStr, CENTER, DM_TEXT(COLOR_PRECIP));
     }
 #endif // DISPLAY_DAILY_PRECIP
@@ -3074,6 +3089,315 @@ static void drawAlertIcon(int16_t x, int16_t y, const owm_alerts_t &alert,
 #endif
 } // end drawAlertIcon
 
+#if defined(GREYS_75)
+struct RibbonIconBox
+{
+  int16_t minX, minY, srcW, srcH, dstW, dstH;
+};
+
+/* Finds the inked bounding box of a srcSize x srcSize inverted 1bpp bitmap and
+ * computes a proportionally fitted box up to targetH px tall.
+ */
+static RibbonIconBox measureRibbonIcon(const uint8_t *bmp, int16_t srcSize,
+                                       int16_t targetH)
+{
+  const int16_t byteW = (srcSize + 7) / 8;
+  int16_t minX = srcSize, minY = srcSize, maxX = -1, maxY = -1;
+  for (int16_t sy = 0; sy < srcSize; ++sy)
+  {
+    for (int16_t sx = 0; sx < srcSize; ++sx)
+    {
+      const uint8_t b = pgm_read_byte(&bmp[sy * byteW + (sx >> 3)]);
+      if (!((b >> (7 - (sx & 7))) & 1))
+      {
+        if (sx < minX) minX = sx;
+        if (sx > maxX) maxX = sx;
+        if (sy < minY) minY = sy;
+        if (sy > maxY) maxY = sy;
+      }
+    }
+  }
+  if (maxX < minX) return {0, 0, 0, 0, 0, 0};
+  const int16_t srcW = maxX - minX + 1;
+  const int16_t srcH = maxY - minY + 1;
+  int16_t dstW, dstH;
+  if (srcH <= targetH && srcW <= targetH + 2)
+  {
+    dstW = srcW;
+    dstH = srcH;
+  }
+  else
+  {
+    dstH = targetH;
+    dstW = std::max<int16_t>(1, (srcW * dstH + srcH / 2) / srcH);
+    if (dstW > targetH + 2)
+    {
+      dstW = targetH + 2;
+      dstH = std::max<int16_t>(1, (srcH * dstW + srcW / 2) / srcW);
+    }
+  }
+  return {minX, minY, srcW, srcH, dstW, dstH};
+}
+
+/* Renders an inverted 1bpp bitmap using precomputed RibbonIconBox bounds,
+ * max-pooling each mapped source box so 1-2 px strokes stay unbroken.
+ */
+static void drawMeasuredRibbonIcon(int16_t x, int16_t yCenter, const uint8_t *bmp,
+                                   int16_t srcSize, const RibbonIconBox &box,
+                                   uint16_t ink)
+{
+  if (box.dstW <= 0 || box.dstH <= 0) return;
+  const int16_t byteW = (srcSize + 7) / 8;
+  const int16_t y0 = yCenter - box.dstH / 2;
+  for (int16_t dy = 0; dy < box.dstH; ++dy)
+  {
+    const int16_t sy0 = box.minY + (dy * box.srcH) / box.dstH;
+    const int16_t sy1 = std::max<int16_t>(
+        sy0 + 1, box.minY + ((dy + 1) * box.srcH) / box.dstH);
+    for (int16_t dx = 0; dx < box.dstW; ++dx)
+    {
+      const int16_t sx0 = box.minX + (dx * box.srcW) / box.dstW;
+      const int16_t sx1 = std::max<int16_t>(
+          sx0 + 1, box.minX + ((dx + 1) * box.srcW) / box.dstW);
+      int16_t hits = 0;
+      const int16_t area = (sy1 - sy0) * (sx1 - sx0);
+      for (int16_t sy = sy0; sy < sy1; ++sy)
+      {
+        for (int16_t sx = sx0; sx < sx1; ++sx)
+        {
+          const uint8_t b = pgm_read_byte(&bmp[sy * byteW + (sx >> 3)]);
+          if (!((b >> (7 - (sx & 7))) & 1)) ++hits;
+        }
+      }
+      if (hits * 2 >= area) display.drawPixel(x + dx, y0 + dy, ink);
+    }
+  }
+}
+
+/* Draws the full-width top alert ticker ribbon across y = 0..23 on the 4-grey
+ * 7.5in page, scaling visual urgency across the four physical grey levels.
+ * Returns true if the caller (drawAlerts) should return without drawing pills.
+ */
+static bool drawAlertsRibbon75(std::vector<owm_alerts_t> &alerts)
+{
+  if (!greys()) return false;
+  static const int16_t RIBBON_H = 24;
+  if (!display.inBand(0, RIBBON_H)) return true;
+
+  int ignore_list[OWM_NUM_ALERTS] = {0};
+  int alert_indices[OWM_NUM_ALERTS] = {0};
+  filterAlerts(alerts, ignore_list, OWM_NUM_ALERTS);
+
+  int num_valid = 0;
+  const int cap = std::min<int>(static_cast<int>(alerts.size()), OWM_NUM_ALERTS);
+  for (int i = 0; i < cap; ++i)
+  {
+    if (!ignore_list[i])
+    {
+      alert_indices[num_valid++] = i;
+    }
+  }
+  if (num_valid == 0) return true;
+
+  const int show = std::min(num_valid, 2);
+  int maxSev = 1;
+  for (int k = 0; k < num_valid; ++k)
+  {
+    maxSev = std::max(maxSev, alertGreySeverity(alerts[alert_indices[k]]));
+  }
+
+  const uint8_t *bmps[2] = {nullptr, nullptr};
+  RibbonIconBox iconBoxes[2] = {};
+  String titles[2];
+  for (int k = 0; k < show; ++k)
+  {
+    owm_alerts_t &cur = alerts[alert_indices[k]];
+    bmps[k] = getAlertBitmap32(cur);
+    iconBoxes[k] = measureRibbonIcon(bmps[k], 32, 15);
+    toTitleCase(cur.event);
+    titles[k] = cur.event;
+  }
+
+  uint16_t barFill = G75_LGW4, ruleInk = G_LG, tabFill = G_DG;
+  uint16_t tabInk = GxEPD_WHITE, textInk = GxEPD_BLACK, sepInk = G_LG;
+  uint16_t extraBg = G_DG, extraInk = GxEPD_WHITE;
+  if (maxSev == 2)
+  {
+    barFill = G75_LGW;
+    ruleInk = GxEPD_BLACK;
+    tabFill = GxEPD_BLACK;
+    sepInk = G_DG;
+    extraBg = GxEPD_BLACK;
+  }
+  else if (maxSev == 3)
+  {
+    barFill = GxEPD_BLACK;
+    ruleInk = GxEPD_BLACK;
+    tabFill = GxEPD_BLACK;
+    sepInk = G_LG;
+    textInk = GxEPD_WHITE;
+    extraBg = GxEPD_WHITE;
+    extraInk = GxEPD_BLACK;
+  }
+
+  display.fillRect(0, 0, DISP_WIDTH, RIBBON_H - 1, barFill);
+  display.drawFastHLine(0, RIBBON_H - 1, DISP_WIDTH, ruleInk);
+
+  const bool textTab = !LC_RTL && strncmp(LOCALE_STR(LOCALE), "en_", 3) == 0;
+  int16_t tabW = 30;
+  if (textTab)
+  {
+    const String tabLabel = (num_valid == 1) ? "ALERT" : "ALERTS";
+    display.setFont(&FONT_7pt8b);
+    int16_t bx, by;
+    uint16_t bw, bh;
+    display.getTextBounds(tabLabel, 0, 0, &bx, &by, &bw, &bh);
+    tabW = std::max<int16_t>(64, static_cast<int16_t>(bw) + 20);
+    display.fillRect(0, 0, tabW, RIBBON_H - 1, tabFill);
+    const int16_t tx = (tabW - static_cast<int16_t>(bw)) / 2 - bx;
+    const int16_t ty = ((RIBBON_H - 1) - static_cast<int16_t>(bh)) / 2 - by;
+    drawString(tx, ty, tabLabel, LEFT, tabInk);
+    if (maxSev == 3) display.drawFastVLine(tabW - 1, 4, RIBBON_H - 9, G_LG);
+  }
+  else
+  {
+    const int16_t tabX = LC_RTL ? (DISP_WIDTH - tabW) : 0;
+    display.fillRect(tabX, 0, tabW, RIBBON_H - 1, tabFill);
+    RibbonIconBox tb = measureRibbonIcon(warning_icon_24x24, 24, 15);
+    drawMeasuredRibbonIcon(tabX + (tabW - tb.dstW) / 2, 11,
+                           warning_icon_24x24, 24, tb, tabInk);
+    if (maxSev == 3)
+    {
+      display.drawFastVLine(LC_RTL ? tabX : (tabW - 1), 4, RIBBON_H - 9, G_LG);
+    }
+  }
+
+  const int16_t padEdge = 10;
+  int16_t contentL = LC_RTL ? padEdge : (tabW + padEdge);
+  int16_t contentR = LC_RTL ? (DISP_WIDTH - tabW - padEdge) : (DISP_WIDTH - padEdge);
+
+  if (num_valid > 2)
+  {
+    const String extraTxt = "+" + String(num_valid - 2);
+    display.setFont(&FONT_7pt8b);
+    int16_t bx, by;
+    uint16_t bw, bh;
+    display.getTextBounds(extraTxt, 0, 0, &bx, &by, &bw, &bh);
+    const int16_t badgeW = static_cast<int16_t>(bw) + 10;
+    const int16_t badgeH = 16;
+    const int16_t badgeY = 3;
+    const int16_t badgeX = LC_RTL ? contentL : (contentR - badgeW);
+    display.fillRoundRect(badgeX, badgeY, badgeW, badgeH, 3, extraBg);
+    const int16_t ty = badgeY + (badgeH - static_cast<int16_t>(bh)) / 2 - by;
+    drawString(badgeX + (badgeW - static_cast<int16_t>(bw)) / 2 - bx, ty,
+               extraTxt, LEFT, extraInk);
+    if (LC_RTL) contentL += badgeW + 8;
+    else        contentR -= badgeW + 8;
+  }
+
+  const int16_t availW = std::max<int16_t>(40, contentR - contentL);
+  const int16_t iconGap = 6;
+  const int16_t sepW = 21; // 10 px gap + 1 px rule + 10 px gap
+
+  auto calcWidth = [&](const GFXfont *f, int16_t twOut[2]) -> int16_t
+  {
+    display.setFont(f);
+    int16_t tot = 0;
+    for (int k = 0; k < show; ++k)
+    {
+      twOut[k] = static_cast<int16_t>(getStringWidth(titles[k]));
+      if (iconBoxes[k].dstW > 0) tot += iconBoxes[k].dstW + iconGap;
+      tot += twOut[k];
+    }
+    if (show == 2) tot += sepW;
+    return tot;
+  };
+
+  int16_t textW[2] = {0, 0};
+  const GFXfont *font = &FONT_11pt8b;
+  if (calcWidth(font, textW) > availW)
+  {
+    font = &FONT_8pt8b;
+    if (calcWidth(font, textW) > availW)
+    {
+      if (show == 1)
+      {
+        const int16_t iw = (iconBoxes[0].dstW > 0) ? (iconBoxes[0].dstW + iconGap) : 0;
+        titles[0] = clipAlertLine(titles[0], std::max<int>(16, availW - iw));
+      }
+      else
+      {
+        const int16_t iw0 = (iconBoxes[0].dstW > 0) ? (iconBoxes[0].dstW + iconGap) : 0;
+        const int16_t iw1 = (iconBoxes[1].dstW > 0) ? (iconBoxes[1].dstW + iconGap) : 0;
+        const int16_t textAvail = std::max<int16_t>(32, availW - iw0 - iw1 - sepW);
+        int16_t w0Max = static_cast<int16_t>(
+            (static_cast<int32_t>(textAvail) * textW[0])
+            / std::max<int>(1, textW[0] + textW[1]));
+        const int16_t minEach = std::min<int16_t>(textAvail / 2, 60);
+        w0Max = std::max(minEach, std::min<int16_t>(textAvail - minEach, w0Max));
+        titles[0] = clipAlertLine(titles[0], w0Max);
+        titles[1] = clipAlertLine(titles[1], textAvail - w0Max);
+      }
+      calcWidth(font, textW);
+    }
+  }
+
+  display.setFont(font);
+  int16_t minBy = 100, maxBot = -100;
+  for (int k = 0; k < show; ++k)
+  {
+    int16_t bx, by;
+    uint16_t bw, bh;
+    display.getTextBounds(shapeText(titles[k]), 0, 0, &bx, &by, &bw, &bh);
+    minBy = std::min(minBy, by);
+    maxBot = std::max<int16_t>(maxBot, by + static_cast<int16_t>(bh));
+  }
+  const int16_t inkH = std::max<int16_t>(1, maxBot - minBy);
+  const int16_t yBase = ((RIBBON_H - 1) - inkH) / 2 - minBy;
+
+  if (!LC_RTL)
+  {
+    int16_t cx = contentL;
+    for (int k = 0; k < show; ++k)
+    {
+      if (k == 1)
+      {
+        display.drawFastVLine(cx + 10, 5, 13, sepInk);
+        cx += sepW;
+      }
+      if (iconBoxes[k].dstW > 0)
+      {
+        drawMeasuredRibbonIcon(cx, 11, bmps[k], 32, iconBoxes[k], textInk);
+        cx += iconBoxes[k].dstW + iconGap;
+      }
+      drawString(cx, yBase, titles[k], LEFT, textInk);
+      cx += textW[k];
+    }
+  }
+  else
+  {
+    int16_t cx = contentR;
+    for (int k = 0; k < show; ++k)
+    {
+      if (k == 1)
+      {
+        display.drawFastVLine(cx - 10, 5, 13, sepInk);
+        cx -= sepW;
+      }
+      if (iconBoxes[k].dstW > 0)
+      {
+        cx -= iconBoxes[k].dstW;
+        drawMeasuredRibbonIcon(cx, 11, bmps[k], 32, iconBoxes[k], textInk);
+        cx -= iconGap;
+      }
+      drawString(cx, yBase, titles[k], RIGHT, textInk);
+      cx -= textW[k];
+    }
+  }
+  return true;
+}
+#endif // GREYS_75
+
   /* This function is responsible for drawing the current alerts if any.
    * Up to 2 alerts can be drawn.
    */
@@ -3087,6 +3411,13 @@ static void drawAlertIcon(int16_t x, int16_t y, const owm_alerts_t &alert,
   { // no alerts to draw
     return;
   }
+
+#if defined(GREYS_75)
+  if (drawAlertsRibbon75(alerts))
+  {
+    return;
+  }
+#endif
 
   int ignore_list[OWM_NUM_ALERTS] = {0};
   int alert_indices[OWM_NUM_ALERTS] = {0};
@@ -3238,6 +3569,14 @@ void drawLocationDate(const String &city, const String &date)
 {
   // location, date
   const int right = DISP_WIDTH - 2;
+  if (alertRibbon75())
+  {
+    display.setFont(&FONT_11pt8b);
+    drawString(right, 44, city, RIGHT, DM_FG);
+    display.setFont(&FONT_8pt8b);
+    drawString(right, 60, date, RIGHT, DM_FG);
+    return;
+  }
   display.setFont(&FONT_16pt8b);
 #ifdef MULTICOLOR_DISPLAY
   // On multicolor panels red carries meaning (temperature, alerts, warnings),

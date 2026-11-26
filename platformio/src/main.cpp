@@ -348,6 +348,11 @@ static void drawWeatherPage(const tm &timeInfo, const String &dateStr,
   ALERT_426 = !alerts.empty();
 #endif
 #if defined(GREYS_75)
+#if DISPLAY_ALERTS
+  ALERT_75 = !alerts.empty();
+#else
+  ALERT_75 = false;
+#endif
   const uint32_t cpuMhz = getCpuFrequencyMhz();
   if (cpuMhz < 240)
   {
