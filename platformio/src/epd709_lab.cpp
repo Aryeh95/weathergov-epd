@@ -534,7 +534,7 @@ void epd709Lab()
         setIdx = Epd709Lut::setForTempC(tempC);
         if (setIdx < 0)
         {
-          Serial.printf("[lab] %.1f C outside 21.0..25.5 C (set 4); pass set index (e.g. %s 5)\n",
+          Serial.printf("[lab] %.1f C outside 17.0..25.5 C (sets 3-4); pass set index (e.g. %s 5)\n",
                         tempC, o.c_str());
           continue;
         }

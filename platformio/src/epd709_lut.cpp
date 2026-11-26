@@ -412,6 +412,7 @@ bool setBlockLiveRows(Block &blk, const RowList &rows)
 int8_t setForTempC(float tempC, bool allowWarm)
 {
   if (isnan(tempC)) return -1;
+  if (tempC >= 17.0f && tempC < 21.0f) return 3;
   if (tempC >= 21.0f && tempC < 25.5f) return 4;
   if (allowWarm && tempC >= 25.5f && tempC <= 30.0f) return 5;
   return -1;
