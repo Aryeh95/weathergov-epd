@@ -181,7 +181,7 @@
     "pollen_api_key": "",
 
     // OPTIONAL: Local weather relay (tools/relay/weather_relay.py) address,
-    // e.g. "192.168.1.28:8080". Plain HTTP on the home network; leave empty
+    // e.g. "192.168.1.50:8080". Plain HTTP on the home network; leave empty
     // to fetch directly from the upstream APIs.
     "local_relay": "",
     // When true and local_relay is set, read /sensor/outdoor from the relay

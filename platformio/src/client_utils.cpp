@@ -709,6 +709,8 @@ static void applyRelayOutdoorSensor(owm_current_t &current)
     return;
   }
 
+  // the cloud source's reading, before the local one replaces it
+  const float cloudTempK = current.temp;
   current.temp = celsius_to_kelvin(tempC);
 
   float rh = (current.humidity > 0 && current.humidity <= 100)
@@ -734,22 +736,21 @@ static void applyRelayOutdoorSensor(owm_current_t &current)
     const float dewRaw = (b * alpha) / (a - alpha);
     const float dewC = (dewRaw > tempC) ? tempC : dewRaw;
     current.dew_point = celsius_to_kelvin(dewC);
+  }
+  else if (!std::isnan(current.dew_point) && current.dew_point > current.temp)
+  {
+    current.dew_point = current.temp;
+  }
 
-    // Steadman apparent temperature combining local temp/RH with cloud wind
-    const float e = (rh / 100.0f) * 6.105f
-                    * expf((17.27f * tempC) / (237.7f + tempC));
-    const float ws = (!std::isnan(current.wind_speed) && current.wind_speed > 0.0f)
-                         ? current.wind_speed
-                         : 0.0f;
-    const float feelsC = tempC + 0.33f * e - 0.70f * ws - 4.00f;
-    current.feels_like = celsius_to_kelvin(feelsC);
+  // Feels-like: the cloud source's own (its wind chill, heat index, sun),
+  // moved by the local correction. A formula from the local reading alone
+  // has no sun in it and read 2-3 C low in mild weather.
+  if (std::isfinite(cloudTempK) && std::isfinite(current.feels_like))
+  {
+    current.feels_like += current.temp - cloudTempK;
   }
   else
   {
-    if (!std::isnan(current.dew_point) && current.dew_point > current.temp)
-    {
-      current.dew_point = current.temp;
-    }
     current.feels_like = current.temp;
   }
 

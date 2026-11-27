@@ -270,8 +270,7 @@ unsigned HTTP_CLIENT_TCP_TIMEOUT = 10000; // ms
 // request then goes over plain HTTP to the relay, which has usually fetched
 // it already, instead of a TLS connection to each service: about a second
 // of WiFi per wake instead of 10-20. When the relay does not answer, the
-// When the relay does not answer, the device fetches directly for the rest
-// of that wake. Empty = no relay.
+// device fetches directly for the rest of that wake. Empty = no relay.
 String LOCAL_RELAY = "";
 // When true and LOCAL_RELAY is set, query /sensor/outdoor on the relay to
 // override the cloud source's outdoor temperature (and optional humidity).
