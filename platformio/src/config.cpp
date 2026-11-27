@@ -470,6 +470,9 @@ String GRAPH_SLOTS[4] = {"temp_dew", "wind", "rain_both", ""};
 // The strip of named weather above the hourly graph(s) ("Showers 12am -
 // 8am"), config.json "graph_strip". Off, the graphs take its room.
 bool GRAPH_STRIP = true;
+// Secondary curve on the 7.09in 24-hour matrix (config.json "graph_curve"):
+// 0 = dew point, 1 = feels like, 2 = temperature only.
+int GRAPH_CURVE = 0;
 // The weather page's refresh: false, the stock 30-49 s the inks were measured
 // with; true, faster (config.json "fast_refresh"): G13 (about 15 s at
 // 17-21 C, 17.5 s at 21-25.5 C, the same colours), else the controllers'

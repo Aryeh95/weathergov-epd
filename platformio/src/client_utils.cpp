@@ -1099,7 +1099,11 @@ int getNWSWeather(WiFiClient &client, owm_current_t &current,
   // cover and feels-like: the hourly forecast has only the chance of rain
   // and the wind, and the rest is in the same raw gridpoint as the QPF.
   grid_series_t series;
+#if defined(DISP_7C_709)
+  const bool wantSeries = true;
+#else
   const bool wantSeries = (GRAPH_LAYOUT != 0);
+#endif
   if (DAILY_PRECIP_AMOUNTS || wantSeries)
   {
     // Daily precipitation AMOUNTS for the forecast row. weather.gov keeps

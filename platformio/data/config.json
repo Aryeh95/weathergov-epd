@@ -294,6 +294,11 @@
   "graph_slots": ["temp_dew", "wind", "rain_both", ""],
   // The strip of named weather above the graph(s): "Showers 12am - 8am".
   "graph_strip": true,
+  // 7.09in secondary curve on the 24-hour outlook graph:
+  //   "dew" (default) - temperature and dew point
+  //   "feels"         - temperature and feels like
+  //   "none"          - temperature only
+  "graph_curve": "dew",
   // 7.09in: the weather page faster than its normal 30-49 s: about 15 s at
   // 17-21 C and 17.5 s at 21-25.5 C with the same colours (a quicker version
   // of the panel's own waveform, built on the device), else 20 s with blue

@@ -274,10 +274,12 @@
         shows visibility.</div>
       <div class="row" id="panelslots"></div>
       <div id="graphbox" style="display:none">
-        <label>Hourly graph</label>
-        <select id="g_layout"><option value="one">One graph: temperature and rain</option><option value="stacked">Stacked graphs</option></select>
-        <label>Weather strip above the graph</label>
-        <select id="g_strip"><option value="1">On (named weather: Showers 12am – 8am)</option><option value="0">Off (more room for the graphs)</option></select>
+        <label>Temperature curve</label>
+        <select id="g_curve">
+          <option value="dew">Temperature and dew point</option>
+          <option value="feels">Temperature and feels like</option>
+          <option value="none">Temperature only</option>
+        </select>
         <label>Refresh speed</label>
         <select id="g_fast"><option value="0">Normal (30-49 s, the measured colours)</option><option value="1">Faster (15-18 s at 17-25.5 °C, else 20 s)</option></select>
         <div class="hint">Faster builds a quicker version of the panel's own waveform on the
@@ -286,10 +288,6 @@
           and green a little lighter. Every 10th update is a normal one, to keep
           the panel clean. All times depend on the panel's own temperature: the
           normal refresh takes about 30 s at 21-25.5 °C and up to 49 s below 21 °C.</div>
-        <div class="hint">Stacked: up to four smaller graphs on one time scale,
-          top to bottom. With weather.gov, an hour's rain amount is its share
-          of weather.gov's 6-hour total, shared out by the hours' chance of rain.</div>
-        <div class="row" id="graphslots"></div>
       </div>
     </div>
   </fieldset>
@@ -493,8 +491,9 @@ const I18N_HE = {
   'Rain amount and chance, with cloud cover': 'כמות גשם וסיכוי, עם כיסוי עננים',
   'Stacked: up to four smaller graphs on one time scale, top to bottom. With weather.gov, an hour\'s rain amount is its share of weather.gov\'s 6-hour total, shared out by the hours\' chance of rain.':
     'זה מעל זה: עד ארבעה גרפים קטנים על ציר זמן אחד, מלמעלה למטה. עם weather.gov, כמות הגשם בשעה היא חלקה מסך 6 השעות של weather.gov, לפי הסיכוי לגשם בכל שעה.',
-  'Graph': 'גרף', 'Temperature': 'טמפרטורה', 'Temperature and dew point': 'טמפרטורה ונקודת טל',
-  'Temperature and feels like': 'טמפרטורה וטמפ׳ מורגשת', 'Feels like': 'טמפרטורה מורגשת',
+  'Graph': 'גרף', 'Temperature curve': 'עקומת טמפרטורה', 'Temperature': 'טמפרטורה',
+  'Temperature and dew point': 'טמפרטורה ונקודת טל',
+  'Temperature and feels like': 'טמפרטורה וטמפ׳ מורגשת', 'Temperature only': 'טמפרטורה בלבד', 'Feels like': 'טמפרטורה מורגשת',
   'Wind and gusts': 'רוח ומשבים', 'Chance of rain': 'סיכוי לגשם', 'Rain amount': 'כמות גשם',
   'Rain amount and chance': 'כמות גשם וסיכוי', 'Cloud cover': 'כיסוי עננים',
   '"%1" is in both slot %2 and slot %3 — a widget can only appear once.': '"%1" נמצא גם במשבצת %2 וגם במשבצת %3 — ווידג\'ט יכול להופיע פעם אחת בלבד.',
@@ -586,15 +585,7 @@ const HOME_WIDGETS = [['wind','Wind'],['air_quality','Air quality'],
   ['pollen','Pollen'],['visibility','Visibility'],['sun','Sunrise and sunset'],
   ['moon_phase','Moon phase']];
 const HOME_DEFAULT = ['wind','air_quality','indoor'];
-// the 1600x1200 layout's stacked graphs (config "graph_layout" and
-// "graph_slots"; the firmware's GRAPH_SLOTS has the same default)
-const GRAPHS = [['temp','Temperature'],['temp_dew','Temperature and dew point'],
-  ['temp_feels','Temperature and feels like'],['feels','Feels like'],['dew','Dew point'],
-  ['wind','Wind and gusts'],['rain','Chance of rain'],['amount','Rain amount'],
-  ['rain_both','Rain amount and chance'],['rain_clouds','Rain amount and chance, with cloud cover'],
-  ['humidity','Humidity'],['clouds','Cloud cover']];
-const GRAPH_DEFAULT = ['temp_dew','wind','rain_both',''];
-let graphChoice = false; // /info says the layout has the stacked graphs
+let graphChoice = false; // /info says the layout has 7.09in graph options
 let homeTiles = 0; // 3 on the 4.26in layout: its tiles replace the eight cells
 const slotCount = () => homeTiles || 8;
 const slotWidgets = () => homeTiles ? HOME_WIDGETS : PANEL_WIDGETS;
@@ -855,33 +846,10 @@ function buildPanelSlots() {
   }
 }
 
-function buildGraphSlots() {
-  const box = el('graphslots');
-  box.replaceChildren();
-  for (let i = 0; i < 4; i++) {
-    const d = document.createElement('div');
-    const l = document.createElement('label');
-    l.textContent = t('Graph') + ' ' + (i + 1);
-    const sel = document.createElement('select'); sel.id = 'gslot_' + i;
-    sel.add(new Option(t('— Empty —'), ''));
-    for (const [key, label] of GRAPHS) sel.add(new Option(t(label), key));
-    d.append(l, sel); box.append(d);
-  }
-  el('g_layout').addEventListener('change', showGraphSlots);
-}
-
-// the four choices only matter for the stacked graphs
-function showGraphSlots() {
-  el('graphslots').style.display = (el('g_layout').value === 'stacked') ? '' : 'none';
-}
-
 function populateGraphs() {
-  el('g_layout').value = (cfg?.graph_layout === 'stacked') ? 'stacked' : 'one';
-  el('g_strip').value = (cfg?.graph_strip === false) ? '0' : '1';
+  el('g_curve').value = (cfg?.graph_curve === 'feels' || cfg?.graph_curve === 'none')
+    ? cfg.graph_curve : 'dew';
   el('g_fast').value = cfg?.fast_refresh ? '1' : '0';
-  const g = Array.isArray(cfg?.graph_slots) ? cfg.graph_slots : GRAPH_DEFAULT;
-  for (let i = 0; i < 4; i++) el('gslot_' + i).value = g[i] ?? '';
-  showGraphSlots();
 }
 
 function populatePanelSlots() {
@@ -1027,10 +995,8 @@ function collect() {
     if (homeTiles) cfg.home_tiles = chosen; else cfg.panel_slots = chosen;
   }
   if (graphChoice) {
-    cfg.graph_layout = el('g_layout').value;
-    cfg.graph_strip = el('g_strip').value === '1';
+    cfg.graph_curve = el('g_curve').value;
     cfg.fast_refresh = el('g_fast').value === '1';
-    cfg.graph_slots = [0, 1, 2, 3].map(i => el('gslot_' + i).value);
   }
 }
 
@@ -1536,7 +1502,6 @@ function showConnInfo(i) {
   if (i.layout === 'fixed') { homeTiles = i.tiles ?? 0; hideLayoutSettings(); }
   if (i.graphs) {
     graphChoice = true;
-    buildGraphSlots();
     el('graphbox').style.display = 'block';
     if (cfg) populateGraphs();
   }

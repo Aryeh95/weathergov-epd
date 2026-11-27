@@ -730,6 +730,9 @@ extern String GRAPH_SLOTS[4];
 // The strip of named weather above the hourly graph(s) (config.json
 // "graph_strip").
 extern bool GRAPH_STRIP;
+// Secondary curve on the 7.09in 24-hour outlook graph (config.json
+// "graph_curve"): 0 = dew point, 1 = feels like, 2 = temperature only.
+extern int GRAPH_CURVE;
 // The weather page in 15-20 s instead of 30-49 (config.json "fast_refresh").
 extern bool FAST_REFRESH;
 #endif

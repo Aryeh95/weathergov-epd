@@ -99,12 +99,6 @@ static const uint16_t K = GxEPD_BLACK, W = GxEPD_WHITE, R = GxEPD_RED,
  */
 static const uint16_t K_ABS = 0x0101, W_ABS = 0xFEFE;
 
-
-// the page
-static const int LEFT0 = 36, LEFT1 = 548, LEFTC = 292; // left column
-static const int RIGHT0 = 640, RIGHT1 = 1564;          // right column
-static const int PLOT0 = 700, PLOT1 = 1480;          // the graph's plot
-
 /* =========================================================================
  * Ink
  * ====================================================================== */
@@ -156,9 +150,6 @@ static const int FOOTER_Y = 1154;
 // apart from red, where a 35 % mix reads as a mustard.
 static const Tone T_ORANGE    = {R, 0.50f, Y, 1.0f};
 static const Tone T_ADVISORY  = {Y, 0.55f, W, 1.0f};
-// The rain bars in the blue ink itself, a clear mid blue; the dew point
-// line keeps its paper halo, so it still reads over them.
-static const Tone T_RAIN_BAR  = {B, 1.0f, W, 1.0f};
 
 /* =========================================================================
  * Shapes
@@ -215,8 +206,6 @@ static inline void px(int x, int y, uint16_t ink)
 // and the dew point white, and the rain bars lighten to half blue on white
 static inline uint16_t tempInk() { return DARK_MODE ? Y : R; }
 static inline uint16_t dewInk()  { return DARK_MODE ? W_ABS : B; }
-static const Tone T_RAIN_BAR_DARK = {B, 0.50f, W_ABS, 1.0f};
-static inline const Tone &rainBarTone() { return DARK_MODE ? T_RAIN_BAR_DARK : T_RAIN_BAR; }
 
 // is (x, y) inside the box with corners rounded to radius r? Corners
 // inclusive, as the mockups' drawing library counted them.
@@ -553,16 +542,6 @@ static const Font709 &fitFont(const String &s, int room,
   return *last;
 }
 
-// text on a patch of bare paper, so that it reads over lines and screens
-static void labelOnPaper(int cx, int cy, const String &s, const Font709 &f,
-                         uint16_t ink)
-{
-  const int w = textWidth(s, f) + 18;
-  const int h = f.ascent + f.descent + 2;
-  fillBox(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2, 6, W);
-  drawText(cx, cy, s, f, ink, MM);
-}
-
 /* =========================================================================
  * Pictures
  * ====================================================================== */
@@ -581,6 +560,88 @@ static void drawIcon(const uint8_t *data, int size, int x, int y)
     if (v && v < 7)
     {
       px(x + (n % size), y + (n / size), INK[v]);
+    }
+  }
+}
+
+static bool s_skyDark = false;
+static bool s_skySoftSub = false; // only soft stippled ink on airy Sunny / Partly skies
+static int s_skyMood = 0;
+
+static void drawIconOnSky(const uint8_t *data, int size, int x, int y,
+                          bool darkSky, bool isFog = false)
+{
+  static const uint16_t INK[7] = {0, K_ABS, W_ABS, R, Y, G, B};
+  if (!data)
+  {
+    return;
+  }
+  for (int32_t n = 0; n < static_cast<int32_t>(size) * size; ++n)
+  {
+    const uint8_t b = pgm_read_byte(&data[n >> 1]);
+    const uint8_t v = (n & 1) ? (b & 0x0F) : (b >> 4);
+    if (v && v < 7)
+    {
+      const int pxX = x + (n % size), pxY = y + (n / size);
+      uint16_t ink = INK[v];
+      if (darkSky && v == 6) // raindrops, snow, night crescent: bright ice-blue over dark indigo
+      {
+        ink = screen(pxX, pxY, 0.58f) ? W_ABS : B;
+      }
+      else if (darkSky && isFog && v == 1) // night fog lines stay light misty blue-white over dark slate
+      {
+        ink = screen(pxX, pxY, 0.72f) ? W_ABS : B;
+      }
+      px(pxX, pxY, ink);
+    }
+  }
+}
+
+// Crisp nearest/feature-preserving downsample for 104x104 condition icons
+static void drawIconScaled(const uint8_t *data, int srcSize, int dstSize, int x, int y)
+{
+  static const uint16_t INK[7] = {0, K_ABS, W_ABS, R, Y, G, B};
+  if (!data)
+  {
+    return;
+  }
+  auto sampleAt = [&](int sx, int sy) -> uint8_t {
+    if (sx < 0 || sy < 0 || sx >= srcSize || sy >= srcSize) return 0;
+    const int32_t n = static_cast<int32_t>(sy) * srcSize + sx;
+    const uint8_t b = pgm_read_byte(&data[n >> 1]);
+    const uint8_t v = (n & 1) ? (b & 0x0F) : (b >> 4);
+    return (v < 7) ? v : 0;
+  };
+  for (int dy = 0; dy < dstSize; ++dy)
+  {
+    const int sy0 = (dy * srcSize) / dstSize;
+    const int sy1 = std::min(srcSize - 1, ((dy + 1) * srcSize - 1) / dstSize);
+    for (int dx = 0; dx < dstSize; ++dx)
+    {
+      const int sx0 = (dx * srcSize) / dstSize;
+      const int sx1 = std::min(srcSize - 1, ((dx + 1) * srcSize - 1) / dstSize);
+      uint8_t best = sampleAt((sx0 + sx1) / 2, (sy0 + sy1) / 2);
+      // Keep outer silhouette continuous when center hits transparent, without darkening grey cloud stippling
+      if (best == 0)
+      {
+        for (int sy = sy0; sy <= sy1; ++sy)
+        {
+          for (int sx = sx0; sx <= sx1; ++sx)
+          {
+            const uint8_t v = sampleAt(sx, sy);
+            if (v != 0)
+            {
+              best = v;
+              if (v == 1) break;
+            }
+          }
+          if (best == 1) break;
+        }
+      }
+      if (best)
+      {
+        px(x + dx, y + dy, INK[best]);
+      }
     }
   }
 }
@@ -752,7 +813,7 @@ static void drawMoon(int cx, int cy, int phase)
       px(cx - half + i, cy - half + j, (b & (0x80 >> (i & 7))) ? W_ABS : K_ABS);
     }
   }
-  ring(cx - 0.5f, cy - 0.5f, half, 2, DARK_MODE ? W_ABS : K);
+  ring(cx - 0.5f, cy - 0.5f, half, 2, s_skyDark ? W_ABS : K_ABS);
 }
 
 // a 1-bit picture (a cleared bit is ink), each of its dots drawn 2x2
@@ -943,19 +1004,16 @@ struct Alert709
   int color; // explicit IMS/Met colour: 3 red, 2 orange, 1 yellow, 0 none
 };
 static std::vector<Alert709> notices;
-static int alertTop = 0; // room the strip takes from what is under it
 static const owm_hourly_t *hours = nullptr;
 
-/* Called once, before the page is drawn. The alert strip pushes the rest of
- * the right column down, so how many alerts there are has to be known
- * before the first of it is drawn -- and main.cpp draws the alerts last.
+/* Called once before the page is drawn. Keeps the hourly forecast pointer
+ * for tellingId() and filters/sorts weather alerts.
  */
 void layout709Begin(std::vector<owm_alerts_t> &alerts,
                     const owm_hourly_t *hourly)
 {
   hours = hourly;
   notices.clear();
-  alertTop = 0;
 #if DISPLAY_ALERTS
   if (alerts.empty())
   {
@@ -1005,15 +1063,6 @@ void layout709Begin(std::vector<owm_alerts_t> &alerts,
   std::stable_sort(notices.begin(), notices.end(),
                    [](const Alert709 &p, const Alert709 &q)
                    { return p.rank < q.rank; });
-  if (notices.size() == 1)
-  {
-    const String line = notices[0].event + TXT709_DOT + notices[0].until;
-    alertTop = (textWidth(line, F_BITTER_36) <= RIGHT1 - RIGHT0 - 96) ? 84 : 100;
-  }
-  else if (notices.size() > 1)
-  {
-    alertTop = 100;
-  }
 #else
   (void)alerts;
 #endif
@@ -1025,53 +1074,71 @@ static void drawNotice(int x0, int y0, int x1, int y1, const Alert709 &a,
   uint16_t ink = K, sign = Y;
   if (a.rank == 0)
   { // red warning: matches RISK_RED in drawChip
-    fillBox(x0, y0, x1, y1, 10, R);
+    fillBox(x0, y0, x1, y1, 9, R);
     ink = W_ABS;
     sign = R;
+    if (s_skyDark)
+    {
+      strokeBox(x0, y0, x1, y1, 9, 1, W_ABS);
+    }
   }
   else if (a.color == 1)
   { // explicit yellow warning (IMS): solid yellow ink matching RISK_YELLOW
-    fillBox(x0, y0, x1, y1, 10, Y);
+    fillBox(x0, y0, x1, y1, 9, Y);
     ink = K_ABS;
     sign = W_ABS;
-    strokeBox(x0, y0, x1, y1, 10, 2, DARK_MODE ? K_ABS : K);
+    strokeBox(x0, y0, x1, y1, 9, 2, s_skyDark ? W_ABS : K_ABS);
   }
   else
   {
     // orange warning (T_ORANGE, matching RISK_AMBER) or NWS watch / advisory
     Tone t = (a.rank == 1) ? T_ORANGE : T_ADVISORY;
-    if (DARK_MODE)
+    if (DARK_MODE || s_skyDark)
     {
       if (t.under == W) t.under = W_ABS;
       if (t.top == W)   t.top = W_ABS;
       ink = K_ABS;
     }
-    fillTone(x0, y0, x1, y1, 10, t);
-    strokeBox(x0, y0, x1, y1, 10, 2, DARK_MODE ? K_ABS : K);
+    fillTone(x0, y0, x1, y1, 9, t);
+    strokeBox(x0, y0, x1, y1, 9, s_skyDark ? 1 : 2, s_skyDark ? W_ABS : K_ABS);
   }
   const int cy = (y0 + y1) / 2;
-  triangle(x0 + 22, cy + 17, x0 + 42, cy - 19, x0 + 62, cy + 17, ink);
-  triangle(x0 + 29, cy + 13, x0 + 42, cy - 11, x0 + 55, cy + 13, sign);
-  fillBox(x0 + 40, cy - 4, x0 + 44, cy + 5, 0, ink);
-  fillBox(x0 + 40, cy + 8, x0 + 44, cy + 11, 0, ink);
-  const int room = x1 - x0 - 96;
+  const int h = y1 - y0;
+  // Crisp warning triangle sized cleanly to compact 58..74 px card height
+  const int tw = (h <= 62) ? 14 : 16;
+  const int th = (h <= 62) ? 12 : 14;
+  const int icx = x0 + 28;
+  triangle(icx - tw, cy + th, icx, cy - th - 2, icx + tw, cy + th, ink);
+  triangle(icx - tw + 5, cy + th - 3, icx, cy - th + 4, icx + tw - 5, cy + th - 3, sign);
+  fillBox(icx - 2, cy - 3, icx + 2, cy + 3, 0, ink);
+  fillBox(icx - 2, cy + 6, icx + 2, cy + 8, 0, ink);
+  const int tx = x0 + 54;
+  const int room = x1 - tx - 14;
   if (oneLine)
   {
-    drawText(x0 + 80, cy, a.event + TXT709_DOT + a.until, F_BITTER_36, ink,
-             LM);
+    const String s = a.until.length() ? (a.event + TXT709_DOT + a.until) : a.event;
+    drawText(tx, cy, s,
+             fitFont(s, room, {&F_BITTER_30, &F_BITTER_27, &F_BITTER_24, &F_BITTER_22}),
+             ink, LM);
     return;
   }
-  drawText(x0 + 80, cy - 16, a.event,
-           fitFont(a.event, room, {&F_BITTER_34, &F_BITTER_30, &F_BITTER_27,
-                                   &F_BITTER_24, &F_BITTER_22}),
+  if (!a.until.length())
+  {
+    drawText(tx, cy, a.event,
+             fitFont(a.event, room, {&F_BITTER_30, &F_BITTER_27, &F_BITTER_24, &F_BITTER_22}),
+             ink, LM);
+    return;
+  }
+  const int dyOff = (h <= 60) ? 13 : 15;
+  drawText(tx, cy - dyOff, a.event,
+           fitFont(a.event, room, {&F_BITTER_28, &F_BITTER_26, &F_BITTER_24, &F_BITTER_22}),
            ink, LM);
-  drawText(x0 + 80, cy + 20, a.until,
-           fitFont(a.until, room, {&F_SANS_25, &F_SANS_22}), ink, LM);
+  drawText(tx, cy + dyOff + 2, a.until,
+           fitFont(a.until, room, {&F_SANS_22}), ink, LM);
 }
 
-/* One alert has the strip to itself. Two share it side by side, the more
- * serious on the left. With more than two, the two most serious are shown
- * and a tag says how many are not.
+/* Variant 3C alerts: right-aligned column inside the top adaptive sky band
+ * (x = 1044..1568, y = 152..328). Collapses to zero visual footprint when empty.
  */
 void drawAlerts(std::vector<owm_alerts_t> &alerts, const String &city,
                 const String &date)
@@ -1081,61 +1148,52 @@ void drawAlerts(std::vector<owm_alerts_t> &alerts, const String &city,
   {
     return;
   }
+  const int ax0 = 1044, ax1 = 1568;
   if (notices.size() == 1)
   {
-    if (alertTop == 84)
-    {
-      drawNotice(RIGHT0, 28, RIGHT1, 92, notices[0], true);
-    }
-    else
-    {
-      drawNotice(RIGHT0, 28, RIGHT1, 108, notices[0], false);
-    }
+    drawNotice(ax0, 158, ax1, 232, notices[0], false);
     return;
   }
   const int more = static_cast<int>(notices.size()) - 2;
-  const int right = RIGHT1 - (more ? 92 : 0);
-  const int end = right - (more ? 12 : 0);
-  // a long name takes room from a neighbour that does not need it
-  float need[2];
-  for (int i = 0; i < 2; ++i)
-  {
-    need[i] = 96 + std::max(textWidth(notices[i].event, F_BITTER_34),
-                            textWidth(notices[i].until, F_SANS_25));
-  }
-  const float half = (end - RIGHT0 - 12) / 2.0f;
-  float w0 = half;
-  if (need[0] > half && need[1] < half)
-  {
-    w0 = std::min(need[0], end - RIGHT0 - 12 - need[1]);
-  }
-  else if (need[1] > half && need[0] < half)
-  {
-    w0 = std::max(need[0], end - RIGHT0 - 12 - need[1]);
-  }
-  const int mid = static_cast<int>(RIGHT0 + w0 + 6);
-  drawNotice(RIGHT0, 28, mid - 6, 108, notices[0], false);
-  drawNotice(mid + 6, 28, end, 108, notices[1], false);
+  const int y0 = more ? 150 : 154;
+  const int h = more ? 58 : 64;
+  const int gap = 10;
+  drawNotice(ax0, y0, ax1, y0 + h, notices[0], false);
+  drawNotice(ax0, y0 + h + gap, ax1, y0 + 2 * h + gap, notices[1], false);
   if (more)
   {
-    strokeBox(right, 28, RIGHT1, 108, 10, 2, K);
-    drawText((right + RIGHT1) / 2, 56, "+" + String(more), F_BITTER_36, K, MM);
-    drawText((right + RIGHT1) / 2, 88, TXT709_MORE, F_SANS_24, K, MM);
+    const int py0 = y0 + 2 * h + 2 * gap, py1 = py0 + 34;
+    const String pillText = "+" + String(more) + " " + String(TXT709_MORE);
+    const int pw = std::max(128, textWidth(pillText, F_SANSB_25) + 32);
+    const int px0 = ax1 - pw;
+    if (s_skyDark)
+    {
+      fillBox(px0, py0, ax1, py1, 8, K_ABS);
+      strokeBox(px0, py0, ax1, py1, 8, 1, W_ABS);
+      drawText((px0 + ax1) / 2, (py0 + py1) / 2, pillText, F_SANSB_25, W_ABS, MM);
+    }
+    else
+    {
+      fillBox(px0, py0, ax1, py1, 8, W_ABS);
+      strokeBox(px0, py0, ax1, py1, 8, 2, K_ABS);
+      drawText((px0 + ax1) / 2, (py0 + py1) / 2, pillText, F_SANSB_25, K_ABS, MM);
+    }
   }
 } // end drawAlerts
 
 /* =========================================================================
- * Left: where, and what it is like now
+ * Top Sky Right: City & Date (right-aligned in x = 1044..1568)
  * ====================================================================== */
 
 void drawLocationDate(const String &city, const String &date)
 {
-  drawText(LEFT0, 28, city,
-           fitFont(city, LEFT1 - LEFT0, {&F_BITTERSB_72, &F_BITTER_52,
-                                     &F_BITTER_40, &F_BITTER_32}),
-           K, LA);
-  drawText(LEFT0, 114, date,
-           fitFont(date, LEFT1 - LEFT0, {&F_BITTER_40, &F_BITTER_32}), K, LA);
+  const uint16_t ink = s_skyDark ? W_ABS : K_ABS;
+  const Font709 &cf = fitFont(city, 520, {&F_BITTERSB_72, &F_BITTER_52,
+                                          &F_BITTER_40, &F_BITTER_32});
+  drawText(1568, 20, city, cf, ink, RA);
+  drawText(1568, 102, date,
+           fitFont(date, 520, {&F_BITTER_32, &F_BITTER_28, &F_SANS_24}),
+           ink, RA, s_skySoftSub);
 }
 
 /* A chip: the word for a risk level on its colour. */
@@ -1149,28 +1207,28 @@ void drawLocationDate(const String &city, const String &date)
 
 static int chipWidth(const char *word)
 {
-  return textWidth(word, F_SANSB_25) + 26;
+  return textWidth(word, F_SANSB_25) + 22;
 }
 
 static void drawChip(int x, int y, const char *word, int level)
 {
-  const int w = chipWidth(word), h = 39;
+  const int w = chipWidth(word), h = 34;
   uint16_t ink = W_ABS;
   // In the EPA's colours as far as the inks reach, from flatbed scans of
   // test cards 1 and 9 (2026-10-25). Good is the green ink itself, High half
   // red in yellow (T_ORANGE).
   switch (level)
   {
-  case RISK_GREEN:  fillBox(x, y, x + w, y + h, 8, G);              break;
-  case RISK_YELLOW: fillBox(x, y, x + w, y + h, 8, Y); ink = K_ABS; break;
-  case RISK_AMBER:  fillTone(x, y, x + w, y + h, 8, T_ORANGE); ink = K_ABS; break;
-  case RISK_RED:    fillBox(x, y, x + w, y + h, 8, R);              break;
+  case RISK_GREEN:  fillBox(x, y, x + w, y + h, 7, G);              break;
+  case RISK_YELLOW: fillBox(x, y, x + w, y + h, 7, Y); ink = K_ABS; break;
+  case RISK_AMBER:  fillTone(x, y, x + w, y + h, 7, T_ORANGE); ink = K_ABS; break;
+  case RISK_RED:    fillBox(x, y, x + w, y + h, 7, R);              break;
   // Extreme: half red over blue in 2x2 cells, a purple (hue 346) -- the
   // nearest the inks come to the EPA's, and clear of red and of maroon.
-  case RISK_PURPLE: fillTone2x(x, y, x + w, y + h, 8, {R, 0.50f, B, 1}); break;
+  case RISK_PURPLE: fillTone2x(x, y, x + w, y + h, 7, {R, 0.50f, B, 1}); break;
   // Hazardous: half red over black, a true maroon -- L* 26, a* +45, b* +18
   // against the EPA's L* 25, a* +48, b* +19 -- with white words.
-  case RISK_MAROON: fillTone(x, y, x + w, y + h, 8, {R, 0.50f, K_ABS, 1});
+  case RISK_MAROON: fillTone(x, y, x + w, y + h, 7, {R, 0.50f, K_ABS, 1});
                     ink = W_ABS;                                     break;
   default:          ink = K;                                        break;
   }
@@ -1205,54 +1263,60 @@ struct Cell
 /* The wind's arrow, as the 800x480 layout's: it points the way the air is
  * going (downwind), a notched tail behind. (cx, cy) is its middle.
  */
-static void drawWindArrow(float cx, float cy, int fromDeg)
+static void drawWindArrow(float cx, float cy, int fromDeg, float scale = 1.0f,
+                          uint16_t ink = K)
 {
   const float b = (fromDeg + 180) * 3.14159265f / 180.0f;
   const float dx = sinf(b), dy = -cosf(b);          // screen y grows down
   const float px = -dy, py = dx;                    // across the arrow
-  const float tipX = cx + 15 * dx, tipY = cy + 15 * dy;
-  const float bx = cx - 13 * dx, by = cy - 13 * dy;
-  const float nX = cx - 5 * dx, nY = cy - 5 * dy;   // the notch in the tail
-  triangle(tipX, tipY, bx + 10 * px, by + 10 * py, nX, nY, K);
-  triangle(tipX, tipY, nX, nY, bx - 10 * px, by - 10 * py, K);
+  const float tipX = cx + 15 * scale * dx, tipY = cy + 15 * scale * dy;
+  const float bx = cx - 13 * scale * dx, by = cy - 13 * scale * dy;
+  const float nX = cx - 5 * scale * dx, nY = cy - 5 * scale * dy;
+  triangle(tipX, tipY, bx + 10 * scale * px, by + 10 * scale * py, nX, nY, ink);
+  triangle(tipX, tipY, nX, nY, bx - 10 * scale * px, by - 10 * scale * py, ink);
 }
 
 static void drawCell(int i, const Cell &c)
 {
-  const int x = LEFT0 + (i % 2) * 264;
-  const int y = 842 + (i / 2) * 79;
-  const int edge = x + 252; // where the column ends
-  int lx = drawText(x, y, c.label, F_SANS_25, K, LA, true);
-  if (c.tag.length() && lx + 8 + textWidth(c.tag, F_SANS_22) <= edge)
+  const int colW = 214;
+  const int x = 32 + (i % 4) * colW;
+  const int y = 974 + (i / 4) * 102;
+  const int edge = x + colW - 10; // 204 px column width
+  int lx = drawText(x, y, c.label, F_SANS_22, K, LA, true);
+  if (c.tag.length() && lx + 6 + textWidth(c.tag, F_SANS_22) <= edge)
   {
-    drawText(lx + 8, y + 3, c.tag, F_SANS_22, K, LA, true);
+    drawText(lx + 6, y, c.tag, F_SANS_22, K, LA, true);
   }
-  int vx;
+  int vStart = x;
   if (c.arrowDeg >= 0)
   {
-    drawWindArrow(x + 15, y + 50, c.arrowDeg);
-    vx = drawText(x + 36, y + 28, c.value, F_BITTER_36, K, LA);
+    drawWindArrow(x + 13, y + 48, c.arrowDeg);
+    vStart = x + 31;
   }
-  else
+  const int trendRes = (c.trend == 1 || c.trend == -1) ? 24 : 0;
+  const Font709 &vf = fitFont(c.value, edge - vStart - trendRes,
+                              {&F_BITTER_34, &F_BITTER_28, &F_BITTER_24});
+  const int vx = drawText(vStart, y + 30, c.value, vf, K, LA);
+  if (trendRes)
   {
-    vx = drawText(x, y + 28, c.value, F_BITTER_36, K, LA);
-  }
-  if (c.trend == 1 || c.trend == -1)
-  {
-    drawTrend(vx + 8, y + 28, c.trend);
+    drawTrend(vx + 6, y + 30, c.trend);
   }
   if (!c.word)
   {
     return;
   }
   const char *word = c.word;
-  if (vx + 14 + chipWidth(word) > edge && c.brief)
+  if (vx + 10 + chipWidth(word) > edge && c.brief)
   {
     word = c.brief;
   }
-  if (vx + 14 + chipWidth(word) <= edge)
+  if (vx + 10 + chipWidth(word) <= edge)
   {
-    drawChip(vx + 14, y + 31, word, c.level);
+    drawChip(vx + 10, y + 30, word, c.level);
+  }
+  else
+  {
+    drawChip(vStart, y + 70, word, c.level);
   }
 }
 
@@ -1359,62 +1423,356 @@ static String visibilityText(const owm_current_t &current)
  * is in the sky is not known here (it keeps its own hours, and they are
  * not computed), so the picture never claims that it is up.
  */
+static uint32_t hash2(uint32_t x, uint32_t y)
+{
+  uint32_t h = x * 73856093u ^ y * 19349663u ^ 0x9E3779B9u;
+  h ^= h >> 16; h *= 0x85EBCA6Bu; h ^= h >> 13;
+  return h;
+}
+
+static void drawSkySun3C(int cx, int cy, bool darkSky)
+{
+  const float core = 18.0f;
+  for (int y = cy - 22; y <= cy + 22; ++y)
+  {
+    for (int x = cx - 22; x <= cx + 22; ++x)
+    {
+      const float d = hypotf(static_cast<float>(x - cx), static_cast<float>(y - cy));
+      if (d <= core)
+      {
+        const float edge = powf(d / core, 1.8f);
+        const uint16_t ink = darkSky ? (screen(x, y, 0.20f * edge) ? R : Y)
+                                     : (screen(x, y, 0.48f * edge) ? R : Y);
+        px(x, y, ink);
+      }
+      else if (d <= core + 2.0f)
+      {
+        px(x, y, darkSky ? W_ABS : R);
+      }
+    }
+  }
+}
+
+/* Variant 3C full-bleed top sky band (y = 0..347, seam at y = 348..349).
+ * Maps every OWM/NWS Kind (both day and night) to a tuned Spectra 6 sky mood
+ * and sets s_skyDark so foreground ink, horizon arc, city/date, and alert
+ * trims adapt automatically.
+ */
+static void drawSkyBand3C(const owm_current_t &current, bool day)
+{
+  const Kind k = kindOf(current.weather.id, current.clouds, day, 1.0f, false);
+  enum {
+    SKY_SUNNY, SKY_PARTLY, SKY_OVERCAST, SKY_FOG, SKY_RAIN, SKY_TSTORM, SKY_SNOW,
+    SKY_NIGHT_STAR, SKY_NIGHT_PARTLY, SKY_NIGHT_CLOUD, SKY_NIGHT_FOG,
+    SKY_NIGHT_RAIN, SKY_NIGHT_TSTORM, SKY_NIGHT_SNOW
+  };
+  if (!day)
+  {
+    switch (k)
+    {
+    case K_CLEAR: case K_MCLEAR:   s_skyMood = SKY_NIGHT_STAR;   break;
+    case K_PARTLY:                 s_skyMood = SKY_NIGHT_PARTLY; break;
+    case K_MCLOUDY: case K_CLOUDY: s_skyMood = SKY_NIGHT_CLOUD;  break;
+    case K_FOG:                    s_skyMood = SKY_NIGHT_FOG;    break;
+    case K_TSTORM:                 s_skyMood = SKY_NIGHT_TSTORM; break;
+    case K_SNOW: case K_ICE:       s_skyMood = SKY_NIGHT_SNOW;   break;
+    default:                       s_skyMood = SKY_NIGHT_RAIN;   break;
+    }
+    s_skyDark = true;
+  }
+  else
+  {
+    switch (k)
+    {
+    case K_SUNNY: case K_MSUNNY:   s_skyMood = SKY_SUNNY;        break;
+    case K_PARTLY:                 s_skyMood = SKY_PARTLY;       break;
+    case K_FOG:                    s_skyMood = SKY_FOG;          break;
+    case K_SHOWERS: case K_RAIN:   s_skyMood = SKY_RAIN;         break;
+    case K_TSTORM:                 s_skyMood = SKY_TSTORM;       break;
+    case K_SNOW: case K_ICE:       s_skyMood = SKY_SNOW;         break;
+    default:                       s_skyMood = SKY_OVERCAST;     break;
+    }
+    s_skyDark = (s_skyMood == SKY_RAIN || s_skyMood == SKY_TSTORM || s_skyMood == SKY_SNOW);
+  }
+  s_skySoftSub = (s_skyMood == SKY_SUNNY || s_skyMood == SKY_PARTLY);
+
+  const int skyH = 348;
+  for (int y = 0; y < skyH; ++y)
+  {
+    const float t = y / static_cast<float>(skyH - 1);
+    Tone rowTone = {W_ABS, 1.0f, W_ABS, 1.0f};
+    switch (s_skyMood)
+    {
+    case SKY_SUNNY:
+      if (y < 188)
+      {
+        const float u = y / 187.0f;
+        rowTone = {B, 0.36f * (1.0f - u), W_ABS, 1.0f};
+      }
+      else
+      {
+        const float u = (y - 188) / static_cast<float>(skyH - 1 - 188);
+        rowTone = {Y, 0.42f * u, W_ABS, 1.0f};
+      }
+      break;
+    case SKY_PARTLY:
+      if (y < 236)
+      {
+        const float u = y / 235.0f;
+        rowTone = {B, 0.04f + 0.24f * (1.0f - u), W_ABS, 1.0f};
+      }
+      else
+      {
+        const float u = (y - 236) / static_cast<float>(skyH - 1 - 236);
+        rowTone = {Y, 0.16f * u, W_ABS, 1.0f};
+      }
+      break;
+    case SKY_OVERCAST:
+      rowTone = {K_ABS, 0.26f - 0.16f * t, W_ABS, 1.0f};
+      break;
+    case SKY_FOG:
+      rowTone = {K_ABS, 0.06f + 0.22f * t, W_ABS, 1.0f};
+      break;
+    case SKY_RAIN:
+      rowTone = {K_ABS, 0.38f - 0.26f * t, B, 1.0f};
+      break;
+    case SKY_TSTORM: case SKY_NIGHT_TSTORM:
+      rowTone = {K_ABS, 0.64f - 0.36f * t, B, 1.0f};
+      break;
+    case SKY_SNOW:
+      rowTone = {B, 0.94f - 0.22f * t, W_ABS, 1.0f};
+      break;
+    case SKY_NIGHT_PARTLY:
+      rowTone = {K_ABS, 0.62f - 0.36f * t, B, 1.0f};
+      break;
+    case SKY_NIGHT_CLOUD: case SKY_NIGHT_FOG:
+      rowTone = {K_ABS, 0.70f - 0.26f * t, B, 1.0f};
+      break;
+    default: // SKY_NIGHT_STAR, SKY_NIGHT_RAIN, SKY_NIGHT_SNOW
+      rowTone = {K_ABS, 0.68f - 0.34f * t, B, 1.0f};
+      break;
+    }
+#if defined(EPD709_HOST)
+    g_hostTone = hostKey(rowTone, false);
+#endif
+    for (int x = 0; x < DISP_WIDTH; ++x)
+    {
+      px(x, y, toneAt(rowTone, x, y));
+    }
+  }
+#if defined(EPD709_HOST)
+  g_hostTone = 0;
+#endif
+  // Crisp 2 px horizon seam separating atmospheric sky from paper-white data deck
+  fillBox(0, skyH, DISP_WIDTH - 1, skyH + 1, 0, K_ABS);
+
+  auto skyOpen = [&](int x, int y) -> bool {
+    if (x < 8 || x >= DISP_WIDTH - 8 || y < 6 || y >= skyH - 6) return false;
+    if (x <= 576 && y >= 266) return false;
+    if (x >= 596 && x <= 1012 && y >= 152) return false;
+    if (x >= 1024) return false;
+    return true;
+  };
+
+  if (s_skyMood == SKY_RAIN || s_skyMood == SKY_TSTORM
+      || s_skyMood == SKY_NIGHT_RAIN || s_skyMood == SKY_NIGHT_TSTORM)
+  { // Diagonal broken rain streaks across open sky; stormier for T-storm
+    const int cols = (s_skyMood == SKY_TSTORM || s_skyMood == SKY_NIGHT_TSTORM) ? 40 : 30;
+    const int stepX = (DISP_WIDTH - 32) / cols;
+    for (int col = 0; col < cols; ++col)
+    {
+      for (int band = 0; band < 4; ++band)
+      {
+        const uint32_t h = hash2(col, band + 17);
+        const int xStart = 20 + col * stepX + static_cast<int>(h % std::max(12, stepX - 6));
+        const int yStart = 8 + band * 84 + static_cast<int>((h >> 8) % 36);
+        const int len = 26 + static_cast<int>((h >> 16) % 28);
+        for (int dy = 0; dy < len; ++dy)
+        {
+          if ((dy % 5) == 4) continue;
+          const int yy = yStart + dy;
+          const int xx = xStart - (dy / 2);
+          if (skyOpen(xx, yy))
+          {
+            px(xx, yy, W_ABS);
+          }
+        }
+      }
+    }
+    if (s_skyMood == SKY_TSTORM || s_skyMood == SKY_NIGHT_TSTORM)
+    { // Subtle distant yellow lightning glint in open upper sky between hero temp and sun arc
+      stroke(574, 24, 560, 56, 2, Y);
+      stroke(560, 56, 576, 56, 2, Y);
+      stroke(576, 56, 558, 94, 2, Y);
+    }
+  }
+  else if (s_skyMood == SKY_SNOW || s_skyMood == SKY_NIGHT_SNOW)
+  { // Delicate 282 ppi crystal flakes & crisp falling snow specks
+    for (int gy = 0; gy < 8; ++gy)
+    {
+      for (int gx = 0; gx < 32; ++gx)
+      {
+        const uint32_t h = hash2(gx + 51, gy + 211);
+        if ((h % 3u) == 2u) continue;
+        const int cx = 24 + gx * 48 + static_cast<int>((h >> 4) % 32);
+        const int cy = 14 + gy * 40 + static_cast<int>((h >> 12) % 26);
+        if (!skyOpen(cx, cy)) continue;
+        if ((h >> 18) % 3u == 0u)
+        { // 6-point crystal star (r = 5 px)
+          for (int d = -4; d <= 4; ++d)
+          {
+            if (skyOpen(cx + d, cy)) px(cx + d, cy, W_ABS);
+            const int dy = (d * 3) / 4;
+            if (skyOpen(cx + d / 2, cy + dy)) px(cx + d / 2, cy + dy, W_ABS);
+            if (skyOpen(cx + d / 2, cy - dy)) px(cx + d / 2, cy - dy, W_ABS);
+          }
+        }
+        else
+        { // Crisp round snow dot (2 px)
+          for (int dy = 0; dy <= 1; ++dy)
+            for (int dx = 0; dx <= 1; ++dx)
+              if (skyOpen(cx + dx, cy + dy)) px(cx + dx, cy + dy, W_ABS);
+        }
+      }
+    }
+  }
+  else if (s_skyMood == SKY_FOG || s_skyMood == SKY_NIGHT_FOG)
+  { // Soft horizontal pale mist filaments drifting near lower horizon
+    for (int band = 0; band < 4; ++band)
+    {
+      const uint32_t h = hash2(band + 7, 91);
+      const int y0 = 216 + band * 28 + static_cast<int>(h % 10);
+      for (int seg = 0; seg < 6; ++seg)
+      {
+        const uint32_t sh = hash2(seg + 13, band + 41);
+        const int xs = 36 + seg * 168 + static_cast<int>(sh % 48);
+        const int len = 76 + static_cast<int>((sh >> 8) % 58);
+        for (int dx = 0; dx < len; ++dx)
+        {
+          const int xx = xs + dx;
+          for (int dy = 0; dy <= 1; ++dy)
+          {
+            if (((xx + dy * 3) & 3) != 0 && skyOpen(xx, y0 + dy))
+            {
+              px(xx, y0 + dy, W_ABS);
+            }
+          }
+        }
+      }
+    }
+  }
+  else if (s_skyMood == SKY_NIGHT_STAR || s_skyMood == SKY_NIGHT_PARTLY)
+  { // Scattered midnight starfield (sparser on partly cloudy nights; never behind text)
+    const uint32_t mask = (s_skyMood == SKY_NIGHT_PARTLY) ? 7u : 3u;
+    for (int gy = 0; gy < 9; ++gy)
+    {
+      for (int gx = 0; gx < 38; ++gx)
+      {
+        const uint32_t h = hash2(gx + 101, gy + 313);
+        if ((h & mask) != 0u) continue;
+        const int sx = 18 + gx * 42 + static_cast<int>((h >> 4) % 30);
+        const int sy = 10 + gy * 33 + static_cast<int>((h >> 12) % 24);
+        if (!skyOpen(sx, sy)) continue;
+        const uint16_t ink = ((h >> 20) % 7 == 0) ? Y : W_ABS;
+        px(sx, sy, ink);
+        if ((h >> 24) % 5 == 0)
+        {
+          px(sx + 1, sy, ink);
+          px(sx, sy + 1, ink);
+          px(sx + 1, sy + 1, ink);
+        }
+      }
+    }
+  }
+}
+
+/* Center celestial horizon arc (x = 604..994, inside the sky band). */
 static void drawSky(const owm_current_t &current)
 {
-  const int cy = 694, rx = 204, ry = 104;
+  const int cx = 800, xL = 612, xR = 988, hy = 204, rx = 164, ry = 116;
   const time_t now = nowUtc();
+  const uint16_t fgInk = s_skyDark ? W_ABS : K_ABS;
   auto onArc = [&](float t, float &x, float &y)
   {
-    x = LEFTC - rx * cosf(static_cast<float>(M_PI) * t);
-    y = cy - ry * sinf(static_cast<float>(M_PI) * t);
+    x = cx - rx * cosf(static_cast<float>(M_PI) * t);
+    y = hy - ry * sinf(static_cast<float>(M_PI) * t);
   };
-  auto dotted = [&](int from, float sx, float sy, float keep)
+  auto dotted = [&](float fromFrac, float toFrac, float ox, float oy, float keep)
   {
-    for (int i = from; i < 100; i += 3)
+    const int i0 = static_cast<int>(ceilf(fromFrac * 100.0f));
+    const int i1 = static_cast<int>(floorf(toFrac * 100.0f));
+    for (int i = i0; i <= i1; i += 3)
     {
       float x, y;
       onArc(i / 100.0f, x, y);
-      if (hypotf(x - sx, y - sy) > keep)
+      if (hypotf(x - ox, y - oy) > keep)
       {
         fillBox(static_cast<int>(x) - 1, static_cast<int>(y) - 1,
-                static_cast<int>(x) + 1, static_cast<int>(y) + 1, 0, K);
+                static_cast<int>(x) + 1, static_cast<int>(y) + 1, 0, fgInk);
       }
     }
   };
 
-  fillBox(LEFT0, cy, LEFT1, cy + 1, 0, K); // the horizon
+  fillBox(xL, hy, xR, hy + 1, 0, fgInk);
+
+  int lit = 0;
+  const int phase16 = calcMoonPhase(static_cast<int64_t>(now), &lit);
+  const double age = fmod((static_cast<double>(now) - 947182440.0) / 86400.0,
+                          29.530588853);
+  const double mfrac = (age < 0 ? age + 29.530588853 : age) / 29.530588853;
+  const int phase = static_cast<int>(lround(mfrac * MOON709_STEPS)) % MOON709_STEPS;
+  const String moonDesc = String(lit) + "% " + label(getMoonPhaseDesc(phase16));
 
   int64_t rise = current.sunrise, set = current.sunset;
   if (rise > 0 && set > rise)
   {
     const bool night = now < rise || now >= set;
-    String top, bottom;
     if (!night)
     {
-      const float f = static_cast<float>(now - rise) / (set - rise);
+      const float f = std::max(0.02f, std::min(0.98f,
+                        static_cast<float>(now - rise) / (set - rise)));
       float sx, sy;
       onArc(f, sx, sy);
       float px0 = 0, py0 = 0;
-      for (int i = 0; i <= static_cast<int>(f * 200); ++i)
+      const int steps = std::max(1, static_cast<int>(f * 180));
+      for (int i = 0; i <= steps; ++i)
       {
         float x, y;
-        onArc(i / 200.0f, x, y);
-        if (i && hypotf(x - sx, y - sy) > 46 && hypotf(px0 - sx, py0 - sy) > 46)
+        onArc(f * i / steps, x, y);
+        if (i && hypotf(x - sx, y - sy) > 23.0f && hypotf(px0 - sx, py0 - sy) > 23.0f)
         {
-          stroke(px0, py0, x, y, 3, K);
+          if (s_skyDark)
+          {
+            stroke(px0, py0, x, y, 4, Y);
+          }
+          else
+          {
+            // Deep orange-red arc for sunlit readability over warm gold horizon
+            stroke(px0, py0, x, y, 4, (i & 1) ? R : Y);
+          }
         }
         px0 = x;
         py0 = y;
       }
-      dotted(static_cast<int>(f * 100) + 1, sx, sy, 47);  // clear of the rays (r 44)
-      drawSun(static_cast<int>(sx), static_cast<int>(sy), true);
-      top = span(static_cast<long>(set - rise));
-      bottom = TXT709_OF_DAYLIGHT;
+      dotted(f + 0.01f, 1.0f, sx, sy, 25.0f);
+      drawSkySun3C(static_cast<int>(sx), static_cast<int>(sy), s_skyDark);
+
+      const String daySpan = span(static_cast<long>(set - rise));
+      drawText(cx, hy - 36, daySpan, F_SANS_25, fgInk, MA, s_skySoftSub);
+      drawText(xL, hy + 10, clock(static_cast<time_t>(rise), TIME_FORMAT), F_SANS_24, fgInk, LA);
+      drawText(xR, hy + 10, clock(static_cast<time_t>(set), TIME_FORMAT), F_SANS_24, fgInk, RA);
+
+      // Center moon + label cleanly below horizon (y = 260..332)
+      const int totalW = MOON709_PX + 12 + textWidth(moonDesc, F_SANS_24);
+      const int mx = cx - totalW / 2 + MOON709_PX / 2;
+      drawMoon(mx, 294, phase);
+      drawText(mx + MOON709_PX / 2 + 12, 294, moonDesc, F_SANS_24, fgInk, LM, s_skySoftSub);
     }
     else
     {
+      int64_t prevSet = set;
       if (now >= set)
-      { // the next sunrise is tomorrow's
+      {
         const time_t next = now + 86400;
         tm tomorrow;
         localtime_r(&next, &tomorrow);
@@ -1432,33 +1790,27 @@ static void drawSky(const owm_current_t &current)
           set += 86400;
         }
       }
-      dotted(1, LEFTC - rx, cy, 47);
-      drawSun(LEFTC - rx, cy, false);
-      fillBox(LEFTC - rx - 52, cy, LEFTC - rx + 52, cy + 1, 0, K);
-      top = TXT709_SUNRISE_IN;
-      bottom = span(static_cast<long>(rise - now));
-    }
-    drawText(LEFTC, cy - 54, top, F_SANS_22, K, MA, true);
-    drawText(LEFTC, cy - 29, bottom, F_SANS_22, K, MA, true);
-    drawText(LEFT0, cy + 32, clock(static_cast<time_t>(rise), TIME_FORMAT),
-             F_BITTER_32, K, LA);
-    drawText(LEFT1, cy + 32, clock(static_cast<time_t>(set), TIME_FORMAT),
-             F_BITTER_32, K, RA);
-  }
+      else
+      {
+        prevSet = set - 86400;
+      }
+      const float nf = (rise > prevSet)
+          ? std::max(0.18f, std::min(0.82f, static_cast<float>(now - prevSet) / (rise - prevSet)))
+          : 0.50f;
+      float mx, my;
+      onArc(nf, mx, my);
+      dotted(0.0f, 1.0f, mx, my, 42.0f);
+      drawMoon(static_cast<int>(mx), static_cast<int>(my), phase);
 
-  int lit = 0;
-  const int phase16 = calcMoonPhase(static_cast<int64_t>(now), &lit);
-  // the same clock as calcMoonPhase, at the finer step the pictures have
-  const double age = fmod((static_cast<double>(now) - 947182440.0) / 86400.0,
-                          29.530588853);
-  const double frac = (age < 0 ? age + 29.530588853 : age) / 29.530588853;
-  const int phase = static_cast<int>(lround(frac * MOON709_STEPS))
-                    % MOON709_STEPS;
-  drawMoon(LEFTC, cy + 50, phase);
-  drawText(LEFTC, cy + 92,
-           label(getMoonPhaseDesc(phase16)) + TXT709_DOT + String(lit)
-           + TXT709_LIT,
-           F_SANS_23, K, MA, true);
+      drawText(cx, hy - 34, moonDesc, F_SANS_24, fgInk, MA);
+      drawText(xL, hy + 10, String("Set ") + clockShort(static_cast<time_t>(prevSet)),
+               F_SANS_24, fgInk, LA);
+      drawText(xR, hy + 10, String("Rise ") + clockShort(static_cast<time_t>(rise)),
+               F_SANS_24, fgInk, RA);
+      drawText(cx, 286, String(TXT709_SUNRISE_IN " ") + span(static_cast<long>(rise - now)),
+               F_SANS_25, fgInk, MA);
+    }
+  }
 } // end drawSky
 
 void drawCurrentConditions(const owm_current_t &current,
@@ -1472,20 +1824,29 @@ void drawCurrentConditions(const owm_current_t &current,
   sunDown = current.sunset;
   const bool day = daylightAt(nowUtc(), current.weather.icon.endsWith("d"));
 
-  drawIcon(conditionIcon(current.weather.id, day, 220), 220, 26, 180);
+  drawSkyBand3C(current, day);
+
+  const bool isFogIcon = (current.weather.id >= 700 && current.weather.id < 800
+                          && current.weather.id != 771 && current.weather.id != 781);
+  drawIconOnSky(conditionIcon(current.weather.id, day, 220), 220, 24, 30,
+                s_skyDark, isFogIcon);
   const String temp = tempText(current.temp);
-  drawText(262, 176, temp,
-           fitFont(temp, 584 - 262 - 8, {&F_BITTER_190D, &F_BITTER_150D}),
-           K, LA);
-  drawText(LEFT0, 424, label(TXT_FEELS_LIKE) + " "
-                     + tempText(current.feels_like),
-           F_BITTER_52, K, LA);
-  drawText(LEFT0, 490,
-           TXT709_KIND[kindOf(current.weather.id, current.clouds, day, 1.0f,
-                              false)],
-           F_SANS_38, K, LA, true);
+  const uint16_t heroInk = s_skyDark ? W_ABS : K_ABS;
+  drawText(256, 40, temp,
+           fitFont(temp, 326, {&F_BITTER_190D, &F_BITTER_150D}),
+           heroInk, LA);
+  const String kind = TXT709_KIND[kindOf(current.weather.id, current.clouds, day, 1.0f, false)];
+  const String sub = label(TXT_FEELS_LIKE) + " " + tempText(current.feels_like)
+                   + "  \xB7  " + kind;
+  drawText(34, 284, sub,
+           fitFont(sub, 540, {&F_SANS_32, &F_SANS_28, &F_SANS_24}),
+           heroInk, LA, s_skySoftSub);
 
   drawSky(current);
+
+  // Lower deck structural dividers; 4x2 readings grid sits cleanly below enlarged 24h matrix
+  dashV(904, 368, 1136, 1, 2, 6, K);
+  dashH(32, 884, 956, 1, 2, 6, K);
 
   // every cell the layout can show; PANEL_SLOTS (the portal's choice) says
   // which go where
@@ -1682,7 +2043,7 @@ void drawCurrentConditions(const owm_current_t &current,
 #endif
     cells[CK_INDOOR].value = (std::isnan(inTemp) ? String("--")
                   : String(static_cast<int>(lroundf(in))) + "\xB0")
-               + TXT709_DOT
+               + " \xB7 "
                + (std::isnan(inHumidity) ? String("--")
                   : String(static_cast<int>(lroundf(inHumidity))) + "%");
     cells[CK_INDOOR].trend = historyIndoorTrend();
@@ -1698,32 +2059,32 @@ void drawCurrentConditions(const owm_current_t &current,
       }
     }
   }
-  dashV(584, 40, 1170, 1, 2, 6, K); // between the columns
 } // end drawCurrentConditions
 
 void drawStatusBar(const String &statusStr, const String &refreshTimeStr,
                    int rssi, uint32_t batVoltage, int batDaysLeft,
                    bool stale)
 {
+  const int maxW = 1536;
   if (stale)
   { // the weather on the page is old: when it is from, in red, and why
     const String when = String(TXT709_LAST_UPDATED " ") + refreshTimeStr;
     String s = when + TXT709_DOT + statusStr;
-    if (statusStr.isEmpty() || textWidth(s, F_SANS_24) > LEFT1 - LEFT0)
+    if (statusStr.isEmpty() || textWidth(s, F_SANS_24) > maxW)
     {
       s = when;
     }
-    drawText(LEFT0, FOOTER_Y, s, F_SANS_24, R, LA);
+    drawText(1568, FOOTER_Y, s, F_SANS_24, R, RA);
     return;
   }
   if (!statusStr.isEmpty())
   { // something went wrong this wake: say so, in the place of the rest
     String s = statusStr + TXT709_DOT + TXT709_UPDATED " " + refreshTimeStr;
-    if (textWidth(s, F_SANS_24) > LEFT1 - LEFT0)
+    if (textWidth(s, F_SANS_24) > maxW)
     {
       s = statusStr;
     }
-    drawText(LEFT0, FOOTER_Y, s, F_SANS_24, R, LA);
+    drawText(1568, FOOTER_Y, s, F_SANS_24, R, RA);
     return;
   }
   String s = String(TXT709_UPDATED " ") + refreshTimeStr;
@@ -1734,17 +2095,17 @@ void drawStatusBar(const String &statusStr, const String &refreshTimeStr,
                    + "%";
   const String daysLeft = (batDaysLeft >= 0)
       ? ", " + String(batDaysLeft) + " " TXT709_DAYS_LEFT : String();
-  if (textWidth(s + bat + daysLeft, F_SANS_24) > LEFT1 - LEFT0)
+  if (textWidth(s + bat + daysLeft, F_SANS_24) > maxW)
   { // too long (a refresh time with a date leaves no room for the days
     // left): the time alone, as the date is the page's own, in its header
     s = String(TXT709_UPDATED " ") + clock(nowUtc(), TIME_FORMAT);
   }
   // still too long: the days left go, never the battery itself
-  if (textWidth(s + bat + daysLeft, F_SANS_24) <= LEFT1 - LEFT0)
+  if (textWidth(s + bat + daysLeft, F_SANS_24) <= maxW)
   {
     s += bat + daysLeft;
   }
-  else if (textWidth(s + bat, F_SANS_24) <= LEFT1 - LEFT0)
+  else if (textWidth(s + bat, F_SANS_24) <= maxW)
   {
     s += bat;
   }
@@ -1755,13 +2116,13 @@ void drawStatusBar(const String &statusStr, const String &refreshTimeStr,
   { // only worth the room when it is poor
     const String wifi = String(TXT709_DOT) + TXT709_WIFI " "
                       + label(getWiFidesc(rssi));
-    if (textWidth(s + wifi, F_SANS_24) <= LEFT1 - LEFT0)
+    if (textWidth(s + wifi, F_SANS_24) <= maxW)
     {
       s += wifi;
     }
   }
   const bool low = BATTERY_MONITORING && batVoltage < WARN_BATTERY_VOLTAGE;
-  drawText(LEFT0, FOOTER_Y, s, F_SANS_24, low ? R : K, LA, !low);
+  drawText(1568, FOOTER_Y, s, F_SANS_24, low ? R : K, RA, !low);
 } // end drawStatusBar
 
 /* =========================================================================
@@ -1833,175 +2194,133 @@ static String amountText(const owm_daily_t &day)
 #endif
 }
 
-/* Name, icon, high, low -- and rain only when it is likely (30% and up), so
- * that a dry week is a quiet one.
- */
-/* The week's highs and lows as one band (planning round 7, option B):
- * a red line through the highs, a blue one through the lows, the space
- * between them shaded from yellow (warm) to blue (cool) on one scale for
- * the whole week, each figure beside its dot. Names, icons and rain stay
- * in their columns.
- */
-static const bool WEEK_BAND = true;
-// 0: yellow screened over blue (your mockup; olive on this panel), 1: pale
-// yellow at the warm edge through white to pale blue at the cool edge
-static const int WEEK_BAND_FILL = 1;
-// smooth curves through the days, no dots (false: straight segments, dots)
-static const bool WEEK_BAND_SMOOTH = true;
-
-static void drawWeekBand(const owm_daily_t *daily, int days, float cw, int y0)
-{
-  int n = 0;                               // days with a forecast, in a run
-  while (n < days && daily[n].dt > 0 && !std::isnan(daily[n].temp.max)
-         && !std::isnan(daily[n].temp.min))
-  {
-    ++n;
-  }
-  if (n < 2)
-  {
-    return;
-  }
-  float hi = -1e9f, lo = 1e9f;
-  for (int i = 0; i < n; ++i)
-  {
-    hi = std::max(hi, toUnitsF(daily[i].temp.max));
-    lo = std::min(lo, toUnitsF(daily[i].temp.min));
-  }
-  if (hi - lo < 1)
-  {
-    hi = lo + 1;
-  }
-  const int yT = y0 + 222, yB = y0 + 302;   // the scale: hi at yT, lo at yB
-  auto Yof = [&](float t) { return yB - (yB - yT) * (t - lo) / (hi - lo); };
-  auto X = [&](int i) { return RIGHT0 + cw * (i + 0.5f); };
-  float vh[OWM_NUM_DAILY], vl[OWM_NUM_DAILY];
-  for (int i = 0; i < n; ++i)
-  {
-    vh[i] = toUnitsF(daily[i].temp.max);
-    vl[i] = toUnitsF(daily[i].temp.min);
-  }
-  auto hiAt = [&](float f) {
-    if (WEEK_BAND_SMOOTH) return smoothAt(vh, n, f);
-    const int i = std::min(static_cast<int>(f), n - 2);
-    return vh[i] + (vh[i + 1] - vh[i]) * (f - i);
-  };
-  auto loAt = [&](float f) {
-    if (WEEK_BAND_SMOOTH) return smoothAt(vl, n, f);
-    const int i = std::min(static_cast<int>(f), n - 2);
-    return vl[i] + (vl[i + 1] - vl[i]) * (f - i);
-  };
-  // the fill, column by column, yellow to blue by temperature
-  for (int x = static_cast<int>(X(0)); x <= static_cast<int>(X(n - 1)); ++x)
-  {
-    const float f = (x - X(0)) / cw;
-    const float th = hiAt(f), tl = loAt(f);
-    for (int y = static_cast<int>(Yof(th)); y <= static_cast<int>(Yof(tl)); ++y)
-    {
-      const float share = std::max(0.0f, std::min(1.0f, (yB - y) / float(yB - yT)));
-      if (WEEK_BAND_FILL == 0)
-      {
-        px(x, y, toneAt({Y, share, B, 1}, x, y));
-      }
-      else if (share >= 0.5f)
-      {
-        px(x, y, toneAt({Y, (share - 0.5f) * 1.4f, W, 1}, x, y));
-      }
-      else
-      { // on the dark ground blue dots vanish: white ones read as a cool grey
-        px(x, y, toneAt({DARK_MODE ? W_ABS : B, (0.5f - share) * 1.4f, W, 1}, x, y));
-      }
-    }
-  }
-  // the lines on a halo of paper, then the dots and the figures; the lows
-  // white on the dark ground, as the graph's dew point is
-  const uint16_t lowInk = DARK_MODE ? W_ABS : B;
-  const float steps = WEEK_BAND_SMOOTH ? 12.0f : 1.0f;   // pieces per day
-  for (int pass = 0; pass < 2; ++pass)
-  {
-    for (int k = 1; k <= static_cast<int>((n - 1) * steps); ++k)
-    {
-      const float f0 = (k - 1) / steps, f1 = k / steps;
-      const float x0 = X(0) + f0 * cw, x1 = X(0) + f1 * cw;
-      stroke(x0, Yof(hiAt(f0)), x1, Yof(hiAt(f1)), pass ? 5 : 11, pass ? tempInk() : W);
-      stroke(x0, Yof(loAt(f0)), x1, Yof(loAt(f1)), pass ? 5 : 11, pass ? lowInk : W);
-    }
-  }
-  for (int i = 0; i < n; ++i)
-  {
-    const float yh = Yof(toUnitsF(daily[i].temp.max));
-    const float yl = Yof(toUnitsF(daily[i].temp.min));
-    if (!WEEK_BAND_SMOOTH)
-    {
-      disc(X(i), yh, 10, W); disc(X(i), yh, 7, tempInk());
-      disc(X(i), yl, 10, W); disc(X(i), yl, 7, lowInk);
-    }
-    drawText(static_cast<int>(X(i)) + 4, static_cast<int>(yh) - 14,
-             tempText(daily[i].temp.max), F_BITTER_42D, tempInk(), MD);
-    drawText(static_cast<int>(X(i)) + 4, static_cast<int>(yl) + 14,
-             tempText(daily[i].temp.min), F_BITTER_42D, lowInk, MA);
-  }
-}
-
-// does any day of the week show its rain (30 % and up) under its low?
-static bool weekRainRow(const owm_daily_t *daily)
-{
-#if DISPLAY_DAILY_PRECIP
-  const int days = std::min(std::max(FORECAST_DAYS, 5), OWM_NUM_DAILY);
-  for (int i = 0; i < days; ++i)
-  {
-    if (daily[i].dt > 0 && !std::isnan(daily[i].temp.max)
-        && daily[i].pop >= 0.295f)
-    {
-      return true;
-    }
-  }
-#else
-  (void)daily;
-#endif
-  return false;
-}
-
 void drawForecast(const owm_daily_t *daily, tm timeInfo)
 {
-  const int y0 = 84 + alertTop;
-  drawText(RIGHT0, 28 + alertTop, TXT709_THIS_WEEK, F_BITTER_40, K, LA);
+  drawText(924, 368, String(TXT709_THIS_WEEK) + " \x7F Daily breakdown",
+           F_BITTER_34, K, LA);
   const int days = std::min(std::max(FORECAST_DAYS, 5), OWM_NUM_DAILY);
-  const float cw = (RIGHT1 - RIGHT0) / static_cast<float>(days);
-  if (WEEK_BAND)
-  {
-    drawWeekBand(daily, days, cw, y0);
-  }
+  float weekLo = 1e9f, weekHi = -1e9f;
   for (int i = 0; i < days; ++i)
   {
-    const int cx = static_cast<int>(RIGHT0 + cw * (i + 0.5f));
+    if (daily[i].dt > 0 && !std::isnan(daily[i].temp.min)
+        && !std::isnan(daily[i].temp.max))
+    {
+      weekLo = std::min(weekLo, toUnitsF(daily[i].temp.min));
+      weekHi = std::max(weekHi, toUnitsF(daily[i].temp.max));
+    }
+  }
+  if (weekLo > weekHi)
+  {
+    weekLo = 58.0f;
+    weekHi = 62.0f;
+  }
+  else if (weekHi - weekLo < 4.0f)
+  {
+    const float mid = (weekLo + weekHi) / 2.0f;
+    weekLo = mid - 2.0f;
+    weekHi = mid + 2.0f;
+  }
+
+  const int y0 = 418;
+  const int rowH = 102;
+  const int trackX0 = 1266, trackX1 = 1408;
+
+  for (int i = 0; i < days; ++i)
+  {
+    const int ry = y0 + i * rowH;
+    if (i == 0)
+    {
+      fillTone(924, ry + 2, 1568, ry + rowH - 5, 8, {K, 0.06f, W, 1.0f});
+    }
+    else
+    {
+      dashH(924, 1568, ry - 1, 1, 2, 6, K);
+    }
+
     const char *name = (i == 0) ? TXT709_TODAY
                                 : LC_ABDAY[(timeInfo.tm_wday + i) % 7];
-    drawText(cx, y0 + 6, name, F_BITTER_40, K, MA);
-    if (daily[i].dt <= 0 || std::isnan(daily[i].temp.max))
-    { // the forecast did not reach this day
-      drawText(cx, y0 + 196, "--", F_BITTER_42D, K, MA, true);
+    drawText(934, ry + 18, name, F_BITTER_32, K, LA);
+
+    if (daily[i].dt <= 0 || std::isnan(daily[i].temp.max)
+        || std::isnan(daily[i].temp.min))
+    {
+      drawText(1150, ry + 50, "--", F_BITTER_32, K, MM, true);
       continue;
     }
-    drawIcon(conditionIcon(tellingId(daily[i]), true, 104), 104, cx - 52,
-             WEEK_BAND ? y0 + 58 : y0 + 70);
-    if (!WEEK_BAND)
+
+    const int id = tellingId(daily[i]);
+    const String kind = TXT709_KIND[kindOf(id, daily[i].clouds, true, daily[i].pop, false)];
+    drawText(934, ry + 58, kind,
+             fitFont(kind, 170, {&F_SANS_23, &F_SANS_22}), K, LA, true);
+
+    drawIconScaled(conditionIcon(id, true, 104), 104, 78, 1110, ry + 11);
+
+    // Aligned min/max temperature columns bracketing the full-week range track
+    drawText(trackX0 - 10, ry + 50, tempText(daily[i].temp.min), F_BITTER_28, dewInk(), RM);
+    drawText(trackX1 + 10, ry + 50, tempText(daily[i].temp.max), F_BITTER_28, tempInk(), LM);
+
+    const float dLo = toUnitsF(daily[i].temp.min);
+    const float dHi = toUnitsF(daily[i].temp.max);
+    int px0 = trackX0 + static_cast<int>(lroundf((trackX1 - trackX0)
+                        * (dLo - weekLo) / (weekHi - weekLo)));
+    int px1 = trackX0 + static_cast<int>(lroundf((trackX1 - trackX0)
+                        * (dHi - weekLo) / (weekHi - weekLo)));
+    if (px1 - px0 < 20)
     {
-      drawText(cx + 6, y0 + 196, tempText(daily[i].temp.max), F_BITTER_62D, K,
-               MA);
-      drawText(cx + 4, y0 + 274, tempText(daily[i].temp.min), F_BITTER_42D, K,
-               MA, true);
+      const int mid = (px0 + px1) / 2;
+      px0 = mid - 10;
+      px1 = mid + 10;
     }
+    px0 = std::max(trackX0, std::min(trackX1 - 20, px0));
+    px1 = std::max(px0 + 20, std::min(trackX1, px1));
+
+    fillTone(trackX0, ry + 45, trackX1, ry + 55, 5, {K, 0.10f, W, 1.0f});
+    const int py0 = ry + 43, py1 = ry + 57, pr = 7;
+    for (int x = px0; x <= px1; ++x)
+    {
+      const float u = std::max(0.0f, std::min(1.0f,
+                        (x - trackX0) / static_cast<float>(trackX1 - trackX0)));
+      Tone pt;
+      if (u <= 0.28f)
+      {
+        pt = {G, u / 0.28f, B, 1.0f};
+      }
+      else if (u <= 0.54f)
+      {
+        pt = {Y, (u - 0.28f) / 0.26f, G, 1.0f};
+      }
+      else
+      {
+        pt = {R, (u - 0.54f) / 0.46f, Y, 1.0f};
+      }
+#if defined(EPD709_HOST)
+      g_hostTone = hostKey(pt, false);
+#endif
+      for (int y = py0; y <= py1; ++y)
+      {
+        if (inRound(x, y, px0, py0, px1, py1, pr))
+        {
+          px(x, y, toneAt(pt, x, y));
+        }
+      }
+    }
+#if defined(EPD709_HOST)
+    g_hostTone = 0;
+#endif
+
 #if DISPLAY_DAILY_PRECIP
-    const int py = WEEK_BAND ? y0 + 366 : y0 + 350;   // just under the lowest low
     if (daily[i].pop >= 0.295f)
     {
-      drawText(cx, py,
-               String(static_cast<int>(lroundf(daily[i].pop * 100))) + "%",
-               F_SANS_32, dewInk(), MA);
+      const String popStr = String(static_cast<int>(lroundf(daily[i].pop * 100))) + "%";
       const String amount = amountText(daily[i]);
       if (amount.length())
       {
-        drawText(cx, py + (WEEK_BAND ? 34 : 38), amount, F_SANS_25, dewInk(), MA);
+        drawText(1566, ry + 26, popStr, F_SANS_26, dewInk(), RA);
+        drawText(1566, ry + 60, amount, F_SANS_22, dewInk(), RA);
+      }
+      else
+      {
+        drawText(1566, ry + 50, popStr, F_SANS_26, dewInk(), RA);
       }
     }
 #endif
@@ -2009,747 +2328,9 @@ void drawForecast(const owm_daily_t *daily, tm timeInfo)
 } // end drawForecast
 
 /* =========================================================================
- * Right: the hours ahead
+ * Lower-left: 24-hour editorial matrix
  * ====================================================================== */
 
-struct Spell
-{
-  Kind kind;
-  float a, b; // hours from the start of the graph
-};
-
-/* The ribbon shows the weather as spells: a run of hours of one kind, as
- * wide as it lasts and named once. A dry spell under three hours joins the
- * longer of its dry neighbours; anything wet is kept, however brief.
- */
-static int spellsOf(const owm_hourly_t *hourly, int n, Spell *out)
-{
-  int count = 0;
-  for (int i = 0; i < n; ++i)
-  {
-    const bool day = daylightAt(hourly[i].dt + 1800,
-                                hourly[i].weather.icon.endsWith("d"));
-    const Kind k = kindOf(hourly[i].weather.id, hourly[i].clouds, day,
-                          hourly[i].pop, true);
-    if (count && out[count - 1].kind == k)
-    {
-      out[count - 1].b = i + 1;
-    }
-    else
-    {
-      out[count++] = {k, static_cast<float>(i), static_cast<float>(i + 1)};
-    }
-  }
-  bool again = true;
-  while (again && count > 1)
-  {
-    again = false;
-    for (int i = 0; i < count; ++i)
-    {
-      if (isWet(out[i].kind) || out[i].b - out[i].a >= 3.0f)
-      {
-        continue;
-      }
-      const bool left = i > 0 && !isWet(out[i - 1].kind);
-      const bool right = i + 1 < count && !isWet(out[i + 1].kind);
-      if (!left && !right)
-      {
-        continue;
-      }
-      if (!right || (left && out[i - 1].b - out[i - 1].a
-                               >= out[i + 1].b - out[i + 1].a))
-      {
-        out[i - 1].b = out[i].b;
-      }
-      else
-      {
-        out[i + 1].a = out[i].a;
-      }
-      for (int j = i; j + 1 < count; ++j)
-      {
-        out[j] = out[j + 1];
-      }
-      --count;
-      again = true;
-      break;
-    }
-  }
-  auto coalesce = [&]() {
-    int kept = 0;
-    for (int i = 0; i < count; ++i)
-    {
-      if (kept && out[kept - 1].kind == out[i].kind)
-      {
-        out[kept - 1].b = out[i].b;
-      }
-      else
-      {
-        out[kept++] = out[i];
-      }
-    }
-    count = kept;
-  };
-  coalesce();
-  // Then the wet spells: a dry gap under 3 h between two of them goes to
-  // the longer, and a wet spell under 2 h beside a longer wet one joins it
-  // ("Showers 12am - 8am", not showers, a blank, and a sliver).
-  auto len = [&](int i) { return out[i].b - out[i].a; };
-  again = true;
-  while (again && count > 1)
-  {
-    again = false;
-    for (int i = 0; i < count; ++i)
-    {
-      const bool wetL = i > 0 && isWet(out[i - 1].kind);
-      const bool wetR = i + 1 < count && isWet(out[i + 1].kind);
-      int into = -1;
-      if (!isWet(out[i].kind) && len(i) < 3.0f && wetL && wetR)
-      {
-        into = len(i - 1) >= len(i + 1) ? i - 1 : i + 1;
-      }
-      else if (isWet(out[i].kind) && len(i) < 2.0f && (wetL || wetR))
-      {
-        into = (wetL && (!wetR || len(i - 1) >= len(i + 1))) ? i - 1 : i + 1;
-        if (len(into) <= len(i))
-        {
-          into = -1;
-        }
-      }
-      if (into >= 0)
-      {
-        out[i].kind = out[into].kind;
-        coalesce();
-        again = true;
-        break;
-      }
-    }
-  }
-  return count;
-}
-
-struct Ribbon
-{
-  Tone tone;      // share < 0: paper
-  bool solid;     // one ink, tone.top
-  uint16_t edge;
-  int edgeWidth;  // 1 is drawn as a hairline of every other dot
-  uint16_t text;
-};
-// Spells: the cloud steps are light grey screens (10 / 21 / 33 %, fog 16 %)
-// that read as tints rather than speckle; the sunny spells solid and pale
-// yellow (55 %); showers and rain the blue ink itself, their words telling
-// them apart; storms dark, with yellow words to echo the lightning (see
-// g_stormStyle); clear nights navy and slate, with white words.
-static const Ribbon RIBBON[13] = {
-  /* sunny   */ {{Y, 1.00f, W_ABS, 1}, false, K, 1, K_ABS},
-  /* msunny  */ {{Y, 0.55f, W_ABS, 1}, false, K, 1, K_ABS},
-  /* clear   */ {{K_ABS, 0.50f, B, 1}, false, K, 1, W_ABS},
-  /* mclear  */ {{K_ABS, 0.30f, B, 1}, false, K, 1, W_ABS},
-  /* partly  */ {{K, 0.10f, W, 1}, false, K, 1, K},
-  /* mcloudy */ {{K, 0.21f, W, 1}, false, K, 1, K},
-  /* cloudy  */ {{K, 0.33f, W, 1}, false, K, 1, K},
-  /* fog     */ {{K, 0.16f, W, 1}, false, K, 1, K},
-  /* showers */ {{B, 1, B, 1}, true, B, 0, W_ABS},
-  /* rain    */ {{B, 1, B, 1}, true, B, 0, W_ABS},
-  /* storms  */ {{K_ABS, 0.50f, B, 1}, false, K, 1, Y},
-  /* snow    */ {{W_ABS, 1, W_ABS, 1}, true, B, 2, B},
-  /* ice     */ {{R, 0.45f, W, 1}, false, R, 2, K},
-};
-
-struct Lines
-{
-  int n = 0;
-  String text[2];
-  const Font709 *face[2] = {nullptr, nullptr};
-};
-
-static bool oneLine(Lines &l, const String &s, int room,
-                    std::initializer_list<const Font709 *> faces)
-{
-  for (const Font709 *f : faces)
-  {
-    if (textWidth(s, *f) + 12 <= room)
-    {
-      l.n = 1;
-      l.text[0] = s;
-      l.face[0] = f;
-      return true;
-    }
-  }
-  return false;
-}
-
-static bool twoLines(Lines &l, const String &top, const String &bottom,
-                     int room, const Font709 *ft, const Font709 *fb)
-{
-  if (std::max(textWidth(top, *ft), textWidth(bottom, *fb)) + 12 <= room)
-  {
-    l.n = 2;
-    l.text[0] = top;
-    l.text[1] = bottom;
-    l.face[0] = ft;
-    l.face[1] = fb;
-    return true;
-  }
-  return false;
-}
-
-/* The most a segment has room for: the word and its hours on one line,
- * then on two, then the word alone, then nothing. Only wet spells carry
- * hours.
- */
-static Lines wording(const Spell &s, int hoursShown, int room, time_t start)
-{
-  Lines l;
-  const String word = TXT709_KIND[s.kind];
-  if (isWet(s.kind))
-  {
-    const String from = clockShort(start + static_cast<long>(s.a * 3600));
-    const String to = clockShort(start + static_cast<long>(s.b * 3600));
-    String when;
-    if (s.a <= 0)
-    {
-      when = String(TXT709_UNTIL " ") + to;
-    }
-    else if (s.b >= hoursShown)
-    {
-      when = String(TXT709_FROM " ") + from;
-    }
-    else
-    {
-      when = from + " \x7F " + to;
-    }
-    if (oneLine(l, word + "  " + when, room, {&F_SANS_30, &F_SANS_27})
-     || twoLines(l, word, when, room, &F_SANS_27, &F_SANS_23))
-    {
-      return l;
-    }
-  }
-  if (oneLine(l, word, room, {&F_SANS_30, &F_SANS_27}))
-  {
-    return l;
-  }
-  const int gap = word.indexOf(' ');
-  if (gap > 0)
-  {
-    const String first = word.substring(0, gap), rest = word.substring(gap + 1);
-    if (twoLines(l, first, rest, room, &F_SANS_25, &F_SANS_25)
-     || twoLines(l, first, rest, room, &F_SANS_22, &F_SANS_22))
-    {
-      return l;
-    }
-  }
-  oneLine(l, word, room, {&F_SANS_24, &F_SANS_22});
-  return l;
-}
-
-/* Small weather glyphs, about 40 px, for the ribbon where its words do not
- * fit.
- */
-namespace tl
-{
-// ---- small glyphs, about 40 px, drawn by shape tests ----------------------
-static bool inCloud(float x, float y, float cx, float cy, float s)
-{
-  auto in = [&](float ox, float oy, float r) {
-    const float dx = x - (cx + ox * s), dy = y - (cy + oy * s);
-    return dx * dx + dy * dy <= r * r * s * s;
-  };
-  const bool base = (y <= cy + 0.42f * s) && (y >= cy - 0.05f * s)
-                    && (x >= cx - 0.78f * s) && (x <= cx + 0.78f * s);
-  return base || in(-0.45f, 0.12f, 0.32f) || in(0.0f, -0.12f, 0.46f)
-         || in(0.46f, 0.08f, 0.34f);
-}
-
-static void cloud(float cx, float cy, float s)
-{
-  const int r = static_cast<int>(s) + 4;
-  for (int y = static_cast<int>(cy) - r; y <= cy + r; ++y)
-  {
-    for (int x = static_cast<int>(cx) - r; x <= cx + r; ++x)
-    {
-      if (inCloud(x, y, cx, cy, s))
-      {
-        px(x, y, W_ABS);
-      }
-      else if (inCloud(x, y, cx, cy, s + 2.5f) || inCloud(x - 2, y, cx, cy, s)
-               || inCloud(x + 2, y, cx, cy, s) || inCloud(x, y - 2, cx, cy, s)
-               || inCloud(x, y + 2, cx, cy, s))
-      {
-        px(x, y, K);
-      }
-    }
-  }
-}
-
-static void sun(float cx, float cy, float r)
-{
-  for (int k = 0; k < 8; ++k)
-  {
-    const float a = k * 3.14159265f / 4;
-    stroke(cx + cosf(a) * (r + 3), cy + sinf(a) * (r + 3),
-           cx + cosf(a) * (r + 7), cy + sinf(a) * (r + 7), 2, K);
-  }
-  disc(cx, cy, r, K);
-  disc(cx, cy, r - 2, Y);
-}
-
-static void moon(float cx, float cy, float r, uint16_t ink)
-{
-  for (int y = static_cast<int>(cy - r) - 1; y <= cy + r + 1; ++y)
-  {
-    for (int x = static_cast<int>(cx - r) - 1; x <= cx + r + 1; ++x)
-    {
-      const float a = (x - cx) * (x - cx) + (y - cy) * (y - cy);
-      const float b = (x - cx - r * 0.55f) * (x - cx - r * 0.55f)
-                    + (y - cy + r * 0.35f) * (y - cy + r * 0.35f);
-      if (a <= r * r && b > r * r * 0.72f)
-      {
-        px(x, y, ink);
-      }
-    }
-  }
-}
-
-static void drop(float cx, float cy, uint16_t ink)
-{
-  triangle(cx, cy - 7, cx - 4, cy + 1, cx + 4, cy + 1, ink);
-  disc(cx, cy + 2, 4, ink);
-}
-
-static void bolt(float bx, float cy, uint16_t outline = R, uint16_t fill = Y)
-{ // as drawRibbon's, with an outline so it reads on paper
-  for (int pass = 0; pass < 2; ++pass)
-  {
-    const float g = pass ? 0 : 1.6f;
-    const uint16_t ink = pass ? fill : outline;
-    triangle(bx + 12, cy - 18 - g, bx + 1 - g, cy + 3 + g, bx + 9 + g, cy + 3 + g, ink);
-    triangle(bx + 12, cy - 18 - g, bx + 16 + g, cy - 18 - g, bx + 9, cy + 3, ink);
-    triangle(bx + 16 + g, cy - 18 - g, bx + 10, cy - 5, bx + 9, cy + 3, ink);
-    triangle(bx + 10 - g, cy - 5 - g, bx + 19 + g, cy - 5 - g, bx + 4 - g, cy + 18 + g, ink);
-    triangle(bx + 9, cy + 3, bx + 10, cy - 5, bx + 4 - g, cy + 18 + g, ink);
-  }
-}
-
-static void flake(float cx, float cy, uint16_t ink)
-{
-  for (int k = 0; k < 3; ++k)
-  {
-    const float a = k * 3.14159265f / 3 + 0.52f;
-    stroke(cx - cosf(a) * 7, cy - sinf(a) * 7, cx + cosf(a) * 7, cy + sinf(a) * 7, 2, ink);
-  }
-}
-
-// a glyph for a kind, centred on (cx, cy); `onBlue` when the ground is the
-// blue ink, so the drops go white
-static void glyph(Kind k, float cx, float cy, bool onBlue = false)
-{
-  const uint16_t dropInk = onBlue ? W_ABS : B;
-  switch (k)
-  {
-  case K_SUNNY:   sun(cx, cy, 9); break;
-  case K_MSUNNY:  sun(cx + 7, cy - 6, 7); cloud(cx - 3, cy + 4, 13); break;
-  case K_CLEAR:   moon(cx, cy, 11, W_ABS); break;
-  case K_MCLEAR:  moon(cx + 7, cy - 7, 8, W_ABS); cloud(cx - 3, cy + 4, 13); break;
-  case K_PARTLY:  sun(cx + 7, cy - 6, 7); cloud(cx - 3, cy + 5, 15); break;
-  case K_MCLOUDY: cloud(cx + 6, cy - 5, 11); cloud(cx - 3, cy + 4, 15); break;
-  case K_CLOUDY:  cloud(cx, cy, 18); break;
-  case K_FOG:
-    for (int j = -1; j <= 1; ++j)
-    {
-      fillBox(static_cast<int>(cx) - 14 + (j & 1) * 4, static_cast<int>(cy) + j * 8 - 1,
-              static_cast<int>(cx) + 14 - (j & 1) * 4, static_cast<int>(cy) + j * 8 + 1, 1, K);
-    }
-    break;
-  case K_SHOWERS:
-    cloud(cx, cy - 6, 15);
-    drop(cx - 6, cy + 14, dropInk); drop(cx + 7, cy + 14, dropInk);
-    break;
-  case K_RAIN:
-    cloud(cx, cy - 6, 15);
-    drop(cx - 10, cy + 14, dropInk); drop(cx, cy + 16, dropInk); drop(cx + 10, cy + 14, dropInk);
-    break;
-  case K_TSTORM:  bolt(cx - 10, cy); break;
-  case K_SNOW:    cloud(cx, cy - 6, 15); flake(cx - 6, cy + 15, dropInk); flake(cx + 8, cy + 15, dropInk); break;
-  case K_ICE:     cloud(cx, cy - 6, 15); drop(cx - 6, cy + 14, dropInk); flake(cx + 8, cy + 15, dropInk); break;
-  }
-}
-
-} // namespace tl
-
-/* A 3D look for the timeline's chips:
- * 0 flat (the layout's), 1 bevel, 2 drop shadow, 3 gradient, 4 gloss,
- * 5 gradient and shadow. Light is white dots, shade black dots, so each is
- * a screen laid over the chip's fill before its words.
- */
-static int g_chip3d = 3;     // the layout's: the gradient (chosen 2026-10-16)
-
-/* How the cloud and fog chips are filled:
- * 0 white with a grey band, 1 grey 10/21/33 % (fog 16), 2 lighter grey
- * 6/13/21 % (fog 10), 3 grey with a paper patch behind the words, 4 grey
- * in 2x2 cells, 5 dark grey 45/55/65 % (fog 40) with white words.
- */
-static int g_cloudStyle = 1;   // the layout's: grey 10/21/33 %, black words (2026-10-16)
-
-/* How the storm chip is drawn: 0 white,
- * red edge, outlined bolt; 1 grey (as cloudy) with a storm cloud, black
- * words; 2 solid blue (as rain) with a yellow bolt, white words; 3 dark grey
- * with a yellow bolt, white words; 4 yellow with a black bolt, black words;
- * 5 white with a storm cloud like the forecast icons, black words.
- */
-static int g_stormStyle = 3;   // the layout's: dark grey, yellow bolt, white words (2026-10-16)
-
-static float cloudShare(Kind k, int style)
-{
-  static const float S[6][4] = {   // partly, mostly cloudy, cloudy, fog
-    {0.10f, 0.21f, 0.33f, 0.16f}, {0.10f, 0.21f, 0.33f, 0.16f},
-    {0.06f, 0.13f, 0.21f, 0.10f}, {0.10f, 0.21f, 0.33f, 0.16f},
-    {0.10f, 0.21f, 0.33f, 0.16f}, {0.45f, 0.55f, 0.65f, 0.40f}};
-  const int i = (k == K_PARTLY) ? 0 : (k == K_MCLOUDY) ? 1 : (k == K_CLOUDY) ? 2 : 3;
-  return S[style][i];
-}
-
-static void chipShadow(int xa, int y, int xb, int yb)
-{
-  for (int yy = y + 4; yy <= yb + 5; ++yy)
-  {
-    for (int xx = xa + 4; xx <= xb + 5; ++xx)
-    {
-      if (inRound(xx, yy, xa + 4, y + 4, xb + 5, yb + 5, 8)
-          && !inRound(xx, yy, xa, y, xb, yb, 8) && screen(xx, yy, 0.45f))
-      {
-        px(xx, yy, K);
-      }
-    }
-  }
-}
-
-static void chipLight(int xa, int y, int xb, int yb, int style, bool lightWords = false)
-{
-  const int h = yb - y;
-  for (int yy = y; yy <= yb; ++yy)
-  {
-    const float t = (yy - y) / static_cast<float>(h);   // 0 top .. 1 bottom
-    for (int xx = xa; xx <= xb; ++xx)
-    {
-      if (!inRound(xx, yy, xa, y, xb, yb, 8))
-      {
-        continue;
-      }
-      const bool inner = inRound(xx, yy, xa + 3, y + 3, xb - 3, yb - 3, 6);
-      if (style == 1)
-      { // a raised edge: lit above, shaded below
-        if (!inner && screen(xx, yy, 0.75f))
-        {
-          px(xx, yy, (yy < y + h / 2) ? W_ABS : K);
-        }
-      }
-      else if (style == 3 || style == 5)
-      { // lighter at the top, darker at the bottom
-        // under white words the light stays in a band at the top and the
-        // shade near the bottom: white dots behind white letters wash
-        // them out (2026-10-16)
-        const float lite = lightWords ? std::max(0.0f, 0.45f * (1 - t / 0.2f))
-                                      : std::max(0.0f, 0.45f * (1 - t * 2));
-        const float dark = lightWords ? std::max(0.0f, 0.35f * (t - 0.65f) / 0.35f)
-                                      : std::max(0.0f, 0.35f * (t * 2 - 1));
-        if (lite > 0 && screen(xx + 2, yy + 3, lite))
-        {
-          px(xx, yy, W_ABS);
-        }
-        else if (dark > 0 && screen(xx + 5, yy + 1, dark))
-        {
-          px(xx, yy, K);
-        }
-      }
-      else if (style == 4 && inner && t > 0.08f && t < 0.45f)
-      { // a soft highlight across the upper part
-        const float g = 0.5f * sinf((t - 0.08f) / 0.37f * 3.14159265f);
-        if (screen(xx + 1, yy + 2, g))
-        {
-          px(xx, yy, W_ABS);
-        }
-      }
-    }
-  }
-}
-
-// the storm's mark, centred on (cx, cy), in the chip's style
-static void stormMark(float cx, float cy)
-{
-  switch (g_stormStyle)
-  {
-  case 1: case 5:                       // a storm cloud: grey cloud, bolt below
-    tl::cloud(cx, cy - 8, 13);
-    tl::bolt(cx - 10, cy + 8, K, Y);
-    break;
-  case 2: case 3: tl::bolt(cx - 10, cy, Y, Y); break;   // plain yellow
-  case 4: tl::bolt(cx - 10, cy, K, K); break;           // black on yellow
-  default: tl::bolt(cx - 10, cy); break;                // yellow, red edge
-  }
-}
-
-static void drawRibbon(int x0, int x1, int y, const Spell *spells, int count,
-                       int hoursShown, time_t start)
-{
-  const int h = 56;
-  // edges in pixels; a segment narrower than a glyph borrows from its wider
-  // neighbour, so a lone wet hour still shows what falls (only the drawing
-  // moves, by a fraction of an hour)
-  int edge[OWM_NUM_HOURLY + 1];
-  for (int i = 0; i <= count; ++i)
-  {
-    edge[i] = static_cast<int>(x0 + (x1 - x0)
-                               * (i < count ? spells[i].a : spells[count - 1].b)
-                               / hoursShown);
-  }
-  const int minW = 52;
-  for (int i = 0; i < count; ++i)
-  {
-    const int need = minW - (edge[i + 1] - edge[i]);
-    if (need <= 0)
-    {
-      continue;
-    }
-    const int roomL = i > 0 ? (edge[i] - edge[i - 1]) - minW : -1;
-    const int roomR = i + 1 < count ? (edge[i + 2] - edge[i + 1]) - minW : -1;
-    if (roomR >= roomL && roomR >= need)
-    {
-      edge[i + 1] += need;
-    }
-    else if (roomL >= need)
-    {
-      edge[i] -= need;
-    }
-  }
-  for (int i = 0; i < count; ++i)
-  {
-    const Spell &s = spells[i];
-    const Ribbon &look = RIBBON[s.kind];
-    const int xa = edge[i] + 2;
-    const int xb = edge[i + 1] - 2;
-    if (xb - xa < 4)
-    {
-      continue;
-    }
-    // the grey spells (style 0 sets them on paper, their grey as a band
-    // along the bottom)
-    const bool cloudy = (s.kind == K_PARTLY || s.kind == K_MCLOUDY
-                         || s.kind == K_CLOUDY || s.kind == K_FOG);
-    const bool plain = cloudy && g_cloudStyle == 0;
-    if (g_chip3d == 2 || g_chip3d == 5)
-    {
-      chipShadow(xa, y, xb, y + h);
-    }
-    if (s.kind == K_TSTORM)
-    { // style 0: on paper with a red edge, the bolt on white
-      switch (g_stormStyle)
-      {
-      case 1: fillTone(xa, y, xb, y + h, 8, {K, 0.33f, W, 1}); break;
-      case 2: fillBox(xa, y, xb, y + h, 8, B); break;
-      case 3:
-        // the gradient in the fill itself, shaped as the white-word chips'
-        // is: lighter in a band at the top (45 %), darker near the bottom
-        // (to 88 %), an even 70 % where the words are
-        for (int yy = y; yy <= y + h; ++yy)
-        {
-          const float t = (yy - y) / static_cast<float>(h);
-          float share = 0.70f;
-          if (g_chip3d == 3 && t < 0.2f)   {share = 0.45f + 0.25f * t / 0.2f;}
-          if (g_chip3d == 3 && t > 0.65f)  {share = 0.70f + 0.18f * (t - 0.65f) / 0.35f;}
-          const Tone row = {K, share, W, 1};
-          for (int xx = xa; xx <= xb; ++xx)
-          {
-            if (inRound(xx, yy, xa, y, xb, y + h, 8))
-            {
-              px(xx, yy, toneAt(row, xx, yy));
-            }
-          }
-        }
-        break;
-      case 4: fillBox(xa, y, xb, y + h, 8, Y); break;
-      case 5: fillBox(xa, y, xb, y + h, 8, W);
-              display.setStipple(true);
-              strokeBox(xa, y, xb, y + h, 8, 1, K);
-              display.setStipple(false);
-              break;
-      default: fillBox(xa, y, xb, y + h, 8, W);
-               strokeBox(xa, y, xb, y + h, 8, 3, R);
-               break;
-      }
-    }
-    else if (plain)
-    {
-      fillBox(xa, y, xb, y + h, 8, W);
-      // twice the fill's share, so the steps still tell apart in a band
-      const Tone band = {look.tone.top, std::min(1.0f, look.tone.share * 2),
-                         look.tone.under, look.tone.cover};
-      for (int yy = y + h - 10; yy <= y + h; ++yy)
-      {
-        for (int xx = xa; xx <= xb; ++xx)
-        {
-          if (inRound(xx, yy, xa, y, xb, y + h, 8))
-          {
-            px(xx, yy, toneAt(band, xx, yy));
-          }
-        }
-      }
-    }
-    else if (cloudy)
-    {
-      const Tone t = {K, cloudShare(s.kind, g_cloudStyle), W, 1};
-      if (g_cloudStyle == 4) {fillTone2x(xa, y, xb, y + h, 8, t);}
-      else                   {fillTone(xa, y, xb, y + h, 8, t);}
-    }
-    else if (look.solid)
-    {
-      fillBox(xa, y, xb, y + h, 8, look.tone.top);
-    }
-    else
-    {
-      fillTone(xa, y, xb, y + h, 8, look.tone);
-    }
-    if (s.kind == K_TSTORM)
-    {
-    }
-    else if (look.edgeWidth == 1)
-    {
-      display.setStipple(true);
-      strokeBox(xa, y, xb, y + h, 8, 1, look.edge);
-      display.setStipple(false);
-    }
-    else if (look.edgeWidth > 1)
-    {
-      strokeBox(xa, y, xb, y + h, 8, look.edgeWidth, look.edge);
-    }
-    const bool ownGradient = s.kind == K_TSTORM && g_stormStyle == 3 && g_chip3d == 3;
-    if ((g_chip3d == 1 || g_chip3d >= 3) && !ownGradient)
-    {
-      const bool lightWords = look.text == W_ABS
-                              || (s.kind == K_TSTORM && (g_stormStyle == 2 || g_stormStyle == 3))
-                              || (cloudy && g_cloudStyle == 5);
-      chipLight(xa, y, xb, y + h, g_chip3d, lightWords);
-    }
-
-    const int bolt = (s.kind == K_TSTORM) ? 34 : 0;
-    const Lines l = wording(s, hoursShown, xb - xa - bolt, start);
-    int tw = 0;
-    for (int k = 0; k < l.n; ++k)
-    {
-      tw = std::max(tw, textWidth(l.text[k], *l.face[k]));
-    }
-    const int cx = (xa + xb) / 2, cy = plain ? y + (h - 10) / 2 : y + h / 2;
-    const int gapA = l.n ? cx - tw / 2 - 10 - bolt / 2 : cx;
-    const int gapB = l.n ? cx + tw / 2 + 10 + bolt / 2 : cx;
-
-    // texture, kept clear of the words
-    if (s.kind == K_FOG)
-    {
-      display.setStipple(true);
-      for (int j = y + 7; j < y + h - (plain ? 14 : 6); j += 7)
-      {
-        if (gapA - (xa + 8) > 6) {fillBox(xa + 8, j, gapA, j + 1, 0, K);}
-        if ((xb - 8) - gapB > 6) {fillBox(gapB, j, xb - 8, j + 1, 0, K);}
-      }
-      display.setStipple(false);
-    }
-    else if (s.kind == K_SNOW)
-    {
-      int row = 0;
-      for (int yy = y + 9; yy < y + h - 8; yy += 10, ++row)
-      {
-        for (int xx = xa + 9 + (row % 2) * 8; xx < xb - 9; xx += 16)
-        {
-          if (xx < gapA || xx > gapB)
-          {
-            fillBox(xx, yy, xx + 2, yy + 2, 0, B);
-          }
-        }
-      }
-    }
-    else if (s.kind == K_CLEAR)
-    { // a few stars; where they fall is fixed by where the segment is
-      uint32_t seed = static_cast<uint32_t>(xa) * 2654435761u + 12345u;
-      for (int gx = xa + 12; gx < xb - 12; gx += 22)
-      {
-        seed = seed * 1664525u + 1013904223u;
-        const int xx = gx + static_cast<int>((seed >> 8) % 13) - 6;
-        const int yy = y + 8 + static_cast<int>((seed >> 16) % (h - 18));
-        if (xx < gapA || xx > gapB)
-        {
-          fillBox(xx, yy, xx + 1, yy + 1, 0, W_ABS);
-        }
-      }
-    }
-    else if (s.kind == K_TSTORM && l.n)
-    {
-      stormMark(gapA + 16, cy);
-    }
-    if (l.n == 0 && xb - xa >= 30)
-    { // no room for words: what the spell is, as a glyph
-      if (s.kind == K_TSTORM) {stormMark(cx, cy);}
-      else {tl::glyph(s.kind, cx, cy, look.solid && look.tone.top == B);}
-    }
-
-    const int tx = cx + bolt / 2;
-    uint16_t ink = (s.kind == K_TSTORM) ? K : look.text;
-    if (cloudy && g_cloudStyle == 5)
-    {
-      ink = W_ABS;
-    }
-    if (s.kind == K_TSTORM && (g_stormStyle == 2 || g_stormStyle == 3))
-    {
-      ink = W_ABS;
-    }
-    if (cloudy && g_cloudStyle == 3 && l.n)
-    { // a patch of paper behind the words
-      int th = 0;
-      for (int k = 0; k < l.n; ++k)
-      {
-        th += l.face[k]->ascent + l.face[k]->descent;
-      }
-      fillBox(tx - tw / 2 - 8, cy - th / 2 - 4, tx + tw / 2 + 8, cy + th / 2 + 4, 6, W);
-    }
-    if (l.n == 1)
-    {
-      drawText(tx, cy, l.text[0], *l.face[0], ink, MM);
-    }
-    else if (l.n == 2)
-    {
-      drawText(tx, cy - 12, l.text[0], *l.face[0], ink, MM);
-      drawText(tx, cy + 13, l.text[1], *l.face[1], ink, MM);
-    }
-  }
-} // end drawRibbon
-
-/* =========================================================================
- * Stacked graphs (config.json "graph_layout": "stacked", 2026-10-25): the
- * weather by spell, then up to four smaller graphs under it on one time
- * scale, chosen in GRAPH_SLOTS. The simulator also draws the other layouts
- * tried on 2026-10-17 (GRAPH_LAYOUT 2 to 5): no strip, one tall graph and
- * the rest short, a grid of two by two, a table.
- * ====================================================================== */
-namespace sg
-{
-enum Met { TEMP, TEMP_DEW, TEMP_DEW_RAIN, DEW, WIND, RAIN, AMOUNT, HUMIDITY,
-           CLOUDS, FEELS, TEMP_FEELS, RAIN_BOTH, RAIN_CLOUDS, NONE };
-
-static Met metOf(const String &s)
-{
-  static const struct { const char *k; Met m; } T[] = {
-    {"temp", TEMP}, {"temp_dew", TEMP_DEW}, {"temp_dew_rain", TEMP_DEW_RAIN},
-    {"dew", DEW}, {"wind", WIND}, {"rain", RAIN}, {"amount", AMOUNT},
-    {"humidity", HUMIDITY}, {"clouds", CLOUDS}, {"feels", FEELS},
-    {"temp_feels", TEMP_FEELS}, {"rain_both", RAIN_BOTH},
-    {"rain_clouds", RAIN_CLOUDS}};
-  for (auto &t : T)
-  {
-    if (s == t.k) return t.m;
-  }
-  return NONE;
-}
-
-// wind in the unit of the wind tile
 static float speedOf(float ms)
 {
 #if defined(UNITS_SPEED_METERSPERSECOND)
@@ -2766,6 +2347,7 @@ static float speedOf(float ms)
   return meterspersecond_to_beaufort(ms);
 #endif
 }
+
 static String speedUnit()
 {
 #if defined(UNITS_SPEED_METERSPERSECOND)
@@ -2783,1157 +2365,352 @@ static String speedUnit()
 #endif
 }
 
-// rain amounts in the forecast row's unit; where that row shows chances,
-// inches beside Fahrenheit and millimetres otherwise. The scale's tops,
-// smallest first, are round in the decimals given (their halves too).
 #if defined(UNITS_DAILY_PRECIP_INCHES) \
     || (defined(UNITS_DAILY_PRECIP_POP) && defined(UNITS_TEMP_FAHRENHEIT))
 static float amountOf(float mm) { return millimeters_to_inches(mm); }
-static const char *amountUnit() { return TXT_UNITS_PRECIP_INCHES; }
-static const float AMOUNT_TOPS[] = {0.1f, 0.2f, 0.4f, 0.5f, 1.0f, 2.0f};
 static const int AMOUNT_DECIMALS = 2;
-static const float AMOUNT_MIN = 0.004f; // an hour with less shows no bar
-#elif defined(UNITS_DAILY_PRECIP_CENTIMETERS)
-static float amountOf(float mm) { return millimeters_to_centimeters(mm); }
-static const char *amountUnit() { return TXT_UNITS_PRECIP_CENTIMETERS; }
-static const float AMOUNT_TOPS[] = {0.2f, 0.4f, 1.0f, 2.0f, 4.0f, 10.0f};
-static const int AMOUNT_DECIMALS = 1;
-static const float AMOUNT_MIN = 0.01f;
-#else
-static float amountOf(float mm) { return mm; }
-static const char *amountUnit() { return TXT_UNITS_PRECIP_MILLIMETERS; }
-static const float AMOUNT_TOPS[] = {2.0f, 4.0f, 10.0f, 20.0f, 40.0f, 100.0f};
-static const int AMOUNT_DECIMALS = 0;
-static const float AMOUNT_MIN = 0.1f;
-#endif
-
-// an amount as the labels write it: inches without the leading 0
-static String amountText(float v, bool lead = false)
+static const float AMOUNT_MIN = 0.004f;
+static String formatHourlyAmount(float v)
 {
   String s = String(v, AMOUNT_DECIMALS);
-  if (!lead && s.startsWith("0.")) s = s.substring(1);
-  return s;
+  if (s.startsWith("0.")) s = s.substring(1);
+  return s + "\"";
 }
+#elif defined(UNITS_DAILY_PRECIP_CENTIMETERS)
+static float amountOf(float mm) { return millimeters_to_centimeters(mm); }
+static const int AMOUNT_DECIMALS = 1;
+static const float AMOUNT_MIN = 0.01f;
+static String formatHourlyAmount(float v)
+{
+  String s = String(v, AMOUNT_DECIMALS);
+  if (s.startsWith("0.")) s = s.substring(1);
+  return s + " " + TXT_UNITS_PRECIP_CENTIMETERS;
+}
+#else
+static float amountOf(float mm) { return mm; }
+static const int AMOUNT_DECIMALS = 0;
+static const float AMOUNT_MIN = 0.1f;
+static String formatHourlyAmount(float v)
+{
+  return String(v, AMOUNT_DECIMALS) + " " + TXT_UNITS_PRECIP_MILLIMETERS;
+}
+#endif
 
-static const Tone T_GUST   = {K, 0.22f, W, 1.0f};
-static const Tone T_CLOUDS = {K, 0.18f, W, 1.0f};
-
-struct Frame
+struct MatrixFrame
 {
   int x0, x1, y0, y1, n;
   time_t start;
   float lo, hi;
-  float X(float h) const { return x0 + (x1 - x0) * h / n; }
-  float Y(float v) const { return y1 - (y1 - y0) * (v - lo) / (hi - lo); }
+  float Y(float v) const
+  {
+    const float span = (hi > lo) ? (hi - lo) : 1.0f;
+    return y1 - (y1 - y0) * (v - lo) / span;
+  }
 };
 
-// a smooth line through v (NaN: a gap), on a halo of paper
-static void line(const Frame &f, const float *v, int w, uint16_t ink,
-                 bool halo = true, bool dashed = false)
+// Pick the finest clean degree interval fitting 2..5 Y-axis steps across spanPx
+static int niceTempAxis(float tLo, float tHi, float spanPx, int &axisLo, int &axisHi)
 {
-  for (int pass = halo ? 0 : 1; pass < 2; ++pass)
-  {
-    for (int i = 0; i < f.n;)
-    {
-      if (std::isnan(v[i])) { ++i; continue; }
-      int j = i;
-      while (j < f.n && !std::isnan(v[j])) { ++j; }
-      const int m = j - i;
-      const float steps = 6.0f;
-      for (int k = 1; m >= 2 && k <= static_cast<int>((m - 1) * steps); ++k)
-      {
-        const float f0 = (k - 1) / steps, f1 = k / steps;
-        if (dashed && (k - 1) % 5 >= 3) continue;
-        stroke(f.X(i + f0 + 0.5f), f.Y(smoothAt(v + i, m, f0)),
-               f.X(i + f1 + 0.5f), f.Y(smoothAt(v + i, m, f1)),
-               pass ? w : w + 6, pass ? ink : W);
-      }
-      i = j;
-    }
-  }
-}
-
-// the space between two smooth lines, in a screen
-static void band(const Frame &f, const float *a, const float *b,
-                 const Tone &t)
-{
-  for (int x = static_cast<int>(f.X(0.5f)); x <= static_cast<int>(f.X(f.n - 0.5f)); ++x)
-  {
-    const float h = (x - f.x0) * static_cast<float>(f.n) / (f.x1 - f.x0) - 0.5f;
-    const float ya = f.Y(smoothAt(a, f.n, h)), yb = f.Y(smoothAt(b, f.n, h));
-    fillTone(x, static_cast<int>(std::min(ya, yb)), x,
-             static_cast<int>(std::max(ya, yb)), 0, t);
-  }
-}
-
-// a bar an hour; none where v is NaN or not above minShow
-static void bars(const Frame &f, const float *v, float minShow, const Tone &t)
-{
-  const int gap = ((f.x1 - f.x0) / f.n >= 24) ? 2 : 1;
-  for (int i = 0; i < f.n; ++i)
-  {
-    if (v[i] > minShow)
-    {
-      fillTone(static_cast<int>(f.X(i)) + gap,
-               std::max(f.y0, static_cast<int>(f.Y(v[i]))),
-               static_cast<int>(f.X(i + 1)) - gap, f.y1, 0, t);
-    }
-  }
-}
-
-// a scale of round numbers covering lo..hi in no more than `lines` spaces
-static void niceScale(float lo, float hi, int lines, const float *steps,
-                      int nSteps, bool fromZero, float &outLo, float &outHi,
-                      float &outStep)
-{
-  for (int s = 0; s < nSteps; ++s)
-  {
-    const float st = steps[s];
-    const float a = fromZero ? 0 : floorf(lo / st) * st;
-    float b = ceilf(hi / st) * st;
-    if (b <= a) b = a + st;
-    if ((b - a) / st <= lines + 0.01f || s == nSteps - 1)
-    {
-      outLo = a; outHi = b; outStep = st;
-      return;
-    }
-  }
-}
-
-/* A scale whose ends are the values' own lowest and highest (at least
- * minSpan apart), so that the curves fill the plot and the scale's labels
- * read the day's extremes.
- */
-static void fitEnds(Frame &f, float lo, float hi, float minSpan)
-{
-  if (hi - lo < minSpan)
-  {
-    const float mid = (lo + hi) / 2;
-    lo = mid - minSpan / 2;
-    hi = mid + minSpan / 2;
-  }
-  f.lo = lo;
-  f.hi = hi;
-}
-
-// its labels: the bottom and the top, and between them the round numbers
-// of a step that follows the range (the smallest that puts them 30 px
-// apart: 2 for a few degrees, 10 for thirty), each with a dashed line; a
-// round number too near an end's label is left out
-static void gridEnds(const Frame &f, const char *suffix, const Font709 &font)
-{
-  static const float STEPS[] = {1, 2, 5, 10, 20, 25, 50};
-  const float perUnit = (f.y1 - f.y0) / (f.hi - f.lo);
-  float step = STEPS[6];
-  for (float s : STEPS)
-  {
-    if (s * perUnit >= 30) { step = s; break; }
-  }
-  auto label = [&](float t, bool dashed) {
-    const int y = static_cast<int>(f.Y(t));
-    if (dashed) dashH(f.x0, f.x1, y, 1, 2, 8, K);
-    drawText(f.x0 - 10, y, String(static_cast<int>(lroundf(t))) + suffix,
-             font, K, RM, true);
-  };
-  for (float t = ceilf(f.lo / step) * step; t < f.hi; t += step)
-  {
-    if ((t - f.lo) * perUnit >= 32 && (f.hi - t) * perUnit >= 32) label(t, true);
-  }
-  label(f.lo, false);   // the base has its own line
-  label(f.hi, true);
-  fillBox(f.x0, f.y1, f.x1, f.y1 + 1, 0, K);
-}
-
-static void grid(const Frame &f, float step, const char *suffix,
-                 const Font709 &font, int decimals, bool right = false)
-{
-  for (float t = f.lo; t <= f.hi + step * 0.01f; t += step)
-  {
-    const int y = static_cast<int>(f.Y(t));
-    if (t > f.lo + step * 0.01f)
-    {
-      dashH(f.x0, f.x1, y, 1, 2, 8, K);
-    }
-    String s = decimals ? String(t, decimals) : String(static_cast<int>(lroundf(t)));
-    if (decimals && s.startsWith("0.")) s = s.substring(1);
-    if (t < step * 0.01f) s = "0";
-    s += suffix;
-    if (right)
-      drawText(f.x1 + 10, y, s, font, K, LM, true);
-    else
-      drawText(f.x0 - 10, y, s, font, K, RM, true);
-  }
-  fillBox(f.x0, f.y1, f.x1, f.y1 + 1, 0, K);
-}
-
-static void midnights(const Frame &f, bool names, const Font709 &font)
-{
-  for (int i = 1; i < f.n; ++i)
-  {
-    const time_t t = f.start + i * 3600L;
-    tm local;
-    localtime_r(&t, &local);
-    if (local.tm_hour == 0)
-    {
-      const int x = static_cast<int>(f.X(i));
-      dashV(x, f.y0, f.y1, 1, 8, 6, K);
-      if (names && x + 8 + textWidth(LC_ABDAY[local.tm_wday], font) < f.x1)
-      {
-        labelOnPaper(x + 10 + textWidth(LC_ABDAY[local.tm_wday], font) / 2,
-                     f.y0 + font.ascent / 2 + 4, LC_ABDAY[local.tm_wday],
-                     font, K);
-      }
-    }
-  }
-}
-
-static void hourAxis(const Frame &f, int every, const Font709 &font)
-{
-  for (int h = 0; h <= f.n; h += every)
-  {
-    const int x = static_cast<int>(f.X(h));
-    fillBox(x, f.y1, x + 1, f.y1 + 7, 0, K);
-    drawText(x, f.y1 + 12, clock(f.start + h * 3600L, HOUR_FORMAT), font, K,
-             MA, true);
-  }
-}
-
-// the turns worth a label: a high or a low that is the furthest within six
-// hours either side, and that the curve moves at least minSwing away from
-// on both sides within them (or runs off the graph's end on one side). With
-// no swing asked for, a flat day of 48-51 degrees got four dots for its
-// wiggles.
-static int turns(const float *v, int n, int *at, bool *high, int most,
-                 float minSwing = 0)
-{
-  int k = 0;
-  for (int i = 1; i < n - 1 && k < most; ++i)
-  {
-    const bool hi = v[i] > v[i - 1] && v[i] >= v[i + 1];
-    const bool lo = v[i] < v[i - 1] && v[i] <= v[i + 1];
-    if (!hi && !lo) continue;
-    bool furthest = true;
-    float leftAway = 0, rightAway = 0;
-    for (int j = std::max(0, i - 6); j <= std::min(n - 1, i + 6); ++j)
-    {
-      if ((hi && v[j] > v[i]) || (lo && v[j] < v[i])) furthest = false;
-      const float away = hi ? v[i] - v[j] : v[j] - v[i];
-      if (j < i) leftAway = std::max(leftAway, away);
-      if (j > i) rightAway = std::max(rightAway, away);
-    }
-    const bool leftOk = leftAway >= minSwing || i - 6 < 0;
-    const bool rightOk = rightAway >= minSwing || i + 6 > n - 1;
-    if (furthest && leftOk && rightOk)
-    {
-      at[k] = i;
-      high[k++] = hi;
-    }
-  }
-  return k;
-}
-
-// a temperature turn worth a dot: 3 degrees F, 1.5 C or K
-static float tempSwing()
-{
-#if defined(UNITS_TEMP_CELSIUS) || defined(UNITS_TEMP_KELVIN)
-  return 1.5f;
+#if !defined(UNITS_TEMP_CELSIUS) && !defined(UNITS_TEMP_KELVIN)
+  static const int kSteps[] = {2, 5, 10, 15, 20};
 #else
-  return 3.0f;
+  static const int kSteps[] = {1, 2, 5, 10};
 #endif
+  const int nSteps = static_cast<int>(sizeof(kSteps) / sizeof(kSteps[0]));
+  for (int i = 0; i < nSteps; ++i)
+  {
+    const int s = kSteps[i];
+    const int lo = static_cast<int>(floorf((tLo + 1e-4f) / s)) * s;
+    const int hi = static_cast<int>(ceilf((tHi - 1e-4f) / s)) * s;
+    const int intervals = std::max(1, (hi - lo) / s);
+    if (intervals >= 2 && intervals <= 5 && (spanPx / intervals) >= 30.0f)
+    {
+      axisLo = lo;
+      axisHi = hi;
+      return s;
+    }
+  }
+  int s = kSteps[nSteps - 1];
+  int lo = static_cast<int>(floorf((tLo + 1e-4f) / s)) * s;
+  int hi = static_cast<int>(ceilf((tHi - 1e-4f) / s)) * s;
+  while ((hi - lo) / s > 5)
+  {
+    s *= 2;
+    lo = static_cast<int>(floorf((tLo + 1e-4f) / s)) * s;
+    hi = static_cast<int>(ceilf((tHi - 1e-4f) / s)) * s;
+  }
+  if (hi <= lo) hi = lo + s;
+  axisLo = lo;
+  axisHi = hi;
+  return s;
 }
 
-static void dotLabel(const Frame &f, float h, float v, const String &s,
-                     bool above, uint16_t ink, const Font709 &font,
-                     bool dot = true)
+static void drawHourlyMatrix(const owm_hourly_t *hourly, int n, int gy)
 {
-  const int x = static_cast<int>(f.X(h)), y = static_cast<int>(f.Y(v));
-  if (dot)
-  {
-    disc(x, y, 9, W);
-    disc(x, y, 6, ink);
-  }
-  const int half = (font.ascent + font.descent) / 2 + 2;
-  int ly = y + (above ? -(half + 10) : (half + 10));
-  int lx = x;
-  const int hw = textWidth(s, font) / 2 + 9;
-  auto fits = [&](int c) { return c - half >= f.y0 && c + half <= f.y1 - 2; };
-  if (!fits(ly) && !dot)
-  {
-    return;                       // a bar's figure: the summary says it
-  }
-  if (!fits(ly) && fits(y + (above ? (half + 10) : -(half + 10))))
-  {
-    ly = y + (above ? (half + 10) : -(half + 10));
-  }
-  else if (!fits(ly))
-  { // no room above or below inside the plot: beside the point
-    ly = std::max(f.y0 + half, std::min(f.y1 - half - 2, y));
-    lx = x + hw + 12;
-    if (lx + hw > f.x1) lx = x - hw - 12;
-  }
-  lx = std::max(f.x0 + hw, std::min(f.x1 - hw, lx));
-  labelOnPaper(lx, ly, s, font, ink);
-}
-
-// a key: a short line or a box in the ink, then the word; returns the right
-static int key(int x, int y, bool box, uint16_t ink, const Tone *t,
-               const String &word, const Font709 &font, bool dashed = false)
-{
-  if (box)
-    fillTone(x, y - 11, x + 22, y + 11, 0, t ? *t : rainBarTone());
-  else if (dashed)
-  {
-    fillBox(x, y - 3, x + 9, y + 2, 0, ink);
-    fillBox(x + 15, y - 3, x + 24, y + 2, 0, ink);
-    fillBox(x + 30, y - 3, x + 34, y + 2, 0, ink);
-  }
-  else
-    fillBox(x, y - 3, x + 34, y + 2, 0, ink);
-  x += box ? 30 : 42;
-  return drawText(x, y, word, font, K, LM, true) + 22;
-}
-
-struct Look
-{
-  const Font709 *title, *axis, *label, *keyFont;
-  int lineW;
-  bool keys;      // keys beside the title
-};
-
-static String pct10(float v)
-{
-  return String(static_cast<int>(lroundf(v / 10)) * 10) + "%";
-}
-
-// one graph: its title line at yTitle, its plot in f
-static void chart(Met m, const owm_hourly_t *hourly, Frame f, int yTitle,
-                  const Look &look, bool names)
-{
-  const int n = f.n;
-  float vt[OWM_NUM_HOURLY], vd[OWM_NUM_HOURLY], vw[OWM_NUM_HOURLY],
-        vg[OWM_NUM_HOURLY], vp[OWM_NUM_HOURLY], va[OWM_NUM_HOURLY],
-        vh[OWM_NUM_HOURLY], vc[OWM_NUM_HOURLY], vf[OWM_NUM_HOURLY];
-  bool amounts = false;
-  for (int i = 0; i < n; ++i)
-  {
-    vf[i] = toUnitsF(hourly[i].feels_like);
-    vt[i] = toUnitsF(hourly[i].temp);
-    vd[i] = std::isnan(hourly[i].dew_point) ? NAN : toUnitsF(hourly[i].dew_point);
-    vw[i] = speedOf(hourly[i].wind_speed);
-    vg[i] = speedOf(hourly[i].wind_gust);
-    vp[i] = hourly[i].pop * 100.0f;
-    va[i] = std::isnan(hourly[i].precip) ? NAN : amountOf(hourly[i].precip);
-    amounts = amounts || !std::isnan(va[i]);
-    vh[i] = hourly[i].humidity;
-    vc[i] = hourly[i].clouds;
-  }
-  // a source without amounts: the combined graph is the chance alone
-  if (m == RAIN_BOTH && !amounts) m = RAIN;
-  auto mx = [&](const float *v) { float r = -1e9f; for (int i = 0; i < n; ++i) if (!std::isnan(v[i])) r = std::max(r, v[i]); return r; };
-  auto mn = [&](const float *v) { float r = 1e9f; for (int i = 0; i < n; ++i) if (!std::isnan(v[i])) r = std::min(r, v[i]); return r; };
-  auto argmax = [&](const float *v) {
-    int k = 0;
-    for (int i = 1; i < n; ++i)
-    {
-      if (!std::isnan(v[i]) && (std::isnan(v[k]) || v[i] > v[k]))
-      {
-        k = i;
-      }
-    }
-    return k;
-  };
-  auto I = [](float x) { return String(static_cast<int>(lroundf(x))); };
-  float total = 0;
-  for (int i = 0; i < n; ++i) if (!std::isnan(va[i])) total += va[i];
-  // spaces between gridlines: at least three, so that a short graph does
-  // not jump to 30-degree steps (36-65 drawn on 30-90, 2026-10-25)
-  const int lines = std::max(3, std::min(5, (f.y1 - f.y0) / 32));
-  const int tx = f.x0;
-  const int ty = yTitle;
-  int kx = 0;
-  auto title = [&](const String &word) {
-    return drawText(tx, ty, word, *look.title, K, LM) + 26;
-  };
-  auto summary = [&](const String &s) {
-    drawText(RIGHT1, ty, s, *look.keyFont, K, RM, true);
-  };
-  const String speed = speedUnit();
-  String sum;
-  switch (m)
-  {
-  case TEMP: case TEMP_DEW: case TEMP_DEW_RAIN: case DEW:
-  {
-    const bool t = (m != DEW), d = (m != TEMP);
-    float lo = 1e9f, hi = -1e9f;
-    if (t) { lo = std::min(lo, mn(vt)); hi = std::max(hi, mx(vt)); }
-    if (d) { lo = std::min(lo, mn(vd)); hi = std::max(hi, mx(vd)); }
-    static const float S[] = {5, 10, 15, 20, 30};
-    float step;
-    if (m == TEMP_DEW_RAIN)
-    { // round ends, which the chance's percentages are read against
-      niceScale(lo - 1, hi + 3, lines, S, 5, false, f.lo, f.hi, step);
-      if ((f.hi - f.lo) / step == 3 || (f.hi - f.lo) / step == 7)
-        f.hi += step;
-    }
-    else
-    {
-      fitEnds(f, lo, hi, 4);
-    }
-    if (t && d && look.keys)
-    {
-      int x = key(tx, ty, false, tempInk(), nullptr, TXT709_TEMPERATURE, *look.title);
-      x = key(x, ty, false, dewInk(), nullptr, TXT709_DEW_POINT, *look.title);
-      if (m == TEMP_DEW_RAIN) key(x, ty, true, B, nullptr, TXT709_CHANCE_OF_RAIN, *look.title);
-    }
-    else
-    {
-      kx = title(m == DEW ? String(TXT709_DEW_POINT)
-                 : (t && d) ? String(TXT709_TEMPERATURE) + ", " + TXT709_DEW_POINT
-                 : String(TXT709_TEMPERATURE));
-    }
-    if (m == TEMP_DEW_RAIN)
-    {
-      const float spaces = (f.hi - f.lo) / step;
-      Frame fr = f; fr.lo = 0; fr.hi = 100;
-      bars(fr, vp, 2, rainBarTone());
-      for (int j = 1; j <= spaces; ++j)
-      {
-        const int share = static_cast<int>(100 * j / spaces);
-        if ((100 * j) % static_cast<int>(spaces) == 0 && (share % 25 == 0 || share % 10 == 0))
-          drawText(f.x1 + 10, static_cast<int>(f.Y(f.lo + j * step)),
-                   String(share) + "%", *look.axis, K, LM, true);
-      }
-    }
-    if (m == TEMP_DEW_RAIN) grid(f, step, "\xB0", *look.axis, 0);
-    else gridEnds(f, "\xB0", *look.axis);
-    midnights(f, names, *look.label);
-    if (d) line(f, vd, look.lineW, dewInk());
-    if (t) line(f, vt, look.lineW, tempInk());
-    const float *v = t ? vt : vd;
-    int at[6]; bool up[6];
-    const int k = turns(v, n, at, up, 6, tempSwing());
-    for (int i = 0; i < k; ++i)
-      dotLabel(f, at[i] + 0.5f, v[at[i]], I(v[at[i]]) + "\xB0", !up[i],
-               K, *look.label);
-    if (m == TEMP_DEW_RAIN)
-    {
-      const int p = argmax(vp);
-      if (vp[p] > 10)
-      {
-        Frame fr = f; fr.lo = 0; fr.hi = 100;
-        dotLabel(fr, p + 0.5f, vp[p], pct10(vp[p]), true, dewInk(),
-                 *look.label, false);
-      }
-    }
-    else if (!look.keys || m != TEMP_DEW)
-    {
-      sum = I(mn(v)) + "\xB0 " + TXT709_TO + " " + I(mx(v)) + "\xB0";
-    }
-    break;
-  }
-  case WIND:
-  {
-    // from calm to the strongest gust, which the top label reads
-    fitEnds(f, 0, std::max(2.0f, mx(vg)), 2);
-    kx = title(speed.length() ? String(TXT709_WIND) + ", " + speed
-                              : String(TXT709_WIND));
-    gridEnds(f, "", *look.axis);
-    midnights(f, names, *look.label);
-    band(f, vw, vg, T_GUST);
-    line(f, vw, look.lineW, K);
-    if (look.keys)
-    {
-      int x = key(kx, ty, false, K, nullptr, TXT709_SUSTAINED, *look.keyFont);
-      key(x, ty, true, K, &T_GUST, TXT709_GUSTS, *look.keyFont);
-    }
-    sum = I(mn(vw)) + "\x7F" + I(mx(vw)) + " " + speed + ", " + TXT709_GUSTS
-        + " " + I(mx(vg));
-    break;
-  }
-  case RAIN:
-  {
-    f.lo = 0; f.hi = 100;
-    kx = title(TXT709_CHANCE_OF_RAIN);
-    grid(f, (lines >= 4) ? 25 : 50, "%", *look.axis, 0);
-    midnights(f, names, *look.label);
-    bars(f, vp, 2, rainBarTone());
-    const int p = argmax(vp);
-    if (vp[p] > 10)
-    {
-      dotLabel(f, p + 0.5f, vp[p], pct10(vp[p]), true, dewInk(),
-               *look.label, false);
-      sum = String(TXT709_PEAK) + " " + pct10(vp[p]) + " " + TXT709_AT + " "
-          + clock(f.start + p * 3600L, HOUR_FORMAT);
-      sum.replace("  ", " ");
-    }
-    else
-    {
-      sum = TXT709_DRY;
-    }
-    break;
-  }
-  case AMOUNT:
-  {
-    float top = AMOUNT_TOPS[0];
-    for (float s : AMOUNT_TOPS) { top = s; if (s >= mx(va)) break; }
-    f.lo = 0; f.hi = top;
-    kx = title(String(TXT709_RAIN_AMOUNT) + ", " + amountUnit());
-    grid(f, top / 2, "", *look.axis, AMOUNT_DECIMALS);
-    midnights(f, names, *look.label);
-    bars(f, va, AMOUNT_MIN, rainBarTone());
-    const int p = argmax(va);
-    if (va[p] > AMOUNT_MIN)
-    {
-      dotLabel(f, p + 0.5f, va[p], amountText(va[p]), true, dewInk(),
-               *look.label, false);
-    }
-    sum = !amounts ? String(TXT709_NO_AMOUNTS)
-        : (total > AMOUNT_MIN) ? String(TXT709_TOTAL) + " "
-                                 + amountText(total, true) + " " + amountUnit()
-        : String(TXT709_DRY);
-    break;
-  }
-  case RAIN_BOTH: case RAIN_CLOUDS:
-  {
-    // the amount as bars on the left scale, the chance as a line on its
-    // own 0-100 % scale at the right; their gridlines coincide (the
-    // amount's half steps are the chance's 50 %). RAIN_CLOUDS adds the
-    // cloud cover, on the chance's scale, as a grey band behind the rest.
-    const bool clouds = (m == RAIN_CLOUDS);
-    float top = AMOUNT_TOPS[0];
-    for (float s : AMOUNT_TOPS) { top = s; if (s >= mx(va)) break; }
-    kx = title(TXT709_RAIN);
-    if (look.keys)
-    {
-      int x = key(kx, ty, true, B, nullptr,
-                  String(TXT709_AMOUNT) + ", " + amountUnit(), *look.keyFont);
-      x = key(x, ty, false, K, nullptr, TXT709_CHANCE, *look.keyFont);
-      if (clouds) key(x, ty, true, K, &T_CLOUDS, TXT709_CLOUDS, *look.keyFont);
-    }
-    // The chance's peak carries its label above its dot. A high peak would
-    // leave it no room under the top, so then both scales stop short of
-    // the top by the label's height.
-    const int p = argmax(vp);
-    const bool peak = vp[p] > 10;
-    const int room = look.label->ascent + look.label->descent + 16;
-    const float h = static_cast<float>(f.y1 - f.y0);
-    const float stretch = peak ? std::max(1.0f, vp[p] / 100.0f * h / (h - room))
-                               : 1.0f;
-    Frame fa = f;                       // the amounts, 0..top
-    fa.y0 = f.y1 - static_cast<int>(lroundf(h / stretch));
-    fa.lo = 0; fa.hi = top;
-    Frame fp = f;                       // the chance, 0..100 % at fa's top
-    fp.lo = 0; fp.hi = 100.0f * stretch;
-    if (clouds)
-    {
-      float zero[OWM_NUM_HOURLY] = {};
-      band(fp, zero, vc, T_CLOUDS);
-    }
-    grid(fa, top / 2, "", *look.axis, AMOUNT_DECIMALS);
-    // only 50 % on the right: 100 % would sit under the summary, and the
-    // peak carries its own label
-    drawText(f.x1 + 10, static_cast<int>(fp.Y(50.0f)), "50%", *look.axis, K, LM, true);
-    midnights(f, names, *look.label);
-    bars(fa, va, AMOUNT_MIN, rainBarTone());
-    line(fp, vp, look.lineW, K);
-    if (peak)
-      dotLabel(fp, p + 0.5f, vp[p], pct10(vp[p]), true, K, *look.label);
-    sum = !amounts ? String(TXT709_NO_AMOUNTS)
-        : (total > AMOUNT_MIN) ? String(TXT709_TOTAL) + " "
-                                 + amountText(total, true) + " " + amountUnit()
-        : String(TXT709_DRY);
-    break;
-  }
-  case HUMIDITY:
-  {
-    f.lo = 0; f.hi = 100;
-    kx = title(TXT709_HUMIDITY);
-    grid(f, (lines >= 4) ? 25 : 50, "%", *look.axis, 0);
-    midnights(f, names, *look.label);
-    line(f, vh, look.lineW, G);
-    sum = I(mn(vh)) + "\x7F" + I(mx(vh)) + "%";
-    break;
-  }
-  case CLOUDS:
-  {
-    f.lo = 0; f.hi = 100;
-    kx = title(TXT709_CLOUD_COVER);
-    float zero[OWM_NUM_HOURLY] = {};
-    band(f, zero, vc, T_CLOUDS);
-    grid(f, (lines >= 4) ? 25 : 50, "%", *look.axis, 0);
-    midnights(f, names, *look.label);
-    line(f, vc, std::max(3, look.lineW - 2), K, false);
-    sum = I(mn(vc)) + "\x7F" + I(mx(vc)) + "%";
-    break;
-  }
-  case FEELS: case TEMP_FEELS:
-  {
-    const bool both = (m == TEMP_FEELS);
-    float lo = mn(vf), hi = mx(vf);
-    if (both) { lo = std::min(lo, mn(vt)); hi = std::max(hi, mx(vt)); }
-    fitEnds(f, lo, hi, 4);
-    if (both && look.keys)
-    {
-      const int x = key(tx, ty, false, tempInk(), nullptr, TXT709_TEMPERATURE, *look.title);
-      key(x, ty, false, tempInk(), nullptr, TXT709_FEELS_LIKE, *look.title, true);
-    }
-    else
-    {
-      kx = title(both ? String(TXT709_TEMPERATURE) + ", " + TXT709_FEELS_LIKE
-                      : String(TXT709_FEELS_LIKE));
-    }
-    gridEnds(f, "\xB0", *look.axis);
-    midnights(f, names, *look.label);
-    // feels like first, so that where the two agree the solid line shows
-    line(f, vf, look.lineW, tempInk(), true, both);
-    if (both) line(f, vt, look.lineW, tempInk());
-    const float *v = both ? vt : vf;
-    int at[6]; bool up[6];
-    const int k = turns(v, n, at, up, 6, tempSwing());
-    for (int i = 0; i < k; ++i)
-      dotLabel(f, at[i] + 0.5f, v[at[i]], I(v[at[i]]) + "\xB0", !up[i],
-               K, *look.label);
-    sum = (both ? String(TXT709_FEELS_LIKE) + " " : String()) + I(mn(vf))
-        + "\xB0 " + TXT709_TO + " " + I(mx(vf)) + "\xB0";
-    break;
-  }
-  default:
-    break;
-  }
-  if (sum.length() && look.keys)
-  {
-    summary(sum);
-  }
-}
-
-#if defined(EPD709_HOST)
-// a row of the table (simulator only): the name and the range on the left,
-// a line without a scale on the right
-static void sparkRow(Met m, const owm_hourly_t *hourly, Frame f, int nameX)
-{
-  const int n = f.n;
-  float v[OWM_NUM_HOURLY], v2[OWM_NUM_HOURLY];
-  const char *name = "";
-  String big, small;
-  uint16_t ink = K;
-  bool barsToo = false;
-  for (int i = 0; i < n; ++i)
-  {
-    switch (m)
-    {
-    case TEMP: case TEMP_DEW: case TEMP_DEW_RAIN:
-      v[i] = toUnitsF(hourly[i].temp);
-      v2[i] = std::isnan(hourly[i].dew_point) ? NAN : toUnitsF(hourly[i].dew_point);
-      break;
-    case DEW: v[i] = toUnitsF(hourly[i].dew_point); v2[i] = NAN; break;
-    case FEELS: v[i] = toUnitsF(hourly[i].feels_like); v2[i] = NAN; break;
-    case TEMP_FEELS: v[i] = toUnitsF(hourly[i].temp); v2[i] = toUnitsF(hourly[i].feels_like); break;
-    case WIND: v[i] = speedOf(hourly[i].wind_speed); v2[i] = speedOf(hourly[i].wind_gust); break;
-    case RAIN: v[i] = hourly[i].pop * 100; v2[i] = NAN; break;
-    case AMOUNT: case RAIN_BOTH: case RAIN_CLOUDS:
-      v[i] = std::isnan(hourly[i].precip) ? 0 : amountOf(hourly[i].precip); v2[i] = NAN; break;
-    case HUMIDITY: v[i] = hourly[i].humidity; v2[i] = NAN; break;
-    default: v[i] = hourly[i].clouds; v2[i] = NAN; break;
-    }
-  }
-  float lo = 1e9f, hi = -1e9f, hi2 = -1e9f, total = 0;
-  int at = 0;
-  for (int i = 0; i < n; ++i)
-  {
-    lo = std::min(lo, v[i]);
-    if (v[i] > hi) { hi = v[i]; at = i; }
-    if (!std::isnan(v2[i])) { lo = std::min(lo, v2[i]); hi2 = std::max(hi2, v2[i]); }
-    total += v[i];
-  }
-  auto I = [](float x) { return String(static_cast<int>(lroundf(x))); };
-  const String speed = speedUnit();
-  switch (m)
-  {
-  case TEMP: case TEMP_DEW: case TEMP_DEW_RAIN:
-  {
-    float tl = 1e9f, th = -1e9f;
-    for (int i = 0; i < n; ++i) { tl = std::min(tl, v[i]); th = std::max(th, v[i]); }
-    name = "Temperature"; ink = tempInk();
-    big = I(tl) + "\xB0 \x7F " + I(th) + "\xB0";
-    if (m != TEMP) { float dl = 1e9f, dh = -1e9f; for (int i = 0; i < n; ++i) { dl = std::min(dl, v2[i]); dh = std::max(dh, v2[i]); } small = String("Dew point ") + I(dl) + "\xB0 \x7F " + I(dh) + "\xB0"; }
-    if (m == TEMP) { for (int i = 0; i < n; ++i) v2[i] = NAN; }
-    f.lo = lo - 1; f.hi = std::max(hi, hi2) + 1;
-    break;
-  }
-  case FEELS: case TEMP_FEELS:
-  {
-    float fl = 1e9f, fh = -1e9f, tl = 1e9f, th = -1e9f;
-    for (int i = 0; i < n; ++i)
-    {
-      const float fv = (m == FEELS) ? v[i] : v2[i];
-      fl = std::min(fl, fv); fh = std::max(fh, fv);
-      tl = std::min(tl, v[i]); th = std::max(th, v[i]);
-    }
-    ink = tempInk();
-    if (m == FEELS) { name = "Feels like"; big = I(fl) + "\xB0 \x7F " + I(fh) + "\xB0"; }
-    else { name = "Temperature"; big = I(tl) + "\xB0 \x7F " + I(th) + "\xB0";
-           small = String("Feels like ") + I(fl) + "\xB0 \x7F " + I(fh) + "\xB0"; }
-    f.lo = lo - 1; f.hi = std::max(hi, hi2) + 1;
-    break;
-  }
-  case WIND:
-    name = "Wind"; big = I(lo) + "\x7F" + I(hi) + " " + speed;
-    small = String("Gusts to ") + I(hi2) + " " + speed;
-    f.lo = 0; f.hi = std::max(10.0f, hi2 + 1);
-    break;
-  case RAIN:
-    name = "Chance of rain"; ink = B; barsToo = true;
-    big = (hi > 10) ? I(roundf(hi / 10) * 10) + "%" : String("Dry");
-    small = (hi > 10) ? String("at ") + clock(f.start + at * 3600L, HOUR_FORMAT) : String("");
-    small.replace("  ", " ");
-    f.lo = 0; f.hi = 100;
-    break;
-  case AMOUNT: case RAIN_BOTH: case RAIN_CLOUDS:
-    name = "Rain amount"; ink = B; barsToo = true;
-    big = amountText(total, true) + " " + amountUnit();
-    small = String("most ") + amountText(hi, true) + " " + amountUnit() + " in an hour";
-    f.lo = 0; f.hi = std::max(AMOUNT_TOPS[0] / 2, hi * 1.1f);
-    break;
-  case HUMIDITY:
-    name = "Humidity"; ink = G; big = I(lo) + "\x7F" + I(hi) + "%";
-    f.lo = 0; f.hi = 100;
-    break;
-  default:
-    name = "Cloud cover"; big = I(lo) + "\x7F" + I(hi) + "%";
-    f.lo = 0; f.hi = 100;
-    break;
-  }
-  const int mid = (f.y0 + f.y1) / 2;
-  drawText(nameX, mid - 30, name, F_SANS_26, K, LM, true);
-  drawText(nameX, mid + 4, big, F_BITTER_36, ink == B ? dewInk() : (ink == G ? K : ink), LM);
-  if (small.length())
-    drawText(nameX, mid + 36, small, F_SANS_24, K, LM, true);
-  // the frame: a hairline at the bottom, the days' edges
-  fillBox(f.x0, f.y1, f.x1, f.y1, 0, K);
-  midnights(f, false, F_SANS_24);
-  if (barsToo)
-  {
-    bars(f, v, (m == RAIN) ? 2 : AMOUNT_MIN, rainBarTone());
-  }
-  else if (m == CLOUDS)
-  {
-    float zero[OWM_NUM_HOURLY] = {};
-    band(f, zero, v, T_CLOUDS);
-  }
-  else
-  {
-    if (m == WIND) band(f, v, v2, T_GUST);
-    else if (m == TEMP_FEELS) line(f, v2, 5, tempInk(), true, true);
-    else if (!std::isnan(v2[0])) line(f, v2, 5, dewInk());
-    line(f, v, 5, ink);
-    int ats[6]; bool up[6];
-    const bool degrees = (m == TEMP || m == TEMP_DEW || m == DEW || m == FEELS || m == TEMP_FEELS);
-    const int k = turns(v, n, ats, up, 6, degrees ? tempSwing() : 0);
-    for (int i = 0; i < k; ++i)
-      dotLabel(f, ats[i] + 0.5f, v[ats[i]], I(v[ats[i]]) + ((m == TEMP || m == TEMP_DEW || m == DEW || m == FEELS || m == TEMP_FEELS) ? "\xB0" : ""),
-               !up[i], K, F_SANS_26);
-  }
-}
-#endif // EPD709_HOST
-
-static void ribbonAt(const owm_hourly_t *hourly, int n, int x0, int x1, int y)
-{
-  static Spell spells[OWM_NUM_HOURLY];
-  const int count = spellsOf(hourly, n, spells);
-  drawRibbon(x0, x1, y, spells, count, n, static_cast<time_t>(hourly[0].dt));
-}
-
-} // namespace sg
-
-static void drawSmallGraphs(const owm_hourly_t *hourly, int n, int gy)
-{
-  using namespace sg;
-  const time_t start = static_cast<time_t>(hourly[0].dt);
   char heading[32];
   snprintf(heading, sizeof(heading), TXT709_NEXT_HOURS, n);
-  drawText(RIGHT0, gy, heading, F_BITTER_40, K, LA);
-  Met slot[4];
-  int count = 0;
-  for (int i = 0; i < 4; ++i)
+  drawText(32, gy, heading, F_BITTER_34, K, LA);
+
+  const time_t start = static_cast<time_t>(hourly[0].dt);
+  const int cols = 8;
+  const int colW = 94;
+  const int xStart = 134;
+  const int stepH = std::max(1, n / cols);
+  const int pts = std::min(n, (cols - 1) * stepH + 1);
+  const int cm = std::max(0, std::min(2, GRAPH_CURVE)); // 0=Dew, 1=Feels, 2=Temp only
+
+  int idxs[8];
+  float vt[OWM_NUM_HOURLY], vd[OWM_NUM_HOURLY], vf[OWM_NUM_HOURLY];
+  float tLo = 1e9f, tHi = -1e9f;
+  for (int i = 0; i < pts; ++i)
   {
-    const Met m = metOf(GRAPH_SLOTS[i]);
-    if (m != NONE) slot[count++] = m;
+    vt[i] = std::isnan(hourly[i].temp) ? (i > 0 ? vt[i - 1] : 60.0f) : toUnitsF(hourly[i].temp);
+    vd[i] = std::isnan(hourly[i].dew_point) ? vt[i] : toUnitsF(hourly[i].dew_point);
+    vf[i] = std::isnan(hourly[i].feels_like) ? vt[i] : toUnitsF(hourly[i].feels_like);
+    tLo = std::min(tLo, (cm == 0) ? std::min(vt[i], vd[i])
+                      : (cm == 1) ? std::min(vt[i], vf[i])
+                                  : vt[i]);
+    tHi = std::max(tHi, (cm == 0) ? std::max(vt[i], vd[i])
+                      : (cm == 1) ? std::max(vt[i], vf[i])
+                                  : vt[i]);
   }
-  if (!count)
-  { // nothing chosen: the temperature at least
-    slot[count++] = TEMP_DEW;
-  }
-  const int bottom = 1134;        // the last plot's foot; the hours under it
-  Look look = {&F_SANS_28, &F_SANS_26, &F_SANS_26, &F_SANS_24, 5, true};
-  const int style = GRAPH_LAYOUT;
-#if defined(EPD709_HOST)
-  if (style == 3)
-  { // a grid of two by two, each with its own hours
-    const int colW = (RIGHT1 - RIGHT0) / 2;
-    const int top = gy + 64;
-    const int rowH = (bottom + 38 - top) / 2;
-    Look small = {&F_SANS_26, &F_SANS_24, &F_SANS_24, &F_SANS_22, 4, false};
-    for (int i = 0; i < count && i < 4; ++i)
+  if (tLo > tHi) { tLo = 58.0f; tHi = 62.0f; }
+  if (tHi - tLo < 4.0f) { const float m = (tHi + tLo) / 2.0f; tLo = m - 2.0f; tHi = m + 2.0f; }
+
+  // Right-aligned inline legend matching heading; omitted cleanly for Temp only
+  const int ly = gy + 18;
+  const int gRight = xStart + cols * colW;
+  if (cm != 2)
+  {
+    const char *lbl1 = "Temp";
+    const char *lbl2 = (cm == 1) ? "Feels" : "Dew";
+    const int sw = 24, gapSw = 8, gapMid = 22;
+    const int totalW = sw + gapSw + textWidth(lbl1, F_SANS_22)
+                     + gapMid + sw + gapSw + textWidth(lbl2, F_SANS_22);
+    int lx = gRight - totalW;
+    fillBox(lx, ly - 2, lx + sw, ly + 2, 0, tempInk());
+    lx += sw + gapSw;
+    lx = drawText(lx, ly, lbl1, F_SANS_22, K, LM, true) + gapMid;
+    if (cm == 1)
     {
-      const int c = i % 2, r = i / 2;
-      const int x0 = RIGHT0 + c * colW + 58, x1 = RIGHT0 + (c + 1) * colW - (c ? 12 : 40);
-      const int yT = top + r * rowH;
-      Frame f = {x0, x1, yT + 34, yT + rowH - 50, n, start, 0, 1};
-      chart(slot[i], hourly, f, yT + 14, small, true);
-      hourAxis(f, n <= 24 ? 6 : 12, F_SANS_24);
+      fillBox(lx, ly - 2, lx + 9, ly + 2, 0, tempInk());
+      fillBox(lx + 14, ly - 2, lx + 23, ly + 2, 0, tempInk());
     }
-    return;
-  }
-  if (style == 4)
-  { // ribbon, then a table: a row a quantity, the line without a scale
-    const int sx0 = 944, sx1 = 1548;
-    ribbonAt(hourly, n, sx0, sx1, gy + 62);
-    const int top = gy + 62 + 56 + 22;
-    const int rowH = (bottom - top) / count;
-    for (int i = 0; i < count; ++i)
+    else
     {
-      const int y0 = top + i * rowH;
-      Frame f = {sx0, sx1, y0 + 16, y0 + rowH - 14, n, start, 0, 1};
-      if (i) dashH(RIGHT0, RIGHT1, y0, 1, 2, 6, K);
-      sparkRow(slot[i], hourly, f, RIGHT0);
+      fillBox(lx, ly - 2, lx + sw, ly + 2, 0, dewInk());
     }
-    Frame f = {sx0, sx1, 0, bottom, n, start, 0, 1};
-    hourAxis(f, n <= 24 ? 6 : 12, F_SANS_28);
-    return;
+    drawText(lx + sw + gapSw, ly, lbl2, F_SANS_22, K, LM, true);
   }
-#endif
-  // the strip of the weather by spell (when it is on; never in the
-  // simulator's layout 2), then the graphs stacked on one time scale (the
-  // first one taller in its layout 5)
-  int top = gy + 66;
-  if (style != 2 && GRAPH_STRIP)
+
+  const int washBot = 948;
+  int midCol = -1;
+  String midDayName;
+  for (int c = 0; c < cols; ++c)
   {
-    ribbonAt(hourly, n, PLOT0, PLOT1, gy + 62);
-    top = gy + 62 + 56 + 14;
-  }
-  const int head = 40, gapB = 12;
-  float weight[4], sumW = 0;
-  for (int i = 0; i < count; ++i)
-  {
-    weight[i] = (style == 5 && i == 0) ? 2.6f : 1.0f;
-    sumW += weight[i];
-  }
-  const int room = bottom - top - count * head - (count - 1) * gapB;
-  int y = top;
-  for (int i = 0; i < count; ++i)
-  {
-    const int h = static_cast<int>(room * weight[i] / sumW);
-    Frame f = {PLOT0, PLOT1, y + head, y + head + h, n, start, 0, 1};
-    chart(slot[i], hourly, f, y + head / 2 - 2, look, i == 0);
-    if (i == count - 1)
+    const int idx = std::min(n - 1, c * stepH);
+    idxs[c] = idx;
+    const time_t tCur = static_cast<time_t>(hourly[idx].dt);
+    tm tmCur;
+    localtime_r(&tCur, &tmCur);
+    if (c > 0 && midCol < 0)
     {
-      hourAxis(f, n <= 24 ? 3 : 6, F_SANS_28);
+      const time_t tPrev = static_cast<time_t>(hourly[idxs[c - 1]].dt);
+      tm tmPrev;
+      localtime_r(&tPrev, &tmPrev);
+      if (tmCur.tm_yday != tmPrev.tm_yday)
+      {
+        midCol = c;
+        midDayName = LC_ABDAY[tmCur.tm_wday];
+      }
     }
-    y += head + h + gapB;
+    const int cx0 = xStart + c * colW;
+    const int cx = cx0 + colW / 2;
+    const bool day = daylightAt(hourly[idx].dt + 1800,
+                                hourly[idx].weather.icon.endsWith("d"));
+    if (!day)
+    {
+      fillTone(cx0, gy + 44, cx0 + colW - 1, washBot, 0, {B, 0.05f, W, 1.0f});
+    }
+    if (c == midCol)
+    {
+      dashV(cx0, gy + 44, washBot, 1, 3, 5, K);
+    }
+
+    String hLbl = clock(tCur, HOUR_FORMAT);
+    hLbl.replace(" ", "");
+    String shortH = hLbl;
+    if (shortH.endsWith("m")) shortH = shortH.substring(0, shortH.length() - 1);
+    if (c == midCol)
+    {
+      drawText(cx, gy + 48, midDayName + " " + shortH, F_BITTER_23, K, MA);
+    }
+    else
+    {
+      drawText(cx, gy + 48, hLbl, F_SANS_23, K, MA);
+    }
+
+    drawIconScaled(conditionIcon(hourly[idx].weather.id, day, 104), 104, 54,
+                   cx - 27, gy + 80);
   }
-}
+
+  const int curveTop = 526;
+  const int curveBot = 714;
+  const int yDiv1    = 724;
+  const int yDiv2    = 844;
+
+  dashH(xStart, gRight, yDiv1, 1, 2, 6, K);
+  dashH(xStart, gRight, yDiv2, 1, 2, 6, K);
+
+  const int ftTop = curveTop + 28;
+  const int ftBot = curveBot - 10;
+  int axisLo = 0, axisHi = 0;
+  const int axisStep = niceTempAxis(tLo, tHi, static_cast<float>(ftBot - ftTop), axisLo, axisHi);
+
+  MatrixFrame ft = {xStart + colW / 2, xStart + (cols - 1) * colW + colW / 2,
+                    ftTop, ftBot, (cols - 1) * stepH, start,
+                    static_cast<float>(axisLo), static_cast<float>(axisHi)};
+
+  // Neutral Silver Ribbon highlight between primary and secondary curves (or axis floor)
+  {
+    const float *secArr = (cm == 1) ? vf : vd;
+    for (int px = ft.x0; px <= ft.x1; ++px)
+    {
+      const float f = std::max(0.0f, std::min(static_cast<float>(pts - 1),
+                        (px - ft.x0) * static_cast<float>(stepH) / colW));
+      const float yt = ft.Y(smoothAt(vt, pts, f));
+      const float yb = (cm == 2) ? static_cast<float>(ft.y1)
+                                 : ft.Y(smoothAt(secArr, pts, f));
+      fillTone(px, static_cast<int>(std::min(yt, yb)),
+               px, static_cast<int>(std::max(yt, yb)), 0, {K, 0.07f, W, 1.0f});
+    }
+  }
+
+  // Dynamic Y-axis temperature ticks + subtle dotted gridlines + left row labels
+  for (int tv = axisLo; tv <= axisHi; tv += axisStep)
+  {
+    const int yTick = static_cast<int>(lroundf(ft.Y(static_cast<float>(tv))));
+    dashH(xStart, gRight, yTick, 1, 1, 7, K);
+    drawText(xStart - 10, yTick, String(tv) + "\xB0", F_SANS_22, K, RM, true);
+  }
+  drawText(xStart - 10, 748, "Clouds",   F_SANS_22, K, RM, true);
+  drawText(xStart - 10, 786, "Rain %",   F_SANS_22, K, RM, true);
+  drawText(xStart - 10, 808, "Amount",   F_SANS_22, K, RA, true);
+  drawText(xStart - 10, 864, "Wind dir", F_SANS_22, K, RM, true);
+  drawText(xStart - 10, 888, "Speed",    F_SANS_22, K, RA, true);
+  drawText(xStart - 10, 918, "Gusts",    F_SANS_22, K, RA, true);
+
+  // Secondary curve (Dew point or Feels like when cm != 2) then primary Temp curve
+  for (int pass = 0; pass < 2; ++pass)
+  {
+    const int wSec = pass ? 3 : 7;
+    const int wPri = pass ? 5 : 10;
+    const float steps = 6.0f;
+    for (int k = 1; k <= (pts - 1) * static_cast<int>(steps); ++k)
+    {
+      const float f0 = (k - 1) / steps, f1 = k / steps;
+      const float pxA = ft.x0 + (f0 / stepH) * colW;
+      const float pxB = ft.x0 + (f1 / stepH) * colW;
+      if (cm != 2)
+      {
+        const float *secArr = (cm == 1) ? vf : vd;
+        if (!(cm == 1 && (k - 1) % 5 >= 3))
+        {
+          stroke(pxA, ft.Y(smoothAt(secArr, pts, f0)),
+                 pxB, ft.Y(smoothAt(secArr, pts, f1)), wSec,
+                 pass ? (cm == 1 ? tempInk() : dewInk()) : W);
+        }
+      }
+      stroke(pxA, ft.Y(smoothAt(vt, pts, f0)),
+             pxB, ft.Y(smoothAt(vt, pts, f1)), wPri, pass ? tempInk() : W);
+    }
+  }
+
+  for (int c = 0; c < cols; ++c)
+  {
+    const int idx = std::min(pts - 1, idxs[c]);
+    const float cx = static_cast<float>(xStart + c * colW + colW / 2);
+    const float yt = ft.Y(vt[idx]);
+    float ys = yt;
+    if (cm != 2)
+    {
+      ys = ft.Y((cm == 1) ? vf[idx] : vd[idx]);
+      disc(cx, ys, 5.5f, W);
+      disc(cx, ys, 3.5f, (cm == 1) ? tempInk() : dewInk());
+    }
+    disc(cx, yt, 7.5f, W);
+    disc(cx, yt, 5.0f, tempInk());
+    const bool flipBelow = (cm != 2 && ys < yt - 4.0f && yt + 32.0f < yDiv1);
+    const String tLbl = String(static_cast<int>(lroundf(vt[idx]))) + "\xB0";
+    drawText(static_cast<int>(cx), static_cast<int>(yt) + (flipBelow ? 10 : -10),
+             tLbl, F_SANS_24, K, flipBelow ? MA : MD);
+  }
+
+  // Option D sky/rain band (Clouds bar + % -> Rain % -> Amount) + Wind band
+  for (int c = 0; c < cols; ++c)
+  {
+    const int idx = idxs[c];
+    const int cx = xStart + c * colW + colW / 2;
+
+    fillTone(cx - 28, 732, cx + 28, 738, 3, {K, 0.12f, W, 1.0f});
+    if (hourly[idx].clouds >= 0)
+    {
+      const int cld = std::max(0, std::min(100, ((hourly[idx].clouds + 2) / 5) * 5));
+      if (cld > 0)
+      {
+        const int fw = std::max(6, (56 * cld) / 100);
+        fillTone(cx - 28, 732, cx - 28 + fw, 738, 3, {K, 0.45f, W, 1.0f});
+      }
+      drawText(cx, 742, String(cld) + "%", F_SANS_22, K, MA, true);
+    }
+    else
+    {
+      drawText(cx, 742, "\x7F", F_SANS_22, K, MA, true);
+    }
+
+    const int pct = static_cast<int>(lroundf(hourly[idx].pop * 100.0f / 5.0f)) * 5;
+    const float amt = std::isnan(hourly[idx].precip) ? 0.0f : amountOf(hourly[idx].precip);
+    const String amtStr = (amt > AMOUNT_MIN) ? formatHourlyAmount(amt) : String();
+
+    const int py = 771, ph = 30, rad = 9;
+    if (pct >= 50)
+    {
+      fillBox(cx - 33, py, cx + 33, py + ph, rad, B);
+      drawText(cx, py + ph / 2, String(pct) + "%", F_SANSB_25, W_ABS, MM);
+    }
+    else if (pct >= 10)
+    {
+      fillTone(cx - 33, py, cx + 33, py + ph, rad, {B, 0.22f, W, 1.0f});
+      drawText(cx, py + ph / 2, String(pct) + "%", F_SANSB_25, dewInk(), MM);
+    }
+    else
+    {
+      drawText(cx, py + ph / 2, "\x7F", F_SANS_24, K, MM, true);
+    }
+    if (amtStr.length())
+    {
+      drawText(cx, 808, amtStr, F_SANS_22, dewInk(), MA);
+    }
+
+    const int sp = static_cast<int>(lroundf(speedOf(hourly[idx].wind_speed)));
+    const bool hasGust = !std::isnan(hourly[idx].wind_gust) && hourly[idx].wind_gust > 0.01f;
+    const int gs = hasGust ? static_cast<int>(lroundf(speedOf(hourly[idx].wind_gust))) : 0;
+    const bool highGust = hasGust && hourly[idx].wind_gust >= 13.4f; // >= ~30 mph
+    const uint16_t gustInk = highGust ? R : K;
+    const String gustStr = hasGust ? (String(gs) + " " + speedUnit()) : String("\x7F");
+
+    drawWindArrow(static_cast<float>(cx), 864.0f, hourly[idx].wind_deg, 0.72f, K);
+    drawText(cx, 888, String(sp) + " " + speedUnit(), F_SANS_22, K, MA);
+    drawText(cx, 918, gustStr, F_SANS_22, gustInk, MA, !highGust);
+  }
+} // end drawHourlyMatrix
 
 void drawOutlookGraph(const owm_hourly_t *hourly, const owm_daily_t *daily,
                       tm timeInfo)
 {
-  (void)timeInfo;
+  (void)daily; (void)timeInfo;
   const int n = std::min(std::max(HOURLY_GRAPH_MAX, 8), OWM_NUM_HOURLY);
-  // the hours' section starts under the week, which ends 64 px higher
-  // when no day has rain to show under its low
-  const int gy = (weekRainRow(daily) ? 540 : 476) + alertTop;
-  if (GRAPH_LAYOUT)
-  {
-    drawSmallGraphs(hourly, n, gy);
-    return;
-  }
-  const time_t start = static_cast<time_t>(hourly[0].dt);
-
-  char title[32];
-  snprintf(title, sizeof(title), TXT709_NEXT_HOURS, n);
-  drawText(RIGHT0, gy, title, F_BITTER_40, K, LA);
-
-  // what the lines mean
-  const int ly = gy + 28;
-  fillBox(1040, ly - 3, 1080, ly + 2, 0, tempInk());
-  drawText(1088, ly, TXT709_TEMPERATURE, F_SANS_26, K, LM, true);
-  if (GRAPH_DEWPOINT)
-  {
-    fillBox(1262, ly - 3, 1302, ly + 2, 0, dewInk());
-    drawText(1310, ly, TXT709_DEW_POINT, F_SANS_26, K, LM, true);
-  }
-  fillTone(1446, ly - 12, 1470, ly + 12, 0, rainBarTone());
-  drawText(1478, ly, TXT709_RAIN, F_SANS_26, K, LM, true);
-
-  const int top = gy + 64;
-  if (GRAPH_STRIP)
-  {
-    static Spell spells[OWM_NUM_HOURLY];
-    const int count = spellsOf(hourly, n, spells);
-    drawRibbon(PLOT0, PLOT1, top, spells, count, n, start);
-  }
-
-  const int x0 = PLOT0, x1 = PLOT1, y1 = 1132;
-  const int y0 = GRAPH_STRIP ? top + 56 + 22 : top + 8;
-  // the scale: round numbers that leave the curve room at both ends
-  float tMin = 1e9f, tMax = -1e9f, low = 1e9f;
-  for (int i = 0; i < n; ++i)
-  {
-    const float t = toUnitsF(hourly[i].temp);
-    tMin = std::min(tMin, t);
-    tMax = std::max(tMax, t);
-    low = std::min(low, t);
-    if (GRAPH_DEWPOINT && !std::isnan(hourly[i].dew_point))
-    {
-      low = std::min(low, toUnitsF(hourly[i].dew_point));
-    }
-  }
-#if defined(UNITS_TEMP_FAHRENHEIT)
-  const int step = 10;
-#else
-  const int step = 5;
-#endif
-  const int lo = static_cast<int>(floorf((low - 3) / step)) * step;
-  int hi = static_cast<int>(ceilf((tMax + 6) / step)) * step;
-  if (hi <= lo)
-  {
-    hi = lo + step;
-  }
-  // the rain scale on the right shares these lines, 0 % at the bottom and
-  // 100 % at the top: 3 or 7 spaces would put them at thirds and sevenths,
-  // so one more step on top makes quarters or eighths
-  if ((hi - lo) / step == 3 || (hi - lo) / step == 7)
-  {
-    hi += step;
-  }
-  auto X = [&](float h) { return x0 + (x1 - x0) * h / n; };
-  auto Yt = [&](float t) { return y1 - (y1 - y0) * (t - lo) / (hi - lo); };
-
-  // rain, as bars behind everything else
-  int peakHour = 0;
-  float peak = 0;
-  for (int i = 0; i < n; ++i)
-  {
-    const float p = hourly[i].pop * 100.0f;
-    if (p > peak)
-    {
-      peak = p;
-      peakHour = i;
-    }
-    if (p > 2)
-    {
-      fillTone(static_cast<int>(X(i)) + 2,
-               static_cast<int>(y1 - (y1 - y0) * p / 100.0f),
-               static_cast<int>(X(i + 1)) - 2, y1, 0, rainBarTone());
-    }
-  }
-  // the scale's lines and figures: temperature on the left, the chance of
-  // rain on the right where the share is a round one (halves, quarters,
-  // fifths, tenths); no 0 %, which would crowd the last hour's time
-  const int spaces = (hi - lo) / step;
-  for (int t = lo; t <= hi; t += step)
-  {
-    const int y = static_cast<int>(Yt(t));
-    dashH(x0, x1, y, 1, 2, 8, K);
-    drawText(x0 - 12, y, String(t) + "\xB0", F_SANS_30, K, RM, true);
-    const int j = (t - lo) / step;
-    const int share = 100 * j / spaces;
-    if (j > 0 && (100 * j) % spaces == 0 && (share % 10 == 0 || share % 25 == 0))
-    {
-      drawText(x1 + 10, y, String(share) + "%", F_SANS_30, K, LM, true);
-    }
-  }
-  fillBox(x0, y1, x1, y1 + 1, 0, K);
-  // the hours: every 3 while there is room for them (a day or less), else
-  // every 6
-  const int every = (n <= 24) ? 3 : 6;
-  for (int h = 0; h <= n; h += every)
-  {
-    const int x = static_cast<int>(X(h));
-    fillBox(x, y1, x + 1, y1 + 8, 0, K);
-    drawText(x, y1 + 14, clock(start + h * 3600L, HOUR_FORMAT), F_SANS_30, K,
-             MA, true);
-  }
-  // midnights, by the name of the day they begin
-  int midnightX[4], midnights = 0;
-  for (int i = 0; i < n; ++i)
-  {
-    const time_t t = start + i * 3600L;
-    tm local;
-    localtime_r(&t, &local);
-    if (local.tm_hour == 0 && i > 0)
-    {
-      const int x = static_cast<int>(X(i));
-      dashV(x, top + 60, y1, 1, 8, 6, K);
-      if (x + 10 + textWidth(LC_ABDAY[local.tm_wday], F_BITTER_34) < x1)
-      {
-        drawText(x + 10, y0 + 8, LC_ABDAY[local.tm_wday], F_BITTER_34, K, LA);
-      }
-      if (midnights < 4)
-      {
-        midnightX[midnights++] = x;
-      }
-    }
-  }
-  // dew point under temperature, each on a halo of paper so that it reads
-  // across the rain; both as smooth curves through the hours that never
-  // overshoot them (smoothAt), so a labelled high or low is the curve's
-  // own; a run of hours with a gap in it is drawn in pieces
-  auto curve = [&](const float *v, int from, int to, int pass, uint16_t ink) {
-    const int m = to - from;
-    if (m < 2)
-    {
-      return;
-    }
-    const float steps = 6.0f;                 // pieces per hour
-    for (int k = 1; k <= static_cast<int>((m - 1) * steps); ++k)
-    {
-      const float f0 = (k - 1) / steps, f1 = k / steps;
-      stroke(X(from + f0), Yt(smoothAt(v + from, m, f0)), X(from + f1),
-             Yt(smoothAt(v + from, m, f1)), pass ? 6 : 12, pass ? ink : W);
-    }                                         // as wide as the temperature: at
-                                              // 282 ppi 4 px read as a hairline
-  };
-  float vt[OWM_NUM_HOURLY], vd[OWM_NUM_HOURLY];
-  for (int i = 0; i < n; ++i)
-  {
-    vt[i] = toUnitsF(hourly[i].temp);
-    vd[i] = std::isnan(hourly[i].dew_point) ? NAN : toUnitsF(hourly[i].dew_point);
-  }
-  if (GRAPH_DEWPOINT)
-  {
-    for (int pass = 0; pass < 2; ++pass)
-    {
-      for (int i = 0; i < n;)
-      {
-        if (std::isnan(vd[i])) { ++i; continue; }
-        int j = i;
-        while (j < n && !std::isnan(vd[j])) { ++j; }
-        curve(vd, i, j, pass, dewInk());
-        i = j;
-      }
-    }
-  }
-  for (int pass = 0; pass < 2; ++pass)
-  {
-    curve(vt, 0, n, pass, tempInk());
-  }
-  // highs and lows: a dot on the curve and the figure beside it; their
-  // label boxes are kept so the rain label can stay off them
-  struct LabelBox { int x0, y0, x1, y1; };
-  LabelBox taken[16];
-  int nTaken = 0;
-  for (int i = 2; i < n - 1; ++i)
-  {
-    const float t = toUnitsF(hourly[i].temp);
-    const float before = toUnitsF(hourly[i - 1].temp);
-    const float after = toUnitsF(hourly[i + 1].temp);
-    const bool high = t > before && t >= after;
-    const bool low2 = t < before && t <= after;
-    if (!high && !low2)
-    {
-      continue;
-    }
-    // a turn only counts if it is the furthest in its neighbourhood, so a
-    // wobble in a flat stretch does not get a label of its own
-    bool furthest = true;
-    for (int j = std::max(0, i - 4); j <= std::min(n - 1, i + 4); ++j)
-    {
-      const float other = toUnitsF(hourly[j].temp);
-      if ((high && other > t) || (low2 && other < t))
-      {
-        furthest = false;
-      }
-    }
-    // and only if the curve moves tempSwing() away from it on both sides
-    // within six hours (or the graph ends first): a flat afternoon of
-    // 48-51 degrees otherwise got four labels
-    float leftAway = 0, rightAway = 0;
-    for (int j = std::max(0, i - 6); j <= std::min(n - 1, i + 6); ++j)
-    {
-      const float other = toUnitsF(hourly[j].temp);
-      const float away = high ? t - other : other - t;
-      if (j < i) leftAway = std::max(leftAway, away);
-      if (j > i) rightAway = std::max(rightAway, away);
-    }
-    if (!furthest || (leftAway < sg::tempSwing() && i - 6 >= 0)
-        || (rightAway < sg::tempSwing() && i + 6 <= n - 1))
-    {
-      continue;
-    }
-    const int x = static_cast<int>(X(i)), y = static_cast<int>(Yt(t));
-    disc(x, y, 11, W);
-    disc(x, y, 7, tempInk());
-    int ly2 = y + (high ? -36 : 38);
-    ly2 = std::max(y0 + 20, std::min(y1 - 22, ly2));
-    const String fig = String(static_cast<int>(lroundf(t))) + "\xB0";
-    labelOnPaper(x, ly2, fig, F_BITTER_36, K);
-    if (nTaken < 16)
-    {
-      const int hw = (textWidth(fig, F_BITTER_36) + 18) / 2;
-      const int hh = (F_BITTER_36.ascent + F_BITTER_36.descent + 2) / 2;
-      taken[nTaken++] = {x - hw, ly2 - hh, x + hw, ly2 + hh};
-    }
-  }
-  if (peak > 10)
-  {
-    int pxl = static_cast<int>(X(peakHour + 0.5f));
-    Anchor anchor = MD;
-    for (int k = 0; k < midnights; ++k)
-    { // keep clear of a midnight line and the day's name beside it
-      if (midnightX[k] - pxl > -40 && midnightX[k] - pxl < 120)
-      {
-        pxl = midnightX[k] - 10;
-        anchor = RD;
-      }
-    }
-    const String share =
-      String(static_cast<int>(lroundf(peak / 10.0f)) * 10) + "%";
-    if (anchor == MD)
-    { // rain in the first or the last hours: stay inside the plot, clear of
-      // the numbers of the temperature axis
-      const int half = textWidth(share, F_SANS_28) / 2;
-      if (pxl - half < PLOT0 + 8)
-      {
-        pxl = PLOT0 + 8;
-        anchor = LD;
-      }
-      else if (pxl + half > PLOT1 - 8)
-      {
-        pxl = PLOT1 - 8;
-        anchor = RD;
-      }
-    }
-    const int py = static_cast<int>(y1 - (y1 - y0) * peak / 100.0f) - 8;
-    // on bare paper, like the highs and lows: with little rain the label
-    // sits low, where the curves run
-    const int wide = textWidth(share, F_SANS_28);
-    const int cx = (anchor == LD) ? pxl + wide / 2
-                 : (anchor == RD) ? pxl - wide / 2 : pxl;
-    const int tall = F_SANS_28.ascent + F_SANS_28.descent;
-    int cy = std::max(py, y0 + 30) - tall / 2;
-    // its paper patch must not land on a high or low figure: above it if
-    // there is room, else below
-    const int hw = (wide + 18) / 2, hh = (tall + 2) / 2;
-    for (int pass = 0; pass < 3; ++pass)
-    {
-      bool moved = false;
-      for (int k = 0; k < nTaken; ++k)
-      {
-        const LabelBox &b = taken[k];
-        if (cx + hw + 4 > b.x0 && cx - hw - 4 < b.x1
-            && cy + hh + 4 > b.y0 && cy - hh - 4 < b.y1)
-        {
-          cy = (b.y0 - hh - 6 >= y0 + hh) ? b.y0 - hh - 6 : b.y1 + hh + 6;
-          moved = true;
-        }
-      }
-      if (!moved)
-      {
-        break;
-      }
-    }
-    labelOnPaper(cx, cy, share, F_SANS_28, dewInk());
-  }
+  drawHourlyMatrix(hourly, n, 368);
 } // end drawOutlookGraph
 
 /* =========================================================================
