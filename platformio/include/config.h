@@ -655,6 +655,7 @@ extern char STATIC_DNS[16];
 extern char STATIC_SSID[33];
 extern unsigned HTTP_CLIENT_TCP_TIMEOUT;
 extern String LOCAL_RELAY;
+extern bool   LOCAL_OUTDOOR_SENSOR;
 extern String NWS_USER_AGENT;
 extern String AIRNOW_APIKEY;
 extern String POLLEN_APIKEY;

@@ -27,6 +27,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
+EnvironmentFile=-/etc/weather-relay.env
 ExecStart=/usr/bin/python3 /opt/weather-relay/weather_relay.py --port $PORT -v
 DynamicUser=yes
 Restart=always

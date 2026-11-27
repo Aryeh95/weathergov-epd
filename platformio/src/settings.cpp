@@ -526,6 +526,7 @@ bool loadSettings()
   POLLEN_APIKEY  = api["pollen_api_key"] | POLLEN_APIKEY;
   LOCAL_RELAY    = api["local_relay"]    | LOCAL_RELAY;
   LOCAL_RELAY.trim();
+  LOCAL_OUTDOOR_SENSOR = api["local_outdoor_sensor"] | LOCAL_OUTDOOR_SENSOR;
   CURRENT_SOURCE = api["current_source"] | CURRENT_SOURCE;
   if (CURRENT_SOURCE != "google" && CURRENT_SOURCE != "nws")
   {

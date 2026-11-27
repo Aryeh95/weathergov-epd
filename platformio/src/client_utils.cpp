@@ -16,6 +16,7 @@
  */
 
 // built-in C++ libraries
+#include <cmath>
 #include <cstring>
 #include <functional>
 #include <vector>
@@ -649,6 +650,115 @@ static int relayGetAndParse(const String &host, uint16_t port,
   return httpResponse;
 } // end relayGetAndParse
 
+/* Queries the local relay's /sensor/outdoor endpoint (Home Assistant outdoor
+ * sensor) and overlays the local reading onto `current` while preserving sky
+ * condition, wind, pressure, and visibility from CURRENT_SOURCE. Falls back
+ * silently to the cloud reading when LOCAL_OUTDOOR_SENSOR is off, the relay has
+ * no sensor configured (404), or the reading is stale/unavailable (502/503).
+ */
+static void applyRelayOutdoorSensor(owm_current_t &current)
+{
+  if (!LOCAL_OUTDOOR_SENSOR || !relayInUse())
+  {
+    return;
+  }
+  HTTPClient &http = s_relayHttp;
+  http.setConnectTimeout(RELAY_CONNECT_TIMEOUT_MS);
+  http.setTimeout(4000);
+  http.useHTTP10(true);
+  http.setUserAgent(String("ESP32HTTPClient"));
+  http.begin(s_relayClient, s_relayHost, s_relayPort, "/sensor/outdoor");
+  const int httpResponse = http.GET();
+  if (httpResponse < 0)
+  {
+    http.end();
+    s_relayClient.stop();
+    s_relayDown = true;
+    Serial.println(String("[relay] outdoor sensor did not answer (")
+                   + getHttpResponsePhrase(httpResponse) + ")");
+    return;
+  }
+  if (httpResponse == HTTP_CODE_NOT_FOUND)
+  {
+    http.end();
+    s_relayClient.stop();
+    return;
+  }
+  if (httpResponse != HTTP_CODE_OK)
+  {
+    http.end();
+    s_relayClient.stop();
+    Serial.println("[relay] outdoor sensor HTTP " + String(httpResponse)
+                   + ", keeping cloud reading");
+    return;
+  }
+
+  JsonDocument doc;
+  DeserializationError err = deserializeJson(doc, http.getStream());
+  http.end();
+  s_relayClient.stop();
+  if (err || doc["temp_c"].isNull())
+  {
+    Serial.println("[relay] outdoor sensor JSON invalid, keeping cloud reading");
+    return;
+  }
+  const float tempC = doc["temp_c"].as<float>();
+  if (!std::isfinite(tempC) || tempC < -60.0f || tempC > 65.0f)
+  {
+    Serial.println("[relay] outdoor temp out of range, keeping cloud reading");
+    return;
+  }
+
+  current.temp = celsius_to_kelvin(tempC);
+
+  float rh = (current.humidity > 0 && current.humidity <= 100)
+                 ? static_cast<float>(current.humidity)
+                 : -1.0f;
+  JsonVariant humVar = doc["humidity"];
+  if (!humVar.isNull())
+  {
+    const float h = humVar.as<float>();
+    if (std::isfinite(h) && h >= 0.0f && h <= 100.0f)
+    {
+      current.humidity = static_cast<int>(std::round(h));
+      rh = h;
+    }
+  }
+
+  if (rh > 0.0f)
+  {
+    // Magnus formula for dew point from outdoor tempC and relative humidity
+    const float a = 17.625f;
+    const float b = 243.04f;
+    const float alpha = logf(rh / 100.0f) + (a * tempC) / (b + tempC);
+    const float dewRaw = (b * alpha) / (a - alpha);
+    const float dewC = (dewRaw > tempC) ? tempC : dewRaw;
+    current.dew_point = celsius_to_kelvin(dewC);
+
+    // Steadman apparent temperature combining local temp/RH with cloud wind
+    const float e = (rh / 100.0f) * 6.105f
+                    * expf((17.27f * tempC) / (237.7f + tempC));
+    const float ws = (!std::isnan(current.wind_speed) && current.wind_speed > 0.0f)
+                         ? current.wind_speed
+                         : 0.0f;
+    const float feelsC = tempC + 0.33f * e - 0.70f * ws - 4.00f;
+    current.feels_like = celsius_to_kelvin(feelsC);
+  }
+  else
+  {
+    if (!std::isnan(current.dew_point) && current.dew_point > current.temp)
+    {
+      current.dew_point = current.temp;
+    }
+    current.feels_like = current.temp;
+  }
+
+  const int ageS = doc["age_s"] | 0;
+  Serial.println("[relay] outdoor sensor: " + String(tempC, 2) + "C, "
+                 + (rh >= 0.0f ? String(current.humidity) + "% RH" : String("no RH"))
+                 + " (" + String(ageS) + "s old)");
+} // end applyRelayOutdoorSensor
+
 /* Performs an HTTP GET request, retrying up to maxAttempts times, and hands
  * the response stream to parseFn to be deserialized on success.
  *
@@ -949,6 +1059,8 @@ static int finishWeather(WiFiClient &client, owm_current_t &current,
     }
     omCache.end();
   }
+
+  applyRelayOutdoorSensor(current);
 
 #if DAILY_PRECIP_AMOUNTS
   if (!providerDaily)

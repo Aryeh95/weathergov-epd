@@ -21,8 +21,12 @@ service.
 """
 
 import argparse
+import datetime
 import gzip
+import json
 import logging
+import math
+import os
 import re
 import statistics
 import threading
@@ -76,6 +80,172 @@ def decompress_body(raw, encoding):
         except zlib.error:
             return zlib.decompress(raw, -zlib.MAX_WBITS)
     return raw
+
+
+_TS_RE = re.compile(
+    r"^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:?\d{2})?$"
+)
+
+
+def parse_iso_timestamp(value):
+    """Parses an ISO-8601 timestamp into POSIX seconds, or returns None."""
+    if not value or not isinstance(value, str):
+        return None
+    m = _TS_RE.match(value.strip())
+    if not m:
+        return None
+    date_part, time_part, frac, tz = m.groups()
+    micros = int((frac + "000000")[:6]) if frac else 0
+    tzinfo = datetime.timezone.utc
+    if tz and tz != "Z":
+        sign = 1 if tz[0] == "+" else -1
+        digits = tz[1:].replace(":", "")
+        offset_min = int(digits[:2]) * 60 + int(digits[2:4])
+        tzinfo = datetime.timezone(datetime.timedelta(minutes=sign * offset_min))
+    try:
+        dt = datetime.datetime(
+            int(date_part[:4]), int(date_part[5:7]), int(date_part[8:10]),
+            int(time_part[:2]), int(time_part[3:5]), int(time_part[6:8]),
+            micros, tzinfo=tzinfo,
+        )
+        return dt.timestamp()
+    except ValueError:
+        return None
+
+
+def normalize_temp_c(val, unit):
+    """Converts a temperature value to deg C and bounds-checks it."""
+    if not math.isfinite(val):
+        return None
+    u = (unit or "").strip().upper()
+    if u in ("°F", "F"):
+        c = (val - 32.0) * (5.0 / 9.0)
+    elif u == "K":
+        c = val - 273.15
+    else:
+        c = val
+    if c < -60.0 or c > 65.0:
+        return None
+    return c
+
+
+class OutdoorSensor:
+    """Reads an outdoor temperature (and optional humidity) sensor from
+    Home Assistant's local REST API, with short-lived caching and staleness checks."""
+
+    def __init__(self, ha_url, ha_token, temp_entity, humidity_entity="",
+                 max_age=3600, cache_ttl=60, opener=None):
+        self.ha_url = ha_url.rstrip("/")
+        self.ha_token = ha_token
+        self.temp_entity = temp_entity.strip()
+        self.humidity_entity = (humidity_entity or "").strip()
+        self.max_age = max_age
+        self.cache_ttl = cache_ttl
+        self.opener = opener or urllib.request.urlopen
+        self.lock = threading.Lock()
+        self.cached_at = 0.0
+        self.reported_ts = 0.0
+        self.cached_payload = None
+
+    def _fetch_entity(self, entity_id):
+        url = (f"{self.ha_url}/api/states/"
+               f"{urllib.parse.quote(entity_id, safe='')}")
+        req = urllib.request.Request(
+            url, headers={"Authorization": f"Bearer {self.ha_token}"})
+        with self.opener(req, timeout=5) as resp:
+            status = getattr(resp, "status", 200)
+            raw = resp.read()
+        if status != 200:
+            raise RuntimeError(f"HA returned HTTP {status}")
+        return json.loads(raw.decode("utf-8"))
+
+    def _freshness_ts(self, doc):
+        for key in ("last_reported", "last_updated", "last_changed"):
+            ts = parse_iso_timestamp(doc.get(key))
+            if ts is not None:
+                return ts
+        return None
+
+    def read(self, now=None):
+        if now is None:
+            now = time.time()
+        with self.lock:
+            if (self.cached_payload is not None
+                    and self.cache_ttl > 0
+                    and (now - self.cached_at) < self.cache_ttl):
+                age_s = max(0, int(now - self.reported_ts))
+                if age_s <= self.max_age:
+                    payload = dict(self.cached_payload)
+                    payload["age_s"] = age_s
+                    return 200, payload
+
+            try:
+                tdoc = self._fetch_entity(self.temp_entity)
+            except Exception as err:
+                log.warning("outdoor temp fetch failed (%s): %s",
+                            self.temp_entity, err)
+                return 502, f"HA temp read failed: {err}"
+
+            state_str = str(tdoc.get("state", "")).strip()
+            try:
+                raw_temp = float(state_str)
+            except ValueError:
+                log.warning("outdoor temp %s unusable: %r",
+                            self.temp_entity, state_str)
+                return 503, f"outdoor temp unusable: {state_str}"
+
+            unit = (tdoc.get("attributes") or {}).get("unit_of_measurement", "")
+            temp_c = normalize_temp_c(raw_temp, unit)
+            if temp_c is None:
+                log.warning("outdoor temp %s out of range: %r %r",
+                            self.temp_entity, state_str, unit)
+                return 503, f"outdoor temp out of range: {state_str} {unit}"
+
+            ts = self._freshness_ts(tdoc)
+            if ts is None:
+                return 503, "outdoor temp missing timestamp"
+            age_s = max(0, int(now - ts))
+            if age_s > self.max_age:
+                log.warning("outdoor temp %s stale (%ds old > %ds)",
+                            self.temp_entity, age_s, self.max_age)
+                return 503, f"outdoor temp stale ({age_s}s old)"
+
+            payload = {"temp_c": round(temp_c, 2), "age_s": age_s}
+
+            if self.humidity_entity:
+                try:
+                    hdoc = self._fetch_entity(self.humidity_entity)
+                    h_str = str(hdoc.get("state", "")).strip()
+                    h_val = float(h_str)
+                    hts = self._freshness_ts(hdoc)
+                    h_age = max(0, int(now - hts)) if hts is not None else self.max_age + 1
+                    if math.isfinite(h_val) and 0.0 <= h_val <= 100.0 and h_age <= self.max_age:
+                        payload["humidity"] = round(h_val, 1)
+                    else:
+                        log.warning("outdoor humidity %s ignored (state=%r age=%ss)",
+                                    self.humidity_entity, h_str, h_age)
+                except Exception as err:
+                    log.warning("outdoor humidity fetch failed (%s): %s",
+                                self.humidity_entity, err)
+
+            self.cached_at = now
+            self.reported_ts = ts
+            self.cached_payload = dict(payload)
+            return 200, payload
+
+    def status_line(self, now=None):
+        if now is None:
+            now = time.time()
+        with self.lock:
+            entities = self.temp_entity + (
+                f", {self.humidity_entity}" if self.humidity_entity else "")
+            if self.cached_payload is None:
+                return f"outdoor sensor ({entities}): no cached reading yet"
+            age_s = max(0, int(now - self.reported_ts))
+            hum = self.cached_payload.get("humidity")
+            hpart = f", {hum}%" if hum is not None else ""
+            return (f"outdoor sensor ({entities}): "
+                    f"{self.cached_payload['temp_c']} C{hpart}, reported {age_s} s ago")
 
 
 class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -159,11 +329,12 @@ class Entry:
 
 
 class Relay:
-    def __init__(self, max_age, lead, allowed, max_entries=300):
+    def __init__(self, max_age, lead, allowed, max_entries=300, outdoor_sensor=None):
         self.max_age = max_age
         self.lead = lead
         self.allowed = allowed
         self.max_entries = max_entries
+        self.outdoor_sensor = outdoor_sensor
         self.entries = {}
         self.lock = threading.Lock()
         self.opener = urllib.request.build_opener(SafeRedirectHandler(self.allowed))
@@ -272,6 +443,20 @@ class Handler(BaseHTTPRequestHandler):
         if self.path in ("/", "/status"):
             self.status_page()
             return
+        if self.path == "/sensor/outdoor":
+            if r.outdoor_sensor is None:
+                self.reply(404, b"outdoor sensor not configured\n")
+                return
+            status, data = r.outdoor_sensor.read()
+            if status == 200:
+                log.info("%s /sensor/outdoor -> 200 (temp=%.2fC, age=%ds)",
+                         self.client_address[0], data["temp_c"], data["age_s"])
+                self.reply(200, json.dumps(data).encode("utf-8"),
+                           "application/json",
+                           extra=[("X-Relay-Age", str(data.get("age_s", 0)))])
+            else:
+                self.reply(status, (str(data) + "\n").encode("utf-8"))
+            return
         m = re.match(r"^/https/([^/?#]+)(.*)$", self.path)
         if not m:
             self.reply(404, b"use /https/<host>/<path>\n")
@@ -311,6 +496,8 @@ class Handler(BaseHTTPRequestHandler):
         with self.relay.lock:
             entries = list(self.relay.entries.values())
         lines = ["weather relay: %d URLs" % len(entries), ""]
+        if self.relay.outdoor_sensor is not None:
+            lines.extend([self.relay.outdoor_sensor.status_line(now), ""])
         for e in sorted(entries, key=lambda e: e.url):
             every = e.interval()
             last = e.last_asked()
@@ -332,6 +519,20 @@ def main():
                     help="seconds before the expected wake to prefetch (default 120)")
     ap.add_argument("--allow", action="append", default=[],
                     help="another host to relay (repeatable)")
+    ap.add_argument("--ha-url", default=os.environ.get("HA_URL", ""),
+                    help="Home Assistant base URL for /sensor/outdoor (env HA_URL)")
+    ap.add_argument("--ha-token", default=os.environ.get("HA_TOKEN", ""),
+                    help="Home Assistant token (env HA_TOKEN)")
+    ap.add_argument("--ha-outdoor-temp", default=os.environ.get("HA_OUTDOOR_TEMP", ""),
+                    help="HA outdoor temperature entity id (env HA_OUTDOOR_TEMP)")
+    ap.add_argument("--ha-outdoor-humidity", default=os.environ.get("HA_OUTDOOR_HUMIDITY", ""),
+                    help="HA outdoor humidity entity id (env HA_OUTDOOR_HUMIDITY)")
+    ap.add_argument("--ha-max-age", type=int,
+                    default=int(os.environ.get("HA_MAX_AGE", "3600")),
+                    help="max HA sensor age in seconds before falling back (default 3600)")
+    ap.add_argument("--ha-cache", type=int,
+                    default=int(os.environ.get("HA_CACHE", "60")),
+                    help="seconds to cache HA sensor state (default 60)")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING,
@@ -340,8 +541,21 @@ def main():
         ap.error("--max-age must be longer than --lead, or prefetched copies "
                  "would be too old to serve")
 
+    outdoor = None
+    if args.ha_url and args.ha_token and args.ha_outdoor_temp:
+        outdoor = OutdoorSensor(
+            args.ha_url, args.ha_token, args.ha_outdoor_temp,
+            humidity_entity=args.ha_outdoor_humidity,
+            max_age=args.ha_max_age, cache_ttl=args.ha_cache,
+        )
+        log.warning("outdoor sensor enabled: %s at %s",
+                    args.ha_outdoor_temp, args.ha_url)
+    elif args.ha_url or args.ha_token or args.ha_outdoor_temp:
+        log.warning("HA outdoor sensor partially configured; set HA_URL, HA_TOKEN, and HA_OUTDOOR_TEMP")
+
     Handler.relay = Relay(args.max_age, args.lead,
-                          ALLOWED_HOSTS | {h.lower() for h in args.allow})
+                          ALLOWED_HOSTS | {h.lower() for h in args.allow},
+                          outdoor_sensor=outdoor)
     threading.Thread(target=Handler.relay.prefetch_loop, daemon=True).start()
     server = ThreadingHTTPServer((args.bind, args.port), Handler)
     server.daemon_threads = True

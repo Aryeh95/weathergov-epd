@@ -87,4 +87,27 @@ To update the relay later, copy the new script over and run the installer again.
 | `--max-age` | 600 | Seconds a fetched copy may be served |
 | `--lead` | 120 | Seconds before the expected wake to prefetch |
 | `--allow HOST` | | Relay another host as well (repeatable) |
+| `--ha-url` | | Home Assistant base URL for `/sensor/outdoor` (or `HA_URL`) |
+| `--ha-token` | | Home Assistant long-lived token (or `HA_TOKEN`) |
+| `--ha-outdoor-temp` | | HA outdoor temperature entity id (or `HA_OUTDOOR_TEMP`) |
+| `--ha-outdoor-humidity` | | Optional HA outdoor humidity entity id (or `HA_OUTDOOR_HUMIDITY`) |
+| `--ha-max-age` | 3600 | Max HA sensor age in seconds before falling back (or `HA_MAX_AGE`) |
+| `--ha-cache` | 60 | Seconds to cache HA sensor state (or `HA_CACHE`) |
 | `-v` | | Log every request (keys are masked) |
+
+## Optional Home Assistant outdoor sensor (`/sensor/outdoor`)
+
+If you have an outdoor sensor in Home Assistant (such as a SwitchBot Outdoor Meter), the relay can serve its temperature (and optional humidity) at `http://<relay>:8080/sensor/outdoor`. The display uses it to override the cloud source's outdoor temperature while keeping sky condition, wind, pressure, visibility, and forecasts from Open-Meteo / Google / NWS — and automatically falls back to the cloud reading if HA is unreachable or the sensor report is older than `HA_MAX_AGE`.
+
+Create `/etc/weather-relay.env` on the Pi (readable only by root so the token stays out of process listings) and restart the service:
+
+```bash
+sudo tee /etc/weather-relay.env >/dev/null <<'EOF'
+HA_URL=http://<ha-ip>
+HA_TOKEN=<long-lived-access-token>
+HA_OUTDOOR_TEMP=sensor.outside_temperature
+HA_OUTDOOR_HUMIDITY=sensor.outside_humidity
+EOF
+sudo chmod 600 /etc/weather-relay.env
+sudo systemctl restart weather-relay
+```
