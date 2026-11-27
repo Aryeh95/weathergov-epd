@@ -79,6 +79,18 @@ def libdep(name):
     return hits[0]
 
 
+def gfx_dir():
+    """The Adafruit GFX the firmware builds with (platformio.ini pins 1.12.6).
+    Another library asks for GFX unpinned, so PlatformIO also installs the
+    newest next to it, as "Adafruit GFX Library" (2.0.0 keeps its sources in
+    src/); the pinned copy is "Adafruit GFX Library@1.12.6"."""
+    hits = glob.glob(os.path.join(PIO, ".pio", "libdeps", "*", "Adafruit GFX Library*"))
+    hits = [h for h in hits if os.path.isfile(os.path.join(h, "Adafruit_GFX.h"))]
+    if not hits:
+        sys.exit("no Adafruit GFX 1.x under platformio/.pio/libdeps: build the firmware once first")
+    return sorted(hits, key=lambda h: "@1.12.6" not in h)[0]
+
+
 def compiler():
     for cxx, cc in (("clang++", "clang"), ("g++", "gcc")):
         if shutil.which(cxx):
@@ -109,7 +121,7 @@ def main():
     if locale != "he_IL":
         out = os.path.join(out, locale)
     os.makedirs(out, exist_ok=True)
-    gfx = libdep("Adafruit GFX Library")
+    gfx = gfx_dir()
     includes = [os.path.join(HERE, "shim"), os.path.join(PIO, "include"),
                 os.path.join(PIO, "lib", "esp32-weather-epd-assets"),
                 os.path.join(PIO, "lib", "pollutant-concentration-to-aqi"),
