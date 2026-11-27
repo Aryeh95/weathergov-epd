@@ -2695,12 +2695,13 @@ static void drawHourlyMatrix(const owm_hourly_t *hourly, int n, int gy)
     const int sp = static_cast<int>(lroundf(speedOf(hourly[idx].wind_speed)));
     const bool hasGust = !std::isnan(hourly[idx].wind_gust) && hourly[idx].wind_gust > 0.01f;
     const int gs = hasGust ? static_cast<int>(lroundf(speedOf(hourly[idx].wind_gust))) : 0;
-    const bool highGust = hasGust && hourly[idx].wind_gust >= 13.4f; // >= ~30 mph
+    const bool highGust = hasGust
+        && lroundf(meterspersecond_to_milesperhour(hourly[idx].wind_gust)) >= 30;
     const uint16_t gustInk = highGust ? R : K;
-    const String gustStr = hasGust ? (String(gs) + " " + speedUnit()) : String("\x7F");
+    const String gustStr = hasGust ? (String(gs) + speedUnit()) : String("\x7F");
 
     drawWindArrow(static_cast<float>(cx), 864.0f, hourly[idx].wind_deg, 0.72f, K);
-    drawText(cx, 888, String(sp) + " " + speedUnit(), F_SANS_22, K, MA);
+    drawText(cx, 888, String(sp) + speedUnit(), F_SANS_22, K, MA);
     drawText(cx, 918, gustStr, F_SANS_22, gustInk, MA, !highGust);
   }
 } // end drawHourlyMatrix
